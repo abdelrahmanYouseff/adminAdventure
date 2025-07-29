@@ -47,12 +47,13 @@ class UserController extends Controller
 
         $user = $query->first();
 
-        if ($user) {
+                if ($user) {
             return response()->json([
                 'exists' => true,
-                'message' => "هذا ال{$checkType} مسجل بالفعل ولا يمكن استخدامه",
+                'message' => 'مسجل',
                 'check_type' => $checkType,
                 'check_value' => $checkValue,
+                'can_use' => false,
                 'user' => [
                     'id' => $user->id,
                     'name' => $user->full_name ?? $user->name,
@@ -66,9 +67,10 @@ class UserController extends Controller
         } else {
             return response()->json([
                 'exists' => false,
-                'message' => "هذا ال{$checkType} متاح ويمكن استخدامه",
+                'message' => 'غير مسجل',
                 'check_type' => $checkType,
                 'check_value' => $checkValue,
+                'can_use' => true,
                 'user' => null,
             ], 200);
         }
