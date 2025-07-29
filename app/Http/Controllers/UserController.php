@@ -40,7 +40,28 @@ class UserController extends Controller
         }
 
         if ($request->has('phone') && $request->phone) {
-            $query->where('phone', $request->phone);
+            // Handle phone number with or without + prefix
+            $phoneNumber = $request->phone;
+            $phoneWithPlus = $phoneNumber;
+            $phoneWithoutPlus = $phoneNumber;
+
+            // If phone doesn't start with +, add it
+            if (!str_starts_with($phoneNumber, '+')) {
+                $phoneWithPlus = '+' . $phoneNumber;
+            }
+
+            // If phone starts with +, remove it for comparison
+            if (str_starts_with($phoneNumber, '+')) {
+                $phoneWithoutPlus = substr($phoneNumber, 1);
+            }
+
+            // Search for phone with both formats
+            $query->where(function($q) use ($phoneWithPlus, $phoneWithoutPlus) {
+                $q->where('phone', $phoneWithPlus)
+                  ->orWhere('phone', $phoneWithoutPlus)
+                  ->orWhere('phone', '+' . $phoneWithoutPlus);
+            });
+
             $checkType = 'phone';
             $checkValue = $request->phone;
         }
