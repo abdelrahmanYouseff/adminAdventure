@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Schema;
 use Inertia\Inertia;
 
 class UserController extends Controller
@@ -44,7 +45,7 @@ class UserController extends Controller
             'exists' => $user !== null,
             'user' => $user ? [
                 'id' => $user->id,
-                'name' => $user->full_name,
+                'name' => $user->full_name ?? $user->name,
                 'email' => $user->email,
                 'phone' => $user->phone,
                 'country' => $user->country,
@@ -69,21 +70,27 @@ class UserController extends Controller
         ]);
 
         try {
-            $user = User::create([
-                'full_name' => $request->name,
+            // Check which name column exists in the database
+            $nameColumn = Schema::hasColumn('users', 'full_name') ? 'full_name' : 'name';
+
+            $userData = [
                 'email' => $request->email,
                 'password' => Hash::make($request->password),
                 'phone' => $request->phone,
                 'country' => $request->country,
                 'address' => $request->address,
-            ]);
+            ];
+
+            $userData[$nameColumn] = $request->name;
+
+            $user = User::create($userData);
 
             return response()->json([
                 'success' => true,
                 'message' => 'User registered successfully',
                 'user' => [
                     'id' => $user->id,
-                    'name' => $user->full_name,
+                    'name' => $user->full_name ?? $user->name,
                     'email' => $user->email,
                     'phone' => $user->phone,
                     'country' => $user->country,
