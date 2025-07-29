@@ -14,3 +14,4 @@ Route::get('packages', [PackageController::class, 'apiIndex']);
 Route::get('products/latest', [ProductController::class, 'apiLatest']);
 Route::get('customers/check-phone', [CustomerController::class, 'apiCheckPhone']);
 Route::get('check-user', [UserController::class, 'apiCheckUser']);
+Route::post('register', [UserController::class, 'apiRegister']);
