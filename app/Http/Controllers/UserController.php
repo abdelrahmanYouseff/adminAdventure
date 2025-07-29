@@ -30,29 +30,48 @@ class UserController extends Controller
         ]);
 
         $query = User::query();
+        $checkType = '';
+        $checkValue = '';
 
         if ($request->has('email') && $request->email) {
             $query->where('email', $request->email);
+            $checkType = 'email';
+            $checkValue = $request->email;
         }
 
         if ($request->has('phone') && $request->phone) {
             $query->where('phone', $request->phone);
+            $checkType = 'phone';
+            $checkValue = $request->phone;
         }
 
         $user = $query->first();
 
-        return response()->json([
-            'exists' => $user !== null,
-            'user' => $user ? [
-                'id' => $user->id,
-                'name' => $user->full_name ?? $user->name,
-                'email' => $user->email,
-                'phone' => $user->phone,
-                'country' => $user->country,
-                'address' => $user->address,
-                'created_at' => $user->created_at,
-            ] : null,
-        ]);
+        if ($user) {
+            return response()->json([
+                'exists' => true,
+                'message' => "هذا ال{$checkType} مسجل بالفعل ولا يمكن استخدامه",
+                'check_type' => $checkType,
+                'check_value' => $checkValue,
+                'user' => [
+                    'id' => $user->id,
+                    'name' => $user->full_name ?? $user->name,
+                    'email' => $user->email,
+                    'phone' => $user->phone,
+                    'country' => $user->country,
+                    'address' => $user->address,
+                    'created_at' => $user->created_at,
+                ],
+            ], 200);
+        } else {
+            return response()->json([
+                'exists' => false,
+                'message' => "هذا ال{$checkType} متاح ويمكن استخدامه",
+                'check_type' => $checkType,
+                'check_value' => $checkValue,
+                'user' => null,
+            ], 200);
+        }
     }
 
     /**
