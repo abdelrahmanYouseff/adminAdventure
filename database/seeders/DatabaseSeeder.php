@@ -38,6 +38,15 @@ class DatabaseSeeder extends Seeder
             ]
         );
 
+        User::updateOrCreate(
+            ['email' => 'superadmin@gmail.com'],
+            [
+                'name' => 'Super Admin',
+                'password' => Hash::make('password'),
+                'email_verified_at' => now(),
+            ]
+        );
+
         // Create sample categories
         $camping = Category::firstOrCreate(['category_name' => 'Camping']);
         $hiking = Category::firstOrCreate(['category_name' => 'Hiking']);
