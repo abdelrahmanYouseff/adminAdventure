@@ -96,15 +96,24 @@ class PaymentController extends Controller
                 // Store in cache for 1 hour
                 Cache::put('payment_session_' . $request->order_id, $paymentSessionData, 3600);
 
+                                                // Extract order ID and session ID
+                $orderId = $paymentResponse['result']['order']['id'] ?? null;
+                $sessionId = $paymentResponse['result']['deviceFingerPrint']['sessionId'] ?? null;
+
+                // Return order ID and session ID for the mobile app to construct the URL
+                $paymentUrl = $orderId ? "https://checkout.noonpayments.com/payment/v1/checkout/{$orderId}" : null;
+
                 return response()->json([
                     'success' => true,
                     'message' => 'Payment session created successfully',
                     'data' => [
-                        'payment_url' => 'https://checkout.noonpayments.com/payment/v1/checkout/' . ($paymentResponse['result']['order']['id'] ?? ''),
+                        'payment_url' => $paymentUrl,
                         'payment_id' => $paymentResponse['result']['order']['id'] ?? null,
                         'order_id' => $request->order_id,
+                        'session_id' => $sessionId,
                         'status' => $paymentResponse['result']['order']['status'] ?? null,
                         'next_actions' => $paymentResponse['result']['nextActions'] ?? null,
+                        'payment_options' => $paymentResponse['result']['paymentOptions'] ?? [],
                     ],
                 ], 201);
 
