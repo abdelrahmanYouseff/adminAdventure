@@ -66,6 +66,14 @@ class Invoice extends Model
     }
 
     /**
+     * Get the order for this invoice.
+     */
+    public function order()
+    {
+        return $this->hasOne(Order::class);
+    }
+
+    /**
      * Generate a unique invoice number.
      */
     public static function generateInvoiceNumber()

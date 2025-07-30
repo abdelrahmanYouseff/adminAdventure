@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Invoice;
+use App\Models\Order;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
@@ -144,7 +145,7 @@ class PaymentController extends Controller
         $paymentId = $request->get('payment_id');
         $orderId = $request->get('order_id');
 
-        // Get payment session data from cache
+                // Get payment session data from cache
         $paymentSessionData = Cache::get('payment_session_' . $orderId);
 
         if ($paymentSessionData) {
@@ -158,6 +159,26 @@ class PaymentController extends Controller
                 'payment_method' => 'noon',
                 'issued_at' => now(),
                 'due_date' => now()->addDays(7),
+            ]);
+
+            // Create order when payment is successful
+            $order = Order::create([
+                'user_id' => $paymentSessionData['user_id'],
+                'invoice_id' => $invoice->id,
+                'order_number' => Order::generateOrderNumber(),
+                'total_amount' => $paymentSessionData['amount'],
+                'currency' => $paymentSessionData['currency'] ?? 'SAR',
+                'status' => 'paid',
+                'payment_method' => 'noon',
+                'payment_id' => $paymentId,
+                'notes' => $paymentSessionData['description'] ?? 'دفع حجز مغامرة',
+                'items' => [
+                    [
+                        'name' => $paymentSessionData['description'] ?? 'دفع حجز مغامرة',
+                        'amount' => $paymentSessionData['amount'],
+                        'quantity' => 1,
+                    ]
+                ],
             ]);
 
             // Remove payment session from cache
@@ -222,7 +243,7 @@ class PaymentController extends Controller
 
                 if ($paymentSessionData) {
                     switch ($paymentStatus) {
-                        case 'CAPTURED':
+                                                case 'CAPTURED':
                         case 'AUTHORIZED':
                             // Create invoice only when payment is successful
                             $invoice = Invoice::create([
@@ -234,6 +255,26 @@ class PaymentController extends Controller
                                 'payment_method' => 'noon',
                                 'issued_at' => now(),
                                 'due_date' => now()->addDays(7),
+                            ]);
+
+                            // Create order when payment is successful
+                            $order = Order::create([
+                                'user_id' => $paymentSessionData['user_id'],
+                                'invoice_id' => $invoice->id,
+                                'order_number' => Order::generateOrderNumber(),
+                                'total_amount' => $paymentSessionData['amount'],
+                                'currency' => $paymentSessionData['currency'] ?? 'SAR',
+                                'status' => 'paid',
+                                'payment_method' => 'noon',
+                                'payment_id' => $paymentId,
+                                'notes' => $paymentSessionData['description'] ?? 'دفع حجز مغامرة',
+                                'items' => [
+                                    [
+                                        'name' => $paymentSessionData['description'] ?? 'دفع حجز مغامرة',
+                                        'amount' => $paymentSessionData['amount'],
+                                        'quantity' => 1,
+                                    ]
+                                ],
                             ]);
 
                             // Remove payment session from cache
