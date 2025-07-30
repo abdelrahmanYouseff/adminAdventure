@@ -3,6 +3,7 @@
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\PackageController;
+use App\Http\Controllers\InvoiceController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\DashboardController;
 use Illuminate\Support\Facades\Auth;
@@ -87,6 +88,27 @@ Route::get('users', [\App\Http\Controllers\UserController::class, 'index'])
 
 // Package routes
 Route::resource('packages', PackageController::class)->middleware(['auth', 'verified']);
+
+// Invoices Routes
+Route::get('invoices', [InvoiceController::class, 'index'])
+    ->middleware(['auth', 'verified'])
+    ->name('invoices.index');
+
+Route::get('invoices/{invoice}', [InvoiceController::class, 'show'])
+    ->middleware(['auth', 'verified'])
+    ->name('invoices.show');
+
+Route::patch('invoices/{invoice}/status', [InvoiceController::class, 'updateStatus'])
+    ->middleware(['auth', 'verified'])
+    ->name('invoices.update-status');
+
+Route::get('invoices/export/csv', [InvoiceController::class, 'export'])
+    ->middleware(['auth', 'verified'])
+    ->name('invoices.export');
+
+Route::patch('invoices/update-overdue', [InvoiceController::class, 'updateOverdueInvoices'])
+    ->middleware(['auth', 'verified'])
+    ->name('invoices.update-overdue');
 
 require __DIR__.'/settings.php';
 require __DIR__.'/auth.php';

@@ -3,8 +3,8 @@ import NavMain from '@/components/NavMain.vue';
 import NavUser from '@/components/NavUser.vue';
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar';
 import { type NavItem } from '@/types';
-import { Link } from '@inertiajs/vue3';
-import { LayoutGrid, ShoppingBag, Users, Receipt, Package } from 'lucide-vue-next';
+import { Link, router } from '@inertiajs/vue3';
+import { LayoutGrid, ShoppingBag, Users, Receipt, Package, FileText } from 'lucide-vue-next';
 import AppLogo from './AppLogo.vue';
 
 const mainNavItems: NavItem[] = [
@@ -37,6 +37,11 @@ const mainNavItems: NavItem[] = [
         title: 'Orders',
         href: '/orders',
         icon: Receipt,
+    },
+    {
+        title: 'Invoices',
+        href: '/invoices',
+        icon: FileText,
     },
 ];
 </script>
