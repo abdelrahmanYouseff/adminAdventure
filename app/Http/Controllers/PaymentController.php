@@ -7,11 +7,12 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Cache;
 
 class PaymentController extends Controller
 {
     /**
-     * Create payment session with Nano
+     * Create payment session with Noon (without creating invoice)
      */
     public function createPaymentSession(Request $request)
     {
@@ -47,6 +48,9 @@ class PaymentController extends Controller
                     'reference' => $request->order_id,
                     'name' => $request->description ?? 'Order from Adventure World',
                     'category' => 'pay'
+                ],
+                'configuration' => [
+                    'returnUrl' => env('APP_URL') . '/api/payment/success?order_id=' . $request->order_id,
                 ]
             ];
 
@@ -75,31 +79,32 @@ class PaymentController extends Controller
             if ($response->successful()) {
                 $paymentResponse = $response->json();
 
-                // Create invoice record
-                $invoice = Invoice::create([
+                // Store payment session data in session or cache (not in database yet)
+                $paymentSessionData = [
                     'user_id' => $request->user_id,
-                    'rental_id' => null, // Set to null for direct payments
-                    'invoice_number' => $request->order_id,
                     'amount' => $request->amount,
-                    'status' => 'pending',
-                    'payment_method' => 'noon',
-                    'issued_at' => now(),
-                    'due_date' => now()->addDays(7),
-                ]);
+                    'currency' => $request->currency,
+                    'order_id' => $request->order_id,
+                    'description' => $request->description,
+                    'customer_email' => $request->customer_email,
+                    'customer_name' => $request->customer_name,
+                    'customer_phone' => $request->customer_phone,
+                    'noon_order_id' => $paymentResponse['result']['order']['id'] ?? null,
+                    'created_at' => now(),
+                ];
+
+                // Store in cache for 1 hour
+                Cache::put('payment_session_' . $request->order_id, $paymentSessionData, 3600);
 
                 return response()->json([
                     'success' => true,
                     'message' => 'Payment session created successfully',
-                    'order_id' => $request->order_id,
-                    'noon_order_id' => $paymentResponse['result']['order']['id'] ?? null,
-                    'status' => $paymentResponse['result']['order']['status'] ?? null,
-                    'next_actions' => $paymentResponse['result']['nextActions'] ?? null,
-                    'payment_options' => $paymentResponse['result']['paymentOptions'] ?? [],
-                    'invoice' => [
-                        'id' => $invoice->id,
-                        'invoice_number' => $invoice->invoice_number,
-                        'amount' => $invoice->amount,
-                        'status' => $invoice->status,
+                    'data' => [
+                        'payment_url' => 'https://checkout.noonpayments.com/payment/v1/checkout/' . ($paymentResponse['result']['order']['id'] ?? ''),
+                        'payment_id' => $paymentResponse['result']['order']['id'] ?? null,
+                        'order_id' => $request->order_id,
+                        'status' => $paymentResponse['result']['order']['status'] ?? null,
+                        'next_actions' => $paymentResponse['result']['nextActions'] ?? null,
                     ],
                 ], 201);
 
@@ -139,15 +144,24 @@ class PaymentController extends Controller
         $paymentId = $request->get('payment_id');
         $orderId = $request->get('order_id');
 
-        // Update invoice status
-        if ($orderId) {
-            $invoice = Invoice::where('invoice_number', $orderId)->first();
-            if ($invoice) {
-                $invoice->update([
-                    'status' => 'paid',
-                    'payment_method' => 'nano',
-                ]);
-            }
+        // Get payment session data from cache
+        $paymentSessionData = Cache::get('payment_session_' . $orderId);
+
+        if ($paymentSessionData) {
+            // Create invoice when payment is successful
+            $invoice = Invoice::create([
+                'user_id' => $paymentSessionData['user_id'],
+                'rental_id' => null,
+                'invoice_number' => $orderId,
+                'amount' => $paymentSessionData['amount'],
+                'status' => 'paid',
+                'payment_method' => 'noon',
+                'issued_at' => now(),
+                'due_date' => now()->addDays(7),
+            ]);
+
+            // Remove payment session from cache
+            Cache::forget('payment_session_' . $orderId);
         }
 
         return response()->json([
@@ -203,29 +217,51 @@ class PaymentController extends Controller
             $paymentId = $payload['order']['id'] ?? null;
 
             if ($orderId && $paymentStatus) {
-                $invoice = Invoice::where('invoice_number', $orderId)->first();
+                // Get payment session data from cache
+                $paymentSessionData = Cache::get('payment_session_' . $orderId);
 
-                if ($invoice) {
+                if ($paymentSessionData) {
                     switch ($paymentStatus) {
                         case 'CAPTURED':
                         case 'AUTHORIZED':
-                            $invoice->update([
+                            // Create invoice only when payment is successful
+                            $invoice = Invoice::create([
+                                'user_id' => $paymentSessionData['user_id'],
+                                'rental_id' => null,
+                                'invoice_number' => $orderId,
+                                'amount' => $paymentSessionData['amount'],
                                 'status' => 'paid',
                                 'payment_method' => 'noon',
+                                'issued_at' => now(),
+                                'due_date' => now()->addDays(7),
                             ]);
+
+                            // Remove payment session from cache
+                            Cache::forget('payment_session_' . $orderId);
                             break;
+
                         case 'FAILED':
                         case 'CANCELLED':
                         case 'DECLINED':
-                            $invoice->update([
+                            // Create cancelled invoice
+                            $invoice = Invoice::create([
+                                'user_id' => $paymentSessionData['user_id'],
+                                'rental_id' => null,
+                                'invoice_number' => $orderId,
+                                'amount' => $paymentSessionData['amount'],
                                 'status' => 'cancelled',
+                                'payment_method' => 'noon',
+                                'issued_at' => now(),
+                                'due_date' => now()->addDays(7),
                             ]);
+
+                            // Remove payment session from cache
+                            Cache::forget('payment_session_' . $orderId);
                             break;
+
                         case 'PENDING':
                         case 'INITIATED':
-                            $invoice->update([
-                                'status' => 'pending',
-                            ]);
+                            // Keep payment session in cache
                             break;
                     }
                 }
@@ -252,24 +288,68 @@ class PaymentController extends Controller
             'order_id' => 'required|string',
         ]);
 
+        // First check if invoice exists (payment completed)
         $invoice = Invoice::where('invoice_number', $request->order_id)->first();
 
-        if (!$invoice) {
+        if ($invoice) {
             return response()->json([
-                'success' => false,
-                'message' => 'Invoice not found',
-            ], 404);
+                'success' => true,
+                'data' => [
+                    'order_id' => $invoice->invoice_number,
+                    'status' => $invoice->status,
+                    'amount' => $invoice->amount,
+                    'payment_method' => $invoice->payment_method,
+                    'created_at' => $invoice->created_at,
+                    'updated_at' => $invoice->updated_at,
+                ],
+            ]);
+        }
+
+        // Check if payment session exists (payment in progress)
+        $paymentSessionData = Cache::get('payment_session_' . $request->order_id);
+
+        if ($paymentSessionData) {
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'order_id' => $request->order_id,
+                    'status' => 'pending',
+                    'amount' => $paymentSessionData['amount'],
+                    'payment_method' => 'noon',
+                    'created_at' => $paymentSessionData['created_at'],
+                ],
+            ]);
         }
 
         return response()->json([
-            'success' => true,
-            'order_id' => $invoice->invoice_number,
-            'status' => $invoice->status,
-            'amount' => $invoice->amount,
-            'payment_method' => $invoice->payment_method,
-            'created_at' => $invoice->created_at,
-            'updated_at' => $invoice->updated_at,
-        ]);
+            'success' => false,
+            'message' => 'Payment session not found',
+        ], 404);
+    }
+
+        /**
+     * Get payment URL from Noon response
+     */
+    private function getPaymentUrl($paymentResponse)
+    {
+        // Extract payment URL from Noon response
+        // This depends on Noon's API response structure
+        if (isset($paymentResponse['result']['paymentOptions'])) {
+            foreach ($paymentResponse['result']['paymentOptions'] as $option) {
+                if ($option['method'] === 'CARD_SANDBOX' || $option['method'] === 'CARD') {
+                    return $option['action'] ?? null;
+                }
+            }
+        }
+
+        // Fallback: construct checkout URL
+        $orderId = $paymentResponse['result']['order']['id'] ?? null;
+        if ($orderId) {
+            return 'https://checkout.noonpayments.com/payment/v1/checkout/' . $orderId;
+        }
+
+        // If no URL found, return a default checkout URL
+        return 'https://checkout.noonpayments.com/payment/v1/checkout';
     }
 
     /**
