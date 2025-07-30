@@ -79,7 +79,10 @@ class PaymentController extends Controller
             if ($response->successful()) {
                 $paymentResponse = $response->json();
 
-                // Store payment session data in session or cache (not in database yet)
+                // احصل على رابط التشيك أوت الصحيح من Noon
+                $checkoutUrl = $paymentResponse['result']['checkoutData']['postUrl'] ?? null;
+
+                // Store payment session data in cache (بدون تغيير)
                 $paymentSessionData = [
                     'user_id' => $request->user_id,
                     'amount' => $request->amount,
@@ -89,34 +92,22 @@ class PaymentController extends Controller
                     'customer_email' => $request->customer_email,
                     'customer_name' => $request->customer_name,
                     'customer_phone' => $request->customer_phone,
-                    'noon_order_id' => $paymentResponse['result']['order']['id'] ?? null,
+                    'noon_order_id' => $paymentResponse['order']['id'] ?? null,
                     'created_at' => now(),
                 ];
-
-                // Store in cache for 1 hour
                 Cache::put('payment_session_' . $request->order_id, $paymentSessionData, 3600);
-
-                                                // Extract order ID and session ID
-                $orderId = $paymentResponse['result']['order']['id'] ?? null;
-                $sessionId = $paymentResponse['result']['deviceFingerPrint']['sessionId'] ?? null;
-
-                // Return order ID and session ID for the mobile app to construct the URL
-                $paymentUrl = $orderId ? "https://checkout.noonpayments.com/payment/v1/checkout/{$orderId}" : null;
 
                 return response()->json([
                     'success' => true,
                     'message' => 'Payment session created successfully',
                     'data' => [
-                        'payment_url' => $paymentUrl,
+                        'checkout_url' => $checkoutUrl,
                         'payment_id' => $paymentResponse['result']['order']['id'] ?? null,
                         'order_id' => $request->order_id,
-                        'session_id' => $sessionId,
                         'status' => $paymentResponse['result']['order']['status'] ?? null,
-                        'next_actions' => $paymentResponse['result']['nextActions'] ?? null,
-                        'payment_options' => $paymentResponse['result']['paymentOptions'] ?? [],
+                        'noon_response' => $paymentResponse, // للتحقق من الـ response الكامل
                     ],
                 ], 201);
-
             } else {
                 Log::error('Noon API Error', [
                     'status' => $response->status(),
