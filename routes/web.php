@@ -4,6 +4,7 @@ use App\Http\Controllers\ProductController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\PackageController;
 use App\Http\Controllers\InvoiceController;
+use App\Http\Controllers\QuotationController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\DashboardController;
 use Illuminate\Support\Facades\Auth;
@@ -80,7 +81,35 @@ Route::get('customers', [\App\Http\Controllers\CustomerController::class, 'index
 
 Route::get('orders', [\App\Http\Controllers\OrderController::class, 'index'])
     ->middleware(['auth', 'verified'])
-    ->name('orders');
+    ->name('orders.index');
+
+// Test route for debugging
+Route::get('orders-test', function() {
+    return response()->json([
+        'message' => 'Orders route is working',
+        'orders_count' => \App\Models\Order::count(),
+        'orders' => \App\Models\Order::with('user')->get()->map(function($order) {
+            return [
+                'id' => $order->id,
+                'order_number' => $order->order_number,
+                'total_amount' => $order->total_amount,
+                'status' => $order->status,
+                'user_email' => $order->user ? $order->user->email : null
+            ];
+        })
+    ]);
+});
+
+// Test OrderController
+Route::get('orders-controller-test', [\App\Http\Controllers\OrderController::class, 'index']);
+
+Route::get('orders/{order}', [\App\Http\Controllers\OrderController::class, 'show'])
+    ->middleware(['auth', 'verified'])
+    ->name('orders.show');
+
+Route::patch('orders/{order}/status', [\App\Http\Controllers\OrderController::class, 'updateStatus'])
+    ->middleware(['auth', 'verified'])
+    ->name('orders.update-status');
 
 Route::get('users', [\App\Http\Controllers\UserController::class, 'index'])
     ->middleware(['auth', 'verified'])
@@ -98,6 +127,10 @@ Route::get('invoices/{invoice}', [InvoiceController::class, 'show'])
     ->middleware(['auth', 'verified'])
     ->name('invoices.show');
 
+Route::get('invoices/{invoice}/pdf', [InvoiceController::class, 'generatePdf'])
+    ->middleware(['auth', 'verified'])
+    ->name('invoices.pdf');
+
 Route::patch('invoices/{invoice}/status', [InvoiceController::class, 'updateStatus'])
     ->middleware(['auth', 'verified'])
     ->name('invoices.update-status');
@@ -109,6 +142,17 @@ Route::get('invoices/export/csv', [InvoiceController::class, 'export'])
 Route::patch('invoices/update-overdue', [InvoiceController::class, 'updateOverdueInvoices'])
     ->middleware(['auth', 'verified'])
     ->name('invoices.update-overdue');
+
+// Quotations Routes
+Route::resource('quotations', QuotationController::class)->middleware(['auth', 'verified']);
+
+Route::get('quotations/{quotation}/pdf', [QuotationController::class, 'generatePdf'])
+    ->middleware(['auth', 'verified'])
+    ->name('quotations.pdf');
+
+Route::patch('quotations/{quotation}/status', [QuotationController::class, 'updateStatus'])
+    ->middleware(['auth', 'verified'])
+    ->name('quotations.update-status');
 
 require __DIR__.'/settings.php';
 require __DIR__.'/auth.php';

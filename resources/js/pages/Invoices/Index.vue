@@ -219,7 +219,7 @@
                           <DropdownMenuContent>
                             <DropdownMenuItem @click="viewInvoice(invoice)">
                               <Icon name="eye" class="w-4 h-4 mr-2" />
-                              View Details
+                              عرض PDF
                             </DropdownMenuItem>
                             <DropdownMenuItem @click="updateStatus(invoice, 'paid')" v-if="invoice.status !== 'paid'">
                               <Icon name="check" class="w-4 h-4 mr-2" />
@@ -336,7 +336,8 @@ const goToPage = (page) => {
 }
 
 const viewInvoice = (invoice) => {
-  router.get(route('invoices.show', invoice.id))
+  // Open PDF in new tab
+  window.open(route('invoices.pdf', invoice.id), '_blank')
 }
 
 const updateStatus = (invoice, status) => {
@@ -360,14 +361,14 @@ const updateOverdueInvoices = () => {
 }
 
 const formatCurrency = (amount) => {
-  return new Intl.NumberFormat('ar-SA', {
+  return new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: 'SAR',
   }).format(amount)
 }
 
 const formatDate = (date) => {
-  return new Date(date).toLocaleDateString('ar-SA', {
+  return new Date(date).toLocaleDateString('en-US', {
     year: 'numeric',
     month: 'short',
     day: 'numeric',

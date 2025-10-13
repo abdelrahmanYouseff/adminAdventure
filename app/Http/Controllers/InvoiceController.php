@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Invoice;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
+use Barryvdh\DomPDF\Facade\Pdf;
 
 class InvoiceController extends Controller
 {
@@ -71,6 +72,26 @@ class InvoiceController extends Controller
         return Inertia::render('Invoices/Show', [
             'invoice' => $invoice,
         ]);
+    }
+
+    /**
+     * Generate PDF for the specified invoice
+     */
+    public function generatePdf(Invoice $invoice)
+    {
+        $invoice->load(['user', 'rental.product']);
+
+        $pdf = Pdf::loadView('invoice-pdf', compact('invoice'))
+            ->setPaper('a4', 'portrait')
+            ->setOptions([
+                'dpi' => 150,
+                'defaultFont' => 'DejaVu Sans',
+                'isHtml5ParserEnabled' => true,
+                'isPhpEnabled' => true,
+                'isRemoteEnabled' => true,
+            ]);
+
+        return $pdf->stream("invoice-{$invoice->invoice_number}.pdf");
     }
 
     /**

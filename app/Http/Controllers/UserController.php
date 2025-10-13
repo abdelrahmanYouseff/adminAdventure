@@ -4,8 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Models\User;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Schema;
 use Inertia\Inertia;
 
 class UserController extends Controller
@@ -17,6 +15,58 @@ class UserController extends Controller
         return Inertia::render('Users/Index', [
             'users' => $users,
         ]);
+    }
+
+    /**
+     * Get user by phone number
+     */
+    public function getUserByPhone(Request $request)
+    {
+        $request->validate([
+            'phone' => 'required|string',
+        ]);
+
+        $phoneNumber = $request->phone;
+        $phoneWithPlus = $phoneNumber;
+        $phoneWithoutPlus = $phoneNumber;
+
+        // If phone doesn't start with +, add it
+        if (!str_starts_with($phoneNumber, '+')) {
+            $phoneWithPlus = '+' . $phoneNumber;
+        }
+
+        // If phone starts with +, remove it for comparison
+        if (str_starts_with($phoneNumber, '+')) {
+            $phoneWithoutPlus = substr($phoneNumber, 1);
+        }
+
+        // Search for phone with both formats
+        $user = User::where(function($q) use ($phoneWithPlus, $phoneWithoutPlus) {
+            $q->where('phone', $phoneWithPlus)
+              ->orWhere('phone', $phoneWithoutPlus)
+              ->orWhere('phone', '+' . $phoneWithoutPlus);
+        })->first();
+
+        if ($user) {
+            return response()->json([
+                'success' => true,
+                'message' => 'المستخدم موجود',
+                'user' => [
+                    'id' => $user->id,
+                    'customer_name' => $user->customer_name,
+                    'email' => $user->email,
+                    'phone' => $user->phone,
+                    'country' => $user->country,
+                    'created_at' => $user->created_at,
+                ],
+            ], 200);
+        } else {
+            return response()->json([
+                'success' => false,
+                'message' => 'المستخدم غير موجود',
+                'user' => null,
+            ], 404);
+        }
     }
 
     /**
@@ -68,32 +118,29 @@ class UserController extends Controller
 
         $user = $query->first();
 
-                if ($user) {
+        if ($user) {
             return response()->json([
                 'exists' => true,
-                'message' => 'مسجل',
+                'message' => 'المستخدم موجود',
                 'check_type' => $checkType,
                 'check_value' => $checkValue,
-                'can_use' => false,
                 'user' => [
                     'id' => $user->id,
-                    'name' => $user->full_name ?? $user->name,
+                    'customer_name' => $user->customer_name,
                     'email' => $user->email,
                     'phone' => $user->phone,
                     'country' => $user->country,
-                    'address' => $user->address,
                     'created_at' => $user->created_at,
                 ],
             ], 200);
         } else {
             return response()->json([
                 'exists' => false,
-                'message' => 'غير مسجل',
+                'message' => 'المستخدم غير موجود',
                 'check_type' => $checkType,
                 'check_value' => $checkValue,
-                'can_use' => true,
                 'user' => null,
-            ], 200);
+            ], 404);
         }
     }
 
@@ -103,40 +150,29 @@ class UserController extends Controller
     public function apiRegister(Request $request)
     {
         $request->validate([
-            'name' => 'required|string|max:255',
+            'customer_name' => 'required|string|max:255',
             'email' => 'required|string|lowercase|email|max:255|unique:users',
-            'password' => 'required|string|min:8',
             'phone' => 'nullable|string|max:20|unique:users',
             'country' => 'nullable|string|max:100',
-            'address' => 'nullable|string|max:255',
         ]);
 
         try {
-            // Check which name column exists in the database
-            $nameColumn = Schema::hasColumn('users', 'full_name') ? 'full_name' : 'name';
-
-            $userData = [
+            $user = User::create([
+                'customer_name' => $request->customer_name,
                 'email' => $request->email,
-                'password' => Hash::make($request->password),
                 'phone' => $request->phone,
                 'country' => $request->country,
-                'address' => $request->address,
-            ];
-
-            $userData[$nameColumn] = $request->name;
-
-            $user = User::create($userData);
+            ]);
 
             return response()->json([
                 'success' => true,
-                'message' => 'User registered successfully',
+                'message' => 'تم تسجيل المستخدم بنجاح',
                 'user' => [
                     'id' => $user->id,
-                    'name' => $user->full_name ?? $user->name,
+                    'customer_name' => $user->customer_name,
                     'email' => $user->email,
                     'phone' => $user->phone,
                     'country' => $user->country,
-                    'address' => $user->address,
                     'created_at' => $user->created_at,
                 ],
             ], 201);
@@ -144,7 +180,7 @@ class UserController extends Controller
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to register user',
+                'message' => 'فشل تسجيل المستخدم',
                 'error' => $e->getMessage(),
             ], 500);
         }
