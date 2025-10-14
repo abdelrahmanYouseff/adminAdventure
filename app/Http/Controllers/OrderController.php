@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Models\Order;
-use App\Models\Rental;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
@@ -13,36 +12,44 @@ class OrderController extends Controller
     {
         $query = Order::with(['user', 'invoice']);
 
-        // Filter by status
-        if ($request->filled('status')) {
-            $query->where('status', $request->status);
-        }
-
-        // Filter by payment method
-        if ($request->filled('payment_method')) {
-            $query->where('payment_method', $request->payment_method);
-        }
-
-        // Search by order number or customer name
-        if ($request->filled('search')) {
+        // Search filter
+        if ($request->has('search') && $request->search) {
             $search = $request->search;
             $query->where(function ($q) use ($search) {
                 $q->where('order_number', 'like', "%{$search}%")
-                  ->orWhereHas('user', function ($userQuery) use ($search) {
-                      $userQuery->where('name', 'like', "%{$search}%")
-                               ->orWhere('full_name', 'like', "%{$search}%")
-                               ->orWhere('email', 'like', "%{$search}%");
-                  });
+                    ->orWhere('customer_name', 'like', "%{$search}%")
+                    ->orWhere('payment_id', 'like', "%{$search}%")
+                    ->orWhereHas('user', function ($q) use ($search) {
+                        $q->where('full_name', 'like', "%{$search}%")
+                            ->orWhere('name', 'like', "%{$search}%")
+                            ->orWhere('email', 'like', "%{$search}%");
+                    });
             });
+        }
+
+        // Status filter
+        if ($request->has('status') && $request->status !== 'all') {
+            $query->where('status', $request->status);
+        }
+
+        // Payment method filter
+        if ($request->has('payment_method') && $request->payment_method !== 'all') {
+            $query->where('payment_method', $request->payment_method);
+        }
+
+        // Currency filter
+        if ($request->has('currency') && $request->currency !== 'all') {
+            $query->where('currency', $request->currency);
         }
 
         $orders = $query->orderBy('created_at', 'desc')->paginate(15);
 
-        // Get statistics
+        // Calculate statistics
         $statistics = [
             'total' => Order::count(),
             'paid' => Order::where('status', 'paid')->count(),
             'pending' => Order::where('status', 'pending')->count(),
+            'processing' => Order::where('status', 'processing')->count(),
             'cancelled' => Order::where('status', 'cancelled')->count(),
             'refunded' => Order::where('status', 'refunded')->count(),
             'total_amount' => Order::where('status', 'paid')->sum('total_amount'),
@@ -52,7 +59,12 @@ class OrderController extends Controller
         return Inertia::render('Orders/Index', [
             'orders' => $orders,
             'statistics' => $statistics,
-            'filters' => $request->only(['status', 'payment_method', 'search']),
+            'filters' => [
+                'search' => $request->search ?? '',
+                'status' => $request->status ?? 'all',
+                'payment_method' => $request->payment_method ?? 'all',
+                'currency' => $request->currency ?? 'all',
+            ],
         ]);
     }
 
@@ -65,16 +77,17 @@ class OrderController extends Controller
         ]);
     }
 
-    public function updateStatus(Request $request, Order $order)
+    public function updateStatus(Order $order, Request $request)
     {
         $request->validate([
-            'status' => 'required|in:pending,paid,cancelled,refunded',
+            'status' => 'required|in:pending,processing,paid,cancelled,refunded',
         ]);
 
         $order->update([
             'status' => $request->status,
         ]);
 
-        return redirect()->back()->with('success', 'Order status updated successfully.');
+        return redirect()->back()->with('success', 'Order status updated successfully');
     }
 }
+

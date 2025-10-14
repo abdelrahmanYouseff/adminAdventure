@@ -5,6 +5,7 @@ use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\PackageController;
 use App\Http\Controllers\InvoiceController;
 use App\Http\Controllers\QuotationController;
+use App\Http\Controllers\OrderController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\DashboardController;
 use Illuminate\Support\Facades\Auth;
@@ -79,37 +80,8 @@ Route::get('customers', [\App\Http\Controllers\CustomerController::class, 'index
     ->middleware(['auth', 'verified'])
     ->name('customers');
 
-Route::get('orders', [\App\Http\Controllers\OrderController::class, 'index'])
-    ->middleware(['auth', 'verified'])
-    ->name('orders.index');
 
-// Test route for debugging
-Route::get('orders-test', function() {
-    return response()->json([
-        'message' => 'Orders route is working',
-        'orders_count' => \App\Models\Order::count(),
-        'orders' => \App\Models\Order::with('user')->get()->map(function($order) {
-            return [
-                'id' => $order->id,
-                'order_number' => $order->order_number,
-                'total_amount' => $order->total_amount,
-                'status' => $order->status,
-                'user_email' => $order->user ? $order->user->email : null
-            ];
-        })
-    ]);
-});
 
-// Test OrderController
-Route::get('orders-controller-test', [\App\Http\Controllers\OrderController::class, 'index']);
-
-Route::get('orders/{order}', [\App\Http\Controllers\OrderController::class, 'show'])
-    ->middleware(['auth', 'verified'])
-    ->name('orders.show');
-
-Route::patch('orders/{order}/status', [\App\Http\Controllers\OrderController::class, 'updateStatus'])
-    ->middleware(['auth', 'verified'])
-    ->name('orders.update-status');
 
 Route::get('users', [\App\Http\Controllers\UserController::class, 'index'])
     ->middleware(['auth', 'verified'])
@@ -153,6 +125,19 @@ Route::get('quotations/{quotation}/pdf', [QuotationController::class, 'generateP
 Route::patch('quotations/{quotation}/status', [QuotationController::class, 'updateStatus'])
     ->middleware(['auth', 'verified'])
     ->name('quotations.update-status');
+
+// Orders Routes
+Route::get('orders', [OrderController::class, 'index'])
+    ->middleware(['auth', 'verified'])
+    ->name('orders.index');
+
+Route::get('orders/{order}', [OrderController::class, 'show'])
+    ->middleware(['auth', 'verified'])
+    ->name('orders.show');
+
+Route::patch('orders/{order}/status', [OrderController::class, 'updateStatus'])
+    ->middleware(['auth', 'verified'])
+    ->name('orders.update-status');
 
 require __DIR__.'/settings.php';
 require __DIR__.'/auth.php';

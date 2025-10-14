@@ -6,6 +6,7 @@ use App\Models\Product;
 use App\Models\User;
 use App\Models\Category;
 use App\Models\Package;
+use App\Models\Order;
 // use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
@@ -19,13 +20,6 @@ class DatabaseSeeder extends Seeder
     {
         // User::factory(10)->create();
 
-        User::updateOrCreate(
-            ['email' => 'test@example.com'],
-            [
-                'customer_name' => 'Test User',
-                'password' => Hash::make('password'),
-            ]
-        );
 
         // Create admin user
         User::updateOrCreate(
@@ -112,6 +106,132 @@ class DatabaseSeeder extends Seeder
                 'description' => 'Premium adventure package with high-end gear and luxury camping equipment.',
                 'price' => 899.99,
                 'status' => 'inactive',
+            ]);
+        }
+
+        // Create sample orders only if they don't exist
+        if (Order::count() === 0) {
+            $adminUser = User::where('email', 'admin@gmail.com')->first();
+            $superAdminUser = User::where('email', 'superadmin@gmail.com')->first();
+
+            Order::create([
+                'user_id' => $adminUser->id,
+                'customer_name' => 'John Doe',
+                'order_number' => Order::generateOrderNumber(),
+                'total_amount' => 299.99,
+                'currency' => 'SAR',
+                'status' => 'paid',
+                'payment_method' => 'credit_card',
+                'payment_id' => 'PAY_' . uniqid(),
+                'items' => [
+                    ['name' => 'Camping Tent', 'quantity' => 1, 'price' => 149.99],
+                    ['name' => 'Sleeping Bag', 'quantity' => 2, 'price' => 79.99],
+                ],
+                'notes' => 'Customer requested early delivery',
+            ]);
+
+            Order::create([
+                'user_id' => $superAdminUser->id,
+                'customer_name' => 'Sarah Smith',
+                'order_number' => Order::generateOrderNumber(),
+                'total_amount' => 459.97,
+                'currency' => 'SAR',
+                'status' => 'processing',
+                'payment_method' => 'noon',
+                'payment_id' => 'NOON_' . uniqid(),
+                'items' => [
+                    ['name' => 'Adventure Backpack', 'quantity' => 2, 'price' => 89.99],
+                    ['name' => 'Hiking Boots', 'quantity' => 1, 'price' => 129.99],
+                    ['name' => 'Camping Tent', 'quantity' => 1, 'price' => 149.99],
+                ],
+                'notes' => 'Gift wrapping requested',
+            ]);
+
+            Order::create([
+                'user_id' => $adminUser->id,
+                'customer_name' => 'Michael Johnson',
+                'order_number' => Order::generateOrderNumber(),
+                'total_amount' => 899.99,
+                'currency' => 'USD',
+                'status' => 'pending',
+                'payment_method' => 'bank_transfer',
+                'items' => [
+                    ['name' => 'Luxury Adventure Package', 'quantity' => 1, 'price' => 899.99],
+                ],
+                'notes' => 'Waiting for bank transfer confirmation',
+            ]);
+
+            Order::create([
+                'user_id' => $superAdminUser->id,
+                'customer_name' => 'Emily Davis',
+                'order_number' => Order::generateOrderNumber(),
+                'total_amount' => 199.99,
+                'currency' => 'SAR',
+                'status' => 'cancelled',
+                'payment_method' => 'cash',
+                'items' => [
+                    ['name' => 'Hiking Essentials Package', 'quantity' => 1, 'price' => 199.99],
+                ],
+                'notes' => 'Customer cancelled due to schedule conflict',
+            ]);
+
+            Order::create([
+                'user_id' => $adminUser->id,
+                'customer_name' => 'David Wilson',
+                'order_number' => Order::generateOrderNumber(),
+                'total_amount' => 499.99,
+                'currency' => 'EUR',
+                'status' => 'refunded',
+                'payment_method' => 'paypal',
+                'payment_id' => 'PP_' . uniqid(),
+                'items' => [
+                    ['name' => 'Family Camping Package', 'quantity' => 1, 'price' => 499.99],
+                ],
+                'notes' => 'Product damaged during shipping, full refund issued',
+            ]);
+
+            Order::create([
+                'user_id' => $superAdminUser->id,
+                'customer_name' => 'Lisa Anderson',
+                'order_number' => Order::generateOrderNumber(),
+                'total_amount' => 389.97,
+                'currency' => 'SAR',
+                'status' => 'paid',
+                'payment_method' => 'credit_card',
+                'payment_id' => 'PAY_' . uniqid(),
+                'items' => [
+                    ['name' => 'Hiking Boots', 'quantity' => 3, 'price' => 129.99],
+                ],
+                'notes' => 'Bulk order for hiking club',
+            ]);
+
+            Order::create([
+                'user_id' => $adminUser->id,
+                'customer_name' => 'Robert Martinez',
+                'order_number' => Order::generateOrderNumber(),
+                'total_amount' => 229.98,
+                'currency' => 'SAR',
+                'status' => 'processing',
+                'payment_method' => 'noon',
+                'payment_id' => 'NOON_' . uniqid(),
+                'items' => [
+                    ['name' => 'Camping Tent', 'quantity' => 1, 'price' => 149.99],
+                    ['name' => 'Sleeping Bag', 'quantity' => 1, 'price' => 79.99],
+                ],
+            ]);
+
+            Order::create([
+                'user_id' => $superAdminUser->id,
+                'customer_name' => 'Jennifer Taylor',
+                'order_number' => Order::generateOrderNumber(),
+                'total_amount' => 179.98,
+                'currency' => 'SAR',
+                'status' => 'paid',
+                'payment_method' => 'cash',
+                'items' => [
+                    ['name' => 'Adventure Backpack', 'quantity' => 2, 'price' => 89.99],
+                ],
+                'notes' => 'Paid in cash on pickup',
             ]);
         }
     }

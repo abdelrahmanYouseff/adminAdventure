@@ -4,7 +4,7 @@ import NavUser from '@/components/NavUser.vue';
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar';
 import { type NavItem } from '@/types';
 import { Link, router } from '@inertiajs/vue3';
-import { LayoutGrid, ShoppingBag, Users, Receipt, Package, FileText, FileSpreadsheet } from 'lucide-vue-next';
+import { LayoutGrid, ShoppingBag, Users, Receipt, Package, FileText, FileSpreadsheet, ShoppingCart } from 'lucide-vue-next';
 import AppLogo from './AppLogo.vue';
 
 const mainNavItems: NavItem[] = [
@@ -24,6 +24,11 @@ const mainNavItems: NavItem[] = [
         icon: Package,
     },
     {
+        title: 'Orders',
+        href: '/orders',
+        icon: ShoppingCart,
+    },
+    {
         title: 'Customers',
         href: '/customers',
         icon: Users,
@@ -32,11 +37,6 @@ const mainNavItems: NavItem[] = [
         title: 'Users',
         href: '/users',
         icon: Users,
-    },
-    {
-        title: 'Orders',
-        href: '/orders',
-        icon: Receipt,
     },
     {
         title: 'Invoices',
