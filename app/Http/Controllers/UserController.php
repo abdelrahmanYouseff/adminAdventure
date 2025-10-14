@@ -152,6 +152,7 @@ class UserController extends Controller
         $request->validate([
             'customer_name' => 'required|string|max:255',
             'email' => 'required|string|lowercase|email|max:255|unique:users',
+            'password' => 'required|string|min:6',
             'phone' => 'nullable|string|max:20|unique:users',
             'country' => 'nullable|string|max:100',
         ]);
@@ -160,6 +161,7 @@ class UserController extends Controller
             $user = User::create([
                 'customer_name' => $request->customer_name,
                 'email' => $request->email,
+                'password' => $request->password,
                 'phone' => $request->phone,
                 'country' => $request->country,
             ]);

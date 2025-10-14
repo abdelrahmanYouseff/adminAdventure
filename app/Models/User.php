@@ -20,8 +20,18 @@ class User extends Authenticatable
     protected $fillable = [
         'customer_name',
         'email',
+        'password',
         'phone',
         'country',
+    ];
+
+    /**
+     * The attributes that should be hidden for serialization.
+     *
+     * @var list<string>
+     */
+    protected $hidden = [
+        'password',
     ];
 
     /**
@@ -32,6 +42,7 @@ class User extends Authenticatable
     protected function casts(): array
     {
         return [
+            'password' => 'hashed',
             'created_at' => 'datetime',
             'updated_at' => 'datetime',
         ];
