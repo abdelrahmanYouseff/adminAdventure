@@ -131,6 +131,10 @@ Route::get('orders', [OrderController::class, 'index'])
     ->middleware(['auth', 'verified'])
     ->name('orders.index');
 
+Route::post('orders', [OrderController::class, 'store'])
+    ->middleware(['auth', 'verified'])
+    ->name('orders.store');
+
 Route::get('orders/{order}', [OrderController::class, 'show'])
     ->middleware(['auth', 'verified'])
     ->name('orders.show');

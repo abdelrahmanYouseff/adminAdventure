@@ -8,6 +8,7 @@ use App\Http\Controllers\PackageController;
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\PaymentController;
+use App\Http\Controllers\OrderController;
 
 Route::get('categories', [CategoryController::class, 'apiIndex']);
 Route::get('products/by-category', [ProductController::class, 'apiByCategory']);
@@ -25,3 +26,8 @@ Route::get('payment/status', [PaymentController::class, 'getPaymentStatus']);
 Route::get('payment/success', [PaymentController::class, 'paymentSuccess']);
 Route::get('payment/cancel', [PaymentController::class, 'paymentCancel']);
 Route::post('payment/webhook', [PaymentController::class, 'webhook']);
+
+// Order Routes
+Route::post('orders', [OrderController::class, 'store']);
+Route::get('orders', [OrderController::class, 'apiIndex']);
+Route::get('orders/{order}', [OrderController::class, 'apiShow']);
