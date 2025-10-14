@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Hash;
 use Inertia\Inertia;
 
 class UserController extends Controller
@@ -141,6 +142,51 @@ class UserController extends Controller
                 'check_value' => $checkValue,
                 'user' => null,
             ], 404);
+        }
+    }
+
+    /**
+     * Login user via API
+     */
+    public function apiLogin(Request $request)
+    {
+        $request->validate([
+            'email' => 'required|string|email',
+            'password' => 'required|string',
+        ]);
+
+        try {
+            // Find user by email
+            $user = User::where('email', $request->email)->first();
+
+            // Check if user exists and password is correct
+            if (!$user || !Hash::check($request->password, $user->password)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'البريد الإلكتروني أو كلمة المرور غير صحيحة',
+                ], 401);
+            }
+
+            // Return user data
+            return response()->json([
+                'success' => true,
+                'message' => 'تم تسجيل الدخول بنجاح',
+                'user' => [
+                    'id' => $user->id,
+                    'customer_name' => $user->customer_name,
+                    'email' => $user->email,
+                    'phone' => $user->phone,
+                    'country' => $user->country,
+                    'created_at' => $user->created_at,
+                ],
+            ], 200);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'حدث خطأ أثناء تسجيل الدخول',
+                'error' => $e->getMessage(),
+            ], 500);
         }
     }
 
