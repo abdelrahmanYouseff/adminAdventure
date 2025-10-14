@@ -22,9 +22,8 @@ class DatabaseSeeder extends Seeder
         User::updateOrCreate(
             ['email' => 'test@example.com'],
             [
-            'name' => 'Test User',
+                'customer_name' => 'Test User',
                 'password' => Hash::make('password'),
-                'email_verified_at' => now(),
             ]
         );
 
@@ -32,18 +31,16 @@ class DatabaseSeeder extends Seeder
         User::updateOrCreate(
             ['email' => 'admin@gmail.com'],
             [
-                'name' => 'Admin',
+                'customer_name' => 'Admin',
                 'password' => Hash::make('password'),
-                'email_verified_at' => now(),
             ]
         );
 
         User::updateOrCreate(
             ['email' => 'superadmin@gmail.com'],
             [
-                'name' => 'Super Admin',
+                'customer_name' => 'Super Admin',
                 'password' => Hash::make('password'),
-                'email_verified_at' => now(),
             ]
         );
 
