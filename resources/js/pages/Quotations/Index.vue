@@ -54,44 +54,44 @@ const getStatusBadgeVariant = (status: string) => {
 const getStatusText = (status: string) => {
     switch (status) {
         case 'draft':
-            return 'Draft';
+            return 'مسودة';
         case 'sent':
-            return 'Sent';
+            return 'مرسل';
         case 'accepted':
-            return 'Accepted';
+            return 'مقبول';
         case 'rejected':
-            return 'Rejected';
+            return 'مرفوض';
         case 'expired':
-            return 'Expired';
+            return 'منتهي الصلاحية';
         default:
             return status;
     }
 };
 
 const deleteQuotation = (id: number) => {
-    if (confirm('Are you sure you want to delete this quotation?')) {
+    if (confirm('هل أنت متأكد من حذف هذا العرض؟')) {
         router.delete(route('quotations.destroy', id));
     }
 };
 </script>
 
 <template>
-    <Head title="Quotations" />
+    <Head title="عروض الأسعار" />
 
     <AppSidebarLayout>
         <div class="space-y-6">
             <!-- Header -->
             <div class="flex items-center justify-between">
                 <div>
-                    <h1 class="text-3xl font-bold tracking-tight">Quotations</h1>
+                    <h1 class="text-3xl font-bold tracking-tight">عروض الأسعار</h1>
                     <p class="text-muted-foreground">
-                        Manage and track your quotation requests
+                        إدارة ومتابعة طلبات عروض الأسعار
                     </p>
                 </div>
                 <Link :href="route('quotations.create')">
                     <Button>
                         <Plus class="mr-2 h-4 w-4" />
-                        New Quotation
+                        عرض جديد
                     </Button>
                 </Link>
             </div>
@@ -100,7 +100,7 @@ const deleteQuotation = (id: number) => {
             <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
                 <Card>
                     <CardHeader class="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle class="text-sm font-medium">Total Quotations</CardTitle>
+                        <CardTitle class="text-sm font-medium">إجمالي العروض</CardTitle>
                     </CardHeader>
                     <CardContent>
                         <div class="text-2xl font-bold">{{ props.quotations.total }}</div>
@@ -108,7 +108,7 @@ const deleteQuotation = (id: number) => {
                 </Card>
                 <Card>
                     <CardHeader class="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle class="text-sm font-medium">Draft</CardTitle>
+                        <CardTitle class="text-sm font-medium">مسودة</CardTitle>
                     </CardHeader>
                     <CardContent>
                         <div class="text-2xl font-bold">
@@ -118,7 +118,7 @@ const deleteQuotation = (id: number) => {
                 </Card>
                 <Card>
                     <CardHeader class="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle class="text-sm font-medium">Sent</CardTitle>
+                        <CardTitle class="text-sm font-medium">مرسل</CardTitle>
                     </CardHeader>
                     <CardContent>
                         <div class="text-2xl font-bold">
@@ -128,7 +128,7 @@ const deleteQuotation = (id: number) => {
                 </Card>
                 <Card>
                     <CardHeader class="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle class="text-sm font-medium">Accepted</CardTitle>
+                        <CardTitle class="text-sm font-medium">مقبول</CardTitle>
                     </CardHeader>
                     <CardContent>
                         <div class="text-2xl font-bold">
@@ -141,23 +141,23 @@ const deleteQuotation = (id: number) => {
             <!-- Quotations Table -->
             <Card>
                 <CardHeader>
-                    <CardTitle>All Quotations</CardTitle>
+                    <CardTitle>جميع العروض</CardTitle>
                     <CardDescription>
-                        A list of all quotations in your system
+                        قائمة بجميع عروض الأسعار في النظام
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
                     <Table>
                         <TableHeader>
                             <TableRow>
-                                <TableHead>Quotation #</TableHead>
-                                <TableHead>Customer</TableHead>
-                                <TableHead>Amount</TableHead>
-                                <TableHead>Status</TableHead>
-                                <TableHead>Valid Until</TableHead>
-                                <TableHead>Created By</TableHead>
-                                <TableHead>Created At</TableHead>
-                                <TableHead class="w-[50px]">Actions</TableHead>
+                                <TableHead>رقم العرض</TableHead>
+                                <TableHead>العميل</TableHead>
+                                <TableHead>المبلغ</TableHead>
+                                <TableHead>الحالة</TableHead>
+                                <TableHead>صالح حتى</TableHead>
+                                <TableHead>أنشأه</TableHead>
+                                <TableHead>تاريخ الإنشاء</TableHead>
+                                <TableHead class="w-[50px]">الإجراءات</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -172,7 +172,7 @@ const deleteQuotation = (id: number) => {
                                     </div>
                                 </TableCell>
                                 <TableCell>
-                                    ${{ Number(quotation.total_amount || 0).toFixed(2) }}
+                                    {{ Number(quotation.total_amount || 0).toFixed(2) }} ريال
                                 </TableCell>
                                 <TableCell>
                                     <Badge :variant="getStatusBadgeVariant(quotation.status)">
@@ -183,7 +183,7 @@ const deleteQuotation = (id: number) => {
                                     {{ new Date(quotation.valid_until).toLocaleDateString() }}
                                 </TableCell>
                                 <TableCell>
-                                    {{ quotation.user?.name || 'Unknown' }}
+                                    {{ quotation.user?.name || 'غير معروف' }}
                                 </TableCell>
                                 <TableCell>
                                     {{ new Date(quotation.created_at).toLocaleDateString() }}
@@ -199,24 +199,24 @@ const deleteQuotation = (id: number) => {
                                             <DropdownMenuItem as-child>
                                                 <Link :href="route('quotations.pdf', quotation.id)">
                                                     <Eye class="mr-2 h-4 w-4" />
-                                                    View PDF
+                                                    عرض PDF
                                                 </Link>
                                             </DropdownMenuItem>
                                             <DropdownMenuItem as-child>
                                                 <Link :href="route('quotations.edit', quotation.id)">
                                                     <Edit class="mr-2 h-4 w-4" />
-                                                    Edit
+                                                    تعديل
                                                 </Link>
                                             </DropdownMenuItem>
                                             <DropdownMenuItem as-child>
                                                 <Link :href="route('quotations.pdf', quotation.id)">
                                                     <Download class="mr-2 h-4 w-4" />
-                                                    Download PDF
+                                                    تحميل PDF
                                                 </Link>
                                             </DropdownMenuItem>
                                             <DropdownMenuItem @click="deleteQuotation(quotation.id)" class="text-red-600">
                                                 <Trash2 class="mr-2 h-4 w-4" />
-                                                Delete
+                                                حذف
                                             </DropdownMenuItem>
                                         </DropdownMenuContent>
                                     </DropdownMenu>

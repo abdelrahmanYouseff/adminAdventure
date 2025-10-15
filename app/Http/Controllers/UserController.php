@@ -233,4 +233,18 @@ class UserController extends Controller
             ], 500);
         }
     }
+
+    /**
+     * Delete a user
+     */
+    public function destroy(User $user)
+    {
+        try {
+            $user->delete();
+
+            return redirect()->back()->with('success', 'تم حذف المستخدم بنجاح');
+        } catch (\Exception $e) {
+            return redirect()->back()->with('error', 'فشل حذف المستخدم');
+        }
+    }
 }

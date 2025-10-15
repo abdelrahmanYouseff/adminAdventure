@@ -9,42 +9,42 @@ import AppLogo from './AppLogo.vue';
 
 const mainNavItems: NavItem[] = [
     {
-        title: 'Dashboard',
+        title: 'لوحة التحكم',
         href: '/dashboard',
         icon: LayoutGrid,
     },
     {
-        title: 'Products',
+        title: 'المنتجات',
         href: '/products',
         icon: ShoppingBag,
     },
     {
-        title: 'Packages',
+        title: 'الباقات',
         href: '/packages',
         icon: Package,
     },
     {
-        title: 'Orders',
+        title: 'الطلبات',
         href: '/orders',
         icon: ShoppingCart,
     },
     {
-        title: 'Customers',
+        title: 'العملاء',
         href: '/customers',
         icon: Users,
     },
     {
-        title: 'Users',
+        title: 'المستخدمين',
         href: '/users',
         icon: Users,
     },
     {
-        title: 'Invoices',
+        title: 'الفواتير',
         href: '/invoices',
         icon: FileText,
     },
     {
-        title: 'Quotations',
+        title: 'عروض الأسعار',
         href: '/quotations',
         icon: FileSpreadsheet,
     },

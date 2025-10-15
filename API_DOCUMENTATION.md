@@ -1,278 +1,248 @@
-# Orders API Documentation
+# API Documentation - Adventure World
 
-## Create Order API
+## Orders API
 
-### Endpoint
-```
-POST /api/orders
-```
+### 1. إنشاء طلب جديد (Create Order)
 
-### Headers
+**Endpoint:** `POST /api/orders`
+
+**Headers:**
 ```
 Content-Type: application/json
 Accept: application/json
 ```
 
-### Request Body
+**Request Body:**
 ```json
 {
-    "customer_name": "John Doe",
-    "customer_email": "john@example.com",
+    "customer_name": "أحمد محمد",
+    "customer_email": "ahmed@example.com",
     "customer_phone": "+966501234567",
-    "total_amount": 299.99,
+    "total_amount": 150.00,
     "currency": "SAR",
     "payment_method": "credit_card",
-    "payment_id": "PAY_123456789",
+    "payment_id": "pay_123456789",
     "status": "pending",
     "items": [
         {
-            "name": "Camping Tent",
-            "quantity": 1,
-            "price": 149.99
-        },
-        {
-            "name": "Sleeping Bag",
+            "name": "باقة المغامرة الكاملة",
             "quantity": 2,
-            "price": 79.99
+            "price": 75.00
         }
     ],
-    "notes": "Customer requested early delivery",
+    "notes": "ملاحظات إضافية",
     "user_id": 1
 }
 ```
 
-### Required Fields
-- `customer_name` (string, max:255)
-- `total_amount` (numeric, min:0)
-- `currency` (string, in:SAR,USD,EUR)
-- `payment_method` (string, in:credit_card,cash,bank_transfer,paypal,noon)
-- `items` (array, min:1)
-  - `items.*.name` (string, max:255)
-  - `items.*.quantity` (integer, min:1)
-  - `items.*.price` (numeric, min:0)
-
-### Optional Fields
-- `customer_email` (email, max:255)
-- `customer_phone` (string, max:20)
-- `payment_id` (string, max:255)
-- `status` (string, in:pending,processing,paid,cancelled,refunded) - defaults to 'pending'
-- `notes` (string, max:1000)
-- `user_id` (integer, exists:users,id)
-
-### Response (Success - 201)
+**Response (Success - 201):**
 ```json
 {
     "success": true,
-    "message": "Order created successfully",
+    "message": "تم إنشاء الطلب والفاتورة بنجاح",
     "data": {
-        "id": 1,
-        "user_id": 1,
-        "customer_name": "John Doe",
-        "customer_email": "john@example.com",
-        "customer_phone": "+966501234567",
-        "order_number": "ORD-202410-0001",
-        "total_amount": "299.99",
-        "currency": "SAR",
-        "payment_method": "credit_card",
-        "payment_id": "PAY_123456789",
-        "status": "pending",
-        "items": [
-            {
-                "name": "Camping Tent",
-                "quantity": 1,
-                "price": 149.99
-            },
-            {
-                "name": "Sleeping Bag",
-                "quantity": 2,
-                "price": 79.99
-            }
-        ],
-        "notes": "Customer requested early delivery",
-        "created_at": "2024-10-14T10:00:00.000000Z",
-        "updated_at": "2024-10-14T10:00:00.000000Z",
-        "user": {
+        "order": {
             "id": 1,
-            "name": "Admin User",
-            "email": "admin@example.com"
+            "order_number": "ORD-2024-001",
+            "customer_name": "أحمد محمد",
+            "customer_email": "ahmed@example.com",
+            "customer_phone": "+966501234567",
+            "total_amount": 150.00,
+            "currency": "SAR",
+            "payment_method": "credit_card",
+            "payment_id": "pay_123456789",
+            "status": "pending",
+            "items": [
+                {
+                    "name": "باقة المغامرة الكاملة",
+                    "quantity": 2,
+                    "price": 75.00
+                }
+            ],
+            "notes": "ملاحظات إضافية",
+            "invoice_id": 1,
+            "created_at": "2024-01-01T12:00:00.000000Z",
+            "updated_at": "2024-01-01T12:00:00.000000Z",
+            "user": {
+                "id": 1,
+                "name": "Admin User"
+            },
+            "invoice": {
+                "id": 1,
+                "invoice_number": "INV-2024-001",
+                "amount": 150.00,
+                "status": "pending",
+                "payment_method": "credit_card"
+            }
+        },
+        "invoice": {
+            "id": 1,
+            "invoice_number": "INV-2024-001",
+            "amount": 150.00,
+            "status": "pending",
+            "payment_method": "credit_card",
+            "issued_at": "2024-01-01T12:00:00.000000Z",
+            "due_date": "2024-01-31T12:00:00.000000Z"
         }
     }
 }
 ```
 
-### Response (Validation Error - 422)
+**Response (Validation Error - 422):**
 ```json
 {
-    "message": "The given data was invalid.",
+    "success": false,
+    "message": "خطأ في البيانات المرسلة",
     "errors": {
-        "customer_name": [
-            "The customer name field is required."
-        ],
-        "total_amount": [
-            "The total amount must be a number."
-        ],
-        "items": [
-            "The items field is required."
-        ]
+        "customer_name": ["حقل اسم العميل مطلوب."],
+        "total_amount": ["حقل المبلغ الإجمالي مطلوب."]
     }
 }
 ```
 
-## Get Orders API
-
-### Endpoint
-```
-GET /api/orders
-```
-
-### Query Parameters
-- `search` (optional) - Search by order number, customer name, or payment ID
-- `status` (optional) - Filter by status (pending,processing,paid,cancelled,refunded)
-- `payment_method` (optional) - Filter by payment method
-- `currency` (optional) - Filter by currency
-- `page` (optional) - Page number for pagination
-
-### Example Request
-```
-GET /api/orders?search=John&status=pending&page=1
+**Response (Server Error - 500):**
+```json
+{
+    "success": false,
+    "message": "حدث خطأ أثناء إنشاء الطلب",
+    "error": "Database connection failed"
+}
 ```
 
-### Response (Success - 200)
+### 2. جلب جميع الطلبات (Get All Orders)
+
+**Endpoint:** `GET /api/orders`
+
+**Query Parameters:**
+- `search` (optional): البحث في رقم الطلب أو اسم العميل
+- `status` (optional): فلترة حسب الحالة
+- `payment_method` (optional): فلترة حسب طريقة الدفع
+- `currency` (optional): فلترة حسب العملة
+- `page` (optional): رقم الصفحة
+
+**Example:**
+```
+GET /api/orders?search=أحمد&status=pending&page=1
+```
+
+**Response:**
 ```json
 {
     "success": true,
     "data": {
-        "current_page": 1,
         "data": [
             {
                 "id": 1,
-                "user_id": 1,
-                "customer_name": "John Doe",
-                "customer_email": "john@example.com",
-                "customer_phone": "+966501234567",
-                "order_number": "ORD-202410-0001",
-                "total_amount": "299.99",
-                "currency": "SAR",
-                "payment_method": "credit_card",
-                "payment_id": "PAY_123456789",
+                "order_number": "ORD-2024-001",
+                "customer_name": "أحمد محمد",
+                "total_amount": 150.00,
                 "status": "pending",
-                "items": [...],
-                "notes": "Customer requested early delivery",
-                "created_at": "2024-10-14T10:00:00.000000Z",
-                "updated_at": "2024-10-14T10:00:00.000000Z",
-                "user": {...},
-                "invoice": null
+                "created_at": "2024-01-01T12:00:00.000000Z"
             }
         ],
-        "first_page_url": "http://localhost:8000/api/orders?page=1",
-        "from": 1,
+        "current_page": 1,
         "last_page": 1,
-        "last_page_url": "http://localhost:8000/api/orders?page=1",
-        "links": [...],
-        "next_page_url": null,
-        "path": "http://localhost:8000/api/orders",
         "per_page": 15,
-        "prev_page_url": null,
-        "to": 1,
         "total": 1
     }
 }
 ```
 
-## Get Single Order API
+### 3. جلب طلب محدد (Get Single Order)
 
-### Endpoint
-```
-GET /api/orders/{id}
-```
+**Endpoint:** `GET /api/orders/{id}`
 
-### Response (Success - 200)
+**Response:**
 ```json
 {
     "success": true,
     "data": {
         "id": 1,
-        "user_id": 1,
-        "customer_name": "John Doe",
-        "customer_email": "john@example.com",
+        "order_number": "ORD-2024-001",
+        "customer_name": "أحمد محمد",
+        "customer_email": "ahmed@example.com",
         "customer_phone": "+966501234567",
-        "order_number": "ORD-202410-0001",
-        "total_amount": "299.99",
+        "total_amount": 150.00,
         "currency": "SAR",
         "payment_method": "credit_card",
-        "payment_id": "PAY_123456789",
         "status": "pending",
-        "items": [...],
-        "notes": "Customer requested early delivery",
-        "created_at": "2024-10-14T10:00:00.000000Z",
-        "updated_at": "2024-10-14T10:00:00.000000Z",
-        "user": {...},
-        "invoice": null
+        "items": [
+            {
+                "name": "باقة المغامرة الكاملة",
+                "quantity": 2,
+                "price": 75.00
+            }
+        ],
+        "notes": "ملاحظات إضافية",
+        "invoice_id": 1,
+        "created_at": "2024-01-01T12:00:00.000000Z",
+        "updated_at": "2024-01-01T12:00:00.000000Z",
+        "user": {
+            "id": 1,
+            "name": "Admin User"
+        },
+        "invoice": {
+            "id": 1,
+            "invoice_number": "INV-2024-001",
+            "amount": 150.00,
+            "status": "pending"
+        }
     }
 }
 ```
 
-### Response (Not Found - 404)
+### 4. تحديث حالة الطلب (Update Order Status)
+
+**Endpoint:** `PATCH /api/orders/{id}/status`
+
+**Request Body:**
 ```json
 {
-    "message": "No query results for model [App\\Models\\Order] 999"
+    "status": "paid"
 }
 ```
 
-## Testing the API
-
-### Using cURL
-```bash
-# Create Order
-curl -X POST http://localhost:8000/api/orders \
-  -H "Content-Type: application/json" \
-  -H "Accept: application/json" \
-  -d '{
-    "customer_name": "John Doe",
-    "customer_email": "john@example.com",
-    "total_amount": 299.99,
-    "currency": "SAR",
-    "payment_method": "credit_card",
-    "items": [
-        {
-            "name": "Camping Tent",
-            "quantity": 1,
-            "price": 149.99
-        }
-    ]
-  }'
-
-# Get Orders
-curl -X GET http://localhost:8000/api/orders \
-  -H "Accept: application/json"
-
-# Get Single Order
-curl -X GET http://localhost:8000/api/orders/1 \
-  -H "Accept: application/json"
+**Response:**
+```json
+{
+    "success": true,
+    "message": "تم تحديث حالة الطلب بنجاح",
+    "data": {
+        "id": 1,
+        "order_number": "ORD-2024-001",
+        "status": "paid",
+        "updated_at": "2024-01-01T13:00:00.000000Z"
+    }
+}
 ```
 
-### Using Postman
-1. Set method to POST/GET
-2. Set URL to `http://localhost:8000/api/orders`
-3. Add headers: `Content-Type: application/json`
-4. Add request body (for POST requests)
-5. Send request
+## Validation Rules
 
-## Order Status Values
-- `pending` - Order is waiting for processing
-- `processing` - Order is being processed
-- `paid` - Order is paid and confirmed
-- `cancelled` - Order has been cancelled
-- `refunded` - Order has been refunded
+### Order Fields:
+- `customer_name`: مطلوب، نص، أقصى 255 حرف
+- `customer_email`: اختياري، بريد إلكتروني صحيح، أقصى 255 حرف
+- `customer_phone`: اختياري، نص، أقصى 20 حرف
+- `total_amount`: مطلوب، رقم، أكبر من أو يساوي 0
+- `currency`: مطلوب، واحد من: SAR, USD, EUR
+- `payment_method`: مطلوب، واحد من: credit_card, cash, bank_transfer, paypal, noon
+- `payment_id`: اختياري، نص، أقصى 255 حرف
+- `status`: اختياري، واحد من: pending, processing, paid, cancelled, refunded
+- `items`: مطلوب، مصفوفة، أقصى عنصر واحد
+- `items.*.name`: مطلوب، نص، أقصى 255 حرف
+- `items.*.quantity`: مطلوب، رقم صحيح، أكبر من 0
+- `items.*.price`: مطلوب، رقم، أكبر من أو يساوي 0
+- `notes`: اختياري، نص، أقصى 1000 حرف
+- `user_id`: اختياري، رقم صحيح موجود في جدول المستخدمين
 
-## Payment Method Values
-- `credit_card` - Credit Card payment
-- `cash` - Cash payment
-- `bank_transfer` - Bank transfer
-- `paypal` - PayPal payment
-- `noon` - Noon payment
+## Error Codes
 
-## Currency Values
-- `SAR` - Saudi Riyal
-- `USD` - US Dollar
-- `EUR` - Euro
+- `200`: نجح الطلب
+- `201`: تم إنشاء الطلب بنجاح
+- `422`: خطأ في البيانات المرسلة
+- `500`: خطأ في الخادم
+
+## Base URL
+
+```
+http://127.0.0.1:8000/api
+```

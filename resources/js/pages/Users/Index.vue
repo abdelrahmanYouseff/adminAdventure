@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { Head } from '@inertiajs/vue3';
+import { Head, router } from '@inertiajs/vue3';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { Button } from '@/components/ui/button';
-import { Users, Mail, Phone, MapPin, Globe } from 'lucide-vue-next';
+import { Users, Mail, Phone, MapPin, Globe, Trash2 } from 'lucide-vue-next';
 
 interface User {
     id: number;
@@ -21,6 +21,14 @@ interface Props {
 defineProps<Props>();
 
 defineOptions({ layout: AppLayout });
+
+const deleteUser = (user: User) => {
+    if (confirm(`هل أنت متأكد من حذف المستخدم "${user.name}"؟ لا يمكن التراجع عن هذا الإجراء.`)) {
+        router.delete(route('users.destroy', user.id), {
+            preserveScroll: true,
+        });
+    }
+};
 </script>
 
 <template>
@@ -48,11 +56,12 @@ defineOptions({ layout: AppLayout });
                                     <th class="border border-neutral-200 dark:border-neutral-600 px-4 py-3 text-left font-medium">Country</th>
                                     <th class="border border-neutral-200 dark:border-neutral-600 px-4 py-3 text-left font-medium">Address</th>
                                     <th class="border border-neutral-200 dark:border-neutral-600 px-4 py-3 text-left font-medium">Created At</th>
+                                    <th class="border border-neutral-200 dark:border-neutral-600 px-4 py-3 text-center font-medium">Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 <tr v-if="users.length === 0">
-                                    <td colspan="7" class="border border-neutral-200 dark:border-neutral-600 px-4 py-8 text-neutral-500 text-center">
+                                    <td colspan="8" class="border border-neutral-200 dark:border-neutral-600 px-4 py-8 text-neutral-500 text-center">
                                         No users found.
                                     </td>
                                 </tr>
@@ -85,6 +94,19 @@ defineOptions({ layout: AppLayout });
                                     </td>
                                     <td class="border border-neutral-200 dark:border-neutral-600 px-4 py-3">
                                         {{ new Date(user.created_at).toLocaleString() }}
+                                    </td>
+                                    <td class="border border-neutral-200 dark:border-neutral-600 px-4 py-3">
+                                        <div class="flex items-center justify-center gap-2">
+                                            <Button
+                                                @click="deleteUser(user)"
+                                                variant="destructive"
+                                                size="sm"
+                                                class="flex items-center gap-2"
+                                            >
+                                                <Trash2 class="w-4 h-4" />
+                                                Delete
+                                            </Button>
+                                        </div>
                                     </td>
                                 </tr>
                             </tbody>

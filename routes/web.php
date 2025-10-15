@@ -87,6 +87,10 @@ Route::get('users', [\App\Http\Controllers\UserController::class, 'index'])
     ->middleware(['auth', 'verified'])
     ->name('users');
 
+Route::delete('users/{user}', [\App\Http\Controllers\UserController::class, 'destroy'])
+    ->middleware(['auth', 'verified'])
+    ->name('users.destroy');
+
 // Package routes
 Route::resource('packages', PackageController::class)->middleware(['auth', 'verified']);
 
@@ -131,17 +135,9 @@ Route::get('orders', [OrderController::class, 'index'])
     ->middleware(['auth', 'verified'])
     ->name('orders.index');
 
-Route::post('orders', [OrderController::class, 'store'])
+Route::delete('orders/{order}', [OrderController::class, 'destroy'])
     ->middleware(['auth', 'verified'])
-    ->name('orders.store');
-
-Route::get('orders/{order}', [OrderController::class, 'show'])
-    ->middleware(['auth', 'verified'])
-    ->name('orders.show');
-
-Route::patch('orders/{order}/status', [OrderController::class, 'updateStatus'])
-    ->middleware(['auth', 'verified'])
-    ->name('orders.update-status');
+    ->name('orders.destroy');
 
 require __DIR__.'/settings.php';
 require __DIR__.'/auth.php';

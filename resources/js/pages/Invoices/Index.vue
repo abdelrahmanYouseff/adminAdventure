@@ -20,117 +20,6 @@
 
     <div class="py-12">
       <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
-        <!-- Statistics Cards -->
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
-          <Card class="bg-gradient-to-r from-blue-500 to-blue-600 text-white">
-            <CardHeader class="pb-2">
-              <CardTitle class="text-sm font-medium opacity-90">Total Invoices</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div class="text-2xl font-bold">{{ stats.total }}</div>
-            </CardContent>
-          </Card>
-
-          <Card class="bg-gradient-to-r from-green-500 to-green-600 text-white">
-            <CardHeader class="pb-2">
-              <CardTitle class="text-sm font-medium opacity-90">Paid</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div class="text-2xl font-bold">{{ stats.paid }}</div>
-            </CardContent>
-          </Card>
-
-          <Card class="bg-gradient-to-r from-yellow-500 to-yellow-600 text-white">
-            <CardHeader class="pb-2">
-              <CardTitle class="text-sm font-medium opacity-90">Pending</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div class="text-2xl font-bold">{{ stats.pending }}</div>
-            </CardContent>
-          </Card>
-
-          <Card class="bg-gradient-to-r from-red-500 to-red-600 text-white">
-            <CardHeader class="pb-2">
-              <CardTitle class="text-sm font-medium opacity-90">Cancelled</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div class="text-2xl font-bold">{{ stats.cancelled }}</div>
-            </CardContent>
-          </Card>
-
-          <Card class="bg-gradient-to-r from-orange-500 to-orange-600 text-white">
-            <CardHeader class="pb-2">
-              <CardTitle class="text-sm font-medium opacity-90">Overdue</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div class="text-2xl font-bold">{{ stats.overdue }}</div>
-            </CardContent>
-          </Card>
-
-          <Card class="bg-gradient-to-r from-purple-500 to-purple-600 text-white">
-            <CardHeader class="pb-2">
-              <CardTitle class="text-sm font-medium opacity-90">Total Revenue</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div class="text-2xl font-bold">{{ formatCurrency(stats.total_amount) }}</div>
-            </CardContent>
-          </Card>
-        </div>
-
-        <!-- Filters -->
-        <Card class="mb-6">
-          <CardContent class="p-6">
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div>
-                <Label for="search">Search</Label>
-                <Input
-                  id="search"
-                  v-model="filters.search"
-                  placeholder="Search by invoice number or customer name..."
-                  @input="debouncedSearch"
-                />
-              </div>
-
-              <div>
-                <Label for="status">Status</Label>
-                <select
-                  id="status"
-                  v-model="filters.status"
-                  class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  @change="applyFilters"
-                >
-                  <option value="all">All Status</option>
-                  <option value="pending">Pending</option>
-                  <option value="paid">Paid</option>
-                  <option value="cancelled">Cancelled</option>
-                  <option value="overdue">Overdue</option>
-                </select>
-              </div>
-
-              <div>
-                <Label for="payment_method">Payment Method</Label>
-                <select
-                  id="payment_method"
-                  v-model="filters.payment_method"
-                  class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  @change="applyFilters"
-                >
-                  <option value="all">All Methods</option>
-                  <option value="noon">Noon</option>
-                  <option value="cash">Cash</option>
-                  <option value="bank_transfer">Bank Transfer</option>
-                </select>
-              </div>
-
-              <div class="flex items-end">
-                <Button @click="clearFilters" variant="outline" class="w-full">
-                  Clear Filters
-                </Button>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
         <!-- Invoices Table -->
         <Card>
           <CardHeader>
@@ -270,13 +159,10 @@
 </template>
 
 <script setup>
-import { ref, onMounted, watch } from 'vue'
 import { router } from '@inertiajs/vue3'
 import AppLayout from '@/layouts/AppLayout.vue'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import {
   DropdownMenu,
@@ -288,46 +174,7 @@ import Icon from '@/components/Icon.vue'
 
 const props = defineProps({
   invoices: Object,
-  stats: Object,
-  filters: Object,
 })
-
-const filters = ref({
-  search: props.filters.search || '',
-  status: props.filters.status || 'all',
-  payment_method: props.filters.payment_method || 'all',
-})
-
-let searchTimeout = null
-
-const debouncedSearch = () => {
-  clearTimeout(searchTimeout)
-  searchTimeout = setTimeout(() => {
-    applyFilters()
-  }, 300)
-}
-
-const applyFilters = () => {
-  const params = new URLSearchParams()
-
-  if (filters.value.search) params.append('search', filters.value.search)
-  if (filters.value.status !== 'all') params.append('status', filters.value.status)
-  if (filters.value.payment_method !== 'all') params.append('payment_method', filters.value.payment_method)
-
-  router.get(route('invoices.index'), params.toString(), {
-    preserveState: true,
-    replace: true,
-  })
-}
-
-const clearFilters = () => {
-  filters.value = {
-    search: '',
-    status: 'all',
-    payment_method: 'all',
-  }
-  router.get(route('invoices.index'))
-}
 
 const goToPage = (page) => {
   const params = new URLSearchParams(window.location.search)
@@ -345,10 +192,7 @@ const updateStatus = (invoice, status) => {
 }
 
 const exportInvoices = () => {
-  const params = new URLSearchParams()
-  if (filters.value.status !== 'all') params.append('status', filters.value.status)
-
-  window.open(`${route('invoices.export')}?${params.toString()}`, '_blank')
+  window.open(route('invoices.export'), '_blank')
 }
 
 const updateOverdueInvoices = () => {

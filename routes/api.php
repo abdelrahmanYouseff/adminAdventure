@@ -28,6 +28,7 @@ Route::get('payment/cancel', [PaymentController::class, 'paymentCancel']);
 Route::post('payment/webhook', [PaymentController::class, 'webhook']);
 
 // Order Routes
-Route::post('orders', [OrderController::class, 'store']);
+Route::post('orders', [OrderController::class, 'apiStore']);
 Route::get('orders', [OrderController::class, 'apiIndex']);
 Route::get('orders/{order}', [OrderController::class, 'apiShow']);
+Route::patch('orders/{order}/status', [OrderController::class, 'apiUpdateStatus']);

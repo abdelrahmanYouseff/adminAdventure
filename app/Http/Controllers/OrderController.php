@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Order;
+use App\Models\Invoice;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
@@ -44,27 +45,8 @@ class OrderController extends Controller
 
         $orders = $query->orderBy('created_at', 'desc')->paginate(15);
 
-        // Calculate statistics
-        $statistics = [
-            'total' => Order::count(),
-            'paid' => Order::where('status', 'paid')->count(),
-            'pending' => Order::where('status', 'pending')->count(),
-            'processing' => Order::where('status', 'processing')->count(),
-            'cancelled' => Order::where('status', 'cancelled')->count(),
-            'refunded' => Order::where('status', 'refunded')->count(),
-            'total_amount' => Order::where('status', 'paid')->sum('total_amount'),
-            'pending_amount' => Order::where('status', 'pending')->sum('total_amount'),
-        ];
-
         return Inertia::render('Orders/Index', [
             'orders' => $orders,
-            'statistics' => $statistics,
-            'filters' => [
-                'search' => $request->search ?? '',
-                'status' => $request->status ?? 'all',
-                'payment_method' => $request->payment_method ?? 'all',
-                'currency' => $request->currency ?? 'all',
-            ],
         ]);
     }
 
@@ -96,10 +78,33 @@ class OrderController extends Controller
             'user_id' => 'nullable|exists:users,id',
         ]);
 
+        // Create invoice first
+        $invoiceData = [
+            'invoice_number' => Invoice::generateInvoiceNumber(),
+            'amount' => $request->total_amount,
+            'status' => $request->status === 'paid' ? 'paid' : 'pending',
+            'payment_method' => $request->payment_method,
+            'issued_at' => now(),
+            'due_date' => now()->addDays(30),
+        ];
+
+        // Add user_id only if provided (since it might be required in invoices table)
+        if ($request->user_id) {
+            $invoiceData['user_id'] = $request->user_id;
+        } else {
+            // If no user_id, we need to provide a default or skip invoice creation
+            // For now, let's use user_id = 1 as default (admin) or skip if not available
+            $invoiceData['user_id'] = 1; // Default to admin user
+        }
+
+        $invoice = Invoice::create($invoiceData);
+
+        // Create order with invoice_id
         $orderData = [
             'customer_name' => $request->customer_name,
             'customer_email' => $request->customer_email,
             'customer_phone' => $request->customer_phone,
+            'invoice_id' => $invoice->id,
             'order_number' => Order::generateOrderNumber(),
             'total_amount' => $request->total_amount,
             'currency' => $request->currency,
@@ -119,9 +124,91 @@ class OrderController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Order created successfully',
-            'data' => $order->load(['user']),
+            'message' => 'Order and invoice created successfully',
+            'data' => [
+                'order' => $order->load(['user', 'invoice']),
+                'invoice' => $invoice,
+            ],
         ], 201);
+    }
+
+    /**
+     * API endpoint to create a new order
+     */
+    public function apiStore(Request $request)
+    {
+        try {
+            $request->validate([
+                'customer_name' => 'required|string|max:255',
+                'customer_email' => 'nullable|email|max:255',
+                'customer_phone' => 'nullable|string|max:20',
+                'total_amount' => 'required|numeric|min:0',
+                'currency' => 'required|string|in:SAR,USD,EUR',
+                'payment_method' => 'required|string|in:credit_card,cash,bank_transfer,paypal,noon',
+                'payment_id' => 'nullable|string|max:255',
+                'status' => 'sometimes|string|in:pending,processing,paid,cancelled,refunded',
+                'items' => 'required|array|min:1',
+                'items.*.name' => 'required|string|max:255',
+                'items.*.quantity' => 'required|integer|min:1',
+                'items.*.price' => 'required|numeric|min:0',
+                'notes' => 'nullable|string|max:1000',
+                'user_id' => 'nullable|exists:users,id',
+            ]);
+
+            // Create invoice first
+            $invoiceData = [
+                'invoice_number' => Invoice::generateInvoiceNumber(),
+                'amount' => $request->total_amount,
+                'status' => $request->status === 'paid' ? 'paid' : 'pending',
+                'payment_method' => $request->payment_method,
+                'issued_at' => now(),
+                'due_date' => now()->addDays(30),
+                'user_id' => $request->user_id ?? 1, // Default to admin user
+            ];
+
+            $invoice = Invoice::create($invoiceData);
+
+            // Create order with invoice_id
+            $orderData = [
+                'customer_name' => $request->customer_name,
+                'customer_email' => $request->customer_email,
+                'customer_phone' => $request->customer_phone,
+                'invoice_id' => $invoice->id,
+                'order_number' => Order::generateOrderNumber(),
+                'total_amount' => $request->total_amount,
+                'currency' => $request->currency,
+                'payment_method' => $request->payment_method,
+                'payment_id' => $request->payment_id,
+                'status' => $request->status ?? 'pending',
+                'items' => $request->items,
+                'notes' => $request->notes,
+                'user_id' => $request->user_id,
+            ];
+
+            $order = Order::create($orderData);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'تم إنشاء الطلب والفاتورة بنجاح',
+                'data' => [
+                    'order' => $order->load(['user', 'invoice']),
+                    'invoice' => $invoice,
+                ],
+            ], 201);
+
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'خطأ في البيانات المرسلة',
+                'errors' => $e->errors(),
+            ], 422);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'حدث خطأ أثناء إنشاء الطلب',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
     }
 
     public function apiIndex(Request $request)
@@ -176,6 +263,57 @@ class OrderController extends Controller
         ]);
     }
 
+    /**
+     * API endpoint to update order status
+     */
+    public function apiUpdateStatus(Order $order, Request $request)
+    {
+        try {
+            $request->validate([
+                'status' => 'required|in:pending,processing,paid,cancelled,refunded',
+            ]);
+
+            $order->update([
+                'status' => $request->status,
+            ]);
+
+            // Update invoice status if invoice exists
+            if ($order->invoice_id) {
+                $invoice = Invoice::find($order->invoice_id);
+                if ($invoice) {
+                    $invoiceStatus = 'pending';
+
+                    if ($request->status === 'paid') {
+                        $invoiceStatus = 'paid';
+                    } elseif (in_array($request->status, ['cancelled', 'refunded'])) {
+                        $invoiceStatus = 'cancelled';
+                    }
+
+                    $invoice->update(['status' => $invoiceStatus]);
+                }
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'تم تحديث حالة الطلب بنجاح',
+                'data' => $order->load(['user', 'invoice']),
+            ]);
+
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'خطأ في البيانات المرسلة',
+                'errors' => $e->errors(),
+            ], 422);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'حدث خطأ أثناء تحديث حالة الطلب',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
     public function updateStatus(Order $order, Request $request)
     {
         $request->validate([
@@ -186,7 +324,37 @@ class OrderController extends Controller
             'status' => $request->status,
         ]);
 
+        // Update invoice status if invoice exists
+        if ($order->invoice_id) {
+            $invoice = Invoice::find($order->invoice_id);
+            if ($invoice) {
+                $invoiceStatus = 'pending';
+
+                if ($request->status === 'paid') {
+                    $invoiceStatus = 'paid';
+                } elseif (in_array($request->status, ['cancelled', 'refunded'])) {
+                    $invoiceStatus = 'cancelled';
+                }
+
+                $invoice->update(['status' => $invoiceStatus]);
+            }
+        }
+
         return redirect()->back()->with('success', 'Order status updated successfully');
+    }
+
+    /**
+     * Delete an order
+     */
+    public function destroy(Order $order)
+    {
+        try {
+            $order->delete();
+
+            return redirect()->back()->with('success', 'تم حذف الطلب بنجاح');
+        } catch (\Exception $e) {
+            return redirect()->back()->with('error', 'فشل حذف الطلب: ' . $e->getMessage());
+        }
     }
 }
 

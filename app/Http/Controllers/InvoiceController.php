@@ -14,51 +14,12 @@ class InvoiceController extends Controller
      */
     public function index(Request $request)
     {
-        $query = Invoice::with(['user']);
-
-        // Filter by status
-        if ($request->has('status') && $request->status !== 'all') {
-            $query->where('status', $request->status);
-        }
-
-        // Filter by payment method
-        if ($request->has('payment_method') && $request->payment_method !== 'all') {
-            $query->where('payment_method', $request->payment_method);
-        }
-
-        // Search by invoice number or user name
-        if ($request->has('search') && $request->search) {
-            $search = $request->search;
-            $query->where(function($q) use ($search) {
-                $q->where('invoice_number', 'like', "%{$search}%")
-                  ->orWhereHas('user', function($userQuery) use ($search) {
-                      $userQuery->where('full_name', 'like', "%{$search}%")
-                               ->orWhere('name', 'like', "%{$search}%");
-                  });
-            });
-        }
-
-        $invoices = $query->orderBy('created_at', 'desc')->paginate(15);
-
-        // Get statistics
-        $stats = [
-            'total' => Invoice::count(),
-            'paid' => Invoice::where('status', 'paid')->count(),
-            'pending' => Invoice::where('status', 'pending')->count(),
-            'cancelled' => Invoice::where('status', 'cancelled')->count(),
-            'overdue' => Invoice::where('status', 'pending')->where('due_date', '<', now())->count(),
-            'total_amount' => Invoice::where('status', 'paid')->sum('amount'),
-            'pending_amount' => Invoice::where('status', 'pending')->sum('amount'),
-        ];
+        $invoices = Invoice::with(['user'])
+            ->orderBy('created_at', 'desc')
+            ->paginate(15);
 
         return Inertia::render('Invoices/Index', [
             'invoices' => $invoices,
-            'stats' => $stats,
-            'filters' => [
-                'status' => $request->status ?? 'all',
-                'payment_method' => $request->payment_method ?? 'all',
-                'search' => $request->search ?? '',
-            ],
         ]);
     }
 
