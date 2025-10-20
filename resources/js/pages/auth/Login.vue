@@ -131,6 +131,13 @@ const submit = () => {
                         {{ form.processing ? 'Signing in...' : 'Sign in' }}
                     </Button>
                 </form>
+
+                <!-- Footer Links -->
+                <div class="mt-6 text-center text-xs text-gray-500 dark:text-gray-400">
+                    <span>By continuing, you agree to our </span>
+                    <TextLink :href="route('privacy')" class="text-blue-600 hover:text-blue-700 dark:text-blue-400">Privacy</TextLink>
+                    <span> policy.</span>
+                </div>
             </div>
         </div>
     </div>

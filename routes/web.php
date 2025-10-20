@@ -19,6 +19,11 @@ Route::get('/', function () {
     return redirect()->route('login');
 })->name('home');
 
+// Privacy page (public)
+Route::get('/privacy', function () {
+    return Inertia::render('Privacy');
+})->name('privacy');
+
 Route::get('dashboard', [DashboardController::class, 'index'])
     ->middleware(['auth', 'verified'])
     ->name('dashboard');
@@ -134,6 +139,7 @@ Route::patch('quotations/{quotation}/status', [QuotationController::class, 'upda
 Route::get('orders', [OrderController::class, 'index'])
     ->middleware(['auth', 'verified'])
     ->name('orders.index');
+
 
 Route::delete('orders/{order}', [OrderController::class, 'destroy'])
     ->middleware(['auth', 'verified'])

@@ -39,7 +39,7 @@ const editingProduct = ref<number | null>(null);
 const editingField = ref<string | null>(null);
 
 const deleteProduct = (productId: number) => {
-    if (confirm('Are you sure you want to delete this product?')) {
+    if (confirm('هل أنت متأكد من حذف هذا المنتج؟')) {
         deleteForm.delete(`/products/${productId}`);
     }
 };
@@ -76,24 +76,24 @@ const isEditing = (productId: number, field: string) => {
 </script>
 
 <template>
-    <Head title="Products" />
+    <Head title="المنتجات" />
 
     <div class="py-12">
         <div class="mx-auto max-w-7xl sm:px-6 lg:px-8">
             <div class="overflow-hidden bg-white shadow-sm dark:bg-neutral-800 sm:rounded-lg">
                 <div class="p-6 text-neutral-900 dark:text-neutral-100">
                     <div class="flex justify-between items-center mb-6">
-                        <h1 class="text-2xl font-semibold">Products</h1>
+                        <h1 class="text-2xl font-semibold">المنتجات</h1>
                         <div class="flex space-x-2">
                             <Button variant="outline" as-child>
                                 <Link href="/categories">
-                                    Manage Categories
+                                    إدارة الفئات
                                 </Link>
                             </Button>
                             <Button as-child>
                                 <Link href="/products/create">
                                     <Plus class="w-4 h-4 mr-2" />
-                                    Add New Product
+                                    إضافة منتج جديد
                                 </Link>
                             </Button>
                         </div>
@@ -104,19 +104,19 @@ const isEditing = (productId: number, field: string) => {
                         <table class="w-full border-collapse border border-neutral-200 dark:border-neutral-700">
                             <thead>
                                 <tr class="bg-neutral-50 dark:bg-neutral-700">
-                                    <th class="border border-neutral-200 dark:border-neutral-600 px-4 py-3 text-left font-medium">ID</th>
-                                    <th class="border border-neutral-200 dark:border-neutral-600 px-4 py-3 text-left font-medium">Name</th>
-                                    <th class="border border-neutral-200 dark:border-neutral-600 px-4 py-3 text-left font-medium">Category</th>
-                                    <th class="border border-neutral-200 dark:border-neutral-600 px-4 py-3 text-left font-medium">Description</th>
-                                    <th class="border border-neutral-200 dark:border-neutral-600 px-4 py-3 text-left font-medium">Price</th>
-                                    <th class="border border-neutral-200 dark:border-neutral-600 px-4 py-3 text-left font-medium">Status</th>
-                                    <th class="border border-neutral-200 dark:border-neutral-600 px-4 py-3 text-left font-medium">Actions</th>
+                                    <th class="border border-neutral-200 dark:border-neutral-600 px-4 py-3 text-left font-medium">المعرف</th>
+                                    <th class="border border-neutral-200 dark:border-neutral-600 px-4 py-3 text-left font-medium">الاسم</th>
+                                    <th class="border border-neutral-200 dark:border-neutral-600 px-4 py-3 text-left font-medium">الفئة</th>
+                                    <th class="border border-neutral-200 dark:border-neutral-600 px-4 py-3 text-left font-medium">الوصف</th>
+                                    <th class="border border-neutral-200 dark:border-neutral-600 px-4 py-3 text-left font-medium">السعر</th>
+                                    <th class="border border-neutral-200 dark:border-neutral-600 px-4 py-3 text-left font-medium">الحالة</th>
+                                    <th class="border border-neutral-200 dark:border-neutral-600 px-4 py-3 text-left font-medium">الإجراءات</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 <tr v-if="products.length === 0" class="text-center">
                                     <td colspan="7" class="border border-neutral-200 dark:border-neutral-600 px-4 py-8 text-neutral-500">
-                                        No products found. Click "Add New Product" to get started.
+                                        لا توجد منتجات. اضغط على "إضافة منتج جديد" للبدء.
                                     </td>
                                 </tr>
                                 <tr v-for="product in products" :key="product.id" class="hover:bg-neutral-50 dark:hover:bg-neutral-700">
@@ -169,7 +169,7 @@ const isEditing = (productId: number, field: string) => {
                                         <div v-if="!isEditing(product.id, 'description')"
                                              @click="startEditing(product.id, 'description')"
                                              class="cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-600 px-2 py-1 rounded">
-                                            {{ product.description ? (product.description.length > 50 ? product.description.substring(0, 50) + '...' : product.description) : 'No description' }}
+                                            {{ product.description ? (product.description.length > 50 ? product.description.substring(0, 50) + '...' : product.description) : 'لا يوجد وصف' }}
                                         </div>
                                         <div v-else class="flex items-center space-x-1">
                                             <textarea v-model="product.description"
@@ -190,7 +190,7 @@ const isEditing = (productId: number, field: string) => {
                                         <div v-if="!isEditing(product.id, 'price')"
                                              @click="startEditing(product.id, 'price')"
                                              class="cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-600 px-2 py-1 rounded">
-                                            SAR {{ product.price }}
+                                            {{ product.price }} ريال
                                         </div>
                                         <div v-else class="flex items-center space-x-1">
                                             <input v-model="product.price"
@@ -214,15 +214,15 @@ const isEditing = (productId: number, field: string) => {
                                              @click="startEditing(product.id, 'status')"
                                              class="cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-600 px-2 py-1 rounded">
                                             <span :class="product.status === 'active' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'" class="px-2 py-1 rounded-full text-xs font-medium">
-                                                {{ product.status === 'active' ? 'Active' : 'Inactive' }}
+                                                {{ product.status === 'active' ? 'نشط' : 'غير نشط' }}
                                             </span>
                                         </div>
                                         <div v-else class="flex items-center space-x-1">
                                             <select v-model="product.status"
                                                     @change="updateField(product.id, 'status', product.status)"
                                                     class="flex-1 px-2 py-1 border rounded text-sm">
-                                                <option value="active">Active</option>
-                                                <option value="inactive">Inactive</option>
+                                                <option value="active">نشط</option>
+                                                <option value="inactive">غير نشط</option>
                                             </select>
                                             <Button size="sm" variant="outline" @click="cancelEditing">
                                                 <X class="w-3 h-3" />

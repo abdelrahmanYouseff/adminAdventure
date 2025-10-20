@@ -46,6 +46,16 @@ class Order extends Model
     }
 
     /**
+     * Get the products for this order.
+     */
+    public function products()
+    {
+        return $this->belongsToMany(Product::class, 'order_product')
+                    ->withPivot('quantity', 'price')
+                    ->withTimestamps();
+    }
+
+    /**
      * Generate a unique order number.
      */
     public static function generateOrderNumber()

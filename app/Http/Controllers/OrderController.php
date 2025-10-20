@@ -11,7 +11,7 @@ class OrderController extends Controller
 {
     public function index(Request $request)
     {
-        $query = Order::with(['user', 'invoice']);
+        $query = Order::with(['user', 'invoice', 'products']);
 
         // Search filter
         if ($request->has('search') && $request->search) {
@@ -24,6 +24,9 @@ class OrderController extends Controller
                         $q->where('full_name', 'like', "%{$search}%")
                             ->orWhere('name', 'like', "%{$search}%")
                             ->orWhere('email', 'like', "%{$search}%");
+                    })
+                    ->orWhereHas('products', function ($q) use ($search) {
+                        $q->where('product_name', 'like', "%{$search}%");
                     });
             });
         }
@@ -49,6 +52,7 @@ class OrderController extends Controller
             'orders' => $orders,
         ]);
     }
+
 
     public function show(Order $order)
     {
@@ -147,10 +151,14 @@ class OrderController extends Controller
                 'payment_method' => 'required|string|in:credit_card,cash,bank_transfer,paypal,noon',
                 'payment_id' => 'nullable|string|max:255',
                 'status' => 'sometimes|string|in:pending,processing,paid,cancelled,refunded',
-                'items' => 'required|array|min:1',
-                'items.*.name' => 'required|string|max:255',
-                'items.*.quantity' => 'required|integer|min:1',
-                'items.*.price' => 'required|numeric|min:0',
+                'items' => 'required_without:product_items|array|min:1',
+                'items.*.name' => 'required_with:items|string|max:255',
+                'items.*.quantity' => 'required_with:items|integer|min:1',
+                'items.*.price' => 'required_with:items|numeric|min:0',
+                'product_items' => 'required_without:items|array|min:1',
+                'product_items.*.product_id' => 'required_with:product_items|exists:products,id',
+                'product_items.*.quantity' => 'required_with:product_items|integer|min:1',
+                'product_items.*.price' => 'required_with:product_items|numeric|min:0',
                 'notes' => 'nullable|string|max:1000',
                 'user_id' => 'nullable|exists:users,id',
             ]);
@@ -187,11 +195,21 @@ class OrderController extends Controller
 
             $order = Order::create($orderData);
 
+            // إضافة المنتجات للطلب باستخدام العلاقة
+            if ($request->has('product_items') && is_array($request->product_items)) {
+                foreach ($request->product_items as $productItem) {
+                    $order->products()->attach($productItem['product_id'], [
+                        'quantity' => $productItem['quantity'],
+                        'price' => $productItem['price']
+                    ]);
+                }
+            }
+
             return response()->json([
                 'success' => true,
                 'message' => 'تم إنشاء الطلب والفاتورة بنجاح',
                 'data' => [
-                    'order' => $order->load(['user', 'invoice']),
+                    'order' => $order->load(['user', 'invoice', 'products']),
                     'invoice' => $invoice,
                 ],
             ], 201);
