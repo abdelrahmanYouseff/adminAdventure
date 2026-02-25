@@ -129,9 +129,10 @@ class ProductController extends Controller
         try {
             $file = $request->file('file');
             $path = $file->getRealPath();
+            $extension = $file->getClientOriginalExtension();
 
             $import = new ProductsImport;
-            $import->importFromPath($path);
+            $import->importFromPath($path, $extension);
 
             $imported = $import->getImportedCount();
             $errors = $import->getErrors();

@@ -14,10 +14,14 @@ class ProductsImport
     /**
      * Import from file path. Supports CSV (UTF-8). For Excel, user can save as CSV.
      * Columns: A/1 = اسم المنتج, B/2 = الفئة, C/3 = السعر
+     * @param string $path Full path to file (temp upload path may have no extension)
+     * @param string|null $originalExtension Extension from uploaded file name (e.g. xlsx, csv)
      */
-    public function importFromPath(string $path): void
+    public function importFromPath(string $path, ?string $originalExtension = null): void
     {
-        $ext = strtolower(pathinfo($path, PATHINFO_EXTENSION));
+        $ext = $originalExtension !== null && $originalExtension !== ''
+            ? strtolower($originalExtension)
+            : strtolower(pathinfo($path, PATHINFO_EXTENSION));
 
         if ($ext === 'csv') {
             $this->importFromCsv($path);
