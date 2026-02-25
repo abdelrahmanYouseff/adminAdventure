@@ -19,18 +19,25 @@ class ProductsImport implements ToCollection
      */
     public function collection(Collection $rows): void
     {
+        $rows = $rows->filter(fn ($row) => $row !== null && (is_array($row) || $row instanceof \Illuminate\Support\Collection));
+        if ($rows->isEmpty()) {
+            return;
+        }
+
         $startIndex = 0;
         $firstRow = $rows->first();
-        if ($firstRow && $this->looksLikeHeaderRow($firstRow)) {
+        $firstRowCollection = $firstRow instanceof Collection ? $firstRow : collect($firstRow);
+        if ($this->looksLikeHeaderRow($firstRowCollection)) {
             $startIndex = 1;
         }
 
         foreach ($rows->slice($startIndex) as $index => $row) {
             $rowNumber = $startIndex + $index + 1;
+            $rowCollection = $row instanceof Collection ? $row : collect($row);
 
-            $productName = $this->cell($row, 0);
-            $categoryName = $this->cell($row, 1);
-            $price = $this->cell($row, 2);
+            $productName = $this->cell($rowCollection, 0);
+            $categoryName = $this->cell($rowCollection, 1);
+            $price = $this->cell($rowCollection, 2);
 
             if (blank($productName) && blank($categoryName) && blank($price)) {
                 continue;
@@ -76,9 +83,17 @@ class ProductsImport implements ToCollection
 
     protected function cell(Collection $row, int $index): mixed
     {
-        $value = $row[$index] ?? null;
+        $keys = [$index, ['A', 'B', 'C'][$index]];
+        foreach ($keys as $key) {
+            if ($row->has($key)) {
+                $v = $row->get($key);
+                if ($v !== null && $v !== '') {
+                    return $v;
+                }
+            }
+        }
 
-        return $value;
+        return null;
     }
 
     protected function looksLikeHeaderRow(Collection $row): bool

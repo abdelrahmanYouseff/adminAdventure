@@ -113,26 +113,49 @@ class ProductController extends Controller
     public function import(Request $request)
     {
         $request->validate([
-            'file' => 'required|file|mimes:xlsx,xls,csv|max:10240',
+            'file' => [
+                'required',
+                'file',
+                'max:10240',
+                function ($attribute, $value, $fail) {
+                    $ext = strtolower($value->getClientOriginalExtension());
+                    $allowed = ['xlsx', 'xls', 'csv'];
+                    if (! in_array($ext, $allowed, true)) {
+                        $fail('الملف يجب أن يكون Excel (.xlsx, .xls) أو CSV.');
+                    }
+                },
+            ],
         ]);
 
-        $import = new ProductsImport;
-        Excel::import($import, $request->file('file'));
+        try {
+            $import = new ProductsImport;
+            Excel::import($import, $request->file('file'));
 
-        $imported = $import->getImportedCount();
-        $errors = $import->getErrors();
+            $imported = $import->getImportedCount();
+            $errors = $import->getErrors();
 
-        if ($imported > 0 && empty($errors)) {
-            return redirect()->route('products')->with('success', "تم استيراد {$imported} منتج بنجاح.");
-        }
-        if ($imported > 0 && ! empty($errors)) {
-            return redirect()->route('products')->with('success', "تم استيراد {$imported} منتج. تحذيرات: " . implode(' ', $errors));
-        }
-        if (! empty($errors)) {
-            return redirect()->route('products')->with('error', 'فشل الاستيراد: ' . implode(' ', array_slice($errors, 0, 5)));
-        }
+            if ($imported > 0 && empty($errors)) {
+                return redirect()->route('products')->with('success', "تم استيراد {$imported} منتج بنجاح.");
+            }
+            if ($imported > 0 && ! empty($errors)) {
+                return redirect()->route('products')->with('success', "تم استيراد {$imported} منتج. تحذيرات: " . implode(' ', array_slice($errors, 0, 3)));
+            }
+            if (! empty($errors)) {
+                return redirect()->route('products')->with('error', 'فشل الاستيراد: ' . implode(' ', array_slice($errors, 0, 5)));
+            }
 
-        return redirect()->route('products')->with('error', 'لم يتم استيراد أي منتج. تأكد من صيغة الملف (العمود أ: اسم المنتج، ب: الفئة، ج: السعر).');
+            return redirect()->route('products')->with('error', 'لم يتم استيراد أي منتج. تأكد من صيغة الملف (العمود أ: اسم المنتج، ب: الفئة، ج: السعر).');
+        } catch (\Maatwebsite\Excel\Validators\ValidationException $e) {
+            $failures = $e->failures();
+            $messages = [];
+            foreach (array_slice($failures, 0, 5) as $f) {
+                $messages[] = 'صف ' . $f->row() . ': ' . implode(', ', $f->errors());
+            }
+            return redirect()->route('products')->with('error', 'خطأ في الملف: ' . implode(' | ', $messages));
+        } catch (\Throwable $e) {
+            report($e);
+            return redirect()->route('products')->with('error', 'حدث خطأ أثناء الاستيراد. تأكد من صيغة الملف (Excel أو CSV) وأن الخادم يدعم قراءة Excel. التفاصيل: ' . (config('app.debug') ? $e->getMessage() : 'راجع سجل الأخطاء.'));
+        }
     }
 
     /**
