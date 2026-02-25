@@ -75,14 +75,9 @@ class ProductsImport
                 continue;
             }
 
-            if ($price === '' || ! is_numeric($price)) {
-                $this->errors[] = "الصف {$rowNum}: السعر يجب أن يكون رقماً.";
-                continue;
-            }
-
-            $priceFloat = (float) $price;
-            if ($priceFloat < 0) {
-                $this->errors[] = "الصف {$rowNum}: السعر لا يمكن أن يكون سالباً.";
+            $priceFloat = $this->parsePrice($price);
+            if ($priceFloat === null) {
+                $this->errors[] = "الصف {$rowNum}: السعر يجب أن يكون رقماً (صحيح أو عشري، مثل 100 أو 99.50).";
                 continue;
             }
 
@@ -128,9 +123,9 @@ class ProductsImport
         for ($row = $startRow; $row <= $highestRow; $row++) {
             $productName = trim((string) $this->getCellValue($sheet, $row, 'A'));
             $categoryName = trim((string) $this->getCellValue($sheet, $row, 'B'));
-            $price = trim((string) $this->getCellValue($sheet, $row, 'C'));
+            $price = $this->getCellValue($sheet, $row, 'C');
 
-            if ($productName === '' && $categoryName === '' && $price === '') {
+            if ($productName === '' && $categoryName === '' && ($price === null || (string) $price === '')) {
                 continue;
             }
 
@@ -139,14 +134,9 @@ class ProductsImport
                 continue;
             }
 
-            if ($price === '' || ! is_numeric($price)) {
-                $this->errors[] = "الصف {$row}: السعر يجب أن يكون رقماً.";
-                continue;
-            }
-
-            $priceFloat = (float) $price;
-            if ($priceFloat < 0) {
-                $this->errors[] = "الصف {$row}: السعر لا يمكن أن يكون سالباً.";
+            $priceFloat = $this->parsePrice($price);
+            if ($priceFloat === null) {
+                $this->errors[] = "الصف {$row}: السعر يجب أن يكون رقماً (صحيح أو عشري).";
                 continue;
             }
 
@@ -175,6 +165,35 @@ class ProductsImport
         return $sheet->getCell($col . $row)->getValue();
     }
 
+    /**
+     * Parse price: accepts int, float, or string (with dot or comma as decimal).
+     * Returns float or null if invalid/negative.
+     */
+    protected function parsePrice(mixed $value): ?float
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+        if (is_int($value) || is_float($value)) {
+            return $value >= 0 ? (float) $value : null;
+        }
+        $s = preg_replace('/\s+/', '', trim((string) $value));
+        if ($s === '') {
+            return null;
+        }
+        if (str_contains($s, ',') && ! str_contains($s, '.')) {
+            $s = str_replace(',', '.', $s);
+        } elseif (str_contains($s, ',') && str_contains($s, '.')) {
+            $s = str_replace(',', '', $s);
+        }
+        if (! is_numeric($s)) {
+            return null;
+        }
+        $f = (float) $s;
+
+        return $f >= 0 ? $f : null;
+    }
+
     protected function looksLikeHeaderRow(mixed $cellA, mixed $cellC): bool
     {
         $strA = is_scalar($cellA) ? trim((string) $cellA) : '';
@@ -185,7 +204,7 @@ class ProductsImport
             return false;
         }
 
-        return ! is_numeric($strC);
+        return $strC !== '' && $this->parsePrice($strC) === null;
     }
 
     public function getImportedCount(): int
