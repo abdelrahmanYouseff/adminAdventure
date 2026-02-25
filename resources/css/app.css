@@ -110,15 +110,16 @@
     --chart-4: hsl(43 74% 66%);
     --chart-5: hsl(27 87% 67%);
     --radius: 0.5rem;
-    --sidebar-background: hsl(0 0% 98%);
-    --sidebar-foreground: hsl(240 5.3% 26.1%);
+    /* Sidebar: design like reference - light grey bg, white pill for active */
+    --sidebar-background: #f5f5f5;
+    --sidebar-foreground: #333333;
     --sidebar-primary: hsl(0 0% 10%);
     --sidebar-primary-foreground: hsl(0 0% 98%);
-    --sidebar-accent: hsl(0 0% 94%);
-    --sidebar-accent-foreground: hsl(0 0% 30%);
-    --sidebar-border: hsl(0 0% 91%);
+    --sidebar-accent: hsl(0 0% 90%);
+    --sidebar-accent-foreground: #333333;
+    --sidebar-border: hsl(0 0% 88%);
     --sidebar-ring: hsl(217.2 91.2% 59.8%);
-    --sidebar: hsl(0 0% 98%);
+    --sidebar: #f5f5f5;
 }
 
 .dark {
@@ -146,15 +147,15 @@
     --chart-3: hsl(30 80% 55%);
     --chart-4: hsl(280 65% 60%);
     --chart-5: hsl(340 75% 55%);
-    --sidebar-background: hsl(0 0% 7%);
+    --sidebar-background: hsl(0 0% 11%);
     --sidebar-foreground: hsl(0 0% 95.9%);
     --sidebar-primary: hsl(360, 100%, 100%);
     --sidebar-primary-foreground: hsl(0 0% 100%);
-    --sidebar-accent: hsl(0 0% 15.9%);
+    --sidebar-accent: hsl(0 0% 18%);
     --sidebar-accent-foreground: hsl(240 4.8% 95.9%);
     --sidebar-border: hsl(0 0% 15.9%);
     --sidebar-ring: hsl(217.2 91.2% 59.8%);
-    --sidebar: hsl(240 5.9% 10%);
+    --sidebar: hsl(0 0% 11%);
 }
 
 @layer base {
@@ -164,4 +165,26 @@
     body {
         @apply bg-background text-foreground;
     }
+}
+
+/* Sidebar: design like reference - light grey background */
+[data-sidebar="sidebar"] {
+    background: #f5f5f5 !important;
+}
+.dark [data-sidebar="sidebar"] {
+    background: hsl(0 0% 11%) !important;
+}
+
+/* Sidebar: active item = white pill */
+[data-sidebar="sidebar"] [data-sidebar="menu-button"][data-active="true"] {
+    background: white !important;
+    color: #111 !important;
+    font-weight: 500;
+    border-radius: 9999px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+.dark [data-sidebar="sidebar"] [data-sidebar="menu-button"][data-active="true"] {
+    background: hsl(0 0% 20%) !important;
+    color: hsl(0 0% 98%) !important;
+    box-shadow: none;
 }

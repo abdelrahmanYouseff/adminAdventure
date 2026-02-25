@@ -25,45 +25,45 @@ defineOptions({
 const deleteForm = useForm({});
 
 const deleteCategory = (categoryId: number) => {
-    if (confirm('Are you sure you want to delete this category?')) {
+    if (confirm('هل أنت متأكد من حذف هذه الفئة؟')) {
         deleteForm.delete(`/categories/${categoryId}`);
     }
 };
 </script>
 
 <template>
-    <Head title="Categories" />
+    <Head title="الفئات" />
 
     <div class="py-12">
         <div class="mx-auto max-w-7xl sm:px-6 lg:px-8">
             <div class="overflow-hidden bg-white shadow-sm dark:bg-neutral-800 sm:rounded-lg">
                 <div class="p-6 text-neutral-900 dark:text-neutral-100">
                     <div class="flex justify-between items-center mb-6">
-                        <h1 class="text-2xl font-semibold">Categories</h1>
+                        <h1 class="text-2xl font-semibold">الفئات</h1>
                         <Button as-child>
                             <Link href="/categories/create">
-                                <Plus class="w-4 h-4 mr-2" />
-                                Add New Category
+                                <Plus class="w-4 h-4 ml-2" />
+                                إضافة فئة جديدة
                             </Link>
                         </Button>
                     </div>
 
-                    <!-- Categories Table -->
+                    <!-- جدول الفئات -->
                     <div class="overflow-x-auto">
                         <table class="w-full border-collapse border border-neutral-200 dark:border-neutral-700">
                             <thead>
                                 <tr class="bg-neutral-50 dark:bg-neutral-700">
-                                    <th class="border border-neutral-200 dark:border-neutral-600 px-4 py-3 text-left font-medium">ID</th>
-                                    <th class="border border-neutral-200 dark:border-neutral-600 px-4 py-3 text-left font-medium">Image</th>
-                                    <th class="border border-neutral-200 dark:border-neutral-600 px-4 py-3 text-left font-medium">Category Name</th>
-                                    <th class="border border-neutral-200 dark:border-neutral-600 px-4 py-3 text-left font-medium">Products Count</th>
-                                    <th class="border border-neutral-200 dark:border-neutral-600 px-4 py-3 text-left font-medium">Actions</th>
+                                    <th class="border border-neutral-200 dark:border-neutral-600 px-4 py-3 text-left font-medium">المعرف</th>
+                                    <th class="border border-neutral-200 dark:border-neutral-600 px-4 py-3 text-left font-medium">الصورة</th>
+                                    <th class="border border-neutral-200 dark:border-neutral-600 px-4 py-3 text-left font-medium">اسم الفئة</th>
+                                    <th class="border border-neutral-200 dark:border-neutral-600 px-4 py-3 text-left font-medium">عدد المنتجات</th>
+                                    <th class="border border-neutral-200 dark:border-neutral-600 px-4 py-3 text-left font-medium">الإجراءات</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 <tr v-if="categories.length === 0" class="text-center">
                                     <td colspan="5" class="border border-neutral-200 dark:border-neutral-600 px-4 py-8 text-neutral-500">
-                                        No categories found. Click "Add New Category" to get started.
+                                        لا توجد فئات. اضغط «إضافة فئة جديدة» للبدء.
                                     </td>
                                 </tr>
                                 <tr v-for="category in categories" :key="category.id" class="hover:bg-neutral-50 dark:hover:bg-neutral-700">

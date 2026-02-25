@@ -34,23 +34,23 @@ const handleImageChange = (event) => {
 </script>
 
 <template>
-    <Head title="Edit Category" />
+    <Head title="تعديل الفئة" />
     <div class="py-12">
         <div class="mx-auto max-w-2xl sm:px-6 lg:px-8">
             <div class="overflow-hidden bg-white shadow-sm dark:bg-neutral-800 sm:rounded-lg">
                 <div class="p-6 text-neutral-900 dark:text-neutral-100">
                     <div class="flex items-center mb-6">
-                        <Button as-child variant="outline" size="sm" class="mr-2">
+                        <Button as-child variant="outline" size="sm" class="ml-2">
                             <Link href="/categories">
-                                <ArrowLeft class="w-4 h-4 mr-1" />
-                                Back
+                                <ArrowLeft class="w-4 h-4 ml-1" />
+                                العودة
                             </Link>
                         </Button>
-                        <h1 class="text-2xl font-semibold">Edit Category</h1>
+                        <h1 class="text-2xl font-semibold">تعديل الفئة</h1>
                     </div>
                     <form @submit.prevent="form.post(`/categories/${props.category.id}`, { _method: 'put' })" class="space-y-6" enctype="multipart/form-data">
                         <div>
-                            <label class="block mb-1 font-medium">Category Name</label>
+                            <label class="block mb-1 font-medium">اسم الفئة</label>
                             <input v-model="form.category_name" type="text" class="w-full rounded border px-3 py-2" required />
                         </div>
                         
@@ -83,7 +83,7 @@ const handleImageChange = (event) => {
                         
                         <div>
                             <Button type="submit" :disabled="form.processing">
-                                Update Category
+                                حفظ التعديلات
                             </Button>
                         </div>
                     </form>
