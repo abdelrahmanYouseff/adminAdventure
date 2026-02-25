@@ -2,10 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use App\Imports\ProductsImport;
 use App\Models\Product;
 use App\Models\Category;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
+use Maatwebsite\Excel\Facades\Excel;
 
 class ProductController extends Controller
 {
@@ -102,6 +104,35 @@ class ProductController extends Controller
         $product->delete();
 
         return redirect()->route('products')->with('success', 'Product deleted successfully!');
+    }
+
+    /**
+     * Import products from Excel file.
+     * Expected columns: A = اسم المنتج, B = الفئة, C = السعر
+     */
+    public function import(Request $request)
+    {
+        $request->validate([
+            'file' => 'required|file|mimes:xlsx,xls,csv|max:10240',
+        ]);
+
+        $import = new ProductsImport;
+        Excel::import($import, $request->file('file'));
+
+        $imported = $import->getImportedCount();
+        $errors = $import->getErrors();
+
+        if ($imported > 0 && empty($errors)) {
+            return redirect()->route('products')->with('success', "تم استيراد {$imported} منتج بنجاح.");
+        }
+        if ($imported > 0 && ! empty($errors)) {
+            return redirect()->route('products')->with('success', "تم استيراد {$imported} منتج. تحذيرات: " . implode(' ', $errors));
+        }
+        if (! empty($errors)) {
+            return redirect()->route('products')->with('error', 'فشل الاستيراد: ' . implode(' ', array_slice($errors, 0, 5)));
+        }
+
+        return redirect()->route('products')->with('error', 'لم يتم استيراد أي منتج. تأكد من صيغة الملف (العمود أ: اسم المنتج، ب: الفئة، ج: السعر).');
     }
 
     /**

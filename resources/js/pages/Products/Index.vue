@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { Head, Link, useForm } from '@inertiajs/vue3';
+import { ref } from 'vue';
+import { Head, Link, useForm, usePage } from '@inertiajs/vue3';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Plus, Trash2, ImageIcon, Pencil } from 'lucide-vue-next';
+import { Plus, Trash2, ImageIcon, Pencil, Upload, FileSpreadsheet } from 'lucide-vue-next';
 
 interface Category {
     id: number;
@@ -31,6 +32,27 @@ interface Props {
 
 defineProps<Props>();
 
+const page = usePage();
+const flash = page.props.flash as { success?: string; error?: string } | undefined;
+const importForm = useForm<{ file: File | null }>({ file: null });
+const fileInput = ref<HTMLInputElement | null>(null);
+
+const triggerFileInput = () => fileInput.value?.click();
+
+const onFileSelected = (e: Event) => {
+    const target = e.target as HTMLInputElement;
+    const file = target.files?.[0];
+    if (!file) return;
+    importForm.file = file;
+    importForm.post(route('products.import'), {
+        forceFormData: true,
+        onSuccess: () => {
+            importForm.reset();
+            if (fileInput.value) fileInput.value.value = '';
+        },
+    });
+};
+
 defineOptions({
     layout: AppLayout,
 });
@@ -52,9 +74,33 @@ const imageUrl = (product: Product) =>
 
     <div class="space-y-6 py-6">
         <div class="mx-auto max-w-7xl sm:px-6 lg:px-8">
+            <!-- Flash messages -->
+            <div v-if="flash?.success" class="mb-4 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 px-4 py-3 text-green-700 dark:text-green-300 text-sm">
+                {{ flash.success }}
+            </div>
+            <div v-if="flash?.error" class="mb-4 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 px-4 py-3 text-red-700 dark:text-red-300 text-sm">
+                {{ flash.error }}
+            </div>
+
             <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-6">
                 <h1 class="text-2xl font-semibold text-neutral-900 dark:text-neutral-100">المنتجات</h1>
                 <div class="flex flex-wrap gap-2">
+                    <input
+                        ref="fileInput"
+                        type="file"
+                        accept=".xlsx,.xls,.csv"
+                        class="hidden"
+                        @change="onFileSelected"
+                    />
+                    <Button
+                        type="button"
+                        variant="outline"
+                        :disabled="importForm.processing"
+                        @click="triggerFileInput"
+                    >
+                        <Upload class="w-4 h-4 ml-2" />
+                        {{ importForm.processing ? 'جاري الاستيراد...' : 'استيراد من Excel' }}
+                    </Button>
                     <Button variant="outline" as-child>
                         <Link href="/categories">
                             إدارة الفئات
@@ -67,6 +113,12 @@ const imageUrl = (product: Product) =>
                         </Link>
                     </Button>
                 </div>
+            </div>
+
+            <!-- Import format hint -->
+            <div class="mb-4 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800/50 px-4 py-3 text-sm text-neutral-600 dark:text-neutral-400 flex items-center gap-2">
+                <FileSpreadsheet class="w-4 h-4 shrink-0" />
+                <span>ملف Excel يجب أن يحتوي على: العمود <strong>أ</strong> = اسم المنتج، العمود <strong>ب</strong> = الفئة، العمود <strong>ج</strong> = السعر. الصف الأول يمكن أن يكون عناوين.</span>
             </div>
 
             <!-- Empty state -->

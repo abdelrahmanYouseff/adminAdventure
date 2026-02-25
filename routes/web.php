@@ -41,6 +41,10 @@ Route::post('products', [ProductController::class, 'store'])
     ->middleware(['auth', 'verified'])
     ->name('products.store');
 
+Route::post('products/import', [ProductController::class, 'import'])
+    ->middleware(['auth', 'verified'])
+    ->name('products.import');
+
 Route::get('products/{product}/edit', [ProductController::class, 'edit'])
     ->middleware(['auth', 'verified'])
     ->name('products.edit');
