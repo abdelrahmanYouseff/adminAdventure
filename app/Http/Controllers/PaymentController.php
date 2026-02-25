@@ -53,6 +53,7 @@ class PaymentController extends Controller
                 ],
                 'configuration' => [
                     'returnUrl' => rtrim(env('APP_URL'), '/') . '/payment/success?order_id=' . $request->order_id,
+                    'cancelUrl' => rtrim(env('APP_URL'), '/') . '/payment/fail?order_id=' . $request->order_id,
                 ]
             ];
 
@@ -246,6 +247,28 @@ class PaymentController extends Controller
 
     /**
      * Handle payment cancellation (Web) – redirect from gateway, show cancel page.
+     */
+    /**
+     * Handle payment failure (Web) – redirect from gateway when payment fails/cancelled.
+     */
+    public function paymentFailPage(Request $request)
+    {
+        $orderId = $request->get('order_id');
+
+        if ($orderId) {
+            $invoice = Invoice::where('invoice_number', $orderId)->first();
+            if ($invoice) {
+                $invoice->update(['status' => 'cancelled']);
+            }
+        }
+
+        return Inertia::render('Payment/Fail', [
+            'order_id' => $orderId,
+        ]);
+    }
+
+    /**
+     * Handle payment cancellation (Web) – redirect from gateway when user cancels.
      */
     public function paymentCancelPage(Request $request)
     {

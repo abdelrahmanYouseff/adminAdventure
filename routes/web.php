@@ -155,6 +155,8 @@ Route::delete('orders/{order}', [OrderController::class, 'destroy'])
 // Payment return URLs (no auth - used by payment gateway redirect)
 Route::get('payment/success', [\App\Http\Controllers\PaymentController::class, 'paymentSuccessPage'])
     ->name('payment.success');
+Route::get('payment/fail', [\App\Http\Controllers\PaymentController::class, 'paymentFailPage'])
+    ->name('payment.fail');
 Route::get('payment/cancel', [\App\Http\Controllers\PaymentController::class, 'paymentCancelPage'])
     ->name('payment.cancel');
 
