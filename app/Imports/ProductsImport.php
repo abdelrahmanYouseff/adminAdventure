@@ -61,6 +61,9 @@ class ProductsImport
             $productName = isset($row[0]) ? trim((string) $row[0]) : '';
             $categoryName = isset($row[1]) ? trim((string) $row[1]) : '';
             $price = isset($row[2]) ? trim((string) $row[2]) : '';
+            if ($rowNum === 1 && $productName !== '') {
+                $productName = preg_replace('/^\xEF\xBB\xBF/', '', $productName);
+            }
 
             if ($rowNum === 1 && $this->looksLikeHeaderRow($productName, $price)) {
                 continue;
@@ -166,7 +169,7 @@ class ProductsImport
     }
 
     /**
-     * Parse price: accepts int, float, or string (with dot or comma as decimal).
+     * Parse price: accepts int, float, or string (dot/comma decimal, Arabic numerals ٠-٩).
      * Returns float or null if invalid/negative.
      */
     protected function parsePrice(mixed $value): ?float
@@ -177,7 +180,12 @@ class ProductsImport
         if (is_int($value) || is_float($value)) {
             return $value >= 0 ? (float) $value : null;
         }
-        $s = preg_replace('/\s+/', '', trim((string) $value));
+        $s = trim((string) $value);
+        $s = preg_replace('/\s+/', ' ', $s);
+        $s = $this->normalizeArabicNumerals($s);
+        $s = preg_replace('/\s*(ج\.?\s*م\.?|EGP|ر\.?\s*س\.?|SAR|USD|\$|د\.?\s*ك\.?|د\.?\s*ع\.?)\s*$/ui', '', $s);
+        $s = preg_replace('/^\s*(ج\.?\s*م\.?|EGP|ر\.?\s*س\.?|SAR|USD|\$)\s*/ui', '', $s);
+        $s = preg_replace('/\s+/', '', $s);
         if ($s === '') {
             return null;
         }
@@ -194,11 +202,32 @@ class ProductsImport
         return $f >= 0 ? $f : null;
     }
 
+    /** Convert Arabic-Indic numerals (٠١٢٣٤٥٦٧٨٩) to Western (0-9). */
+    protected function normalizeArabicNumerals(string $s): string
+    {
+        $arabic = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
+        $western = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
+
+        return str_replace($arabic, $western, $s);
+    }
+
+    /** True if column C value looks like a "price" header (so we skip that row). */
+    protected function isPriceHeader(mixed $cellC): bool
+    {
+        $str = is_scalar($cellC) ? trim((string) $cellC) : '';
+        $priceHeaders = ['السعر', 'سعر', 'price', 'Price', 'PRICE', 'الثمن'];
+
+        return in_array($str, $priceHeaders, true);
+    }
+
     protected function looksLikeHeaderRow(mixed $cellA, mixed $cellC): bool
     {
+        if ($this->isPriceHeader($cellC)) {
+            return true;
+        }
         $strA = is_scalar($cellA) ? trim((string) $cellA) : '';
         $strC = is_scalar($cellC) ? trim((string) $cellC) : '';
-        $nameHeaders = ['اسم المنتج', 'اسم_المنتج', 'product_name', 'product name'];
+        $nameHeaders = ['اسم المنتج', 'اسم_المنتج', 'المنتج', 'product_name', 'product name', 'Product Name'];
 
         if (! in_array($strA, $nameHeaders, true)) {
             return false;
