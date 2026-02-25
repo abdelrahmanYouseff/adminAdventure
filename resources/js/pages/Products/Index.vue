@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
 import { Head, Link, useForm, usePage } from '@inertiajs/vue3';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { Button } from '@/components/ui/button';
@@ -33,7 +33,7 @@ interface Props {
 defineProps<Props>();
 
 const page = usePage();
-const flash = page.props.flash as { success?: string; error?: string } | undefined;
+const flash = computed(() => (page.props.flash as { success?: string; error?: string } | undefined) ?? {});
 const importForm = useForm<{ file: File | null }>({ file: null });
 const fileInput = ref<HTMLInputElement | null>(null);
 
@@ -74,11 +74,11 @@ const imageUrl = (product: Product) =>
 
     <div class="space-y-6 py-6">
         <div class="mx-auto max-w-7xl sm:px-6 lg:px-8">
-            <!-- Flash messages -->
-            <div v-if="flash?.success" class="mb-4 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 px-4 py-3 text-green-700 dark:text-green-300 text-sm">
+            <!-- Flash messages (تظهر بعد الاستيراد أو أي إجراء) -->
+            <div v-if="flash.success" class="mb-4 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 px-4 py-3 text-green-700 dark:text-green-300 text-sm">
                 {{ flash.success }}
             </div>
-            <div v-if="flash?.error" class="mb-4 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 px-4 py-3 text-red-700 dark:text-red-300 text-sm">
+            <div v-if="flash.error" class="mb-4 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 px-4 py-3 text-red-700 dark:text-red-300 text-sm">
                 {{ flash.error }}
             </div>
 
