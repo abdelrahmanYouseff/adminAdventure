@@ -4,10 +4,9 @@ namespace App\Imports;
 
 use App\Models\Category;
 use App\Models\Product;
-use Illuminate\Support\Collection;
-use Maatwebsite\Excel\Concerns\ToCollection;
+use PhpOffice\PhpSpreadsheet\IOFactory;
 
-class ProductsImport implements ToCollection
+class ProductsImport
 {
     protected int $imported = 0;
 
@@ -15,53 +14,54 @@ class ProductsImport implements ToCollection
 
     /**
      * Excel columns: A = اسم المنتج, B = الفئة, C = السعر
-     * First row can be header (اسم المنتج، الفئة، السعر) — will be skipped if it looks like headers.
+     * First row can be header — will be skipped if it looks like headers.
      */
-    public function collection(Collection $rows): void
+    public function importFromPath(string $path): void
     {
-        $rows = $rows->filter(fn ($row) => $row !== null && (is_array($row) || $row instanceof \Illuminate\Support\Collection));
-        if ($rows->isEmpty()) {
+        $spreadsheet = IOFactory::load($path);
+        $sheet = $spreadsheet->getActiveSheet();
+        $highestRow = $sheet->getHighestRow();
+
+        if ($highestRow < 1) {
             return;
         }
 
-        $startIndex = 0;
-        $firstRow = $rows->first();
-        $firstRowCollection = $firstRow instanceof Collection ? $firstRow : collect($firstRow);
-        if ($this->looksLikeHeaderRow($firstRowCollection)) {
-            $startIndex = 1;
+        $startRow = 1;
+        $row1A = $this->getCellValue($sheet, 1, 'A');
+        $row1B = $this->getCellValue($sheet, 1, 'B');
+        $row1C = $this->getCellValue($sheet, 1, 'C');
+        if ($this->looksLikeHeaderRow($row1A, $row1C)) {
+            $startRow = 2;
         }
 
-        foreach ($rows->slice($startIndex) as $index => $row) {
-            $rowNumber = $startIndex + $index + 1;
-            $rowCollection = $row instanceof Collection ? $row : collect($row);
+        for ($row = $startRow; $row <= $highestRow; $row++) {
+            $productName = $this->getCellValue($sheet, $row, 'A');
+            $categoryName = $this->getCellValue($sheet, $row, 'B');
+            $price = $this->getCellValue($sheet, $row, 'C');
 
-            $productName = $this->cell($rowCollection, 0);
-            $categoryName = $this->cell($rowCollection, 1);
-            $price = $this->cell($rowCollection, 2);
-
-            if (blank($productName) && blank($categoryName) && blank($price)) {
+            if (trim((string) $productName) === '' && trim((string) $categoryName) === '' && trim((string) $price) === '') {
                 continue;
             }
 
-            if (blank($productName)) {
-                $this->errors[] = "الصف {$rowNumber}: اسم المنتج مطلوب.";
+            if (trim((string) $productName) === '') {
+                $this->errors[] = "الصف {$row}: اسم المنتج مطلوب.";
                 continue;
             }
 
-            $priceVal = $price !== null && $price !== '' ? trim((string) $price) : '';
+            $priceVal = trim((string) $price);
             if ($priceVal === '' || ! is_numeric($priceVal)) {
-                $this->errors[] = "الصف {$rowNumber}: السعر يجب أن يكون رقماً.";
+                $this->errors[] = "الصف {$row}: السعر يجب أن يكون رقماً.";
                 continue;
             }
 
             $priceFloat = (float) $priceVal;
             if ($priceFloat < 0) {
-                $this->errors[] = "الصف {$rowNumber}: السعر لا يمكن أن يكون سالباً.";
+                $this->errors[] = "الصف {$row}: السعر لا يمكن أن يكون سالباً.";
                 continue;
             }
 
             $category = null;
-            if (! blank($categoryName)) {
+            if (trim((string) $categoryName) !== '') {
                 $name = trim((string) $categoryName);
                 $category = Category::where('category_name', $name)->first();
                 if (! $category) {
@@ -81,28 +81,19 @@ class ProductsImport implements ToCollection
         }
     }
 
-    protected function cell(Collection $row, int $index): mixed
+    protected function getCellValue(\PhpOffice\PhpSpreadsheet\Worksheet\Worksheet $sheet, int $row, string $col): mixed
     {
-        $keys = [$index, ['A', 'B', 'C'][$index]];
-        foreach ($keys as $key) {
-            if ($row->has($key)) {
-                $v = $row->get($key);
-                if ($v !== null && $v !== '') {
-                    return $v;
-                }
-            }
-        }
+        $value = $sheet->getCell($col . $row)->getValue();
 
-        return null;
+        return $value;
     }
 
-    protected function looksLikeHeaderRow(Collection $row): bool
+    protected function looksLikeHeaderRow(mixed $cellA, mixed $cellC): bool
     {
-        $a = $this->cell($row, 0);
-        $c = $this->cell($row, 2);
-        $strA = is_scalar($a) ? trim((string) $a) : '';
-        $strC = is_scalar($c) ? trim((string) $c) : '';
+        $strA = is_scalar($cellA) ? trim((string) $cellA) : '';
+        $strC = is_scalar($cellC) ? trim((string) $cellC) : '';
         $nameHeaders = ['اسم المنتج', 'اسم_المنتج', 'product_name', 'product name'];
+
         if (! in_array($strA, $nameHeaders, true)) {
             return false;
         }

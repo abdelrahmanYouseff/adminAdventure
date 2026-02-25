@@ -3,11 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Imports\ProductsImport;
-use App\Models\Product;
 use App\Models\Category;
+use App\Models\Product;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
-use Maatwebsite\Excel\Facades\Excel;
 
 class ProductController extends Controller
 {
@@ -128,8 +127,11 @@ class ProductController extends Controller
         ]);
 
         try {
+            $file = $request->file('file');
+            $path = $file->getRealPath();
+
             $import = new ProductsImport;
-            Excel::import($import, $request->file('file'));
+            $import->importFromPath($path);
 
             $imported = $import->getImportedCount();
             $errors = $import->getErrors();
@@ -145,13 +147,6 @@ class ProductController extends Controller
             }
 
             return redirect()->route('products')->with('error', 'لم يتم استيراد أي منتج. تأكد من صيغة الملف (العمود أ: اسم المنتج، ب: الفئة، ج: السعر).');
-        } catch (\Maatwebsite\Excel\Validators\ValidationException $e) {
-            $failures = $e->failures();
-            $messages = [];
-            foreach (array_slice($failures, 0, 5) as $f) {
-                $messages[] = 'صف ' . $f->row() . ': ' . implode(', ', $f->errors());
-            }
-            return redirect()->route('products')->with('error', 'خطأ في الملف: ' . implode(' | ', $messages));
         } catch (\Throwable $e) {
             report($e);
             $msg = $e->getMessage();
