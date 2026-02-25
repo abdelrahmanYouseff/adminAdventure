@@ -152,5 +152,11 @@ Route::delete('orders/{order}', [OrderController::class, 'destroy'])
     ->middleware(['auth', 'verified'])
     ->name('orders.destroy');
 
+// Payment return URLs (no auth - used by payment gateway redirect)
+Route::get('payment/success', [\App\Http\Controllers\PaymentController::class, 'paymentSuccessPage'])
+    ->name('payment.success');
+Route::get('payment/cancel', [\App\Http\Controllers\PaymentController::class, 'paymentCancelPage'])
+    ->name('payment.cancel');
+
 require __DIR__.'/settings.php';
 require __DIR__.'/auth.php';

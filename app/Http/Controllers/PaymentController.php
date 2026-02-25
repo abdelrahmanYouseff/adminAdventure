@@ -9,6 +9,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Cache;
+use Inertia\Inertia;
 
 class PaymentController extends Controller
 {
@@ -51,7 +52,7 @@ class PaymentController extends Controller
                     'category' => 'pay'
                 ],
                 'configuration' => [
-                    'returnUrl' => env('APP_URL') . '/api/payment/success?order_id=' . $request->order_id,
+                    'returnUrl' => rtrim(env('APP_URL'), '/') . '/payment/success?order_id=' . $request->order_id,
                 ]
             ];
 
@@ -138,81 +139,126 @@ class PaymentController extends Controller
     }
 
     /**
-     * Handle payment success
+     * Process payment success: create invoice & order from cache, clear cache.
+     * Returns ['processed' => bool, 'order_id' => ?, 'payment_id' => ?].
+     */
+    protected function processPaymentSuccess(?string $orderId, ?string $paymentId): array
+    {
+        if (! $orderId) {
+            return ['processed' => false, 'order_id' => null, 'payment_id' => $paymentId];
+        }
+
+        $paymentSessionData = Cache::get('payment_session_' . $orderId);
+        if (! $paymentSessionData) {
+            return ['processed' => false, 'order_id' => $orderId, 'payment_id' => $paymentId];
+        }
+
+        $invoice = Invoice::create([
+            'user_id' => $paymentSessionData['user_id'],
+            'rental_id' => null,
+            'invoice_number' => $orderId,
+            'amount' => $paymentSessionData['amount'],
+            'status' => 'paid',
+            'payment_method' => 'noon',
+            'issued_at' => now(),
+            'due_date' => now()->addDays(7),
+        ]);
+
+        Order::create([
+            'user_id' => $paymentSessionData['user_id'],
+            'invoice_id' => $invoice->id,
+            'order_number' => Order::generateOrderNumber(),
+            'total_amount' => $paymentSessionData['amount'],
+            'currency' => $paymentSessionData['currency'] ?? 'SAR',
+            'status' => 'paid',
+            'payment_method' => 'noon',
+            'payment_id' => $paymentId,
+            'notes' => $paymentSessionData['description'] ?? 'دفع حجز مغامرة',
+            'items' => [
+                [
+                    'name' => $paymentSessionData['description'] ?? 'دفع حجز مغامرة',
+                    'amount' => $paymentSessionData['amount'],
+                    'quantity' => 1,
+                ],
+            ],
+        ]);
+
+        Cache::forget('payment_session_' . $orderId);
+
+        return ['processed' => true, 'order_id' => $orderId, 'payment_id' => $paymentId];
+    }
+
+    /**
+     * Handle payment success (API) – returns JSON.
      */
     public function paymentSuccess(Request $request)
     {
-        $paymentId = $request->get('payment_id');
-        $orderId = $request->get('order_id');
-
-                // Get payment session data from cache
-        $paymentSessionData = Cache::get('payment_session_' . $orderId);
-
-        if ($paymentSessionData) {
-            // Create invoice when payment is successful
-            $invoice = Invoice::create([
-                'user_id' => $paymentSessionData['user_id'],
-                'rental_id' => null,
-                'invoice_number' => $orderId,
-                'amount' => $paymentSessionData['amount'],
-                'status' => 'paid',
-                'payment_method' => 'noon',
-                'issued_at' => now(),
-                'due_date' => now()->addDays(7),
-            ]);
-
-            // Create order when payment is successful
-            $order = Order::create([
-                'user_id' => $paymentSessionData['user_id'],
-                'invoice_id' => $invoice->id,
-                'order_number' => Order::generateOrderNumber(),
-                'total_amount' => $paymentSessionData['amount'],
-                'currency' => $paymentSessionData['currency'] ?? 'SAR',
-                'status' => 'paid',
-                'payment_method' => 'noon',
-                'payment_id' => $paymentId,
-                'notes' => $paymentSessionData['description'] ?? 'دفع حجز مغامرة',
-                'items' => [
-                    [
-                        'name' => $paymentSessionData['description'] ?? 'دفع حجز مغامرة',
-                        'amount' => $paymentSessionData['amount'],
-                        'quantity' => 1,
-                    ]
-                ],
-            ]);
-
-            // Remove payment session from cache
-            Cache::forget('payment_session_' . $orderId);
-        }
+        $result = $this->processPaymentSuccess(
+            $request->get('order_id'),
+            $request->get('payment_id')
+        );
 
         return response()->json([
             'success' => true,
             'message' => 'Payment completed successfully',
-            'payment_id' => $paymentId,
-            'order_id' => $orderId,
+            'payment_id' => $result['payment_id'],
+            'order_id' => $result['order_id'],
         ]);
     }
 
     /**
-     * Handle payment cancellation
+     * Handle payment success (Web) – redirect from gateway, show success page.
+     */
+    public function paymentSuccessPage(Request $request)
+    {
+        $orderId = $request->get('order_id');
+        $paymentId = $request->get('payment_id');
+
+        $result = $this->processPaymentSuccess($orderId, $paymentId);
+
+        return Inertia::render('Payment/Success', [
+            'processed' => $result['processed'],
+            'order_id' => $result['order_id'],
+            'payment_id' => $result['payment_id'],
+        ]);
+    }
+
+    /**
+     * Handle payment cancellation (API) – returns JSON.
      */
     public function paymentCancel(Request $request)
     {
         $orderId = $request->get('order_id');
 
-        // Update invoice status
         if ($orderId) {
             $invoice = Invoice::where('invoice_number', $orderId)->first();
             if ($invoice) {
-                $invoice->update([
-                    'status' => 'cancelled',
-                ]);
+                $invoice->update(['status' => 'cancelled']);
             }
         }
 
         return response()->json([
             'success' => false,
             'message' => 'Payment was cancelled',
+            'order_id' => $orderId,
+        ]);
+    }
+
+    /**
+     * Handle payment cancellation (Web) – redirect from gateway, show cancel page.
+     */
+    public function paymentCancelPage(Request $request)
+    {
+        $orderId = $request->get('order_id');
+
+        if ($orderId) {
+            $invoice = Invoice::where('invoice_number', $orderId)->first();
+            if ($invoice) {
+                $invoice->update(['status' => 'cancelled']);
+            }
+        }
+
+        return Inertia::render('Payment/Cancel', [
             'order_id' => $orderId,
         ]);
     }
