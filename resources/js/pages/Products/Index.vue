@@ -118,7 +118,7 @@ const imageUrl = (product: Product) =>
             <!-- Import format hint -->
             <div class="mb-4 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800/50 px-4 py-3 text-sm text-neutral-600 dark:text-neutral-400 flex items-center gap-2">
                 <FileSpreadsheet class="w-4 h-4 shrink-0" />
-                <span>ملف Excel يجب أن يحتوي على: العمود <strong>أ</strong> = اسم المنتج، العمود <strong>ب</strong> = الفئة، العمود <strong>ج</strong> = السعر. الصف الأول يمكن أن يكون عناوين.</span>
+                <span>استخدم ملف <strong>CSV</strong> أو Excel. الأعمدة: <strong>أ</strong> = اسم المنتج، <strong>ب</strong> = الفئة، <strong>ج</strong> = السعر. إن لم يعمل Excel، احفظ الملف من Excel كـ CSV (حفظ باسم ← CSV UTF-8) وارفع الـ CSV.</span>
             </div>
 
             <!-- Empty state -->
