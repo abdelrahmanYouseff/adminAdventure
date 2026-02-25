@@ -154,7 +154,9 @@ class ProductController extends Controller
             return redirect()->route('products')->with('error', 'خطأ في الملف: ' . implode(' | ', $messages));
         } catch (\Throwable $e) {
             report($e);
-            return redirect()->route('products')->with('error', 'حدث خطأ أثناء الاستيراد. تأكد من صيغة الملف (Excel أو CSV) وأن الخادم يدعم قراءة Excel. التفاصيل: ' . (config('app.debug') ? $e->getMessage() : 'راجع سجل الأخطاء.'));
+            $msg = $e->getMessage();
+            $class = get_class($e);
+            return redirect()->route('products')->with('error', 'حدث خطأ أثناء الاستيراد: ' . $msg . ' (' . $class . ')');
         }
     }
 
