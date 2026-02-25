@@ -29,55 +29,61 @@ class PaymentController extends Controller
             'customer_phone' => 'nullable|string|max:20',
         ]);
 
-                try {
-                        // Noon API Configuration
-            $noonApiUrl = env('NOON_API_URL', 'https://api-test.sa.noonpayments.com/payment/v1/');
-            $noonAuthHeader = env('NOON_AUTH_HEADER');
+        try {
+            $noonApiUrl = rtrim(env('NOON_API_URL', 'https://api-test.sa.noonpayments.com/payment/v1/'), '/') . '/';
+            $baseUrl = rtrim(env('APP_URL'), '/');
 
-            if (!env('NOON_API_KEY') || !env('NOON_BUSINESS_ID') || !env('NOON_APP_ID')) {
+            if (! env('NOON_API_KEY') || ! env('NOON_BUSINESS_ID') || ! env('NOON_APP_ID')) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Noon API configuration incomplete',
                 ], 500);
             }
 
-            // Prepare payment data for Noon
+            // Authorization: use NOON_AUTH_HEADER if set (normalize "Key_" to "Key "), else build from credentials
+            $authHeader = env('NOON_AUTH_HEADER');
+            if ($authHeader !== null && $authHeader !== '') {
+                $authHeader = preg_replace('/^Key_/', 'Key ', (string) $authHeader);
+            } else {
+                $authHeader = 'Key ' . base64_encode(env('NOON_BUSINESS_ID') . '.' . env('NOON_APP_ID') . ':' . env('NOON_API_KEY'));
+            }
+
+            $returnUrl = $baseUrl . '/payment/success?order_id=' . $request->order_id;
+            $configuration = [
+                'returnUrl' => $returnUrl,
+            ];
+            if (env('NOON_CANCEL_URL_ENABLED', true)) {
+                $configuration['cancelUrl'] = $baseUrl . '/payment/fail?order_id=' . $request->order_id;
+            }
+
             $paymentData = [
                 'apiOperation' => 'INITIATE',
                 'order' => [
-                    'amount' => $request->amount,
+                    'amount' => (float) $request->amount,
                     'currency' => $request->currency,
                     'reference' => $request->order_id,
                     'name' => $request->description ?? 'Order from Adventure World',
-                    'category' => 'pay'
+                    'category' => 'pay',
                 ],
-                'configuration' => [
-                    'returnUrl' => rtrim(env('APP_URL'), '/') . '/payment/success?order_id=' . $request->order_id,
-                    'cancelUrl' => rtrim(env('APP_URL'), '/') . '/payment/fail?order_id=' . $request->order_id,
-                ]
+                'configuration' => $configuration,
             ];
 
-            // Prepare Authorization header
-            $authHeader = 'Key ' . base64_encode(env('NOON_BUSINESS_ID') . '.' . env('NOON_APP_ID') . ':' . env('NOON_API_KEY'));
-
-            // Log request details for debugging
             Log::info('Noon API Request', [
                 'url' => $noonApiUrl . 'order',
-                'headers' => [
-                    'Authorization' => $authHeader,
-                    'Content-Type' => 'application/json',
-                    'Accept' => 'application/json',
-                ],
+                'configuration_returnUrl' => $returnUrl,
                 'data' => $paymentData,
             ]);
 
-            // Call Noon API
-            $response = Http::withHeaders([
+            $headers = [
                 'Authorization' => $authHeader,
                 'Content-Type' => 'application/json',
                 'Accept' => 'application/json',
-                'x-api-key' => env('NOON_API_KEY'),
-            ])->post($noonApiUrl . 'order', $paymentData);
+            ];
+            if (! env('NOON_AUTH_HEADER')) {
+                $headers['x-api-key'] = env('NOON_API_KEY');
+            }
+
+            $response = Http::withHeaders($headers)->post($noonApiUrl . 'order', $paymentData);
 
             if ($response->successful()) {
                 $paymentResponse = $response->json();
@@ -112,17 +118,32 @@ class PaymentController extends Controller
                     ],
                 ], 201);
             } else {
+                $errorBody = $response->json() ?? [];
+                $status = $response->status();
+                $resultCode = $errorBody['resultCode'] ?? $errorBody['result']['resultCode'] ?? null;
+                $message = $errorBody['message'] ?? $errorBody['result']['message'] ?? $errorBody['errors'][0]['message'] ?? null;
+
                 Log::error('Noon API Error', [
-                    'status' => $response->status(),
-                    'response' => $response->json(),
-                    'request_data' => $paymentData,
+                    'status' => $status,
+                    'resultCode' => $resultCode,
+                    'message' => $message,
+                    'response' => $errorBody,
+                    'returnUrl' => $returnUrl,
                 ]);
+
+                $userMessage = 'فشل في إنشاء جلسة الدفع.';
+                if ($status === 403 && (int) $resultCode === 5019) {
+                    $userMessage = 'رفض إنشاء الجلسة (403/5019). تحقق من بيانات الدخول لنون، وأن رابط العودة مسموح في لوحة نون (Allowed Return URLs)، واستخدم بيئة الاختبار أو الحية المناسبة.';
+                } elseif ($message) {
+                    $userMessage .= ' ' . (is_string($message) ? $message : json_encode($message));
+                }
 
                 return response()->json([
                     'success' => false,
-                    'message' => 'Failed to create payment session',
-                    'error' => $response->json(),
-                ], $response->status());
+                    'message' => $userMessage,
+                    'resultCode' => $resultCode,
+                    'error' => $errorBody,
+                ], $status);
             }
 
         } catch (\Exception $e) {
