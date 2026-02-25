@@ -140,6 +140,9 @@ Route::get('orders', [OrderController::class, 'index'])
     ->middleware(['auth', 'verified'])
     ->name('orders.index');
 
+Route::get('orders/{order}', [OrderController::class, 'show'])
+    ->middleware(['auth', 'verified'])
+    ->name('orders.show');
 
 Route::delete('orders/{order}', [OrderController::class, 'destroy'])
     ->middleware(['auth', 'verified'])

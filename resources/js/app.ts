@@ -7,10 +7,11 @@ import { createApp, h } from 'vue';
 import { ZiggyVue } from 'ziggy-js';
 import { initializeTheme } from './composables/useAppearance';
 
-const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
+const _envName = import.meta.env.VITE_APP_NAME || 'منصة عالم المغامرة';
+const appName = _envName === 'Laravel' || _envName.includes('Laravel') ? 'منصة عالم المغامرة' : _envName;
 
 createInertiaApp({
-    title: (title) => (title ? `${title} - ${appName}` : appName),
+    title: (title) => (title && title !== appName ? `${title} - ${appName}` : (title || appName)),
     resolve: (name) => resolvePageComponent(`./pages/${name}.vue`, import.meta.glob<DefineComponent>('./pages/**/*.vue')),
     setup({ el, App, props, plugin }) {
         createApp({ render: () => h(App, props) })

@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Str;
 use App\Models\Category;
 use App\Models\CartItem;
 use App\Models\Rental;
@@ -22,6 +23,22 @@ class Product extends Model
     protected $casts = [
         'price' => 'decimal:2',
     ];
+
+    protected $appends = ['image_url'];
+
+    /**
+     * Full URL for the product image (for use in frontend).
+     */
+    public function getImageUrlAttribute(): ?string
+    {
+        if (empty($this->image)) {
+            return null;
+        }
+        // Use asset() so the URL works with any APP_URL and avoids symlink issues
+        return Str::startsWith($this->image, ['http://', 'https://'])
+            ? $this->image
+            : asset('storage/'.ltrim($this->image, '/'));
+    }
 
     public function category()
     {

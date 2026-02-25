@@ -5,7 +5,8 @@ import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
 import { createSSRApp, DefineComponent, h } from 'vue';
 import { ZiggyVue } from 'ziggy-js';
 
-const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
+const _envName = import.meta.env.VITE_APP_NAME || 'منصة عالم المغامرة';
+const appName = _envName === 'Laravel' || _envName.includes('Laravel') ? 'منصة عالم المغامرة' : _envName;
 
 createServer((page) =>
     createInertiaApp({

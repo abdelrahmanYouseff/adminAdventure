@@ -9,7 +9,6 @@ import AuthBase from '@/layouts/AuthLayout.vue';
 import { Head, useForm } from '@inertiajs/vue3';
 import { LoaderCircle, Lock, Mail, Eye, EyeOff } from 'lucide-vue-next';
 import { ref } from 'vue';
-import AppLogo from '@/components/AppLogo.vue';
 
 defineProps<{
     status?: string;
@@ -33,7 +32,7 @@ const submit = () => {
 
 <template>
     <div class="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-100 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 flex items-center justify-center p-4">
-        <Head title="Log in" />
+        <Head title="منصة عالم المغامرة" />
 
         <!-- Background decoration -->
         <div class="absolute inset-0 overflow-hidden">
@@ -46,11 +45,11 @@ const submit = () => {
         <div class="relative w-full max-w-md">
             <!-- Card Header -->
             <div class="text-center mb-8">
-                <div class="mx-auto mb-4">
-                    <AppLogo />
+                <div class="mx-auto mb-4 flex justify-center">
+                    <img src="/logo.svg" alt="عالم المغامرة" class="h-20 w-auto object-contain" />
                 </div>
-                <h1 class="text-3xl font-bold text-gray-900 dark:text-white mb-2">Adventure World System</h1>
-                <p class="text-gray-600 dark:text-gray-400">Sign in to your account to continue</p>
+                <h1 class="text-3xl font-bold text-gray-900 dark:text-white mb-2">منصة عالم المغامرة</h1>
+                <p class="text-gray-600 dark:text-gray-400">سجّل الدخول إلى حسابك للمتابعة</p>
             </div>
 
             <!-- Login Form Card -->

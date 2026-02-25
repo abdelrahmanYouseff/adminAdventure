@@ -50,13 +50,14 @@ class OrderController extends Controller
 
         return Inertia::render('Orders/Index', [
             'orders' => $orders,
+            'filters' => $request->only(['search', 'status', 'payment_method', 'currency']),
         ]);
     }
 
 
     public function show(Order $order)
     {
-        $order->load(['user', 'invoice']);
+        $order->load(['user', 'invoice', 'products']);
 
         return Inertia::render('Orders/Show', [
             'order' => $order,
