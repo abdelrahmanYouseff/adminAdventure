@@ -82,7 +82,11 @@ const deleteCategory = (categoryId: number) => {
                                             </div>
                                         </div>
                                     </td>
-                                    <td class="border border-neutral-200 dark:border-neutral-600 px-4 py-3 font-medium">{{ category.category_name }}</td>
+                                    <td class="border border-neutral-200 dark:border-neutral-600 px-4 py-3">
+                                        <Link :href="`/categories/${category.id}`" class="font-medium text-primary hover:underline">
+                                            {{ category.category_name }}
+                                        </Link>
+                                    </td>
                                     <td class="border border-neutral-200 dark:border-neutral-600 px-4 py-3">{{ category.products_count }}</td>
                                     <td class="border border-neutral-200 dark:border-neutral-600 px-4 py-3">
                                         <div class="flex space-x-2">

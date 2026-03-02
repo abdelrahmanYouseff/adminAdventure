@@ -73,6 +73,10 @@ Route::post('categories', [CategoryController::class, 'store'])
     ->middleware(['auth', 'verified'])
     ->name('categories.store');
 
+Route::get('categories/{category}', [CategoryController::class, 'show'])
+    ->middleware(['auth', 'verified'])
+    ->name('categories.show');
+
 Route::get('categories/{category}/edit', [CategoryController::class, 'edit'])
     ->middleware(['auth', 'verified'])
     ->name('categories.edit');
@@ -151,6 +155,12 @@ Route::get('orders/{order}', [OrderController::class, 'show'])
 Route::delete('orders/{order}', [OrderController::class, 'destroy'])
     ->middleware(['auth', 'verified'])
     ->name('orders.destroy');
+
+// Public store (no auth)
+Route::get('store', [\App\Http\Controllers\StoreController::class, 'index'])->name('store.index');
+Route::get('store/cart', [\App\Http\Controllers\StoreController::class, 'cart'])->name('store.cart');
+Route::get('store/checkout', [\App\Http\Controllers\StoreController::class, 'checkoutForm'])->name('store.checkout');
+Route::post('store/checkout', [\App\Http\Controllers\StoreController::class, 'submitCheckout'])->name('store.checkout.submit');
 
 // Payment return URLs (no auth - used by payment gateway redirect)
 Route::get('payment/success', [\App\Http\Controllers\PaymentController::class, 'paymentSuccessPage'])

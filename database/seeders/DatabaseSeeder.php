@@ -34,7 +34,8 @@ class DatabaseSeeder extends Seeder
             ['email' => 'superadmin@gmail.com'],
             [
                 'customer_name' => 'Super Admin',
-                'password' => Hash::make('password'),
+                'password' => Hash::make('
+                 '),
             ]
         );
 

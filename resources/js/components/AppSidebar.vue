@@ -55,13 +55,13 @@ const mainNavItems: NavItem[] = [
     <Sidebar
         collapsible="icon"
         variant="sidebar"
-        class="!bg-[#f5f5f5] dark:!bg-[hsl(0,0%,11%)] border-r border-neutral-200 dark:border-neutral-700"
+        class="!bg-[#f5f5f5] dark:!bg-[hsl(0,0%,11%)] border-r border-neutral-200 dark:border-neutral-700 shadow-sm"
     >
-        <SidebarHeader class="p-4 pb-2">
+        <SidebarHeader class="p-5 pb-3 border-b border-neutral-200/80 dark:border-neutral-700/80">
             <SidebarMenu>
                 <SidebarMenuItem>
-                    <SidebarMenuButton size="lg" as-child class="rounded-lg p-0 hover:bg-transparent">
-                        <Link :href="route('dashboard')" class="flex items-center gap-2">
+                    <SidebarMenuButton size="lg" as-child class="rounded-xl p-0 hover:bg-transparent min-h-0">
+                        <Link :href="route('dashboard')" class="flex items-center gap-3 py-1">
                             <AppLogo />
                         </Link>
                     </SidebarMenuButton>
@@ -69,11 +69,11 @@ const mainNavItems: NavItem[] = [
             </SidebarMenu>
         </SidebarHeader>
 
-        <SidebarContent class="flex-1 px-0">
+        <SidebarContent class="flex-1 px-0 py-4">
             <NavMain :items="mainNavItems" />
         </SidebarContent>
 
-        <SidebarFooter class="p-3 border-t border-[var(--sidebar-border)]">
+        <SidebarFooter class="p-4 border-t border-neutral-200 dark:border-neutral-700 bg-white/50 dark:bg-black/20">
             <NavUser />
         </SidebarFooter>
     </Sidebar>

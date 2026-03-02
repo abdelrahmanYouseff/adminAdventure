@@ -40,10 +40,10 @@ class PaymentController extends Controller
                 ], 500);
             }
 
-            // Authorization: use NOON_AUTH_HEADER if set (normalize "Key_" to "Key "), else build from credentials
+            // Noon auth: "Key " + base64(BusinessId.AppId:ApiKey) OR "Key_" + base64 (normalized to "Key ")
             $authHeader = env('NOON_AUTH_HEADER');
             if ($authHeader !== null && $authHeader !== '') {
-                $authHeader = preg_replace('/^Key_/', 'Key ', (string) $authHeader);
+                $authHeader = preg_replace('/^Key_/', 'Key ', trim((string) $authHeader));
             } else {
                 $authHeader = 'Key ' . base64_encode(env('NOON_BUSINESS_ID') . '.' . env('NOON_APP_ID') . ':' . env('NOON_API_KEY'));
             }
@@ -51,26 +51,32 @@ class PaymentController extends Controller
             $returnUrl = $baseUrl . '/payment/success?order_id=' . $request->order_id;
             $configuration = [
                 'returnUrl' => $returnUrl,
+                'paymentAction' => env('NOON_PAYMENT_ACTION', 'SALE'),
             ];
             if (env('NOON_CANCEL_URL_ENABLED', true)) {
                 $configuration['cancelUrl'] = $baseUrl . '/payment/fail?order_id=' . $request->order_id;
             }
 
+            $orderPayload = [
+                'amount' => (float) $request->amount,
+                'currency' => $request->currency,
+                'reference' => $request->order_id,
+                'name' => $request->description ?? 'Order from Adventure World',
+                'category' => env('NOON_ORDER_CATEGORY', 'pay'),
+            ];
+            if (env('NOON_ORDER_CHANNEL')) {
+                $orderPayload['channel'] = env('NOON_ORDER_CHANNEL');
+            }
+
             $paymentData = [
                 'apiOperation' => 'INITIATE',
-                'order' => [
-                    'amount' => (float) $request->amount,
-                    'currency' => $request->currency,
-                    'reference' => $request->order_id,
-                    'name' => $request->description ?? 'Order from Adventure World',
-                    'category' => 'pay',
-                ],
+                'order' => $orderPayload,
                 'configuration' => $configuration,
             ];
 
             Log::info('Noon API Request', [
                 'url' => $noonApiUrl . 'order',
-                'configuration_returnUrl' => $returnUrl,
+                'returnUrl' => $returnUrl,
                 'data' => $paymentData,
             ]);
 
@@ -78,12 +84,17 @@ class PaymentController extends Controller
                 'Authorization' => $authHeader,
                 'Content-Type' => 'application/json',
                 'Accept' => 'application/json',
+                'x-api-key' => env('NOON_API_KEY'),
             ];
-            if (! env('NOON_AUTH_HEADER')) {
-                $headers['x-api-key'] = env('NOON_API_KEY');
-            }
 
             $response = Http::withHeaders($headers)->post($noonApiUrl . 'order', $paymentData);
+
+            if (! $response->successful() && $response->status() === 403 && ! empty($configuration['cancelUrl'])) {
+                unset($configuration['cancelUrl']);
+                $paymentData['configuration'] = $configuration;
+                Log::info('Noon API Retry without cancelUrl');
+                $response = Http::withHeaders($headers)->post($noonApiUrl . 'order', $paymentData);
+            }
 
             if ($response->successful()) {
                 $paymentResponse = $response->json();
@@ -161,7 +172,8 @@ class PaymentController extends Controller
     }
 
     /**
-     * Process payment success: create invoice & order from cache, clear cache.
+     * Process payment success: create/update order and invoice from cache, clear cache.
+     * If an order already exists with order_number = orderId (e.g. from store checkout), update it and create invoice only.
      * Returns ['processed' => bool, 'order_id' => ?, 'payment_id' => ?].
      */
     protected function processPaymentSuccess(?string $orderId, ?string $paymentId): array
@@ -186,24 +198,34 @@ class PaymentController extends Controller
             'due_date' => now()->addDays(7),
         ]);
 
-        Order::create([
-            'user_id' => $paymentSessionData['user_id'],
-            'invoice_id' => $invoice->id,
-            'order_number' => Order::generateOrderNumber(),
-            'total_amount' => $paymentSessionData['amount'],
-            'currency' => $paymentSessionData['currency'] ?? 'SAR',
-            'status' => 'paid',
-            'payment_method' => 'noon',
-            'payment_id' => $paymentId,
-            'notes' => $paymentSessionData['description'] ?? 'دفع حجز مغامرة',
-            'items' => [
-                [
-                    'name' => $paymentSessionData['description'] ?? 'دفع حجز مغامرة',
-                    'amount' => $paymentSessionData['amount'],
-                    'quantity' => 1,
+        $existingOrder = Order::where('order_number', $orderId)->first();
+        if ($existingOrder) {
+            $existingOrder->update([
+                'invoice_id' => $invoice->id,
+                'status' => 'paid',
+                'payment_method' => 'noon',
+                'payment_id' => $paymentId,
+            ]);
+        } else {
+            Order::create([
+                'user_id' => $paymentSessionData['user_id'],
+                'invoice_id' => $invoice->id,
+                'order_number' => Order::generateOrderNumber(),
+                'total_amount' => $paymentSessionData['amount'],
+                'currency' => $paymentSessionData['currency'] ?? 'SAR',
+                'status' => 'paid',
+                'payment_method' => 'noon',
+                'payment_id' => $paymentId,
+                'notes' => $paymentSessionData['description'] ?? 'دفع حجز مغامرة',
+                'items' => [
+                    [
+                        'name' => $paymentSessionData['description'] ?? 'دفع حجز مغامرة',
+                        'amount' => $paymentSessionData['amount'],
+                        'quantity' => 1,
+                    ],
                 ],
-            ],
-        ]);
+            ]);
+        }
 
         Cache::forget('payment_session_' . $orderId);
 
@@ -233,15 +255,37 @@ class PaymentController extends Controller
      */
     public function paymentSuccessPage(Request $request)
     {
-        $orderId = $request->get('order_id');
-        $paymentId = $request->get('payment_id');
+        $orderId = $request->get('order_id') ?? $request->get('merchantReference');
+        $paymentId = $request->get('payment_id') ?? $request->get('orderId');
 
         $result = $this->processPaymentSuccess($orderId, $paymentId);
+
+        $order = null;
+        if ($orderId) {
+            $order = Order::where('order_number', $orderId)->first();
+        }
+
+        $orderDetails = null;
+        if ($order) {
+            $orderDetails = [
+                'order_number' => $order->order_number,
+                'customer_name' => $order->customer_name,
+                'customer_phone' => $order->customer_phone,
+                'customer_email' => $order->customer_email,
+                'address' => $order->address,
+                'activity_date' => $order->activity_date?->format('Y-m-d'),
+                'total_amount' => (float) $order->total_amount,
+                'currency' => $order->currency ?? 'SAR',
+                'items' => $order->items ?? [],
+            ];
+        }
 
         return Inertia::render('Payment/Success', [
             'processed' => $result['processed'],
             'order_id' => $result['order_id'],
             'payment_id' => $result['payment_id'],
+            'order' => $orderDetails,
+            'whatsapp_number' => preg_replace('/\D/', '', (string) env('WHATSAPP_NUMBER', '')),
         ]);
     }
 

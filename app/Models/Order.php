@@ -11,6 +11,8 @@ class Order extends Model
         'customer_name',
         'customer_email',
         'customer_phone',
+        'address',
+        'activity_date',
         'invoice_id',
         'order_number',
         'total_amount',
@@ -25,6 +27,7 @@ class Order extends Model
     protected $casts = [
         'total_amount' => 'decimal:2',
         'items' => 'array',
+        'activity_date' => 'date',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];

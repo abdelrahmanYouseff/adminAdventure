@@ -35,6 +35,23 @@ class User extends Authenticatable
     ];
 
     /**
+     * Get the attributes that should be appended to the model's array form.
+     *
+     * @var list<string>
+     */
+    protected $appends = [
+        'name',
+    ];
+
+    /**
+     * Get the name for display (alias for customer_name for frontend compatibility).
+     */
+    public function getNameAttribute(): string
+    {
+        return (string) ($this->attributes['customer_name'] ?? '');
+    }
+
+    /**
      * Get the attributes that should be cast.
      *
      * @return array<string, string>

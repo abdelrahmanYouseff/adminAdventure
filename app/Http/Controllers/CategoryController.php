@@ -21,6 +21,18 @@ class CategoryController extends Controller
     }
 
     /**
+     * Display the specified category with its products.
+     */
+    public function show(Category $category)
+    {
+        $category->load('products');
+
+        return Inertia::render('Categories/Show', [
+            'category' => $category,
+        ]);
+    }
+
+    /**
      * Show the form for creating a new category.
      */
     public function create()
