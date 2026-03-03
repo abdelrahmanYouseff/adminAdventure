@@ -123,16 +123,27 @@ class PaymentController extends Controller
                 ];
                 Cache::put('payment_session_' . $request->order_id, $paymentSessionData, 3600);
 
-                PaymentSession::updateOrCreate(
-                    ['merchant_reference' => $request->order_id],
-                    [
-                        'user_id' => $request->user_id,
-                        'amount' => $paymentSessionData['amount'],
-                        'currency' => $paymentSessionData['currency'] ?? 'SAR',
-                        'payload' => $paymentSessionData,
-                        'noon_order_id' => $paymentResponse['order']['id'] ?? null,
-                    ]
-                );
+                try {
+                    $payloadForDb = $paymentSessionData;
+                    if (isset($payloadForDb['created_at']) && is_object($payloadForDb['created_at'])) {
+                        $payloadForDb['created_at'] = $payloadForDb['created_at']->toIso8601String();
+                    }
+                    PaymentSession::updateOrCreate(
+                        ['merchant_reference' => $request->order_id],
+                        [
+                            'user_id' => (int) $request->user_id,
+                            'amount' => $paymentSessionData['amount'],
+                            'currency' => $paymentSessionData['currency'] ?? 'SAR',
+                            'payload' => $payloadForDb,
+                            'noon_order_id' => $paymentResponse['order']['id'] ?? null,
+                        ]
+                    );
+                } catch (\Throwable $e) {
+                    Log::warning('Payment session DB save failed (cache used)', [
+                        'order_id' => $request->order_id,
+                        'message' => $e->getMessage(),
+                    ]);
+                }
 
                 return response()->json([
                     'success' => true,
