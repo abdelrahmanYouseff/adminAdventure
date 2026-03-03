@@ -163,11 +163,11 @@ Route::get('store/checkout', [\App\Http\Controllers\StoreController::class, 'che
 Route::post('store/checkout', [\App\Http\Controllers\StoreController::class, 'submitCheckout'])->name('store.checkout.submit');
 
 // Payment return URLs (no auth - used by payment gateway redirect)
-Route::get('payment/success', [\App\Http\Controllers\PaymentController::class, 'paymentSuccessPage'])
+Route::match(['GET', 'POST'], 'payment/success', [\App\Http\Controllers\PaymentController::class, 'paymentSuccessPage'])
     ->name('payment.success');
-Route::get('payment/fail', [\App\Http\Controllers\PaymentController::class, 'paymentFailPage'])
+Route::match(['GET', 'POST'], 'payment/fail', [\App\Http\Controllers\PaymentController::class, 'paymentFailPage'])
     ->name('payment.fail');
-Route::get('payment/cancel', [\App\Http\Controllers\PaymentController::class, 'paymentCancelPage'])
+Route::match(['GET', 'POST'], 'payment/cancel', [\App\Http\Controllers\PaymentController::class, 'paymentCancelPage'])
     ->name('payment.cancel');
 
 require __DIR__.'/settings.php';

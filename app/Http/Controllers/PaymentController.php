@@ -328,13 +328,13 @@ class PaymentController extends Controller
         $resolvedOrderId = $orderId;
 
         // App/WebView: always return 200 with minimal HTML
-        // if ($isAppWebView) {
-        //     return $this->paymentSuccessMinimalHtml($resolvedOrderId, $processed);
-        // }
-
         if ($isAppWebView) {
-            return response('APP SUCCESS OK', 200);
+            return $this->paymentSuccessMinimalHtml($resolvedOrderId, $processed);
         }
+
+        // if ($isAppWebView) {
+        //     return response('APP SUCCESS OK', 200);
+        // }
 
         // Browser: Inertia success page
         $order = null;
