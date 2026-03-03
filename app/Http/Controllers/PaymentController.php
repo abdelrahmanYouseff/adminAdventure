@@ -174,6 +174,8 @@ class PaymentController extends Controller
     /**
      * Process payment success: create/update order and invoice from cache, clear cache.
      * If an order already exists with order_number = orderId (e.g. from store checkout), update it and create invoice only.
+     * Idempotent: if session cache is already cleared (e.g. webhook already processed), but invoice exists and is paid,
+     * returns processed true so the app does not run confirmation twice.
      * Returns ['processed' => bool, 'order_id' => ?, 'payment_id' => ?].
      */
     protected function processPaymentSuccess(?string $orderId, ?string $paymentId): array
@@ -183,7 +185,20 @@ class PaymentController extends Controller
         }
 
         $paymentSessionData = Cache::get('payment_session_' . $orderId);
+
+        // Already processed (e.g. by webhook): invoice exists and is paid – return success so app does not retry
         if (! $paymentSessionData) {
+            $existingInvoice = Invoice::where('invoice_number', $orderId)->where('status', 'paid')->first();
+            if ($existingInvoice) {
+                $order = Order::where('order_number', $orderId)
+                    ->orWhereHas('invoice', fn ($q) => $q->where('invoice_number', $orderId))
+                    ->first();
+                return [
+                    'processed' => true,
+                    'order_id' => $orderId,
+                    'payment_id' => $order?->payment_id ?? $paymentId,
+                ];
+            }
             return ['processed' => false, 'order_id' => $orderId, 'payment_id' => $paymentId];
         }
 
@@ -233,14 +248,13 @@ class PaymentController extends Controller
     }
 
     /**
-     * Handle payment success (API) – returns JSON.
+     * Handle payment success (API) – returns JSON. Used by app as handlePaymentSuccess.
+     * Accepts order_id or session_id (and optional payment_id).
      */
     public function paymentSuccess(Request $request)
     {
-        $result = $this->processPaymentSuccess(
-            $request->get('order_id'),
-            $request->get('payment_id')
-        );
+        $orderId = $request->get('order_id') ?? $request->get('session_id');
+        $result = $this->processPaymentSuccess($orderId, $request->get('payment_id'));
 
         return response()->json([
             'success' => true,
@@ -377,9 +391,9 @@ class PaymentController extends Controller
 
                 if ($paymentSessionData) {
                     switch ($paymentStatus) {
-                                                case 'CAPTURED':
+                        case 'CAPTURED':
                         case 'AUTHORIZED':
-                            // Create invoice only when payment is successful
+                            // Create invoice when payment is successful
                             $invoice = Invoice::create([
                                 'user_id' => $paymentSessionData['user_id'],
                                 'rental_id' => null,
@@ -391,27 +405,37 @@ class PaymentController extends Controller
                                 'due_date' => now()->addDays(7),
                             ]);
 
-                            // Create order when payment is successful
-                            $order = Order::create([
-                                'user_id' => $paymentSessionData['user_id'],
-                                'invoice_id' => $invoice->id,
-                                'order_number' => Order::generateOrderNumber(),
-                                'total_amount' => $paymentSessionData['amount'],
-                                'currency' => $paymentSessionData['currency'] ?? 'SAR',
-                                'status' => 'paid',
-                                'payment_method' => 'noon',
-                                'payment_id' => $paymentId,
-                                'notes' => $paymentSessionData['description'] ?? 'دفع حجز مغامرة',
-                                'items' => [
-                                    [
-                                        'name' => $paymentSessionData['description'] ?? 'دفع حجز مغامرة',
-                                        'amount' => $paymentSessionData['amount'],
-                                        'quantity' => 1,
-                                    ]
-                                ],
-                            ]);
+                            // Update existing order (e.g. store checkout) or create new one
+                            $existingOrder = Order::where('order_number', $orderId)->first();
+                            if ($existingOrder) {
+                                $existingOrder->update([
+                                    'invoice_id' => $invoice->id,
+                                    'status' => 'paid',
+                                    'payment_method' => 'noon',
+                                    'payment_id' => $paymentId,
+                                ]);
+                            } else {
+                                Order::create([
+                                    'user_id' => $paymentSessionData['user_id'],
+                                    'invoice_id' => $invoice->id,
+                                    'order_number' => Order::generateOrderNumber(),
+                                    'total_amount' => $paymentSessionData['amount'],
+                                    'currency' => $paymentSessionData['currency'] ?? 'SAR',
+                                    'status' => 'paid',
+                                    'payment_method' => 'noon',
+                                    'payment_id' => $paymentId,
+                                    'notes' => $paymentSessionData['description'] ?? 'دفع حجز مغامرة',
+                                    'items' => [
+                                        [
+                                            'name' => $paymentSessionData['description'] ?? 'دفع حجز مغامرة',
+                                            'amount' => $paymentSessionData['amount'],
+                                            'quantity' => 1,
+                                        ],
+                                    ],
+                                ]);
+                            }
 
-                            // Remove payment session from cache
+                            // Remove payment session from cache so polling/redirect see paid state
                             Cache::forget('payment_session_' . $orderId);
                             break;
 
@@ -455,23 +479,35 @@ class PaymentController extends Controller
     }
 
     /**
-     * Get payment status
+     * Get payment status for polling (e.g. from WebView).
+     * Accepts session_id or order_id. Returns status in a format the app expects:
+     * completed / success / paid when payment is done, so the app can run
+     * handlePaymentSuccess and createOrder without relying on redirect.
      */
     public function getPaymentStatus(Request $request)
     {
-        $request->validate([
-            'order_id' => 'required|string',
-        ]);
+        $sessionId = $request->query('session_id') ?? $request->query('order_id');
+        if (! is_string($sessionId) || $sessionId === '') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Missing session_id or order_id',
+            ], 422);
+        }
 
-        // First check if invoice exists (payment completed)
-        $invoice = Invoice::where('invoice_number', $request->order_id)->first();
+        $orderId = $sessionId;
 
-        if ($invoice) {
+        // First check if invoice exists (payment completed – e.g. after webhook or redirect)
+        $invoice = Invoice::where('invoice_number', $orderId)->first();
+
+        if ($invoice && $invoice->status === 'paid') {
             return response()->json([
                 'success' => true,
+                'status' => 'completed',
+                'payment_status' => 'success',
                 'data' => [
                     'order_id' => $invoice->invoice_number,
-                    'status' => $invoice->status,
+                    'status' => 'completed',
+                    'payment_status' => 'success',
                     'amount' => $invoice->amount,
                     'payment_method' => $invoice->payment_method,
                     'created_at' => $invoice->created_at,
@@ -481,13 +517,15 @@ class PaymentController extends Controller
         }
 
         // Check if payment session exists (payment in progress)
-        $paymentSessionData = Cache::get('payment_session_' . $request->order_id);
+        $paymentSessionData = Cache::get('payment_session_' . $orderId);
 
         if ($paymentSessionData) {
             return response()->json([
                 'success' => true,
+                'status' => 'pending',
+                'payment_status' => 'pending',
                 'data' => [
-                    'order_id' => $request->order_id,
+                    'order_id' => $orderId,
                     'status' => 'pending',
                     'amount' => $paymentSessionData['amount'],
                     'payment_method' => 'noon',
