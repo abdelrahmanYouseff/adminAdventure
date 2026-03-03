@@ -308,59 +308,50 @@ class PaymentController extends Controller
     }
 
     /**
-     * Handle payment success (Web) – redirect from gateway, show success page.
-     * When from_app=1 or WebView User-Agent, always returns 200 with minimal HTML (never 500).
+     * Handle payment success callback (GET or POST).
+     * No session or auth; uses order_id from query/body and DB only.
+     * Returns simple HTML for WebView and browser. Excluded from CSRF.
      */
     public function paymentSuccessPage(Request $request)
     {
-        Log::info('Payment callback hit', [
-            'query' => $request->query(),
-            'user_agent' => $request->userAgent(),
-        ]);
-
         $orderId = $request->get('order_id') ?? $request->get('merchantReference');
-        $paymentId = $request->get('payment_id') ?? $request->get('orderId');
-        $isAppWebView = $this->isAppWebView($request);
 
-        // Callback is display-only: never create order/invoice here; payment is confirmed by webhook.
-        $processed = $this->isPaymentProcessed($orderId);
-        $resolvedOrderId = $orderId;
+        $success = $this->isPaymentProcessed($orderId);
+        $orderIdSafe = $orderId !== null && $orderId !== '' ? e((string) $orderId) : '—';
 
-        // App/WebView: always return 200 with minimal HTML
-        if ($isAppWebView) {
-            return $this->paymentSuccessMinimalHtml($resolvedOrderId, $processed);
-        }
+        $title = $success ? 'Payment Successful' : 'Payment Pending';
+        $message = $success
+            ? 'Your payment has been confirmed.'
+            : 'Your payment is being processed. You can close this page.';
+        $bg = $success ? '#f0fdf4' : '#fffbeb';
+        $color = $success ? '#166534' : '#92400e';
 
-        // Browser: plain HTML view (no Inertia) so WebView and redirects work reliably
-        $order = null;
-        if ($orderId) {
-            $order = Order::where('order_number', $orderId)->first();
-        }
+        $html = <<<HTML
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{$title}</title>
+    <style>
+        body { font-family: system-ui, sans-serif; margin: 0; padding: 2rem; min-height: 100vh; display: flex; align-items: center; justify-content: center; background: {$bg}; color: {$color}; text-align: center; }
+        .box { max-width: 24rem; }
+        h1 { font-size: 1.5rem; margin-bottom: 0.5rem; }
+        p { margin-bottom: 1rem; }
+        .order { font-size: 0.875rem; color: #4b5563; }
+    </style>
+</head>
+<body>
+    <div class="box">
+        <h1>{$title}</h1>
+        <p>{$message}</p>
+        <p class="order">Order: {$orderIdSafe}</p>
+    </div>
+</body>
+</html>
+HTML;
 
-        $orderDetails = null;
-        if ($order) {
-            $orderDetails = [
-                'order_number' => $order->order_number,
-                'customer_name' => $order->customer_name,
-                'customer_phone' => $order->customer_phone,
-                'customer_email' => $order->customer_email,
-                'address' => $order->getAttribute('address'),
-                'activity_date' => $order->activity_date ? (is_object($order->activity_date) ? $order->activity_date->format('Y-m-d') : $order->activity_date) : null,
-                'total_amount' => (float) $order->total_amount,
-                'currency' => $order->currency ?? 'SAR',
-                'items' => $order->items ?? [],
-            ];
-        }
-
-        $whatsapp_number = preg_replace('/\D/', '', (string) env('WHATSAPP_NUMBER', ''));
-
-        return response()->view('payment-success', [
-            'processed' => $processed,
-            'order_id' => $resolvedOrderId,
-            'payment_id' => $paymentId,
-            'order' => $orderDetails,
-            'whatsapp_number' => $whatsapp_number,
-        ]);
+        return response($html, 200)->header('Content-Type', 'text/html; charset=utf-8');
     }
 
     /**
