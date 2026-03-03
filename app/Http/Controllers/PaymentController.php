@@ -267,13 +267,32 @@ class PaymentController extends Controller
 
     /**
      * Handle payment success (Web) – redirect from gateway, show success page.
+     * When opened in app WebView (Flutter), returns minimal HTML so the app never gets 500.
      */
     public function paymentSuccessPage(Request $request)
     {
         $orderId = $request->get('order_id') ?? $request->get('merchantReference');
         $paymentId = $request->get('payment_id') ?? $request->get('orderId');
 
-        $result = $this->processPaymentSuccess($orderId, $paymentId);
+        $isAppWebView = $this->isAppWebView($request);
+
+        try {
+            $result = $this->processPaymentSuccess($orderId, $paymentId);
+        } catch (\Throwable $e) {
+            Log::error('Payment success processing error', [
+                'order_id' => $orderId,
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            if ($isAppWebView) {
+                return $this->paymentSuccessMinimalHtml($orderId, true);
+            }
+            throw $e;
+        }
+
+        if ($isAppWebView) {
+            return $this->paymentSuccessMinimalHtml($result['order_id'] ?? $orderId, $result['processed']);
+        }
 
         $order = null;
         if ($orderId) {
@@ -287,8 +306,8 @@ class PaymentController extends Controller
                 'customer_name' => $order->customer_name,
                 'customer_phone' => $order->customer_phone,
                 'customer_email' => $order->customer_email,
-                'address' => $order->address,
-                'activity_date' => $order->activity_date?->format('Y-m-d'),
+                'address' => $order->getAttribute('address'),
+                'activity_date' => $order->activity_date ? (is_object($order->activity_date) ? $order->activity_date->format('Y-m-d') : $order->activity_date) : null,
                 'total_amount' => (float) $order->total_amount,
                 'currency' => $order->currency ?? 'SAR',
                 'items' => $order->items ?? [],
@@ -302,6 +321,72 @@ class PaymentController extends Controller
             'order' => $orderDetails,
             'whatsapp_number' => preg_replace('/\D/', '', (string) env('WHATSAPP_NUMBER', '')),
         ]);
+    }
+
+    /**
+     * Detect if request is from app WebView (Flutter/Android/iOS in-app browser).
+     */
+    protected function isAppWebView(Request $request): bool
+    {
+        $ua = strtolower((string) $request->userAgent());
+        if ($request->query('from_app') === '1' || $request->query('source') === 'app') {
+            return true;
+        }
+        return str_contains($ua, 'wv') || str_contains($ua, 'webview')
+            || str_contains($ua, 'flutter') || str_contains($ua, 'dart');
+    }
+
+    /**
+     * Minimal HTML success page for app WebView – no Inertia/session, always 200.
+     */
+    protected function paymentSuccessMinimalHtml(?string $orderId, bool $processed): \Illuminate\Http\Response
+    {
+        $title = $processed ? 'تم الدفع بنجاح' : 'جاري المعالجة';
+        $message = $processed
+            ? 'تمت عملية الدفع بنجاح. يمكنك إغلاق هذه الصفحة والعودة للتطبيق.'
+            : 'جاري تأكيد الدفع. يمكنك إغلاق هذه الصفحة.';
+        $orderIdSafe = e((string) ($orderId ?? ''));
+        $orderIdJson = json_encode((string) ($orderId ?? ''));
+        $processedJson = $processed ? 'true' : 'false';
+
+        $html = <<<HTML
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{$title}</title>
+    <style>
+        * { box-sizing: border-box; }
+        body { font-family: system-ui, -apple-system, sans-serif; margin: 0; padding: 24px; min-height: 100vh; display: flex; align-items: center; justify-content: center; background: #f0fdf4; color: #166534; }
+        .box { text-align: center; max-width: 360px; }
+        h1 { font-size: 1.5rem; margin-bottom: 12px; }
+        p { color: #15803d; line-height: 1.6; }
+        .order { font-weight: 600; margin-top: 16px; font-size: 0.95rem; }
+    </style>
+</head>
+<body>
+    <div class="box">
+        <h1>✓ {$title}</h1>
+        <p>{$message}</p>
+        <p class="order">رقم الطلب: {$orderIdSafe}</p>
+    </div>
+    <script>
+        (function() {
+            var payload = { type: 'payment_success', order_id: {$orderIdJson}, processed: {$processedJson} };
+            if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
+                window.ReactNativeWebView.postMessage(JSON.stringify(payload));
+            }
+            if (window.flutter_inappwebview && typeof window.flutter_inappwebview.callHandler === 'function') {
+                window.flutter_inappwebview.callHandler('paymentSuccess', payload);
+            }
+        })();
+    </script>
+</body>
+</html>
+HTML;
+
+        return response($html, 200)->header('Content-Type', 'text/html; charset=utf-8');
     }
 
     /**
