@@ -4,8 +4,10 @@ namespace App\Http\Controllers;
 
 use App\Models\Invoice;
 use App\Models\Order;
+use App\Models\PaymentSession;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Cache;
@@ -27,6 +29,7 @@ class PaymentController extends Controller
             'customer_email' => 'required|email',
             'customer_name' => 'required|string|max:255',
             'customer_phone' => 'nullable|string|max:20',
+            'from_app' => 'nullable|boolean',
         ]);
 
         try {
@@ -49,13 +52,15 @@ class PaymentController extends Controller
                 $authHeader = 'Key ' . base64_encode($noon['business_id'] . '.' . $noon['app_id'] . ':' . $noon['api_key']);
             }
 
-            $returnUrl = $baseUrl . '/payment/success?order_id=' . $request->order_id;
+            $fromApp = $request->boolean('from_app') || $request->input('source') === 'app';
+            $returnUrl = $baseUrl . '/payment/success?order_id=' . $request->order_id . ($fromApp ? '&from_app=1' : '');
+            $failUrl = $baseUrl . '/payment/fail?order_id=' . $request->order_id . ($fromApp ? '&from_app=1' : '');
             $configuration = [
                 'returnUrl' => $returnUrl,
                 'paymentAction' => $noon['payment_action'] ?? 'SALE',
             ];
             if ($noon['cancel_url_enabled'] ?? true) {
-                $configuration['cancelUrl'] = $baseUrl . '/payment/fail?order_id=' . $request->order_id;
+                $configuration['cancelUrl'] = $failUrl;
             }
 
             $orderPayload = [
@@ -117,6 +122,17 @@ class PaymentController extends Controller
                     'created_at' => now(),
                 ];
                 Cache::put('payment_session_' . $request->order_id, $paymentSessionData, 3600);
+
+                PaymentSession::updateOrCreate(
+                    ['merchant_reference' => $request->order_id],
+                    [
+                        'user_id' => $request->user_id,
+                        'amount' => $paymentSessionData['amount'],
+                        'currency' => $paymentSessionData['currency'] ?? 'SAR',
+                        'payload' => $paymentSessionData,
+                        'noon_order_id' => $paymentResponse['order']['id'] ?? null,
+                    ]
+                );
 
                 return response()->json([
                     'success' => true,
@@ -185,10 +201,17 @@ class PaymentController extends Controller
             return ['processed' => false, 'order_id' => null, 'payment_id' => $paymentId];
         }
 
-        $paymentSessionData = Cache::get('payment_session_' . $orderId);
+        $cacheKey = 'payment_session_' . $orderId;
+        $cacheExists = Cache::has($cacheKey);
+        Log::info('processPaymentSuccess', ['order_id' => $orderId, 'cache_exists' => $cacheExists]);
+
+        $paymentSessionData = Cache::get($cacheKey);
 
         // Already processed (e.g. by webhook): invoice exists and is paid – return success so app does not retry
         if (! $paymentSessionData) {
+            if (! $cacheExists) {
+                Log::info('processPaymentSuccess cache_miss', ['order_id' => $orderId]);
+            }
             $existingInvoice = Invoice::where('invoice_number', $orderId)->where('status', 'paid')->first();
             if ($existingInvoice) {
                 $order = Order::where('order_number', $orderId)
@@ -203,49 +226,58 @@ class PaymentController extends Controller
             return ['processed' => false, 'order_id' => $orderId, 'payment_id' => $paymentId];
         }
 
-        $invoice = Invoice::create([
-            'user_id' => $paymentSessionData['user_id'],
-            'rental_id' => null,
-            'invoice_number' => $orderId,
-            'amount' => $paymentSessionData['amount'],
-            'status' => 'paid',
-            'payment_method' => 'noon',
-            'issued_at' => now(),
-            'due_date' => now()->addDays(7),
-        ]);
-
-        $existingOrder = Order::where('order_number', $orderId)->first();
-        if ($existingOrder) {
-            $existingOrder->update([
-                'invoice_id' => $invoice->id,
-                'status' => 'paid',
-                'payment_method' => 'noon',
-                'payment_id' => $paymentId,
-            ]);
-        } else {
-            Order::create([
+        try {
+            $invoice = Invoice::create([
                 'user_id' => $paymentSessionData['user_id'],
-                'invoice_id' => $invoice->id,
-                'order_number' => Order::generateOrderNumber(),
-                'total_amount' => $paymentSessionData['amount'],
-                'currency' => $paymentSessionData['currency'] ?? 'SAR',
+                'rental_id' => null,
+                'invoice_number' => $orderId,
+                'amount' => $paymentSessionData['amount'],
                 'status' => 'paid',
                 'payment_method' => 'noon',
-                'payment_id' => $paymentId,
-                'notes' => $paymentSessionData['description'] ?? 'دفع حجز مغامرة',
-                'items' => [
-                    [
-                        'name' => $paymentSessionData['description'] ?? 'دفع حجز مغامرة',
-                        'amount' => $paymentSessionData['amount'],
-                        'quantity' => 1,
-                    ],
-                ],
+                'issued_at' => now(),
+                'due_date' => now()->addDays(7),
             ]);
+
+            $existingOrder = Order::where('order_number', $orderId)->first();
+            if ($existingOrder) {
+                $existingOrder->update([
+                    'invoice_id' => $invoice->id,
+                    'status' => 'paid',
+                    'payment_method' => 'noon',
+                    'payment_id' => $paymentId,
+                ]);
+            } else {
+                Order::create([
+                    'user_id' => $paymentSessionData['user_id'],
+                    'invoice_id' => $invoice->id,
+                    'order_number' => Order::generateOrderNumber(),
+                    'total_amount' => $paymentSessionData['amount'],
+                    'currency' => $paymentSessionData['currency'] ?? 'SAR',
+                    'status' => 'paid',
+                    'payment_method' => 'noon',
+                    'payment_id' => $paymentId,
+                    'notes' => $paymentSessionData['description'] ?? 'دفع حجز مغامرة',
+                    'items' => [
+                        [
+                            'name' => $paymentSessionData['description'] ?? 'دفع حجز مغامرة',
+                            'amount' => $paymentSessionData['amount'],
+                            'quantity' => 1,
+                        ],
+                    ],
+                ]);
+            }
+
+            Cache::forget('payment_session_' . $orderId);
+
+            return ['processed' => true, 'order_id' => $orderId, 'payment_id' => $paymentId];
+        } catch (\Throwable $e) {
+            Log::error('processPaymentSuccess exception', [
+                'order_id' => $orderId,
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            throw $e;
         }
-
-        Cache::forget('payment_session_' . $orderId);
-
-        return ['processed' => true, 'order_id' => $orderId, 'payment_id' => $paymentId];
     }
 
     /**
@@ -267,33 +299,29 @@ class PaymentController extends Controller
 
     /**
      * Handle payment success (Web) – redirect from gateway, show success page.
-     * When opened in app WebView (Flutter), returns minimal HTML so the app never gets 500.
+     * When from_app=1 or WebView User-Agent, always returns 200 with minimal HTML (never 500).
      */
     public function paymentSuccessPage(Request $request)
     {
+        Log::info('Payment callback hit', [
+            'query' => $request->query(),
+            'user_agent' => $request->userAgent(),
+        ]);
+
         $orderId = $request->get('order_id') ?? $request->get('merchantReference');
         $paymentId = $request->get('payment_id') ?? $request->get('orderId');
-
         $isAppWebView = $this->isAppWebView($request);
 
-        try {
-            $result = $this->processPaymentSuccess($orderId, $paymentId);
-        } catch (\Throwable $e) {
-            Log::error('Payment success processing error', [
-                'order_id' => $orderId,
-                'message' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
-            ]);
-            if ($isAppWebView) {
-                return $this->paymentSuccessMinimalHtml($orderId, true);
-            }
-            throw $e;
-        }
+        // Callback is display-only: never create order/invoice here; payment is confirmed by webhook.
+        $processed = $this->isPaymentProcessed($orderId);
+        $resolvedOrderId = $orderId;
 
+        // App/WebView: always return 200 with minimal HTML
         if ($isAppWebView) {
-            return $this->paymentSuccessMinimalHtml($result['order_id'] ?? $orderId, $result['processed']);
+            return $this->paymentSuccessMinimalHtml($resolvedOrderId, $processed);
         }
 
+        // Browser: Inertia success page
         $order = null;
         if ($orderId) {
             $order = Order::where('order_number', $orderId)->first();
@@ -315,12 +343,29 @@ class PaymentController extends Controller
         }
 
         return Inertia::render('Payment/Success', [
-            'processed' => $result['processed'],
-            'order_id' => $result['order_id'],
-            'payment_id' => $result['payment_id'],
+            'processed' => $processed,
+            'order_id' => $resolvedOrderId,
+            'payment_id' => $paymentId,
             'order' => $orderDetails,
             'whatsapp_number' => preg_replace('/\D/', '', (string) env('WHATSAPP_NUMBER', '')),
         ]);
+    }
+
+    /**
+     * Check if payment is already confirmed (by webhook). No side effects.
+     */
+    protected function isPaymentProcessed(?string $orderId): bool
+    {
+        if (! $orderId) {
+            return false;
+        }
+
+        $order = Order::where('order_number', $orderId)->first();
+        if ($order && $order->status === 'paid') {
+            return true;
+        }
+
+        return Invoice::where('invoice_number', $orderId)->where('status', 'paid')->exists();
     }
 
     /**
@@ -427,6 +472,10 @@ HTML;
             }
         }
 
+        if ($this->isAppWebView($request)) {
+            return $this->paymentFailMinimalHtml($orderId);
+        }
+
         return Inertia::render('Payment/Fail', [
             'order_id' => $orderId,
         ]);
@@ -446,121 +495,239 @@ HTML;
             }
         }
 
+        if ($this->isAppWebView($request)) {
+            return $this->paymentFailMinimalHtml($orderId);
+        }
+
         return Inertia::render('Payment/Cancel', [
             'order_id' => $orderId,
         ]);
     }
 
-        /**
-     * Handle webhook from Noon
+    /**
+     * Minimal HTML for payment fail/cancel in app WebView – always 200.
+     */
+    protected function paymentFailMinimalHtml(?string $orderId): \Illuminate\Http\Response
+    {
+        $orderIdSafe = e((string) ($orderId ?? ''));
+        $html = <<<HTML
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>لم تتم العملية</title>
+    <style>
+        body { font-family: system-ui, sans-serif; margin: 0; padding: 24px; min-height: 100vh; display: flex; align-items: center; justify-content: center; background: #fef2f2; color: #991b1b; text-align: center; }
+    </style>
+</head>
+<body>
+    <p>لم تتم عملية الدفع. يمكنك إغلاق هذه الصفحة.</p>
+    <p class="order">رقم الطلب: {$orderIdSafe}</p>
+</body>
+</html>
+HTML;
+
+        return response($html, 200)->header('Content-Type', 'text/html; charset=utf-8');
+    }
+
+    /**
+     * Handle webhook from Noon. Verifies signature (if configured), loads session from DB or cache,
+     * confirms payment in a transaction with idempotency.
      */
     public function webhook(Request $request)
     {
+        $rawBody = $request->getContent();
+        $payload = $request->all();
+
+        Log::info('Noon Webhook Received', ['payload_keys' => array_keys($payload)]);
+
         try {
-            $payload = $request->all();
-
-            Log::info('Noon Webhook Received', $payload);
-
-            // Verify webhook signature (if Noon provides it)
-            // $signature = $request->header('X-Noon-Signature');
-            // if (!$this->verifyWebhookSignature($payload, $signature)) {
-            //     return response()->json(['error' => 'Invalid signature'], 400);
-            // }
+            $secret = config('services.noon.webhook_secret');
+            if ($secret && is_string($secret) && $secret !== '') {
+                $signature = $request->header('X-Noon-Signature') ?? $request->header('x-noon-signature');
+                if (! $this->verifyWebhookSignature($rawBody, $signature, $secret)) {
+                    Log::warning('Noon Webhook invalid signature');
+                    return response()->json(['error' => 'Invalid signature'], 400);
+                }
+            }
 
             $orderId = $payload['order']['reference'] ?? null;
             $paymentStatus = $payload['order']['status'] ?? null;
             $paymentId = $payload['order']['id'] ?? null;
 
-            if ($orderId && $paymentStatus) {
-                // Get payment session data from cache
-                $paymentSessionData = Cache::get('payment_session_' . $orderId);
+            if (! $orderId || ! $paymentStatus) {
+                return response()->json(['success' => true]);
+            }
 
-                if ($paymentSessionData) {
-                    switch ($paymentStatus) {
-                        case 'CAPTURED':
-                        case 'AUTHORIZED':
-                            // Create invoice when payment is successful
-                            $invoice = Invoice::create([
-                                'user_id' => $paymentSessionData['user_id'],
-                                'rental_id' => null,
-                                'invoice_number' => $orderId,
-                                'amount' => $paymentSessionData['amount'],
+            $paymentSessionData = $this->getPaymentSessionData($orderId);
+
+            if (! $paymentSessionData) {
+                Log::info('Noon Webhook no session data', ['order_id' => $orderId]);
+                return response()->json(['success' => true]);
+            }
+
+            switch ($paymentStatus) {
+                case 'CAPTURED':
+                case 'AUTHORIZED':
+                    if ($this->isPaymentProcessed($orderId)) {
+                        Log::info('Noon Webhook idempotent skip', ['order_id' => $orderId]);
+                        return response()->json(['success' => true]);
+                    }
+
+                    if (! $this->verifyNoonOrderStatus($paymentId, $paymentStatus)) {
+                        Log::warning('Noon Webhook status mismatch', ['order_id' => $orderId, 'payment_id' => $paymentId]);
+                    }
+
+                    DB::transaction(function () use ($orderId, $paymentId, $paymentSessionData) {
+                        $invoice = Invoice::create([
+                            'user_id' => $paymentSessionData['user_id'],
+                            'rental_id' => null,
+                            'invoice_number' => $orderId,
+                            'amount' => $paymentSessionData['amount'],
+                            'status' => 'paid',
+                            'payment_method' => 'noon',
+                            'issued_at' => now(),
+                            'due_date' => now()->addDays(7),
+                        ]);
+
+                        $existingOrder = Order::where('order_number', $orderId)->lockForUpdate()->first();
+                        if ($existingOrder) {
+                            $existingOrder->update([
+                                'invoice_id' => $invoice->id,
                                 'status' => 'paid',
                                 'payment_method' => 'noon',
-                                'issued_at' => now(),
-                                'due_date' => now()->addDays(7),
+                                'payment_id' => $paymentId,
                             ]);
-
-                            // Update existing order (e.g. store checkout) or create new one
-                            $existingOrder = Order::where('order_number', $orderId)->first();
-                            if ($existingOrder) {
-                                $existingOrder->update([
-                                    'invoice_id' => $invoice->id,
-                                    'status' => 'paid',
-                                    'payment_method' => 'noon',
-                                    'payment_id' => $paymentId,
-                                ]);
-                            } else {
-                                Order::create([
-                                    'user_id' => $paymentSessionData['user_id'],
-                                    'invoice_id' => $invoice->id,
-                                    'order_number' => Order::generateOrderNumber(),
-                                    'total_amount' => $paymentSessionData['amount'],
-                                    'currency' => $paymentSessionData['currency'] ?? 'SAR',
-                                    'status' => 'paid',
-                                    'payment_method' => 'noon',
-                                    'payment_id' => $paymentId,
-                                    'notes' => $paymentSessionData['description'] ?? 'دفع حجز مغامرة',
-                                    'items' => [
-                                        [
-                                            'name' => $paymentSessionData['description'] ?? 'دفع حجز مغامرة',
-                                            'amount' => $paymentSessionData['amount'],
-                                            'quantity' => 1,
-                                        ],
-                                    ],
-                                ]);
-                            }
-
-                            // Remove payment session from cache so polling/redirect see paid state
-                            Cache::forget('payment_session_' . $orderId);
-                            break;
-
-                        case 'FAILED':
-                        case 'CANCELLED':
-                        case 'DECLINED':
-                            // Create cancelled invoice
-                            $invoice = Invoice::create([
+                        } else {
+                            Order::create([
                                 'user_id' => $paymentSessionData['user_id'],
-                                'rental_id' => null,
-                                'invoice_number' => $orderId,
-                                'amount' => $paymentSessionData['amount'],
-                                'status' => 'cancelled',
+                                'invoice_id' => $invoice->id,
+                                'order_number' => Order::generateOrderNumber(),
+                                'total_amount' => $paymentSessionData['amount'],
+                                'currency' => $paymentSessionData['currency'] ?? 'SAR',
+                                'status' => 'paid',
                                 'payment_method' => 'noon',
-                                'issued_at' => now(),
-                                'due_date' => now()->addDays(7),
+                                'payment_id' => $paymentId,
+                                'notes' => $paymentSessionData['description'] ?? 'دفع حجز مغامرة',
+                                'items' => [
+                                    [
+                                        'name' => $paymentSessionData['description'] ?? 'دفع حجز مغامرة',
+                                        'amount' => $paymentSessionData['amount'],
+                                        'quantity' => 1,
+                                    ],
+                                ],
                             ]);
+                        }
 
-                            // Remove payment session from cache
-                            Cache::forget('payment_session_' . $orderId);
-                            break;
+                        $this->markPaymentSessionUsed($orderId);
+                        Cache::forget('payment_session_' . $orderId);
+                    });
+                    break;
 
-                        case 'PENDING':
-                        case 'INITIATED':
-                            // Keep payment session in cache
-                            break;
-                    }
-                }
+                case 'FAILED':
+                case 'CANCELLED':
+                case 'DECLINED':
+                    DB::transaction(function () use ($orderId, $paymentSessionData) {
+                        Invoice::create([
+                            'user_id' => $paymentSessionData['user_id'],
+                            'rental_id' => null,
+                            'invoice_number' => $orderId,
+                            'amount' => $paymentSessionData['amount'],
+                            'status' => 'cancelled',
+                            'payment_method' => 'noon',
+                            'issued_at' => now(),
+                            'due_date' => now()->addDays(7),
+                        ]);
+                        $this->markPaymentSessionUsed($orderId);
+                        Cache::forget('payment_session_' . $orderId);
+                    });
+                    break;
+
+                case 'PENDING':
+                case 'INITIATED':
+                    break;
             }
 
             return response()->json(['success' => true]);
-
-        } catch (\Exception $e) {
-            Log::error('Webhook Processing Error', [
-                'error' => $e->getMessage(),
-                'payload' => $request->all(),
+        } catch (\Throwable $e) {
+            Log::error('Noon Webhook Processing Error', [
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'payload' => $payload,
             ]);
 
             return response()->json(['error' => 'Webhook processing failed'], 500);
+        }
+    }
+
+    /**
+     * Get payment session data from DB first, then cache.
+     */
+    protected function getPaymentSessionData(string $orderId): ?array
+    {
+        $session = PaymentSession::where('merchant_reference', $orderId)->whereNull('used_at')->first();
+        if ($session && is_array($session->payload)) {
+            return $session->payload;
+        }
+
+        return Cache::get('payment_session_' . $orderId);
+    }
+
+    /**
+     * Mark payment session as used so webhook is idempotent.
+     */
+    protected function markPaymentSessionUsed(string $orderId): void
+    {
+        PaymentSession::where('merchant_reference', $orderId)->update(['used_at' => now()]);
+    }
+
+    /**
+     * Verify webhook signature (HMAC-SHA256 of raw body). Noon docs may specify header name and format.
+     */
+    protected function verifyWebhookSignature(string $rawBody, ?string $signature, string $secret): bool
+    {
+        if (! $signature) {
+            return false;
+        }
+        $expected = 'sha256=' . hash_hmac('sha256', $rawBody, $secret);
+        return hash_equals($expected, $signature) || hash_equals(hash_hmac('sha256', $rawBody, $secret), $signature);
+    }
+
+    /**
+     * Optionally verify payment status with Noon API before marking order paid.
+     */
+    protected function verifyNoonOrderStatus(?string $noonOrderId, string $expectedStatus): bool
+    {
+        if (! $noonOrderId) {
+            return false;
+        }
+        $noon = config('services.noon', []);
+        if (empty($noon['api_key']) || empty($noon['api_url'])) {
+            return true;
+        }
+        try {
+            $url = rtrim($noon['api_url'], '/') . '/order/' . $noonOrderId;
+            $authHeader = $noon['auth_header'] ?? null;
+            if ($authHeader === null || $authHeader === '') {
+                $authHeader = 'Key ' . base64_encode($noon['business_id'] . '.' . $noon['app_id'] . ':' . $noon['api_key']);
+            } else {
+                $authHeader = preg_replace('/^Key_/', 'Key ', trim((string) $authHeader));
+            }
+            $response = Http::withHeaders([
+                'Authorization' => $authHeader,
+                'Accept' => 'application/json',
+                'x-api-key' => $noon['api_key'],
+            ])->get($url);
+            if (! $response->successful()) {
+                return false;
+            }
+            $data = $response->json();
+            $status = $data['order']['status'] ?? $data['result']['order']['status'] ?? null;
+            return in_array($status, ['CAPTURED', 'AUTHORIZED'], true);
+        } catch (\Throwable $e) {
+            Log::warning('Noon order status check failed', ['message' => $e->getMessage()]);
+            return false;
         }
     }
 
@@ -649,15 +816,5 @@ HTML;
 
         // If no URL found, return a default checkout URL
         return 'https://checkout.noonpayments.com/payment/v1/checkout';
-    }
-
-    /**
-     * Verify webhook signature (implement based on Noon documentation)
-     */
-    private function verifyWebhookSignature($payload, $signature)
-    {
-        // Implement signature verification based on Noon's webhook documentation
-        // This is a placeholder - you need to implement this based on Noon's requirements
-        return true;
     }
 }
