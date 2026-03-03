@@ -10,6 +10,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 
 class StoreController extends Controller
@@ -135,7 +136,8 @@ class StoreController extends Controller
                 ]);
             }
 
-            $paymentRequest = Request::create('', 'POST', [
+            // Merge payment params into current request so createPaymentSession gets valid input
+            $request->merge([
                 'user_id' => $guestUser->id,
                 'amount' => round($totalAmount, 2),
                 'currency' => 'SAR',
@@ -147,7 +149,18 @@ class StoreController extends Controller
             ]);
 
             $paymentController = app(PaymentController::class);
-            $paymentResponse = $paymentController->createPaymentSession($paymentRequest);
+            $paymentResponse = $paymentController->createPaymentSession($request);
+
+            if (! $paymentResponse instanceof \Illuminate\Http\JsonResponse) {
+                if ($expectsJson) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'فشل في إنشاء جلسة الدفع (استجابة غير متوقعة)',
+                    ], 500);
+                }
+                return back()->withErrors(['form' => 'فشل في إنشاء جلسة الدفع.']);
+            }
+
             $data = $paymentResponse->getData(true);
 
             if (! empty($data['success']) && ! empty($data['data']['checkout_url'])) {
@@ -163,17 +176,25 @@ class StoreController extends Controller
             }
 
             $status = $paymentResponse->getStatusCode();
+            $message = $data['message'] ?? 'فشل في إنشاء جلسة الدفع';
             if ($expectsJson) {
                 return response()->json([
                     'success' => false,
-                    'message' => $data['message'] ?? 'فشل في إنشاء جلسة الدفع',
+                    'message' => $message,
                     'error' => $data['error'] ?? null,
                 ], $status >= 400 ? $status : 422);
             }
 
-            return back()->withErrors([
-                'form' => $data['message'] ?? 'فشل في إنشاء جلسة الدفع',
-            ]);
+            return back()->withErrors(['form' => $message]);
+        } catch (ValidationException $e) {
+            if ($expectsJson) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'بيانات الدفع غير صالحة.',
+                    'errors' => $e->errors(),
+                ], 422);
+            }
+            throw $e;
         } catch (\Throwable $e) {
             Log::error('Store checkout error', [
                 'message' => $e->getMessage(),

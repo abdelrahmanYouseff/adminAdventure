@@ -157,7 +157,7 @@ class PaymentController extends Controller
                 ], $status);
             }
 
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             Log::error('Payment Session Creation Error', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
@@ -165,8 +165,8 @@ class PaymentController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Internal server error',
-                'error' => $e->getMessage(),
+                'message' => config('app.debug') ? $e->getMessage() : 'فشل في إنشاء جلسة الدفع. حاول مرة أخرى.',
+                'error' => config('app.debug') ? $e->getMessage() : null,
             ], 500);
         }
     }
