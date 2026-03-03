@@ -42,6 +42,11 @@ return [
         'app_id' => env('NOON_APP_ID'),
         'auth_header' => env('NOON_AUTH_HEADER'),
         'webhook_secret' => env('NOON_WEBHOOK_SECRET'),
+        'payment_action' => env('NOON_PAYMENT_ACTION', 'SALE'),
+        'cancel_url_enabled' => env('NOON_CANCEL_URL_ENABLED', true),
+        'order_category' => env('NOON_ORDER_CATEGORY', 'pay'),
+        'order_channel' => env('NOON_ORDER_CHANNEL'),
+        'store_checkout_debug' => env('STORE_CHECKOUT_DEBUG', false),
     ],
 
 ];

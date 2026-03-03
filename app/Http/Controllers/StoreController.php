@@ -201,11 +201,13 @@ class StoreController extends Controller
                 'trace' => $e->getTraceAsString(),
             ]);
 
+            $showError = config('app.debug') || (bool) config('services.noon.store_checkout_debug', false);
+
             if ($expectsJson) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'حدث خطأ في الخادم. حاول مرة أخرى أو تواصل مع الدعم.',
-                    'error' => config('app.debug') ? $e->getMessage() : null,
+                    'message' => $showError ? $e->getMessage() : 'حدث خطأ في الخادم. حاول مرة أخرى أو تواصل مع الدعم.',
+                    'error' => $showError ? $e->getMessage() : null,
                 ], 500);
             }
 

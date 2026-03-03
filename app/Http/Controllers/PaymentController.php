@@ -30,10 +30,11 @@ class PaymentController extends Controller
         ]);
 
         try {
-            $noonApiUrl = rtrim(env('NOON_API_URL', 'https://api-test.sa.noonpayments.com/payment/v1/'), '/') . '/';
-            $baseUrl = rtrim(env('APP_URL'), '/');
+            $noon = config('services.noon', []);
+            $noonApiUrl = rtrim($noon['api_url'] ?? 'https://api-test.sa.noonpayments.com/payment/v1/', '/') . '/';
+            $baseUrl = rtrim(config('app.url', env('APP_URL', '')), '/');
 
-            if (! env('NOON_API_KEY') || ! env('NOON_BUSINESS_ID') || ! env('NOON_APP_ID')) {
+            if (empty($noon['api_key']) || empty($noon['business_id']) || empty($noon['app_id'])) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Noon API configuration incomplete',
@@ -41,19 +42,19 @@ class PaymentController extends Controller
             }
 
             // Noon auth: "Key " + base64(BusinessId.AppId:ApiKey) OR "Key_" + base64 (normalized to "Key ")
-            $authHeader = env('NOON_AUTH_HEADER');
+            $authHeader = $noon['auth_header'] ?? null;
             if ($authHeader !== null && $authHeader !== '') {
                 $authHeader = preg_replace('/^Key_/', 'Key ', trim((string) $authHeader));
             } else {
-                $authHeader = 'Key ' . base64_encode(env('NOON_BUSINESS_ID') . '.' . env('NOON_APP_ID') . ':' . env('NOON_API_KEY'));
+                $authHeader = 'Key ' . base64_encode($noon['business_id'] . '.' . $noon['app_id'] . ':' . $noon['api_key']);
             }
 
             $returnUrl = $baseUrl . '/payment/success?order_id=' . $request->order_id;
             $configuration = [
                 'returnUrl' => $returnUrl,
-                'paymentAction' => env('NOON_PAYMENT_ACTION', 'SALE'),
+                'paymentAction' => $noon['payment_action'] ?? 'SALE',
             ];
-            if (env('NOON_CANCEL_URL_ENABLED', true)) {
+            if ($noon['cancel_url_enabled'] ?? true) {
                 $configuration['cancelUrl'] = $baseUrl . '/payment/fail?order_id=' . $request->order_id;
             }
 
@@ -62,10 +63,10 @@ class PaymentController extends Controller
                 'currency' => $request->currency,
                 'reference' => $request->order_id,
                 'name' => $request->description ?? 'Order from Adventure World',
-                'category' => env('NOON_ORDER_CATEGORY', 'pay'),
+                'category' => $noon['order_category'] ?? 'pay',
             ];
-            if (env('NOON_ORDER_CHANNEL')) {
-                $orderPayload['channel'] = env('NOON_ORDER_CHANNEL');
+            if (! empty($noon['order_channel'])) {
+                $orderPayload['channel'] = $noon['order_channel'];
             }
 
             $paymentData = [
@@ -84,7 +85,7 @@ class PaymentController extends Controller
                 'Authorization' => $authHeader,
                 'Content-Type' => 'application/json',
                 'Accept' => 'application/json',
-                'x-api-key' => env('NOON_API_KEY'),
+                'x-api-key' => $noon['api_key'],
             ];
 
             $response = Http::withHeaders($headers)->post($noonApiUrl . 'order', $paymentData);
