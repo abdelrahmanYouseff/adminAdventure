@@ -11,7 +11,6 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Cache;
-use Inertia\Inertia;
 
 class PaymentController extends Controller
 {
@@ -332,11 +331,7 @@ class PaymentController extends Controller
             return $this->paymentSuccessMinimalHtml($resolvedOrderId, $processed);
         }
 
-        // if ($isAppWebView) {
-        //     return response('APP SUCCESS OK', 200);
-        // }
-
-        // Browser: Inertia success page
+        // Browser: plain HTML view (no Inertia) so WebView and redirects work reliably
         $order = null;
         if ($orderId) {
             $order = Order::where('order_number', $orderId)->first();
@@ -357,12 +352,14 @@ class PaymentController extends Controller
             ];
         }
 
-        return Inertia::render('Payment/Success', [
+        $whatsapp_number = preg_replace('/\D/', '', (string) env('WHATSAPP_NUMBER', ''));
+
+        return response()->view('payment-success', [
             'processed' => $processed,
             'order_id' => $resolvedOrderId,
             'payment_id' => $paymentId,
             'order' => $orderDetails,
-            'whatsapp_number' => preg_replace('/\D/', '', (string) env('WHATSAPP_NUMBER', '')),
+            'whatsapp_number' => $whatsapp_number,
         ]);
     }
 
@@ -491,9 +488,7 @@ HTML;
             return $this->paymentFailMinimalHtml($orderId);
         }
 
-        return Inertia::render('Payment/Fail', [
-            'order_id' => $orderId,
-        ]);
+        return response()->view('payment-fail', ['order_id' => $orderId]);
     }
 
     /**
@@ -514,9 +509,7 @@ HTML;
             return $this->paymentFailMinimalHtml($orderId);
         }
 
-        return Inertia::render('Payment/Cancel', [
-            'order_id' => $orderId,
-        ]);
+        return response()->view('payment-cancel', ['order_id' => $orderId]);
     }
 
     /**
