@@ -15,22 +15,41 @@ use Illuminate\Support\Facades\Cache;
 class PaymentController extends Controller
 {
     /**
-     * Create payment session with Noon (without creating invoice)
+     * Create payment session with Noon — API endpoint (validates request then delegates).
      */
     public function createPaymentSession(Request $request)
     {
-        $request->validate([
-            'user_id' => 'required|exists:users,id',
-            'amount' => 'required|numeric|min:0.01',
-            'currency' => 'required|string|in:SAR,USD,AED,KWD,QAR,BHD,OMR,JOD,EGP',
-            'order_id' => 'required|string|unique:invoices,invoice_number',
-            'description' => 'nullable|string|max:255',
-            'customer_email' => 'required|email',
-            'customer_name' => 'required|string|max:255',
-            'customer_phone' => 'nullable|string|max:20',
-            'from_app' => 'nullable|boolean',
-        ]);
+        try {
+            $validated = validator($request->all(), [
+                'user_id' => 'required|exists:users,id',
+                'amount' => 'required|numeric|min:0.01',
+                'currency' => 'required|string|in:SAR,USD,AED,KWD,QAR,BHD,OMR,JOD,EGP',
+                'order_id' => 'required|string|unique:invoices,invoice_number',
+                'description' => 'nullable|string|max:255',
+                'customer_email' => 'required|email',
+                'customer_name' => 'required|string|max:255',
+                'customer_phone' => 'nullable|string|max:20',
+                'from_app' => 'nullable|boolean',
+            ])->validate();
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'بيانات غير صالحة',
+                'errors' => $e->errors(),
+            ], 422);
+        }
 
+        return $this->createNoonSession(array_merge($validated, [
+            'from_app' => $request->boolean('from_app') || $request->input('source') === 'app',
+        ]));
+    }
+
+    /**
+     * Core Noon session creation — accepts a plain array, no Request dependency.
+     * Safe to call from other controllers or services without triggering setContainer issues.
+     */
+    public function createNoonSession(array $data): \Illuminate\Http\JsonResponse
+    {
         try {
             $noon = config('services.noon', []);
             $noonApiUrl = rtrim($noon['api_url'] ?? 'https://api-test.sa.noonpayments.com/payment/v1/', '/') . '/';
@@ -43,7 +62,6 @@ class PaymentController extends Controller
                 ], 500);
             }
 
-            // Noon auth: "Key " + base64(BusinessId.AppId:ApiKey) OR "Key_" + base64 (normalized to "Key ")
             $authHeader = $noon['auth_header'] ?? null;
             if ($authHeader !== null && $authHeader !== '') {
                 $authHeader = preg_replace('/^Key_/', 'Key ', trim((string) $authHeader));
@@ -51,9 +69,10 @@ class PaymentController extends Controller
                 $authHeader = 'Key ' . base64_encode($noon['business_id'] . '.' . $noon['app_id'] . ':' . $noon['api_key']);
             }
 
-            $fromApp = $request->boolean('from_app') || $request->input('source') === 'app';
-            $returnUrl = $baseUrl . '/payment/success?order_id=' . $request->order_id . ($fromApp ? '&from_app=1' : '');
-            $failUrl = $baseUrl . '/payment/fail?order_id=' . $request->order_id . ($fromApp ? '&from_app=1' : '');
+            $fromApp = ! empty($data['from_app']);
+            $orderId = $data['order_id'];
+            $returnUrl = $baseUrl . '/payment/success?order_id=' . $orderId . ($fromApp ? '&from_app=1' : '');
+            $failUrl = $baseUrl . '/payment/fail?order_id=' . $orderId . ($fromApp ? '&from_app=1' : '');
             $configuration = [
                 'returnUrl' => $returnUrl,
                 'paymentAction' => $noon['payment_action'] ?? 'SALE',
@@ -63,10 +82,10 @@ class PaymentController extends Controller
             }
 
             $orderPayload = [
-                'amount' => (float) $request->amount,
-                'currency' => $request->currency,
-                'reference' => $request->order_id,
-                'name' => $request->description ?? 'Order from Adventure World',
+                'amount' => (float) $data['amount'],
+                'currency' => $data['currency'],
+                'reference' => $orderId,
+                'name' => $data['description'] ?? 'Order from Adventure World',
                 'category' => $noon['order_category'] ?? 'pay',
             ];
             if (! empty($noon['order_channel'])) {
@@ -103,43 +122,36 @@ class PaymentController extends Controller
 
             if ($response->successful()) {
                 $paymentResponse = $response->json();
-
-                // احصل على رابط التشيك أوت الصحيح من Noon
                 $checkoutUrl = $paymentResponse['result']['checkoutData']['postUrl'] ?? null;
 
-                // Store payment session data in cache (بدون تغيير)
                 $paymentSessionData = [
-                    'user_id' => $request->user_id,
-                    'amount' => $request->amount,
-                    'currency' => $request->currency,
-                    'order_id' => $request->order_id,
-                    'description' => $request->description,
-                    'customer_email' => $request->customer_email,
-                    'customer_name' => $request->customer_name,
-                    'customer_phone' => $request->customer_phone,
+                    'user_id' => $data['user_id'],
+                    'amount' => $data['amount'],
+                    'currency' => $data['currency'],
+                    'order_id' => $orderId,
+                    'description' => $data['description'] ?? null,
+                    'customer_email' => $data['customer_email'] ?? null,
+                    'customer_name' => $data['customer_name'] ?? null,
+                    'customer_phone' => $data['customer_phone'] ?? null,
                     'noon_order_id' => $paymentResponse['order']['id'] ?? null,
-                    'created_at' => now(),
+                    'created_at' => now()->toIso8601String(),
                 ];
-                Cache::put('payment_session_' . $request->order_id, $paymentSessionData, 3600);
+                Cache::put('payment_session_' . $orderId, $paymentSessionData, 3600);
 
                 try {
-                    $payloadForDb = $paymentSessionData;
-                    if (isset($payloadForDb['created_at']) && is_object($payloadForDb['created_at'])) {
-                        $payloadForDb['created_at'] = $payloadForDb['created_at']->toIso8601String();
-                    }
                     PaymentSession::updateOrCreate(
-                        ['merchant_reference' => $request->order_id],
+                        ['merchant_reference' => $orderId],
                         [
-                            'user_id' => (int) $request->user_id,
+                            'user_id' => (int) $data['user_id'],
                             'amount' => $paymentSessionData['amount'],
                             'currency' => $paymentSessionData['currency'] ?? 'SAR',
-                            'payload' => $payloadForDb,
+                            'payload' => $paymentSessionData,
                             'noon_order_id' => $paymentResponse['order']['id'] ?? null,
                         ]
                     );
                 } catch (\Throwable $e) {
                     Log::warning('Payment session DB save failed (cache used)', [
-                        'order_id' => $request->order_id,
+                        'order_id' => $orderId,
                         'message' => $e->getMessage(),
                     ]);
                 }
@@ -150,9 +162,9 @@ class PaymentController extends Controller
                     'data' => [
                         'checkout_url' => $checkoutUrl,
                         'payment_id' => $paymentResponse['result']['order']['id'] ?? null,
-                        'order_id' => $request->order_id,
+                        'order_id' => $orderId,
                         'status' => $paymentResponse['result']['order']['status'] ?? null,
-                        'noon_response' => $paymentResponse, // للتحقق من الـ response الكامل
+                        'noon_response' => $paymentResponse,
                     ],
                 ], 201);
             } else {
@@ -171,7 +183,7 @@ class PaymentController extends Controller
 
                 $userMessage = 'فشل في إنشاء جلسة الدفع.';
                 if ($status === 403 && (int) $resultCode === 5019) {
-                    $userMessage = 'رفض إنشاء الجلسة (403/5019). تحقق من بيانات الدخول لنون، وأن رابط العودة مسموح في لوحة نون (Allowed Return URLs)، واستخدم بيئة الاختبار أو الحية المناسبة.';
+                    $userMessage = 'رفض إنشاء الجلسة (403/5019). تحقق من بيانات الدخول لنون، وأن رابط العودة مسموح في لوحة نون (Allowed Return URLs).';
                 } elseif ($message) {
                     $userMessage .= ' ' . (is_string($message) ? $message : json_encode($message));
                 }

@@ -136,8 +136,8 @@ class StoreController extends Controller
                 ]);
             }
 
-            // Merge payment params into current request so createPaymentSession gets valid input
-            $request->merge([
+            $paymentController = app(PaymentController::class);
+            $paymentResponse = $paymentController->createNoonSession([
                 'user_id' => $guestUser->id,
                 'amount' => round($totalAmount, 2),
                 'currency' => 'SAR',
@@ -146,10 +146,8 @@ class StoreController extends Controller
                 'customer_name' => $validated['customer_name'],
                 'customer_phone' => $validated['customer_phone'],
                 'description' => 'طلب متجر - ' . $orderNumber,
+                'from_app' => false,
             ]);
-
-            $paymentController = app(PaymentController::class);
-            $paymentResponse = $paymentController->createPaymentSession($request);
 
             if (! $paymentResponse instanceof \Illuminate\Http\JsonResponse) {
                 if ($expectsJson) {
