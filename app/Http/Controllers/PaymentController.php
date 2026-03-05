@@ -743,10 +743,9 @@ HTML;
     }
 
     /**
-     * Get payment status for polling (e.g. from WebView).
-     * Accepts session_id or order_id. Returns status in a format the app expects:
-     * completed / success / paid when payment is done, so the app can run
-     * handlePaymentSuccess and createOrder without relying on redirect.
+     * Get payment status for polling (e.g. from app WebView).
+     * Priority: Invoice (paid/cancelled) → Cache session → PaymentSession DB → 404.
+     * Statuses returned: completed | pending | failed.
      */
     public function getPaymentStatus(Request $request)
     {
@@ -760,27 +759,49 @@ HTML;
 
         $orderId = $sessionId;
 
-        // First check if invoice exists (payment completed – e.g. after webhook or redirect)
+        // 1. Check invoice — definitive result (paid or cancelled/failed)
         $invoice = Invoice::where('invoice_number', $orderId)->first();
 
-        if ($invoice && $invoice->status === 'paid') {
-            return response()->json([
-                'success' => true,
-                'status' => 'completed',
-                'payment_status' => 'success',
-                'data' => [
-                    'order_id' => $invoice->invoice_number,
+        if ($invoice) {
+            if ($invoice->status === 'paid') {
+                $order = Order::where('order_number', $orderId)
+                    ->orWhereHas('invoice', fn ($q) => $q->where('invoice_number', $orderId))
+                    ->first();
+
+                return response()->json([
+                    'success' => true,
                     'status' => 'completed',
                     'payment_status' => 'success',
-                    'amount' => $invoice->amount,
-                    'payment_method' => $invoice->payment_method,
-                    'created_at' => $invoice->created_at,
-                    'updated_at' => $invoice->updated_at,
-                ],
-            ]);
+                    'data' => [
+                        'order_id' => $orderId,
+                        'order_number' => $order?->order_number ?? $orderId,
+                        'status' => 'completed',
+                        'payment_status' => 'success',
+                        'amount' => $invoice->amount,
+                        'currency' => $order?->currency ?? 'SAR',
+                        'payment_method' => $invoice->payment_method,
+                        'created_at' => $invoice->created_at,
+                    ],
+                ]);
+            }
+
+            if (in_array($invoice->status, ['cancelled', 'failed'], true)) {
+                return response()->json([
+                    'success' => true,
+                    'status' => 'failed',
+                    'payment_status' => 'failed',
+                    'data' => [
+                        'order_id' => $orderId,
+                        'status' => 'failed',
+                        'payment_status' => 'failed',
+                        'amount' => $invoice->amount,
+                        'created_at' => $invoice->created_at,
+                    ],
+                ]);
+            }
         }
 
-        // Check if payment session exists (payment in progress)
+        // 2. Cache — session still alive, payment in progress
         $paymentSessionData = Cache::get('payment_session_' . $orderId);
 
         if ($paymentSessionData) {
@@ -791,15 +812,38 @@ HTML;
                 'data' => [
                     'order_id' => $orderId,
                     'status' => 'pending',
-                    'amount' => $paymentSessionData['amount'],
+                    'amount' => $paymentSessionData['amount'] ?? null,
+                    'currency' => $paymentSessionData['currency'] ?? 'SAR',
                     'payment_method' => 'noon',
-                    'created_at' => $paymentSessionData['created_at'],
+                    'created_at' => $paymentSessionData['created_at'] ?? null,
+                ],
+            ]);
+        }
+
+        // 3. PaymentSession DB — cache expired but session row exists (webhook not yet processed)
+        $dbSession = PaymentSession::where('merchant_reference', $orderId)
+            ->whereNull('used_at')
+            ->first();
+
+        if ($dbSession) {
+            return response()->json([
+                'success' => true,
+                'status' => 'pending',
+                'payment_status' => 'pending',
+                'data' => [
+                    'order_id' => $orderId,
+                    'status' => 'pending',
+                    'amount' => $dbSession->amount,
+                    'currency' => $dbSession->currency ?? 'SAR',
+                    'payment_method' => 'noon',
+                    'created_at' => $dbSession->created_at,
                 ],
             ]);
         }
 
         return response()->json([
             'success' => false,
+            'status' => 'not_found',
             'message' => 'Payment session not found',
         ], 404);
     }
