@@ -138,20 +138,25 @@ const getPaymentMethodText = (method: string) => {
     return map[method] || method;
 };
 
+/** Format currency with English numerals (0-9) */
 const formatCurrency = (amount: number, currency: string) => {
-    return new Intl.NumberFormat('ar-SA', {
+    return new Intl.NumberFormat('en-US', {
         style: 'currency',
         currency: currency || 'SAR',
     }).format(amount || 0);
 };
 
+/** Format date with English numerals (0-9) */
 const formatDate = (date: string) => {
-    return new Date(date).toLocaleDateString('ar-SA', {
+    return new Date(date).toLocaleDateString('en-US', {
         year: 'numeric',
         month: 'short',
         day: 'numeric',
     });
 };
+
+/** Format integer for stats (English numerals) */
+const formatNumber = (n: number) => new Intl.NumberFormat('en-US').format(n);
 
 const pendingCount = () => props.orders.data.filter((o) => o.status === 'pending').length;
 const paidCount = () => props.orders.data.filter((o) => o.status === 'paid').length;
@@ -178,7 +183,7 @@ const paidCount = () => props.orders.data.filter((o) => o.status === 'paid').len
                     <ShoppingCart class="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                    <div class="text-2xl font-bold">{{ orders.total }}</div>
+                    <div class="text-2xl font-bold tabular-nums">{{ formatNumber(orders.total) }}</div>
                 </CardContent>
             </Card>
             <Card>
@@ -186,7 +191,7 @@ const paidCount = () => props.orders.data.filter((o) => o.status === 'paid').len
                     <CardTitle class="text-sm font-medium">قيد الانتظار (هذه الصفحة)</CardTitle>
                 </CardHeader>
                 <CardContent>
-                    <div class="text-2xl font-bold">{{ pendingCount() }}</div>
+                    <div class="text-2xl font-bold tabular-nums">{{ formatNumber(pendingCount()) }}</div>
                 </CardContent>
             </Card>
             <Card>
@@ -194,7 +199,7 @@ const paidCount = () => props.orders.data.filter((o) => o.status === 'paid').len
                     <CardTitle class="text-sm font-medium">مدفوع (هذه الصفحة)</CardTitle>
                 </CardHeader>
                 <CardContent>
-                    <div class="text-2xl font-bold">{{ paidCount() }}</div>
+                    <div class="text-2xl font-bold tabular-nums">{{ formatNumber(paidCount()) }}</div>
                 </CardContent>
             </Card>
             <Card>
@@ -202,7 +207,7 @@ const paidCount = () => props.orders.data.filter((o) => o.status === 'paid').len
                     <CardTitle class="text-sm font-medium">في هذه الصفحة</CardTitle>
                 </CardHeader>
                 <CardContent>
-                    <div class="text-2xl font-bold">{{ orders.data.length }}</div>
+                    <div class="text-2xl font-bold tabular-nums">{{ formatNumber(orders.data.length) }}</div>
                 </CardContent>
             </Card>
         </div>
@@ -308,7 +313,7 @@ const paidCount = () => props.orders.data.filter((o) => o.status === 'paid').len
                                 :key="order.id"
                                 class="hover:bg-muted/50"
                             >
-                                <TableCell class="font-mono text-sm font-medium">
+                                <TableCell class="font-mono text-sm font-medium tabular-nums" dir="ltr">
                                     {{ order.order_number }}
                                 </TableCell>
                                 <TableCell>
@@ -327,7 +332,7 @@ const paidCount = () => props.orders.data.filter((o) => o.status === 'paid').len
                                         <span v-if="!order.customer_email && !order.customer_phone">—</span>
                                     </div>
                                 </TableCell>
-                                <TableCell>
+                                <TableCell class="tabular-nums" dir="ltr">
                                     <span class="font-semibold text-green-600 dark:text-green-400">
                                         {{ formatCurrency(Number(order.total_amount), order.currency) }}
                                     </span>
@@ -340,7 +345,7 @@ const paidCount = () => props.orders.data.filter((o) => o.status === 'paid').len
                                         {{ getStatusText(order.status) }}
                                     </Badge>
                                 </TableCell>
-                                <TableCell class="text-muted-foreground">
+                                <TableCell class="text-muted-foreground tabular-nums" dir="ltr">
                                     {{ formatDate(order.created_at) }}
                                 </TableCell>
                                 <TableCell>
@@ -377,13 +382,13 @@ const paidCount = () => props.orders.data.filter((o) => o.status === 'paid').len
                     v-if="orders.last_page > 1"
                     class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"
                 >
-                    <p class="text-sm text-muted-foreground">
+                    <p class="text-sm text-muted-foreground tabular-nums">
                         عرض
-                        <span class="font-medium">{{ orders.from ?? 0 }}</span>
+                        <span class="font-medium">{{ formatNumber(orders.from ?? 0) }}</span>
                         إلى
-                        <span class="font-medium">{{ orders.to ?? 0 }}</span>
+                        <span class="font-medium">{{ formatNumber(orders.to ?? 0) }}</span>
                         من
-                        <span class="font-medium">{{ orders.total }}</span>
+                        <span class="font-medium">{{ formatNumber(orders.total) }}</span>
                         طلب
                     </p>
                     <div class="flex items-center gap-2">
@@ -396,8 +401,8 @@ const paidCount = () => props.orders.data.filter((o) => o.status === 'paid').len
                             <ChevronRight class="h-4 w-4" />
                             السابق
                         </Button>
-                        <span class="text-sm text-muted-foreground">
-                            {{ orders.current_page }} / {{ orders.last_page }}
+                        <span class="text-sm text-muted-foreground tabular-nums" dir="ltr">
+                            {{ formatNumber(orders.current_page) }} / {{ formatNumber(orders.last_page) }}
                         </span>
                         <Button
                             variant="outline"

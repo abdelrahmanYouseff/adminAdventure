@@ -41,7 +41,7 @@ const handleImageChange = (event) => {
                             <label class="block mb-1 font-medium">اسم الفئة</label>
                             <input v-model="form.category_name" type="text" class="w-full rounded border px-3 py-2" required />
                         </div>
-                        
+
                         <!-- Image Upload Section -->
                         <div class="bg-blue-50 border-2 border-blue-200 rounded-lg p-6 space-y-4">
                             <div class="text-center">
@@ -50,16 +50,16 @@ const handleImageChange = (event) => {
                                 </h3>
                                 <p class="text-blue-600">اختر صورة لتمثيل هذا القسم (اختياري)</p>
                             </div>
-                            
+
                             <div class="bg-white rounded-lg p-4 border border-blue-200">
                                 <label class="block mb-3 font-medium text-gray-700">
                                     اختر ملف الصورة:
                                 </label>
-                                <input 
-                                    type="file" 
+                                <input
+                                    type="file"
                                     accept="image/*"
                                     @change="handleImageChange"
-                                    class="w-full p-4 border-2 border-dashed border-blue-300 rounded-lg hover:border-blue-400 focus:border-blue-500 focus:outline-none bg-blue-50" 
+                                    class="w-full p-4 border-2 border-dashed border-blue-300 rounded-lg hover:border-blue-400 focus:border-blue-500 focus:outline-none bg-blue-50"
                                     placeholder="اختر صورة..."
                                 />
                                 <div class="mt-3 text-center">
@@ -72,7 +72,7 @@ const handleImageChange = (event) => {
                                 </div>
                             </div>
                         </div>
-                        
+
                         <div>
                             <Button type="submit" :disabled="form.processing">
                                 إضافة الفئة

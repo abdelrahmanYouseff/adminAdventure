@@ -53,34 +53,34 @@ const handleImageChange = (event) => {
                             <label class="block mb-1 font-medium">اسم الفئة</label>
                             <input v-model="form.category_name" type="text" class="w-full rounded border px-3 py-2" required />
                         </div>
-                        
+
                         <!-- Image Upload Section -->
                         <div class="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-6">
                             <label class="block mb-2 font-medium text-lg">
                                 📸 صورة القسم (اختياري)
                             </label>
-                            
+
                             <!-- Current Image Display -->
                             <div v-if="props.category.image" class="mb-4">
                                 <p class="text-sm text-blue-600 dark:text-blue-400 mb-2">الصورة الحالية:</p>
-                                <img 
-                                    :src="`/storage/${props.category.image}`" 
+                                <img
+                                    :src="`/storage/${props.category.image}`"
                                     :alt="props.category.category_name"
                                     class="w-24 h-24 object-cover rounded-lg border border-gray-300"
                                 />
                             </div>
-                            
-                            <input 
-                                type="file" 
+
+                            <input
+                                type="file"
                                 accept="image/*"
                                 @change="handleImageChange"
-                                class="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
+                                class="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                             />
                             <p class="text-sm text-gray-500 dark:text-gray-400 mt-2">
                                 اختر صورة جديدة للقسم (JPEG, PNG, JPG, GIF - الحد الأقصى 2MB)
                             </p>
                         </div>
-                        
+
                         <div>
                             <Button type="submit" :disabled="form.processing">
                                 حفظ التعديلات

@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Order;
 use App\Models\Invoice;
+use App\Models\Product;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
@@ -138,7 +139,9 @@ class OrderController extends Controller
     }
 
     /**
-     * API endpoint to create a new order
+     * API: Create a new order (and invoice).
+     *
+     * Required: customer_name, total_amount, currency, payment_method, and either items or product_items.
      */
     public function apiStore(Request $request)
     {
@@ -147,6 +150,8 @@ class OrderController extends Controller
                 'customer_name' => 'required|string|max:255',
                 'customer_email' => 'nullable|email|max:255',
                 'customer_phone' => 'nullable|string|max:20',
+                'address' => 'nullable|string|max:1000',
+                'activity_date' => 'nullable|date',
                 'total_amount' => 'required|numeric|min:0',
                 'currency' => 'required|string|in:SAR,USD,EUR',
                 'payment_method' => 'required|string|in:credit_card,cash,bank_transfer,paypal,noon',
@@ -164,7 +169,24 @@ class OrderController extends Controller
                 'user_id' => 'nullable|exists:users,id',
             ]);
 
-            // Create invoice first
+            $itemsForOrder = $request->items;
+            if ($request->has('product_items') && is_array($request->product_items)) {
+                $productIds = array_column($request->product_items, 'product_id');
+                $products = Product::whereIn('id', $productIds)->pluck('product_name', 'id');
+                $itemsForOrder = [];
+                foreach ($request->product_items as $productItem) {
+                    $name = $products[$productItem['product_id']] ?? 'Product #' . $productItem['product_id'];
+                    $qty = (int) $productItem['quantity'];
+                    $price = (float) $productItem['price'];
+                    $itemsForOrder[] = [
+                        'name' => $name,
+                        'quantity' => $qty,
+                        'price' => $price,
+                        'amount' => $price * $qty,
+                    ];
+                }
+            }
+
             $invoiceData = [
                 'invoice_number' => Invoice::generateInvoiceNumber(),
                 'amount' => $request->total_amount,
@@ -172,16 +194,17 @@ class OrderController extends Controller
                 'payment_method' => $request->payment_method,
                 'issued_at' => now(),
                 'due_date' => now()->addDays(30),
-                'user_id' => $request->user_id ?? 1, // Default to admin user
+                'user_id' => $request->user_id ?? 1,
             ];
 
             $invoice = Invoice::create($invoiceData);
 
-            // Create order with invoice_id
             $orderData = [
                 'customer_name' => $request->customer_name,
                 'customer_email' => $request->customer_email,
                 'customer_phone' => $request->customer_phone,
+                'address' => $request->address,
+                'activity_date' => $request->activity_date,
                 'invoice_id' => $invoice->id,
                 'order_number' => Order::generateOrderNumber(),
                 'total_amount' => $request->total_amount,
@@ -189,19 +212,18 @@ class OrderController extends Controller
                 'payment_method' => $request->payment_method,
                 'payment_id' => $request->payment_id,
                 'status' => $request->status ?? 'pending',
-                'items' => $request->items,
+                'items' => $itemsForOrder,
                 'notes' => $request->notes,
-                'user_id' => $request->user_id,
+                'user_id' => $request->user_id ?? 1,
             ];
 
             $order = Order::create($orderData);
 
-            // إضافة المنتجات للطلب باستخدام العلاقة
             if ($request->has('product_items') && is_array($request->product_items)) {
                 foreach ($request->product_items as $productItem) {
                     $order->products()->attach($productItem['product_id'], [
-                        'quantity' => $productItem['quantity'],
-                        'price' => $productItem['price']
+                        'quantity' => (int) $productItem['quantity'],
+                        'price' => (float) $productItem['price'],
                     ]);
                 }
             }
@@ -274,7 +296,7 @@ class OrderController extends Controller
 
     public function apiShow(Order $order)
     {
-        $order->load(['user', 'invoice']);
+        $order->load(['user', 'invoice', 'products']);
 
         return response()->json([
             'success' => true,
@@ -328,6 +350,28 @@ class OrderController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'حدث خطأ أثناء تحديث حالة الطلب',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * API: Delete an order (soft/hard depending on model). Invoice is not deleted.
+     */
+    public function apiDestroy(Order $order)
+    {
+        try {
+            $order->products()->detach();
+            $order->delete();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'تم حذف الطلب بنجاح',
+            ], 200);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'فشل حذف الطلب',
                 'error' => $e->getMessage(),
             ], 500);
         }
