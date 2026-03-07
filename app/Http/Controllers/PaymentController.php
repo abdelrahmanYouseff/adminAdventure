@@ -450,6 +450,103 @@ class PaymentController extends Controller
     }
 
     /**
+     * Flutter calls this via POST right after intercepting the /payment/success redirect.
+     * Immediately tries to confirm payment via Noon API, updates Order, then returns current status.
+     * This gives the backend a head-start before the app starts polling.
+     *
+     * POST /api/payment/notify-success
+     * Body: { "order_id": "ORD-..." }  OR  { "session_id": "ORD-..." }
+     */
+    public function notifyPaymentSuccess(Request $request): \Illuminate\Http\JsonResponse
+    {
+        $orderId = $request->input('order_id') ?? $request->input('session_id');
+
+        if (! $orderId) {
+            return response()->json(['success' => false, 'message' => 'order_id مطلوب'], 422);
+        }
+
+        $order = Order::where('order_number', $orderId)->first();
+
+        // Already confirmed — nothing to do
+        if ($order && $order->payment_status === 'paid') {
+            return response()->json([
+                'success'        => true,
+                'status'         => 'completed',
+                'payment_status' => 'success',
+                'data'           => [
+                    'order_id'     => $order->id,
+                    'order_number' => $order->order_number,
+                    'amount'       => $order->total_amount,
+                    'currency'     => $order->currency ?? 'SAR',
+                ],
+            ]);
+        }
+
+        // Try to verify via Noon API using the stored PaymentSession noonOrderId
+        $confirmed = false;
+        try {
+            $session = PaymentSession::where('merchant_reference', $orderId)->first();
+            $noonOrderId = $session?->noon_order_id ?? ($order?->payment_id ?? null);
+
+            if ($noonOrderId && $this->verifyNoonOrderStatus($noonOrderId, 'CAPTURED')) {
+                DB::transaction(function () use ($order, $orderId, $noonOrderId) {
+                    if ($order && $order->payment_status !== 'paid') {
+                        // Upsert invoice
+                        $invoice = Invoice::firstOrCreate(
+                            ['invoice_number' => $orderId],
+                            [
+                                'user_id'        => $order->user_id,
+                                'rental_id'      => null,
+                                'amount'         => $order->total_amount,
+                                'status'         => 'paid',
+                                'payment_method' => 'noon',
+                                'issued_at'      => now(),
+                                'due_date'       => now()->addDays(7),
+                            ]
+                        );
+                        if ($invoice->status !== 'paid') {
+                            $invoice->update(['status' => 'paid']);
+                        }
+
+                        $order->update([
+                            'payment_status'          => 'paid',
+                            'status'                  => 'paid',
+                            'payment_id'              => $noonOrderId,
+                            'payment_order_reference' => $orderId,
+                            'invoice_id'              => $invoice->id,
+                        ]);
+                    }
+                    $this->markPaymentSessionUsed($orderId);
+                    Cache::forget('payment_session_' . $orderId);
+                });
+                $confirmed = true;
+                Log::info('notifyPaymentSuccess: confirmed via Noon API', ['order_id' => $orderId]);
+            }
+        } catch (\Throwable $e) {
+            Log::warning('notifyPaymentSuccess: Noon API check failed', [
+                'order_id' => $orderId,
+                'message'  => $e->getMessage(),
+            ]);
+        }
+
+        // Refresh order after potential update
+        $order = $order ? $order->fresh() : Order::where('order_number', $orderId)->first();
+        $isPaid = $confirmed || ($order?->payment_status === 'paid');
+
+        return response()->json([
+            'success'        => true,
+            'status'         => $isPaid ? 'completed' : 'pending',
+            'payment_status' => $isPaid ? 'success' : 'pending',
+            'data'           => $order ? [
+                'order_id'     => $order->id,
+                'order_number' => $order->order_number,
+                'amount'       => $order->total_amount,
+                'currency'     => $order->currency ?? 'SAR',
+            ] : ['order_id' => $orderId],
+        ]);
+    }
+
+    /**
      * Handle payment success callback (GET or POST).
      * No session or auth; uses order_id from query/body and DB only.
      * Returns simple HTML for WebView and browser. Excluded from CSRF.

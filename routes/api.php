@@ -25,6 +25,7 @@ Route::post('payment/create', [PaymentController::class, 'createPaymentSession']
 Route::post('mobile/payment/checkout-url', [PaymentController::class, 'mobileCheckoutUrl']);
 Route::get('payment/status', [PaymentController::class, 'getPaymentStatus']);
 Route::get('payment/success', [PaymentController::class, 'paymentSuccess']);
+Route::post('payment/notify-success', [PaymentController::class, 'notifyPaymentSuccess']);
 Route::get('payment/cancel', [PaymentController::class, 'paymentCancel']);
 Route::post('payment/webhook', [PaymentController::class, 'webhook']);
 
