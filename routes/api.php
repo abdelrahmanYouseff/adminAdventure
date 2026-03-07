@@ -35,3 +35,6 @@ Route::post('orders', [OrderController::class, 'apiStore']);
 Route::get('orders/{order}', [OrderController::class, 'apiShow']);
 Route::patch('orders/{order}/status', [OrderController::class, 'apiUpdateStatus']);
 Route::delete('orders/{order}', [OrderController::class, 'apiDestroy']);
+
+// User Orders
+Route::get('users/{user_id}/orders', [OrderController::class, 'apiUserOrders']);

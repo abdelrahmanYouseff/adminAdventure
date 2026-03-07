@@ -294,13 +294,92 @@ class OrderController extends Controller
         ]);
     }
 
+    /**
+     * API: Get all orders for a specific user.
+     * GET /api/users/{user_id}/orders
+     * Optional query: ?status=paid&per_page=10
+     */
+    public function apiUserOrders(Request $request, int $userId)
+    {
+        $query = Order::with(['products', 'invoice'])
+            ->where('user_id', $userId);
+
+        // Filter by payment/order status
+        if ($request->filled('status') && $request->status !== 'all') {
+            $query->where('status', $request->status);
+        }
+
+        // Filter by payment_status (paid / pending / failed)
+        if ($request->filled('payment_status') && $request->payment_status !== 'all') {
+            $query->where('payment_status', $request->payment_status);
+        }
+
+        $perPage = min((int) ($request->query('per_page', 15)), 50);
+        $orders  = $query->orderBy('created_at', 'desc')->paginate($perPage);
+
+        $orders->getCollection()->transform(function (Order $order) {
+            return $this->formatOrder($order);
+        });
+
+        return response()->json([
+            'success' => true,
+            'data'    => $orders->items(),
+            'meta'    => [
+                'total'        => $orders->total(),
+                'per_page'     => $orders->perPage(),
+                'current_page' => $orders->currentPage(),
+                'last_page'    => $orders->lastPage(),
+            ],
+        ]);
+    }
+
+    /**
+     * Format a single Order for the mobile API response.
+     */
+    private function formatOrder(Order $order): array
+    {
+        return [
+            'id'                      => $order->id,
+            'order_number'            => $order->order_number,
+            'status'                  => $order->status,
+            'payment_status'          => $order->payment_status ?? 'pending',
+            'payment_method'          => $order->payment_method,
+            'payment_order_reference' => $order->payment_order_reference,
+            'total_amount'            => (float) $order->total_amount,
+            'currency'                => $order->currency ?? 'SAR',
+            'customer_name'           => $order->customer_name,
+            'customer_email'          => $order->customer_email,
+            'customer_phone'          => $order->customer_phone,
+            'address'                 => $order->address,
+            'activity_date'           => $order->activity_date?->format('Y-m-d'),
+            'notes'                   => $order->notes,
+            'items'                   => $order->items ?? [],
+            'products'                => $order->products->map(fn ($p) => [
+                'id'           => $p->id,
+                'product_name' => $p->product_name,
+                'price'        => (float) $p->pivot->price,
+                'quantity'     => (int) $p->pivot->quantity,
+                'subtotal'     => (float) ($p->pivot->price * $p->pivot->quantity),
+            ])->values()->toArray(),
+            'invoice'   => $order->invoice ? [
+                'id'             => $order->invoice->id,
+                'invoice_number' => $order->invoice->invoice_number,
+                'amount'         => (float) $order->invoice->amount,
+                'status'         => $order->invoice->status,
+                'issued_at'      => $order->invoice->issued_at?->format('Y-m-d H:i:s'),
+            ] : null,
+            'created_at' => $order->created_at->format('Y-m-d H:i:s'),
+            'updated_at' => $order->updated_at->format('Y-m-d H:i:s'),
+        ];
+    }
+
     public function apiShow(Order $order)
     {
         $order->load(['user', 'invoice', 'products']);
 
         return response()->json([
             'success' => true,
-            'data' => $order,
+            'data'    => $this->formatOrder($order),
         ]);
     }
 
