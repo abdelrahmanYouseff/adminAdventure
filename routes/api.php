@@ -22,6 +22,7 @@ Route::post('login', [UserController::class, 'apiLogin']);
 
 // Payment Routes
 Route::post('payment/create', [PaymentController::class, 'createPaymentSession']);
+Route::post('mobile/payment/checkout-url', [PaymentController::class, 'mobileCheckoutUrl']);
 Route::get('payment/status', [PaymentController::class, 'getPaymentStatus']);
 Route::get('payment/success', [PaymentController::class, 'paymentSuccess']);
 Route::get('payment/cancel', [PaymentController::class, 'paymentCancel']);

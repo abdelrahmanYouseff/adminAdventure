@@ -19,7 +19,9 @@ class Order extends Model
         'currency',
         'status',
         'payment_method',
+        'payment_status',
         'payment_id',
+        'payment_order_reference',
         'notes',
         'items',
     ];

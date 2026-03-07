@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Invoice;
 use App\Models\Order;
 use App\Models\PaymentSession;
+use App\Models\Product;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -14,6 +15,135 @@ use Illuminate\Support\Facades\Cache;
 
 class PaymentController extends Controller
 {
+    /**
+     * Mobile app checkout: creates the Order and a Noon payment session in one call.
+     * POST /api/mobile/payment/checkout-url
+     */
+    public function mobileCheckoutUrl(Request $request): \Illuminate\Http\JsonResponse
+    {
+        try {
+            $validated = validator($request->all(), [
+                'user_id'          => 'required|exists:users,id',
+                'customer_name'    => 'required|string|max:255',
+                'customer_phone'   => 'required|string|max:20',
+                'customer_email'   => 'required|email|max:255',
+                'address'          => 'nullable|string|max:1000',
+                'activity_date'    => 'nullable|date',
+                'currency'         => 'nullable|string|in:SAR,USD,AED,KWD,QAR,BHD,OMR,JOD,EGP',
+                'items'            => 'required|array|min:1',
+                'items.*.product_id'   => 'nullable|exists:products,id',
+                'items.*.product_name' => 'required|string|max:255',
+                'items.*.quantity'     => 'required|integer|min:1',
+                'items.*.price'        => 'required|numeric|min:0',
+            ])->validate();
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'بيانات غير صالحة',
+                'errors'  => $e->errors(),
+            ], 422);
+        }
+
+        $currency = $validated['currency'] ?? 'SAR';
+        $items    = $validated['items'];
+
+        // Calculate total server-side from items
+        $totalAmount = collect($items)->sum(fn ($item) => $item['price'] * $item['quantity']);
+        if ($totalAmount < 0.01) {
+            return response()->json(['success' => false, 'message' => 'المبلغ الإجمالي غير صحيح'], 422);
+        }
+
+        // Build items for Order.items JSON, also collect product IDs for pivot
+        $orderItems = [];
+        $pivotProducts = [];
+        foreach ($items as $item) {
+            $orderItems[] = [
+                'product_id'   => $item['product_id'] ?? null,
+                'product_name' => $item['product_name'],
+                'quantity'     => $item['quantity'],
+                'price'        => $item['price'],
+                'subtotal'     => $item['price'] * $item['quantity'],
+            ];
+            if (! empty($item['product_id'])) {
+                $pivotProducts[$item['product_id']] = [
+                    'quantity' => $item['quantity'],
+                    'price'    => $item['price'],
+                ];
+            }
+        }
+
+        $order = null;
+        try {
+            DB::beginTransaction();
+
+            $orderNumber = Order::generateOrderNumber();
+
+            $order = Order::create([
+                'user_id'        => $validated['user_id'],
+                'customer_name'  => $validated['customer_name'],
+                'customer_email' => $validated['customer_email'],
+                'customer_phone' => $validated['customer_phone'],
+                'address'        => $validated['address'] ?? null,
+                'activity_date'  => $validated['activity_date'] ?? null,
+                'order_number'   => $orderNumber,
+                'total_amount'   => $totalAmount,
+                'currency'       => $currency,
+                'status'         => 'pending',
+                'payment_status' => 'pending',
+                'payment_method' => 'noon',
+                'items'          => $orderItems,
+            ]);
+
+            if (! empty($pivotProducts)) {
+                $order->products()->attach($pivotProducts);
+            }
+
+            DB::commit();
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            Log::error('mobileCheckoutUrl order creation failed', ['message' => $e->getMessage()]);
+            return response()->json(['success' => false, 'message' => 'فشل إنشاء الطلب'], 500);
+        }
+
+        // Create Noon session — if it fails, delete the orphaned order
+        $sessionResponse = $this->createNoonSession([
+            'user_id'        => $validated['user_id'],
+            'amount'         => $totalAmount,
+            'currency'       => $currency,
+            'order_id'       => $order->order_number,
+            'description'    => 'طلب رقم ' . $order->order_number,
+            'customer_email' => $validated['customer_email'],
+            'customer_name'  => $validated['customer_name'],
+            'customer_phone' => $validated['customer_phone'],
+            'from_app'       => true,
+        ]);
+
+        $responseData = json_decode($sessionResponse->getContent(), true);
+
+        if (! ($responseData['success'] ?? false)) {
+            // Roll back — delete the order if Noon session could not be created
+            try {
+                $order->products()->detach();
+                $order->delete();
+            } catch (\Throwable $ex) {
+                Log::warning('mobileCheckoutUrl order cleanup failed', ['message' => $ex->getMessage()]);
+            }
+            return $sessionResponse;
+        }
+
+        return response()->json([
+            'success'      => true,
+            'message'      => 'تم إنشاء جلسة الدفع بنجاح',
+            'data'         => [
+                'checkout_url' => $responseData['data']['checkout_url'],
+                'order_id'     => $order->id,
+                'order_number' => $order->order_number,
+                'total_amount' => $totalAmount,
+                'currency'     => $currency,
+            ],
+        ], 201);
+    }
+
     /**
      * Create payment session with Noon — API endpoint (validates request then delegates).
      */
@@ -323,20 +453,81 @@ class PaymentController extends Controller
      * Handle payment success callback (GET or POST).
      * No session or auth; uses order_id from query/body and DB only.
      * Returns simple HTML for WebView and browser. Excluded from CSRF.
+     *
+     * Noon sends in redirect URL:
+     *   - order_id       : our merchant reference (appended by us to returnUrl)
+     *   - orderId        : Noon's internal order ID
+     *   - orderStatus    : CAPTURED | AUTHORIZED | FAILED | PENDING | …
+     *   - orderReference : merchant reference (Noon standard param)
      */
     public function paymentSuccessPage(Request $request)
     {
-        $orderId = $request->get('order_id') ?? $request->get('merchantReference');
+        // Resolve our merchant reference (order_number) from multiple possible params
+        $orderId = $request->get('order_id')
+            ?? $request->get('orderReference')
+            ?? $request->get('merchantReference');
 
-        $success = $this->isPaymentProcessed($orderId);
-        $orderIdSafe = $orderId !== null && $orderId !== '' ? e((string) $orderId) : '—';
+        // Noon's internal order ID and status from the redirect
+        $noonOrderId   = $request->get('orderId');
+        $noonStatus    = strtoupper((string) ($request->get('orderStatus') ?? $request->get('status') ?? ''));
+        $fromApp       = $request->query('from_app') === '1';
 
-        $title = $success ? 'Payment Successful' : 'Payment Pending';
+        $noonConfirmed = in_array($noonStatus, ['CAPTURED', 'AUTHORIZED'], true);
+
+        // If Noon confirmed payment in redirect params, update Order immediately
+        if ($orderId && $noonConfirmed) {
+            try {
+                $order = Order::where('order_number', $orderId)->first();
+                if ($order && $order->payment_status !== 'paid') {
+                    $order->update([
+                        'payment_status'          => 'paid',
+                        'status'                  => 'paid',
+                        'payment_id'              => $noonOrderId ?? $order->payment_id,
+                        'payment_order_reference' => $orderId,
+                    ]);
+                }
+            } catch (\Throwable $e) {
+                Log::warning('paymentSuccessPage order update failed', [
+                    'order_id' => $orderId,
+                    'message'  => $e->getMessage(),
+                ]);
+            }
+        }
+
+        $success      = $noonConfirmed || $this->isPaymentProcessed($orderId);
+        $orderIdSafe  = $orderId !== null && $orderId !== '' ? e((string) $orderId) : '—';
+        $orderIdJson  = json_encode((string) ($orderId ?? ''));
+        $processedJson = $success ? 'true' : 'false';
+
+        $title   = $success ? 'Payment Successful' : 'Payment Pending';
         $message = $success
             ? 'Your payment has been confirmed.'
             : 'Your payment is being processed. You can close this page.';
-        $bg = $success ? '#f0fdf4' : '#fffbeb';
+        $bg    = $success ? '#f0fdf4' : '#fffbeb';
         $color = $success ? '#166534' : '#92400e';
+
+        // Deep-link redirect for Flutter when payment is confirmed
+        $deepLinkScript = '';
+        if ($fromApp && $success) {
+            $scheme        = config('app.mobile_scheme', 'adventureworld');
+            $deepLinkUrl   = e("{$scheme}://payment/success?order_id=" . urlencode((string) ($orderId ?? '')));
+            $deepLinkJson  = json_encode($deepLinkUrl);
+            $deepLinkScript = <<<JS
+
+    <script>
+        (function() {
+            var payload = { type: 'payment_success', order_id: {$orderIdJson}, processed: {$processedJson} };
+            if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
+                window.ReactNativeWebView.postMessage(JSON.stringify(payload));
+            }
+            if (window.flutter_inappwebview && typeof window.flutter_inappwebview.callHandler === 'function') {
+                window.flutter_inappwebview.callHandler('paymentSuccess', payload);
+            }
+            try { window.location.href = {$deepLinkJson}; } catch(e) {}
+        })();
+    </script>
+JS;
+        }
 
         $html = <<<HTML
 <!DOCTYPE html>
@@ -358,7 +549,7 @@ class PaymentController extends Controller
         <h1>{$title}</h1>
         <p>{$message}</p>
         <p class="order">Order: {$orderIdSafe}</p>
-    </div>
+    </div>{$deepLinkScript}
 </body>
 </html>
 HTML;
@@ -591,43 +782,38 @@ HTML;
                     }
 
                     DB::transaction(function () use ($orderId, $paymentId, $paymentSessionData) {
-                        $invoice = Invoice::create([
-                            'user_id' => $paymentSessionData['user_id'],
-                            'rental_id' => null,
-                            'invoice_number' => $orderId,
-                            'amount' => $paymentSessionData['amount'],
-                            'status' => 'paid',
-                            'payment_method' => 'noon',
-                            'issued_at' => now(),
-                            'due_date' => now()->addDays(7),
-                        ]);
+                        // Upsert Invoice for backward compatibility
+                        $invoice = Invoice::firstOrCreate(
+                            ['invoice_number' => $orderId],
+                            [
+                                'user_id'         => $paymentSessionData['user_id'],
+                                'rental_id'       => null,
+                                'amount'          => $paymentSessionData['amount'],
+                                'status'          => 'paid',
+                                'payment_method'  => 'noon',
+                                'issued_at'       => now(),
+                                'due_date'        => now()->addDays(7),
+                            ]
+                        );
+                        // Always mark the invoice paid (handles case where it was created earlier)
+                        if ($invoice->status !== 'paid') {
+                            $invoice->update(['status' => 'paid']);
+                        }
 
+                        // Update the existing Order — orders always pre-exist in the new flow
                         $existingOrder = Order::where('order_number', $orderId)->lockForUpdate()->first();
                         if ($existingOrder) {
                             $existingOrder->update([
-                                'invoice_id' => $invoice->id,
-                                'status' => 'paid',
-                                'payment_method' => 'noon',
-                                'payment_id' => $paymentId,
+                                'invoice_id'              => $invoice->id,
+                                'status'                  => 'paid',
+                                'payment_status'          => 'paid',
+                                'payment_method'          => 'noon',
+                                'payment_id'              => $paymentId,
+                                'payment_order_reference' => $orderId,
                             ]);
                         } else {
-                            Order::create([
-                                'user_id' => $paymentSessionData['user_id'],
-                                'invoice_id' => $invoice->id,
-                                'order_number' => Order::generateOrderNumber(),
-                                'total_amount' => $paymentSessionData['amount'],
-                                'currency' => $paymentSessionData['currency'] ?? 'SAR',
-                                'status' => 'paid',
-                                'payment_method' => 'noon',
-                                'payment_id' => $paymentId,
-                                'notes' => $paymentSessionData['description'] ?? 'دفع حجز مغامرة',
-                                'items' => [
-                                    [
-                                        'name' => $paymentSessionData['description'] ?? 'دفع حجز مغامرة',
-                                        'amount' => $paymentSessionData['amount'],
-                                        'quantity' => 1,
-                                    ],
-                                ],
+                            Log::warning('Noon Webhook: no existing Order found for reference', [
+                                'order_reference' => $orderId,
                             ]);
                         }
 
@@ -640,16 +826,29 @@ HTML;
                 case 'CANCELLED':
                 case 'DECLINED':
                     DB::transaction(function () use ($orderId, $paymentSessionData) {
-                        Invoice::create([
-                            'user_id' => $paymentSessionData['user_id'],
-                            'rental_id' => null,
-                            'invoice_number' => $orderId,
-                            'amount' => $paymentSessionData['amount'],
-                            'status' => 'cancelled',
-                            'payment_method' => 'noon',
-                            'issued_at' => now(),
-                            'due_date' => now()->addDays(7),
-                        ]);
+                        // Upsert a cancelled Invoice
+                        Invoice::firstOrCreate(
+                            ['invoice_number' => $orderId],
+                            [
+                                'user_id'        => $paymentSessionData['user_id'],
+                                'rental_id'      => null,
+                                'amount'         => $paymentSessionData['amount'],
+                                'status'         => 'cancelled',
+                                'payment_method' => 'noon',
+                                'issued_at'      => now(),
+                                'due_date'       => now()->addDays(7),
+                            ]
+                        );
+
+                        // Mark the existing Order as failed (keep it for records)
+                        $existingOrder = Order::where('order_number', $orderId)->lockForUpdate()->first();
+                        if ($existingOrder && $existingOrder->payment_status !== 'paid') {
+                            $existingOrder->update([
+                                'payment_status' => 'failed',
+                                'status'         => 'cancelled',
+                            ]);
+                        }
+
                         $this->markPaymentSessionUsed($orderId);
                         Cache::forget('payment_session_' . $orderId);
                     });
@@ -744,8 +943,8 @@ HTML;
 
     /**
      * Get payment status for polling (e.g. from app WebView).
-     * Priority: Invoice (paid/cancelled) → Cache session → PaymentSession DB → 404.
-     * Statuses returned: completed | pending | failed.
+     * Priority: Order.payment_status → Invoice → Cache → PaymentSession DB → 404.
+     * Statuses returned: completed | pending | failed | not_found.
      */
     public function getPaymentStatus(Request $request)
     {
@@ -759,91 +958,142 @@ HTML;
 
         $orderId = $sessionId;
 
-        // 1. Check invoice — definitive result (paid or cancelled/failed)
+        // 1. Order — primary source (covers mobile flow where order pre-exists)
+        $order = Order::where('order_number', $orderId)->first();
+
+        if ($order) {
+            if ($order->payment_status === 'paid') {
+                return response()->json([
+                    'success'        => true,
+                    'status'         => 'completed',
+                    'payment_status' => 'success',
+                    'data'           => [
+                        'order_id'       => $order->id,
+                        'order_number'   => $order->order_number,
+                        'status'         => 'completed',
+                        'payment_status' => 'success',
+                        'amount'         => $order->total_amount,
+                        'currency'       => $order->currency ?? 'SAR',
+                        'payment_method' => $order->payment_method,
+                        'created_at'     => $order->created_at,
+                    ],
+                ]);
+            }
+
+            if ($order->payment_status === 'failed') {
+                return response()->json([
+                    'success'        => true,
+                    'status'         => 'failed',
+                    'payment_status' => 'failed',
+                    'data'           => [
+                        'order_id'     => $order->id,
+                        'order_number' => $order->order_number,
+                        'status'       => 'failed',
+                        'amount'       => $order->total_amount,
+                        'currency'     => $order->currency ?? 'SAR',
+                        'created_at'   => $order->created_at,
+                    ],
+                ]);
+            }
+
+            // Order exists but payment still pending — return pending immediately
+            // (no need to check cache/session if order row is there)
+            return response()->json([
+                'success'        => true,
+                'status'         => 'pending',
+                'payment_status' => 'pending',
+                'data'           => [
+                    'order_id'       => $order->id,
+                    'order_number'   => $order->order_number,
+                    'status'         => 'pending',
+                    'amount'         => $order->total_amount,
+                    'currency'       => $order->currency ?? 'SAR',
+                    'payment_method' => $order->payment_method,
+                    'created_at'     => $order->created_at,
+                ],
+            ]);
+        }
+
+        // 2. Invoice fallback — covers the legacy web-store flow (no pre-existing Order row)
         $invoice = Invoice::where('invoice_number', $orderId)->first();
 
         if ($invoice) {
             if ($invoice->status === 'paid') {
-                $order = Order::where('order_number', $orderId)
-                    ->orWhereHas('invoice', fn ($q) => $q->where('invoice_number', $orderId))
-                    ->first();
-
                 return response()->json([
-                    'success' => true,
-                    'status' => 'completed',
+                    'success'        => true,
+                    'status'         => 'completed',
                     'payment_status' => 'success',
-                    'data' => [
-                        'order_id' => $orderId,
-                        'order_number' => $order?->order_number ?? $orderId,
-                        'status' => 'completed',
+                    'data'           => [
+                        'order_id'       => $orderId,
+                        'order_number'   => $orderId,
+                        'status'         => 'completed',
                         'payment_status' => 'success',
-                        'amount' => $invoice->amount,
-                        'currency' => $order?->currency ?? 'SAR',
+                        'amount'         => $invoice->amount,
+                        'currency'       => 'SAR',
                         'payment_method' => $invoice->payment_method,
-                        'created_at' => $invoice->created_at,
+                        'created_at'     => $invoice->created_at,
                     ],
                 ]);
             }
 
             if (in_array($invoice->status, ['cancelled', 'failed'], true)) {
                 return response()->json([
-                    'success' => true,
-                    'status' => 'failed',
+                    'success'        => true,
+                    'status'         => 'failed',
                     'payment_status' => 'failed',
-                    'data' => [
-                        'order_id' => $orderId,
-                        'status' => 'failed',
-                        'payment_status' => 'failed',
-                        'amount' => $invoice->amount,
+                    'data'           => [
+                        'order_id'   => $orderId,
+                        'status'     => 'failed',
+                        'amount'     => $invoice->amount,
                         'created_at' => $invoice->created_at,
                     ],
                 ]);
             }
         }
 
-        // 2. Cache — session still alive, payment in progress
+        // 3. Cache — session still alive, payment in progress
         $paymentSessionData = Cache::get('payment_session_' . $orderId);
 
         if ($paymentSessionData) {
             return response()->json([
-                'success' => true,
-                'status' => 'pending',
+                'success'        => true,
+                'status'         => 'pending',
                 'payment_status' => 'pending',
-                'data' => [
-                    'order_id' => $orderId,
-                    'status' => 'pending',
-                    'amount' => $paymentSessionData['amount'] ?? null,
-                    'currency' => $paymentSessionData['currency'] ?? 'SAR',
+                'data'           => [
+                    'order_id'       => $orderId,
+                    'status'         => 'pending',
+                    'amount'         => $paymentSessionData['amount'] ?? null,
+                    'currency'       => $paymentSessionData['currency'] ?? 'SAR',
                     'payment_method' => 'noon',
-                    'created_at' => $paymentSessionData['created_at'] ?? null,
+                    'created_at'     => $paymentSessionData['created_at'] ?? null,
                 ],
             ]);
         }
 
-        // 3. PaymentSession DB — cache expired but session row exists (webhook not yet processed)
+        // 4. PaymentSession DB — cache expired but session row exists (webhook not yet processed)
         $dbSession = PaymentSession::where('merchant_reference', $orderId)
             ->whereNull('used_at')
             ->first();
 
         if ($dbSession) {
             return response()->json([
-                'success' => true,
-                'status' => 'pending',
+                'success'        => true,
+                'status'         => 'pending',
                 'payment_status' => 'pending',
-                'data' => [
-                    'order_id' => $orderId,
-                    'status' => 'pending',
-                    'amount' => $dbSession->amount,
-                    'currency' => $dbSession->currency ?? 'SAR',
+                'data'           => [
+                    'order_id'       => $orderId,
+                    'status'         => 'pending',
+                    'amount'         => $dbSession->amount,
+                    'currency'       => $dbSession->currency ?? 'SAR',
                     'payment_method' => 'noon',
-                    'created_at' => $dbSession->created_at,
+                    'created_at'     => $dbSession->created_at,
                 ],
             ]);
         }
 
         return response()->json([
             'success' => false,
-            'status' => 'not_found',
+            'status'  => 'not_found',
             'message' => 'Payment session not found',
         ], 404);
     }
