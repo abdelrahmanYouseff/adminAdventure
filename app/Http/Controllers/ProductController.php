@@ -71,6 +71,20 @@ class ProductController extends Controller
     }
 
     /**
+     * Toggle product status between active and inactive.
+     * Only changes the status field — image and all other data are untouched.
+     * PATCH /products/{product}/toggle-status
+     */
+    public function toggleStatus(Product $product)
+    {
+        $product->update([
+            'status' => $product->status === 'active' ? 'inactive' : 'active',
+        ]);
+
+        return back();
+    }
+
+    /**
      * Update the specified product in storage.
      */
     public function update(Request $request, Product $product)

@@ -57,6 +57,10 @@ Route::patch('products/{product}', [ProductController::class, 'update'])
     ->middleware(['auth', 'verified'])
     ->name('products.patch');
 
+Route::patch('products/{product}/toggle-status', [ProductController::class, 'toggleStatus'])
+    ->middleware(['auth', 'verified'])
+    ->name('products.toggle-status');
+
 Route::delete('products/{product}', [ProductController::class, 'destroy'])
     ->middleware(['auth', 'verified'])
     ->name('products.destroy');
