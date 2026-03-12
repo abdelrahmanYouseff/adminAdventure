@@ -102,6 +102,9 @@ class ProductController extends Controller
 
         if ($request->hasFile('image')) {
             $data['image'] = $request->file('image')->store('products', 'public');
+        } else {
+            // Never overwrite existing image unless a new file was explicitly uploaded
+            unset($data['image']);
         }
 
         $product->update($data);
