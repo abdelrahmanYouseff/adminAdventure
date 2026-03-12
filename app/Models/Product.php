@@ -27,6 +27,15 @@ class Product extends Model
     protected $appends = ['image_url'];
 
     /**
+     * Scope: active products only (status = 'active').
+     * Used by API endpoints — admin dashboard bypasses this scope intentionally.
+     */
+    public function scopeActive($query)
+    {
+        return $query->where('status', 'active');
+    }
+
+    /**
      * Full URL for the product image (for use in frontend).
      */
     public function getImageUrlAttribute(): ?string

@@ -161,7 +161,7 @@ class ProductController extends Controller
      */
     public function apiIndex()
     {
-        return response()->json(Product::all());
+        return response()->json(Product::active()->with('category')->get());
     }
 
     /**
@@ -177,7 +177,7 @@ class ProductController extends Controller
         if (!$category) {
             return response()->json([]);
         }
-        $products = \App\Models\Product::where('category_id', $category->id)->get();
+        $products = Product::active()->where('category_id', $category->id)->get();
         return response()->json($products);
     }
 
@@ -186,7 +186,7 @@ class ProductController extends Controller
      */
     public function apiLatest()
     {
-        $products = Product::orderBy('created_at', 'desc')->limit(10)->get();
+        $products = Product::active()->orderBy('created_at', 'desc')->limit(10)->get();
         return response()->json($products);
     }
 }
