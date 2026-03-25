@@ -89,10 +89,6 @@ Route::put('categories/{category}', [CategoryController::class, 'update'])
     ->middleware(['auth', 'verified'])
     ->name('categories.update');
 
-Route::patch('categories/{category}/toggle-visibility', [CategoryController::class, 'toggleVisibility'])
-    ->middleware(['auth', 'verified'])
-    ->name('categories.toggle-visibility');
-
 Route::delete('categories/{category}', [CategoryController::class, 'destroy'])
     ->middleware(['auth', 'verified'])
     ->name('categories.destroy');
