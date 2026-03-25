@@ -94,11 +94,23 @@ class CategoryController extends Controller
     }
 
     /**
-     * Return all categories as JSON for API.
+     * Toggle category visibility in the API (is_visible).
+     * Only changes is_visible — name, image, products are untouched.
+     * PATCH /categories/{category}/toggle-visibility
+     */
+    public function toggleVisibility(Category $category)
+    {
+        $category->update(['is_visible' => ! $category->is_visible]);
+
+        return back();
+    }
+
+    /**
+     * Return all VISIBLE categories as JSON for API.
      */
     public function apiIndex()
     {
-        $categories = Category::orderBy('created_at', 'desc')->get();
+        $categories = Category::visible()->orderBy('created_at', 'desc')->get();
         return response()->json($categories);
     }
 }
