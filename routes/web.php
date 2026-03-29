@@ -104,6 +104,10 @@ Route::get('users', [\App\Http\Controllers\UserController::class, 'index'])
     ->middleware(['auth', 'verified'])
     ->name('users');
 
+Route::post('users', [\App\Http\Controllers\UserController::class, 'store'])
+    ->middleware(['auth', 'verified'])
+    ->name('users.store');
+
 Route::delete('users/{user}', [\App\Http\Controllers\UserController::class, 'destroy'])
     ->middleware(['auth', 'verified'])
     ->name('users.destroy');

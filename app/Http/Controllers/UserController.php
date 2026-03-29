@@ -19,6 +19,31 @@ class UserController extends Controller
     }
 
     /**
+     * Create a new app user from the dashboard.
+     * POST /users
+     */
+    public function store(Request $request)
+    {
+        $request->validate([
+            'customer_name' => 'required|string|max:255',
+            'email'         => 'required|email|lowercase|max:255|unique:users,email',
+            'phone'         => 'nullable|string|max:20|unique:users,phone',
+            'country'       => 'nullable|string|max:100',
+            'password'      => 'required|string|min:6|confirmed',
+        ]);
+
+        User::create([
+            'customer_name' => $request->customer_name,
+            'email'         => $request->email,
+            'phone'         => $request->phone,
+            'country'       => $request->country,
+            'password'      => $request->password,
+        ]);
+
+        return redirect()->route('users')->with('success', 'تم إنشاء المستخدم بنجاح');
+    }
+
+    /**
      * Get user by phone number
      */
     public function getUserByPhone(Request $request)
