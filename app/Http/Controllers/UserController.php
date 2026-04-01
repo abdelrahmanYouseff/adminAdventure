@@ -260,7 +260,7 @@ class UserController extends Controller
     }
 
     /**
-     * Delete a user
+     * Delete a user (web dashboard).
      */
     public function destroy(User $user)
     {
@@ -270,6 +270,28 @@ class UserController extends Controller
             return redirect()->back()->with('success', 'تم حذف المستخدم بنجاح');
         } catch (\Exception $e) {
             return redirect()->back()->with('error', 'فشل حذف المستخدم');
+        }
+    }
+
+    /**
+     * Permanently delete a user via API.
+     * DELETE /api/users/{id}
+     */
+    public function apiDestroy(User $user)
+    {
+        try {
+            $user->delete();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'تم حذف المستخدم بنجاح',
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'فشل حذف المستخدم',
+                'error'   => $e->getMessage(),
+            ], 500);
         }
     }
 }

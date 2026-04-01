@@ -19,6 +19,7 @@ Route::get('check-user', [UserController::class, 'apiCheckUser']);
 Route::get('user/by-phone', [UserController::class, 'getUserByPhone']);
 Route::post('register', [UserController::class, 'apiRegister']);
 Route::post('login', [UserController::class, 'apiLogin']);
+Route::delete('users/{user}', [UserController::class, 'apiDestroy']);
 
 // Payment Routes
 Route::post('payment/create', [PaymentController::class, 'createPaymentSession']);
