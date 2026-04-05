@@ -93,22 +93,28 @@ const trustBadges = [
 
                 <!-- ── Left: Image ── -->
                 <div>
+                    <!-- Gradient border frame -->
                     <div
-                        class="overflow-hidden rounded-3xl shadow-2xl"
-                        style="aspect-ratio: 4/3"
+                        class="rounded-3xl p-[3px] shadow-2xl"
+                        style="background: linear-gradient(135deg, #FF6B35, #FFD93D, #4A90E2)"
                     >
-                        <img
-                            v-if="mainImage"
-                            :src="mainImage"
-                            :alt="product.product_name"
-                            class="h-full w-full object-cover transition-transform duration-500 hover:scale-105"
-                        />
                         <div
-                            v-else
-                            class="flex h-full w-full items-center justify-center"
-                            style="background: linear-gradient(135deg, #FFD93D22, #FF6B3522)"
+                            class="group overflow-hidden rounded-[calc(1.5rem-3px)] bg-white"
+                            style="aspect-ratio: 1/1"
                         >
-                            <span class="text-8xl">🎮</span>
+                            <img
+                                v-if="mainImage"
+                                :src="mainImage"
+                                :alt="product.product_name"
+                                class="h-full w-full object-contain p-4 transition-transform duration-500 group-hover:scale-105"
+                            />
+                            <div
+                                v-else
+                                class="flex h-full w-full items-center justify-center"
+                                style="background: linear-gradient(135deg, #FFD93D11, #FF6B3511)"
+                            >
+                                <span class="text-8xl">🎮</span>
+                            </div>
                         </div>
                     </div>
                 </div>
