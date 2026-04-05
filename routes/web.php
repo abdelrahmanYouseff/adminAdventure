@@ -175,6 +175,7 @@ Route::get('store', [\App\Http\Controllers\StoreController::class, 'index'])->na
 Route::get('store/cart', [\App\Http\Controllers\StoreController::class, 'cart'])->name('store.cart');
 Route::get('store/checkout', [\App\Http\Controllers\StoreController::class, 'checkoutForm'])->name('store.checkout');
 Route::post('store/checkout', [\App\Http\Controllers\StoreController::class, 'submitCheckout'])->name('store.checkout.submit');
+Route::get('store/products/{product}', [\App\Http\Controllers\StoreController::class, 'showProduct'])->name('store.product.show');
 
 // Payment return URLs (no auth - used by payment gateway redirect)
 Route::match(['GET', 'POST'], 'payment/success', [\App\Http\Controllers\PaymentController::class, 'paymentSuccessPage'])

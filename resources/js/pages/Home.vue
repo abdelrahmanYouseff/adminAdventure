@@ -365,9 +365,12 @@ const features = [
 
                         <!-- Content -->
                         <div class="flex flex-1 flex-col gap-3 p-5">
-                            <h3 class="text-base font-bold text-neutral-900 line-clamp-2">
+                            <Link
+                                :href="route('store.product.show', product.id)"
+                                class="text-base font-bold text-neutral-900 line-clamp-2 transition hover:text-[#FF6B35]"
+                            >
                                 {{ product.product_name }}
-                            </h3>
+                            </Link>
                             <p
                                 v-if="product.description"
                                 class="text-sm text-neutral-500 line-clamp-2"
@@ -380,18 +383,28 @@ const features = [
                                     v-for="s in 5"
                                     :key="s"
                                     class="h-4 w-4"
-                                    :style="s <= 5 ? 'fill: #FFD93D; color: #FFD93D' : 'fill: #e5e7eb; color: #e5e7eb'"
+                                    style="fill: #FFD93D; color: #FFD93D"
                                 />
                                 <span class="mr-1 text-xs text-neutral-400">(5.0)</span>
                             </div>
-                            <button
-                                class="mt-auto flex w-full items-center justify-center gap-2 rounded-xl py-3 text-sm font-bold text-white transition hover:opacity-90"
-                                style="background: linear-gradient(135deg, #FF6B35, #FFD93D)"
-                                @click="addItem(product.id, product.product_name, Number(product.price), 1)"
-                            >
-                                <ShoppingCart class="h-4 w-4" />
-                                أضف إلى السلة
-                            </button>
+                            <!-- Buttons row -->
+                            <div class="mt-auto flex gap-2">
+                                <Link
+                                    :href="route('store.product.show', product.id)"
+                                    class="flex flex-1 items-center justify-center rounded-xl border-2 py-3 text-sm font-bold transition hover:opacity-80"
+                                    style="border-color: #FF6B35; color: #FF6B35"
+                                >
+                                    التفاصيل
+                                </Link>
+                                <button
+                                    class="flex flex-1 items-center justify-center gap-1.5 rounded-xl py-3 text-sm font-bold text-white transition hover:opacity-90"
+                                    style="background: linear-gradient(135deg, #FF6B35, #FFD93D)"
+                                    @click="addItem(product.id, product.product_name, Number(product.price), 1)"
+                                >
+                                    <ShoppingCart class="h-4 w-4" />
+                                    أضف
+                                </button>
+                            </div>
                         </div>
                     </article>
                 </div>

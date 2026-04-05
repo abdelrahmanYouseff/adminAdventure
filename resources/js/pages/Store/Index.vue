@@ -230,20 +230,31 @@ const addToCart = (product: Product) => {
                                 </div>
                             </div>
                             <div class="mt-4 flex min-h-0 flex-1 flex-col">
-                                <h3 class="line-clamp-2 text-base font-medium text-neutral-900 dark:text-white">
+                                <Link
+                                    :href="route('store.product.show', product.id)"
+                                    class="line-clamp-2 text-base font-medium text-neutral-900 dark:text-white hover:text-[#FF6B35] transition-colors"
+                                >
                                     {{ product.product_name }}
-                                </h3>
+                                </Link>
                                 <p class="mt-1 text-lg font-semibold text-neutral-900 dark:text-white">
                                     {{ Number(product.price).toLocaleString('ar-SA') }}
                                     <span class="text-sm font-normal text-neutral-500 dark:text-neutral-400">ريال</span>
                                 </p>
-                                <Button
-                                    class="mt-auto w-full rounded-xl py-6 text-sm font-medium"
-                                    @click="addToCart(product)"
-                                >
-                                    <ShoppingCart class="ml-2 h-4 w-4" />
-                                    أضف إلى السلة
-                                </Button>
+                                <div class="mt-auto flex gap-2">
+                                    <Link
+                                        :href="route('store.product.show', product.id)"
+                                        class="flex flex-1 items-center justify-center rounded-xl border border-neutral-300 py-3 text-sm font-medium text-neutral-700 transition hover:border-[#FF6B35] hover:text-[#FF6B35]"
+                                    >
+                                        التفاصيل
+                                    </Link>
+                                    <Button
+                                        class="flex-1 rounded-xl py-6 text-sm font-medium"
+                                        @click="addToCart(product)"
+                                    >
+                                        <ShoppingCart class="ml-1.5 h-4 w-4" />
+                                        أضف
+                                    </Button>
+                                </div>
                             </div>
                         </article>
                     </div>

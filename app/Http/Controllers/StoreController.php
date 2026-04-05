@@ -30,6 +30,30 @@ class StoreController extends Controller
     }
 
     /**
+     * Public product detail page.
+     */
+    public function showProduct(Product $product)
+    {
+        if ($product->status !== 'active') {
+            abort(404);
+        }
+
+        $product->load('category');
+
+        $related = Product::with('category')
+            ->where('status', 'active')
+            ->where('id', '!=', $product->id)
+            ->where('category_id', $product->category_id)
+            ->limit(4)
+            ->get();
+
+        return Inertia::render('Store/Show', [
+            'product' => $product,
+            'related' => $related,
+        ]);
+    }
+
+    /**
      * Cart page (cart state is client-side via localStorage).
      */
     public function cart()
