@@ -39,8 +39,11 @@ const filteredProducts = computed(() => {
 const categoryCount = (categoryId: number) =>
     props.products.filter((p) => p.category_id === categoryId).length;
 
-const imageUrl = (product: Product) =>
-    product.image_url ?? (product.image ? `/storage/${product.image}` : null);
+const imageUrl = (product: Product): string | null => {
+    if (product.image) return `/storage/${product.image.replace(/^\//, '')}`;
+    if (product.image_url) return product.image_url;
+    return null;
+};
 
 const addToCart = (product: Product) => {
     addItem(product.id, product.product_name, Number(product.price), 1);

@@ -13,10 +13,16 @@ use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
 
 Route::get('/', function () {
-    if (Auth::check()) {
-        return redirect()->route('dashboard');
-    }
-    return redirect()->route('login');
+    return redirect()->route('home');
+});
+
+Route::get('/home', function () {
+    $products   = \App\Models\Product::with('category')->where('status', 'active')->orderBy('created_at', 'desc')->get();
+    $categories = \App\Models\Category::orderBy('category_name')->get();
+    return Inertia::render('Home', [
+        'products'   => $products,
+        'categories' => $categories,
+    ]);
 })->name('home');
 
 // Privacy page (public)
