@@ -386,7 +386,7 @@ const features = [
                 <!-- View all button -->
                 <div class="aw-reveal mt-10 text-center">
                     <Link
-                        href="/store"
+                        href="/products"
                         class="inline-flex items-center gap-2 rounded-full border-2 px-8 py-4 text-base font-bold transition hover:-translate-y-0.5 hover:shadow-md"
                         style="border-color: #FF6B35; color: #FF6B35"
                     >
@@ -508,7 +508,7 @@ const features = [
                     استأجر ألعابك المفضلة الآن وادفع بأمان تام — التوصيل حتى بابك
                 </p>
                 <Link
-                    href="/store"
+                    href="/products"
                     class="mt-8 inline-flex items-center gap-2 rounded-2xl bg-white px-10 py-5 text-base font-extrabold shadow-xl transition hover:-translate-y-1 hover:shadow-2xl"
                     style="color: #FF6B35"
                 >

@@ -30,6 +30,20 @@ class StoreController extends Controller
     }
 
     /**
+     * All products public page with category filter.
+     */
+    public function allProducts()
+    {
+        $products   = Product::with('category')->where('status', 'active')->orderBy('created_at', 'desc')->get();
+        $categories = Category::orderBy('category_name')->get();
+
+        return Inertia::render('Store/AllProducts', [
+            'products'   => $products,
+            'categories' => $categories,
+        ]);
+    }
+
+    /**
      * Public product detail page.
      */
     public function showProduct(Product $product)
