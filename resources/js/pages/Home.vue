@@ -69,7 +69,12 @@ const imageUrl = (product: Product): string | null => {
     return null;
 };
 
-const displayProducts = computed(() => props.products.slice(0, 6));
+const displayProducts = computed(() => {
+    const list = selectedCategoryHome.value === null
+        ? props.products
+        : props.products.filter((p) => p.category_id === selectedCategoryHome.value);
+    return list.slice(0, 9);
+});
 
 const categoryIcon = (name: string): string => {
     const n = name.toLowerCase();
@@ -84,13 +89,17 @@ const categoryIcon = (name: string): string => {
     return '🎪';
 };
 
-// Categories carousel
-const catTrack = ref<HTMLElement | null>(null);
+// Categories + product filter on homepage
+const selectedCategoryHome = ref<number | null>(null);
 
-function slideCats(dir: 'prev' | 'next') {
-    if (!catTrack.value) return;
-    const scrollAmount = catTrack.value.clientWidth * 0.6;
-    catTrack.value.scrollBy({ left: dir === 'next' ? -scrollAmount : scrollAmount, behavior: 'smooth' });
+const addedIds = ref<Set<number>>(new Set());
+function addToCartHome(product: Product) {
+    addItem(product.id, product.product_name, Number(product.price), 1, imageUrl(product));
+    addedIds.value = new Set([...addedIds.value, product.id]);
+    setTimeout(() => {
+        addedIds.value.delete(product.id);
+        addedIds.value = new Set(addedIds.value);
+    }, 1800);
 }
 
 const featuresBg = ['#FF6B35', '#6BCF7F', '#4A90E2', '#9B6EFF'];
@@ -216,183 +225,179 @@ const features = [
         </section>
 
         <!-- ═══════════════════════════════════════════
-             3. CATEGORIES CAROUSEL
+             3 + 4. CATEGORIES & PRODUCTS (مثل صفحة /products)
         ═══════════════════════════════════════════ -->
-        <section class="bg-white py-16 lg:py-20">
+        <section class="py-14 lg:py-20" style="background: linear-gradient(180deg, #fafafa 0%, #f0f4ff 100%)">
             <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+
                 <!-- Title -->
                 <div class="aw-reveal mb-8 text-center">
-                    <h2 class="text-3xl font-bold text-neutral-900 lg:text-4xl">تصفح حسب التصنيف</h2>
-                    <p class="mt-2 text-base text-neutral-500">اختر التصنيف الذي يناسب حفلتك</p>
+                    <h2 class="text-3xl font-bold text-neutral-900 lg:text-4xl">الألعاب والتصنيفات</h2>
+                    <p class="mt-2 text-base text-neutral-500">اختر التصنيف واستعرض الألعاب</p>
                 </div>
 
-                <!-- Carousel row: arrow — track — arrow -->
-                <div class="flex items-center gap-3">
+                <div class="flex flex-col gap-8 lg:flex-row lg:gap-10">
 
-                    <!-- Arrow RIGHT -->
-                    <button
-                        type="button"
-                        aria-label="يمين"
-                        class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border-2 border-neutral-200 bg-white text-neutral-600 transition hover:border-[#FF6B35] hover:text-[#FF6B35] active:scale-95"
-                        @click="slideCats('prev')"
-                    >
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M9 18l6-6-6-6" />
-                        </svg>
-                    </button>
-
-                    <!-- Scrollable track (hidden scrollbar) -->
-                    <div
-                        ref="catTrack"
-                        class="flex flex-1 gap-4 overflow-x-auto pb-2"
-                        style="scroll-snap-type: x mandatory; scrollbar-width: none; -ms-overflow-style: none"
-                    >
-                    <!-- Real categories -->
-                    <template v-if="categories.length > 0">
-                        <Link
-                            v-for="cat in categories"
-                            :key="cat.id"
-                            :href="`/store?category=${cat.id}`"
-                            class="group flex shrink-0 items-center justify-center rounded-2xl border-2 border-transparent bg-neutral-50 px-8 py-4 text-center transition-all duration-300 hover:-translate-y-1 hover:shadow-lg"
-                            style="min-width: 160px; scroll-snap-align: start; white-space: nowrap"
-                            @mouseover="($event.currentTarget as HTMLElement).style.borderColor='#FF6B35'"
-                            @mouseleave="($event.currentTarget as HTMLElement).style.borderColor='transparent'"
-                        >
-                            <span class="text-sm font-semibold text-neutral-800 group-hover:text-[#FF6B35]">{{ cat.category_name }}</span>
-                        </Link>
-                    </template>
-
-                    <!-- Fallback -->
-                    <template v-else>
-                        <div
-                            v-for="item in ['نطاطات هوائية','ألعاب مائية','طاولات وألعاب','كرنفال وترفيه','سيارات وسباق','ملاعب خارجية']"
-                            :key="item"
-                            class="flex shrink-0 items-center justify-center rounded-2xl bg-neutral-50 px-8 py-4 text-center"
-                            style="min-width: 160px; scroll-snap-align: start; white-space: nowrap"
-                        >
-                            <span class="text-sm font-semibold text-neutral-800">{{ item }}</span>
-                        </div>
-                    </template>
-                    </div>
-                    <!-- Arrow LEFT -->
-                    <button
-                        type="button"
-                        aria-label="يسار"
-                        class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border-2 border-neutral-200 bg-white text-neutral-600 transition hover:border-[#FF6B35] hover:text-[#FF6B35] active:scale-95"
-                        @click="slideCats('next')"
-                    >
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M15 18l-6-6 6-6" />
-                        </svg>
-                    </button>
-
-                </div><!-- end carousel row -->
-            </div>
-        </section>
-
-        <!-- ═══════════════════════════════════════════
-             4. ALL PRODUCTS
-        ═══════════════════════════════════════════ -->
-        <section class="py-16 lg:py-20" style="background: linear-gradient(180deg, #fafafa 0%, #f0f4ff 100%)">
-            <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-                <div class="aw-reveal mb-10 text-center">
-                    <h2 class="text-3xl font-bold text-neutral-900 lg:text-4xl">جميع المنتجات</h2>
-                    <p class="mt-3 text-base text-neutral-500">استكشف مجموعتنا المتنوعة من الألعاب</p>
-                </div>
-
-                <!-- Product grid -->
-                <div class="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-                    <article
-                        v-for="(product, idx) in displayProducts"
-                        :key="product.id"
-                        class="aw-reveal group flex flex-col overflow-hidden rounded-2xl bg-white shadow-md transition-all duration-300 hover:-translate-y-2 hover:shadow-xl"
-                        :style="`transition-delay: ${idx * 80}ms`"
-                    >
-                        <!-- Image -->
-                        <div class="relative overflow-hidden" style="height: 256px">
-                            <img
-                                v-if="imageUrl(product)"
-                                :src="imageUrl(product)"
-                                :alt="product.product_name"
-                                class="h-full w-full object-cover transition-transform duration-300 group-hover:scale-110"
-                            />
-                            <div
-                                v-else
-                                class="flex h-full w-full items-center justify-center"
-                                style="background: linear-gradient(135deg, #FFD93D22, #FF6B3522)"
-                            >
-                                <span class="text-5xl">🎮</span>
-                            </div>
-                            <!-- Gradient overlay -->
-                            <div
-                                class="absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100"
-                                style="background: linear-gradient(to top, rgba(0,0,0,0.3) 0%, transparent 60%)"
-                            ></div>
-                            <!-- Price badge -->
-                            <div
-                                class="absolute top-3 left-3 rounded-full px-3 py-1.5 text-sm font-bold text-white shadow"
-                                style="background: linear-gradient(135deg, #FFD93D, #FF6B35)"
-                            >
-                                {{ Number(product.price).toLocaleString('ar-SA') }} ريال
-                            </div>
-                        </div>
-
-                        <!-- Content -->
-                        <div class="flex flex-1 flex-col gap-3 p-5">
-                            <Link
-                                :href="route('store.product.show', product.id)"
-                                class="text-base font-bold text-neutral-900 line-clamp-2 transition hover:text-[#FF6B35]"
-                            >
-                                {{ product.product_name }}
-                            </Link>
-                            <p
-                                v-if="product.description"
-                                class="text-sm text-neutral-500 line-clamp-2"
-                            >
-                                {{ product.description }}
-                            </p>
-                            <!-- Stars -->
-                            <div class="flex items-center gap-1">
-                                <Star
-                                    v-for="s in 5"
-                                    :key="s"
-                                    class="h-4 w-4"
-                                    style="fill: #FFD93D; color: #FFD93D"
-                                />
-                                <span class="mr-1 text-xs text-neutral-400">(5.0)</span>
-                            </div>
-                            <!-- Buttons row -->
-                            <div class="mt-auto flex gap-2">
-                                <Link
-                                    :href="route('store.product.show', product.id)"
-                                    class="flex flex-1 items-center justify-center rounded-xl border-2 py-3 text-sm font-bold transition hover:opacity-80"
-                                    style="border-color: #FF6B35; color: #FF6B35"
-                                >
-                                    التفاصيل
-                                </Link>
+                    <!-- ── Sidebar categories (desktop) ── -->
+                    <aside class="hidden w-52 shrink-0 lg:block">
+                        <div class="sticky top-24">
+                            <h3 class="mb-3 text-xs font-bold uppercase tracking-wider text-neutral-500">التصنيفات</h3>
+                            <nav class="flex flex-col gap-1">
                                 <button
-                                    class="flex flex-1 items-center justify-center gap-1.5 rounded-xl py-3 text-sm font-bold text-white transition hover:opacity-90"
-                                    style="background: linear-gradient(135deg, #FF6B35, #FFD93D)"
-                                    @click="addItem(product.id, product.product_name, Number(product.price), 1, imageUrl(product))"
+                                    type="button"
+                                    class="flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-sm font-medium transition"
+                                    :class="selectedCategoryHome === null ? '' : 'hover:bg-neutral-100'"
+                                    :style="selectedCategoryHome === null
+                                        ? 'background:#FF6B35; color:#fff'
+                                        : 'color:#4b5563'"
+                                    @click="selectedCategoryHome = null"
                                 >
-                                    <ShoppingCart class="h-4 w-4" />
-                                    أضف
+                                    <span>الكل</span>
+                                    <span class="text-xs opacity-70">{{ products.length }}</span>
                                 </button>
-                            </div>
+                                <button
+                                    v-for="cat in categories"
+                                    :key="cat.id"
+                                    type="button"
+                                    class="flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-sm font-medium transition"
+                                    :class="selectedCategoryHome === cat.id ? '' : 'hover:bg-neutral-100'"
+                                    :style="selectedCategoryHome === cat.id
+                                        ? 'background:#FF6B35; color:#fff'
+                                        : 'color:#4b5563'"
+                                    @click="selectedCategoryHome = cat.id"
+                                >
+                                    <span>{{ cat.category_name }}</span>
+                                    <span class="text-xs opacity-70">
+                                        {{ products.filter(p => p.category_id === cat.id).length }}
+                                    </span>
+                                </button>
+                            </nav>
                         </div>
-                    </article>
-                </div>
+                    </aside>
 
-                <!-- View all button -->
-                <div class="aw-reveal mt-10 text-center">
-                    <Link
-                        href="/products"
-                        class="inline-flex items-center gap-2 rounded-full border-2 px-8 py-4 text-base font-bold transition hover:-translate-y-0.5 hover:shadow-md"
-                        style="border-color: #FF6B35; color: #FF6B35"
-                    >
-                        عرض كل الألعاب
-                    </Link>
-                </div>
+                    <!-- ── Main area ── -->
+                    <div class="flex-1 min-w-0">
+
+                        <!-- Category pills (mobile) -->
+                        <div class="mb-6 flex gap-2 overflow-x-auto pb-1 lg:hidden" style="scrollbar-width:none">
+                            <button
+                                v-for="cat in [{ id: null, category_name: 'الكل' }, ...categories]"
+                                :key="cat.id ?? 'all'"
+                                type="button"
+                                class="shrink-0 rounded-full px-5 py-2 text-sm font-semibold transition"
+                                :style="selectedCategoryHome === (cat.id ?? null)
+                                    ? 'background:#FF6B35; color:#fff'
+                                    : 'background:#fff; color:#4b5563; box-shadow:0 1px 4px #0000001a'"
+                                @click="selectedCategoryHome = cat.id ?? null"
+                            >
+                                {{ cat.category_name }}
+                            </button>
+                        </div>
+
+                        <!-- Count -->
+                        <p class="mb-5 text-sm text-neutral-500">
+                            <span class="font-bold text-neutral-800">{{ displayProducts.length }}</span>
+                            منتج
+                            <span v-if="selectedCategoryHome !== null" class="text-neutral-400">
+                                — {{ categories.find(c => c.id === selectedCategoryHome)?.category_name }}
+                            </span>
+                        </p>
+
+                        <!-- Products grid -->
+                        <div class="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-3">
+                            <article
+                                v-for="(product, idx) in displayProducts"
+                                :key="product.id"
+                                class="aw-reveal group flex flex-col overflow-hidden rounded-2xl bg-white shadow-md transition-all duration-300 hover:-translate-y-2 hover:shadow-xl"
+                                :style="`transition-delay: ${Math.min(idx, 6) * 70}ms`"
+                            >
+                                <!-- Image -->
+                                <div class="relative overflow-hidden" style="height: 240px">
+                                    <img
+                                        v-if="imageUrl(product)"
+                                        :src="imageUrl(product)"
+                                        :alt="product.product_name"
+                                        class="h-full w-full object-cover transition-transform duration-300 group-hover:scale-110"
+                                    />
+                                    <div
+                                        v-else
+                                        class="flex h-full w-full items-center justify-center"
+                                        style="background: linear-gradient(135deg, #FFD93D22, #FF6B3522)"
+                                    >
+                                        <span class="text-5xl">🎮</span>
+                                    </div>
+                                    <div
+                                        class="absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+                                        style="background: linear-gradient(to top, rgba(0,0,0,0.25) 0%, transparent 60%)"
+                                    ></div>
+                                    <!-- Price badge -->
+                                    <div
+                                        class="absolute top-3 left-3 rounded-full px-3 py-1.5 text-sm font-bold text-white shadow"
+                                        style="background: linear-gradient(135deg, #FFD93D, #FF6B35)"
+                                    >
+                                        {{ Number(product.price).toLocaleString('ar-SA') }} ريال
+                                    </div>
+                                    <!-- Category badge -->
+                                    <div
+                                        v-if="product.category"
+                                        class="absolute top-3 right-3 rounded-full px-3 py-1 text-xs font-semibold"
+                                        style="background: rgba(255,255,255,0.92); color:#FF6B35"
+                                    >
+                                        {{ product.category.category_name }}
+                                    </div>
+                                </div>
+
+                                <!-- Content -->
+                                <div class="flex flex-1 flex-col gap-3 p-5">
+                                    <Link
+                                        :href="route('store.product.show', product.id)"
+                                        class="text-base font-bold text-neutral-900 line-clamp-2 transition hover:text-[#FF6B35]"
+                                    >
+                                        {{ product.product_name }}
+                                    </Link>
+                                    <p v-if="product.description" class="text-sm text-neutral-500 line-clamp-2">
+                                        {{ product.description }}
+                                    </p>
+                                    <div class="flex items-center gap-1">
+                                        <Star v-for="s in 5" :key="s" class="h-4 w-4" style="fill:#FFD93D; color:#FFD93D" />
+                                        <span class="mr-1 text-xs text-neutral-400">(5.0)</span>
+                                    </div>
+                                    <div class="mt-auto flex gap-2">
+                                        <Link
+                                            :href="route('store.product.show', product.id)"
+                                            class="flex flex-1 items-center justify-center rounded-xl border-2 py-3 text-sm font-bold transition hover:opacity-80"
+                                            style="border-color:#FF6B35; color:#FF6B35"
+                                        >
+                                            التفاصيل
+                                        </Link>
+                                        <button
+                                            class="flex flex-1 items-center justify-center gap-1.5 rounded-xl py-3 text-sm font-bold text-white transition"
+                                            :style="addedIds.has(product.id)
+                                                ? 'background:linear-gradient(135deg,#6BCF7F,#4ade80)'
+                                                : 'background:linear-gradient(135deg,#FF6B35,#FFD93D)'"
+                                            @click="addToCartHome(product)"
+                                        >
+                                            <ShoppingCart class="h-4 w-4" />
+                                            {{ addedIds.has(product.id) ? '✓ أُضيف' : 'أضف' }}
+                                        </button>
+                                    </div>
+                                </div>
+                            </article>
+                        </div>
+
+                        <!-- View all -->
+                        <div class="aw-reveal mt-10 text-center">
+                            <Link
+                                href="/products"
+                                class="inline-flex items-center gap-2 rounded-full border-2 px-8 py-4 text-base font-bold transition hover:-translate-y-0.5 hover:shadow-md"
+                                style="border-color:#FF6B35; color:#FF6B35"
+                            >
+                                عرض كل الألعاب
+                            </Link>
+                        </div>
+
+                    </div><!-- end main -->
+                </div><!-- end flex -->
             </div>
         </section>
 
@@ -403,11 +408,7 @@ const features = [
             class="py-16 lg:py-20"
             style="background: linear-gradient(180deg, #fff9f0 0%, #fff 100%); border-top: 1px solid #FFD93D33; border-bottom: 1px solid #4A90E233"
         >
-            <div class="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
-                <div class="aw-reveal text-center mb-8">
-                    <h2 class="text-3xl font-bold text-neutral-900">مجموعتنا من المعدات</h2>
-                    <p class="mt-2 text-neutral-500">كل ما تحتاجه لحفلة لا تُنسى</p>
-                </div>
+            <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
                 <figure class="aw-reveal">
                     <div
                         class="rounded-3xl p-1 shadow-2xl"
@@ -418,7 +419,7 @@ const features = [
                                 src="/assets/pic03.png"
                                 alt="ركن الأطفال — ألعاب وأدوات ترفيهية"
                                 class="w-full rounded-2xl object-contain"
-                                style="max-height: 480px"
+                                style="max-height: 800px"
                                 onerror="this.parentElement.parentElement.style.display='none'"
                             />
                         </div>
