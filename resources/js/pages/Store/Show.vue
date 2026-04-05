@@ -52,6 +52,7 @@ function addToCart() {
         props.product.product_name,
         Number(props.product.price),
         duration.value,
+        mainImage.value,
     );
     added.value = true;
     setTimeout(() => (added.value = false), 2000);

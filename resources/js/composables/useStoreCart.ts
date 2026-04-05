@@ -8,6 +8,7 @@ export interface CartItem {
     price: number;
     quantity: number;
     duration: number;  // rental days
+    image: string | null;
 }
 
 function loadCart(): CartItem[] {
@@ -17,8 +18,8 @@ function loadCart(): CartItem[] {
         if (!raw) return [];
         const data = JSON.parse(raw);
         if (!Array.isArray(data)) return [];
-        // ensure duration exists on old entries
-        return data.map((i: CartItem) => ({ ...i, duration: i.duration ?? 1 }));
+        // ensure duration + image exist on old entries
+        return data.map((i: CartItem) => ({ ...i, duration: i.duration ?? 1, image: i.image ?? null }));
     } catch {
         return [];
     }
@@ -50,21 +51,22 @@ export function useStoreCart() {
         cartItems.value = loadCart();
     }
 
-    /** Add item — pass duration (rental days) as 4th arg, quantity as 5th */
+    /** Add item — pass duration (rental days) as 4th arg, image as 5th, quantity as 6th */
     function addItem(
         productId: number,
         productName: string,
         price: number,
         duration = 1,
+        image: string | null = null,
         quantity = 1,
     ) {
         const existing = cartItems.value.find((i) => i.product_id === productId);
         if (existing) {
             existing.quantity += quantity;
-            // update duration if explicitly passed and different
             if (duration !== 1) existing.duration = duration;
+            if (image) existing.image = image;
         } else {
-            cartItems.value.push({ product_id: productId, product_name: productName, price, quantity, duration });
+            cartItems.value.push({ product_id: productId, product_name: productName, price, quantity, duration, image });
         }
     }
 

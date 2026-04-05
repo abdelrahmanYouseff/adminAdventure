@@ -47,7 +47,7 @@ const imageUrl = (product: Product): string | null => {
 };
 
 const addToCart = (product: Product) => {
-    addItem(product.id, product.product_name, Number(product.price), 1);
+    addItem(product.id, product.product_name, Number(product.price), 1, imageUrl(product));
 };
 </script>
 

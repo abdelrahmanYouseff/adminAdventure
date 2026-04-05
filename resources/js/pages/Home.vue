@@ -373,7 +373,7 @@ const features = [
                                 <button
                                     class="flex flex-1 items-center justify-center gap-1.5 rounded-xl py-3 text-sm font-bold text-white transition hover:opacity-90"
                                     style="background: linear-gradient(135deg, #FF6B35, #FFD93D)"
-                                    @click="addItem(product.id, product.product_name, Number(product.price), 1)"
+                                    @click="addItem(product.id, product.product_name, Number(product.price), 1, imageUrl(product))"
                                 >
                                     <ShoppingCart class="h-4 w-4" />
                                     أضف

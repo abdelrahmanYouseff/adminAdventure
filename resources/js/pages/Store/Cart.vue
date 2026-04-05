@@ -88,12 +88,21 @@ const decDur    = (id: number, dur: number) => setDuration(id, Math.max(1, dur -
                             class="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-neutral-100 transition hover:shadow-md"
                         >
                             <div class="flex gap-4 p-4 sm:gap-5 sm:p-5">
-                                <!-- Thumbnail placeholder -->
-                                <div
-                                    class="flex h-28 w-28 shrink-0 items-center justify-center overflow-hidden rounded-xl text-2xl font-bold text-white"
-                                    style="background: linear-gradient(135deg, #FF6B35, #FFD93D)"
-                                >
-                                    {{ item.product_name.charAt(0) }}
+                                <!-- Thumbnail -->
+                                <div class="h-28 w-28 shrink-0 overflow-hidden rounded-xl">
+                                    <img
+                                        v-if="item.image"
+                                        :src="item.image"
+                                        :alt="item.product_name"
+                                        class="h-full w-full object-cover"
+                                    />
+                                    <div
+                                        v-else
+                                        class="flex h-full w-full items-center justify-center text-2xl font-bold text-white"
+                                        style="background: linear-gradient(135deg, #FF6B35, #FFD93D)"
+                                    >
+                                        {{ item.product_name.charAt(0) }}
+                                    </div>
                                 </div>
 
                                 <!-- Details -->
