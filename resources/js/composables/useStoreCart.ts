@@ -7,6 +7,7 @@ export interface CartItem {
     product_name: string;
     price: number;
     quantity: number;
+    duration: number;  // rental days
 }
 
 function loadCart(): CartItem[] {
@@ -15,7 +16,9 @@ function loadCart(): CartItem[] {
         const raw = localStorage.getItem(STORAGE_KEY);
         if (!raw) return [];
         const data = JSON.parse(raw);
-        return Array.isArray(data) ? data : [];
+        if (!Array.isArray(data)) return [];
+        // ensure duration exists on old entries
+        return data.map((i: CartItem) => ({ ...i, duration: i.duration ?? 1 }));
     } catch {
         return [];
     }
@@ -30,33 +33,38 @@ const cartItems = ref<CartItem[]>(loadCart());
 
 export function useStoreCart() {
     const count = computed(() =>
-        cartItems.value.reduce((sum, item) => sum + item.quantity, 0)
-    );
-    const total = computed(() =>
-        cartItems.value.reduce((sum, item) => sum + item.price * item.quantity, 0)
+        cartItems.value.reduce((sum, item) => sum + item.quantity, 0),
     );
 
-    watch(
-        cartItems,
-        (val) => saveCart(val),
-        { deep: true }
+    /** price × quantity × duration */
+    const total = computed(() =>
+        cartItems.value.reduce(
+            (sum, item) => sum + item.price * item.quantity * item.duration,
+            0,
+        ),
     );
+
+    watch(cartItems, (val) => saveCart(val), { deep: true });
 
     function syncFromStorage() {
         cartItems.value = loadCart();
     }
 
-    function addItem(productId: number, productName: string, price: number, quantity = 1) {
+    /** Add item — pass duration (rental days) as 4th arg, quantity as 5th */
+    function addItem(
+        productId: number,
+        productName: string,
+        price: number,
+        duration = 1,
+        quantity = 1,
+    ) {
         const existing = cartItems.value.find((i) => i.product_id === productId);
         if (existing) {
             existing.quantity += quantity;
+            // update duration if explicitly passed and different
+            if (duration !== 1) existing.duration = duration;
         } else {
-            cartItems.value.push({
-                product_id: productId,
-                product_name: productName,
-                price,
-                quantity,
-            });
+            cartItems.value.push({ product_id: productId, product_name: productName, price, quantity, duration });
         }
     }
 
@@ -68,6 +76,12 @@ export function useStoreCart() {
         } else {
             item.quantity = quantity;
         }
+    }
+
+    function setDuration(productId: number, duration: number) {
+        const item = cartItems.value.find((i) => i.product_id === productId);
+        if (!item) return;
+        item.duration = Math.max(1, duration);
     }
 
     function removeItem(productId: number) {
@@ -85,6 +99,7 @@ export function useStoreCart() {
         syncFromStorage,
         addItem,
         setQuantity,
+        setDuration,
         removeItem,
         clearCart,
     };

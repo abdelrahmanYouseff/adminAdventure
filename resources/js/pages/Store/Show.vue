@@ -2,6 +2,7 @@
 import { ref, computed, onMounted } from 'vue';
 import { Head, Link } from '@inertiajs/vue3';
 import { ShoppingCart, Star, Shield, Check, ChevronRight, ArrowRight, Package, Clock, Truck } from 'lucide-vue-next';
+import StoreHeader from '@/components/StoreHeader.vue';
 import { useStoreCart } from '@/composables/useStoreCart';
 
 interface Category {
@@ -69,20 +70,7 @@ const trustBadges = [
     <div dir="rtl" class="min-h-screen bg-white" style="font-family: 'Noto Kufi Arabic', sans-serif">
 
         <!-- ── Header ── -->
-        <header class="sticky top-0 z-50 border-b border-white/30 bg-white/90 backdrop-blur-md">
-            <div class="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
-                <Link href="/home">
-                    <img src="/assets/logo.png" alt="عالم المغامرة" class="h-12 object-contain" onerror="this.style.display='none'" />
-                </Link>
-                <nav class="flex items-center gap-3 text-sm">
-                    <Link href="/store" class="text-neutral-600 transition hover:text-[#FF6B35]">المتجر</Link>
-                    <Link href="/store/cart" class="flex items-center gap-1.5 rounded-full px-4 py-2 text-white transition hover:opacity-90" style="background: linear-gradient(135deg,#FF6B35,#FFD93D)">
-                        <ShoppingCart class="h-4 w-4" />
-                        السلة
-                    </Link>
-                </nav>
-            </div>
-        </header>
+        <StoreHeader />
 
         <!-- ── Breadcrumb ── -->
         <div class="border-b border-neutral-100 bg-neutral-50">

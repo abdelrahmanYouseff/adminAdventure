@@ -4,6 +4,7 @@ import { Head, Link } from '@inertiajs/vue3';
 import AppLogo from '@/components/AppLogo.vue';
 import { Button } from '@/components/ui/button';
 import { ShoppingCart, ImageIcon } from 'lucide-vue-next';
+import StoreHeader from '@/components/StoreHeader.vue';
 import { useStoreCart } from '@/composables/useStoreCart';
 
 interface Category {
@@ -54,35 +55,7 @@ const addToCart = (product: Product) => {
     <Head title="المتجر - عالم المغامرة" />
 
     <div class="min-h-screen bg-white dark:bg-neutral-950">
-        <!-- Header: Shopify-style minimal -->
-        <header class="sticky top-0 z-30 border-b border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900">
-            <div class="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
-                <Link href="/store" class="flex items-center">
-                    <AppLogo />
-                </Link>
-                <nav class="flex items-center gap-6">
-                    <Link
-                        :href="route('store.index')"
-                        class="text-sm font-medium text-neutral-700 hover:text-neutral-900 dark:text-neutral-300 dark:hover:text-white"
-                    >
-                        المتجر
-                    </Link>
-                    <Link
-                        :href="route('store.cart')"
-                        class="relative flex items-center gap-2 rounded-full bg-neutral-900 px-4 py-2.5 text-sm font-medium text-white transition-opacity hover:opacity-90 dark:bg-white dark:text-neutral-900"
-                    >
-                        <ShoppingCart class="h-4 w-4" />
-                        <span>السلة</span>
-                        <span
-                            v-if="count > 0"
-                            class="absolute -top-1 -right-1 flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-emerald-500 px-1.5 text-xs font-semibold text-white"
-                        >
-                            {{ count }}
-                        </span>
-                    </Link>
-                </nav>
-            </div>
-        </header>
+        <StoreHeader />
 
         <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
             <div class="flex flex-row-reverse gap-0 lg:gap-10">

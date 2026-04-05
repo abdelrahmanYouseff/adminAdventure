@@ -2,6 +2,7 @@
 import { ref, computed, onMounted } from 'vue';
 import { Head, Link } from '@inertiajs/vue3';
 import AppFooter from '@/components/AppFooter.vue';
+import StoreHeader from '@/components/StoreHeader.vue';
 import { useStoreCart } from '@/composables/useStoreCart';
 import { ShoppingCart, Star } from 'lucide-vue-next';
 
@@ -115,34 +116,7 @@ const features = [
         <!-- ═══════════════════════════════════════════
              1. STICKY HEADER
         ═══════════════════════════════════════════ -->
-        <header class="sticky top-0 z-50 border-b border-white/30 bg-white/80 backdrop-blur-md">
-            <div class="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
-                <Link href="/home">
-                    <img src="/assets/logo.png" alt="عالم المغامرة" class="h-14 object-contain" onerror="this.style.display='none'" />
-                </Link>
-                <nav class="flex items-center gap-3">
-                    <Link
-                        href="/store"
-                        class="rounded-full px-4 py-2 text-sm font-medium text-neutral-700 transition hover:text-[#FF6B35]"
-                    >
-                        تصفح الألعاب
-                    </Link>
-                    <Link
-                        href="/login"
-                        class="rounded-full border border-neutral-300 px-4 py-2 text-sm font-medium text-neutral-700 transition hover:border-[#FF6B35] hover:text-[#FF6B35]"
-                    >
-                        تسجيل الدخول
-                    </Link>
-                    <Link
-                        href="/register"
-                        class="rounded-full px-4 py-2 text-sm font-medium text-white transition hover:opacity-90"
-                        style="background: linear-gradient(135deg, #FF6B35, #FFD93D)"
-                    >
-                        إنشاء حساب
-                    </Link>
-                </nav>
-            </div>
-        </header>
+        <StoreHeader />
 
         <!-- ═══════════════════════════════════════════
              2. HERO
