@@ -58,6 +58,10 @@ function addToCart() {
     setTimeout(() => (added.value = false), 2000);
 }
 
+function onDurationSelect(e: Event) {
+    duration.value = Number((e.target as HTMLSelectElement).value);
+}
+
 const trustBadges = [
     { icon: Shield, label: 'معايير أمان معتمدة', color: '#6BCF7F' },
     { icon: Check,  label: 'معقّم ونظيف',         color: '#4A90E2' },
@@ -152,11 +156,11 @@ const trustBadges = [
                     </div>
 
                     <!-- Price -->
-                    <div class="flex items-baseline gap-2">
+                    <div class="flex items-baseline gap-2 font-bold">
                         <span class="text-4xl font-extrabold" style="color: #FF6B35">
                             {{ Number(product.price).toLocaleString('ar-SA') }}
                         </span>
-                        <span class="text-lg text-neutral-500">ريال / يوم</span>
+                        <span class="text-lg font-bold text-neutral-600">ريال / يوم</span>
                     </div>
 
                     <!-- Description -->
@@ -170,23 +174,29 @@ const trustBadges = [
                         style="background: linear-gradient(135deg, #FF6B3508, #4A90E208); border-color: #FF6B3520"
                     >
                         <!-- Duration selector -->
-                        <label class="mb-3 block text-sm font-bold text-neutral-700">
+                        <label
+                            class="mb-3 block text-sm font-bold text-neutral-700"
+                            for="rental-duration"
+                        >
                             مدة الإيجار
                         </label>
-                        <div class="mb-5 flex flex-wrap gap-2">
-                            <button
+                        <select
+                            id="rental-duration"
+                            :value="duration"
+                            class="mb-5 w-full cursor-pointer appearance-none rounded-xl border-2 border-neutral-200 bg-white bg-[length:1.25rem] bg-[position:left_0.75rem_center] bg-no-repeat py-3 ps-4 pe-10 text-base font-bold text-neutral-900 shadow-sm transition focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/25"
+                            style="background-image: url('data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2720%27 height=%2720%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27%2352555b%27 stroke-width=%272%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3E%3Cpath d=%27m6 9 6 6 6-6%27/%3E%3C/svg%3E')"
+                            dir="rtl"
+                            @change="onDurationSelect"
+                        >
+                            <option
                                 v-for="d in durations"
                                 :key="d"
-                                type="button"
-                                class="rounded-xl border-2 px-4 py-2 text-sm font-semibold transition-all"
-                                :style="duration === d
-                                    ? 'border-color:#FF6B35; background:#FF6B35; color:#fff'
-                                    : 'border-color:#e5e7eb; color:#4b5563'"
-                                @click="duration = d"
+                                :value="d"
+                                class="font-sans"
                             >
                                 {{ d }} {{ d === 1 ? 'يوم' : 'أيام' }}
-                            </button>
-                        </div>
+                            </option>
+                        </select>
 
                         <!-- Total -->
                         <div class="mb-5 flex items-center justify-between rounded-xl bg-white px-4 py-3 shadow-sm">

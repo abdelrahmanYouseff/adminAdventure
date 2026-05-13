@@ -4,6 +4,8 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>فشل عملية الدفع - عالم المغامرة</title>
+    <link rel="icon" href="/assets/logo.png" type="image/png" sizes="any">
+    <link rel="apple-touch-icon" href="/assets/logo.png">
     <style>
         * { box-sizing: border-box; }
         body { font-family: system-ui, -apple-system, sans-serif; margin: 0; padding: 0; background: linear-gradient(to bottom right, #fef2f2, #fff, #ffe4e6); min-height: 100vh; color: #111; }
