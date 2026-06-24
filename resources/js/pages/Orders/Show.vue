@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ArrowRight, User, Mail, Phone, CreditCard, FileText, Calendar, Package } from 'lucide-vue-next';
+import { formatCurrency, formatDate, formatInteger } from '@/lib/formatNumber';
 
 interface OrderItem {
     name: string;
@@ -94,23 +95,6 @@ const getPaymentMethodText = (method: string) => {
         noon: 'Noon',
     };
     return map[method] || method;
-};
-
-const formatCurrency = (amount: number, currency: string) => {
-    return new Intl.NumberFormat('ar-SA', {
-        style: 'currency',
-        currency: currency || 'SAR',
-    }).format(Number(amount) || 0);
-};
-
-const formatDate = (date: string) => {
-    return new Date(date).toLocaleDateString('ar-SA', {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-    });
 };
 
 const orderItems = () => {
@@ -250,7 +234,7 @@ const orderItems = () => {
                         </TableRow>
                         <TableRow v-for="(row, i) in orderItems()" :key="i">
                             <TableCell class="font-medium">{{ row.name }}</TableCell>
-                            <TableCell class="text-center">{{ row.quantity }}</TableCell>
+                            <TableCell class="text-center tabular-nums" dir="ltr">{{ formatInteger(row.quantity) }}</TableCell>
                             <TableCell>{{ formatCurrency(row.price, order.currency) }}</TableCell>
                             <TableCell>{{ formatCurrency(row.total, order.currency) }}</TableCell>
                         </TableRow>

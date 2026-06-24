@@ -86,7 +86,7 @@ import { Head, Link } from '@inertiajs/vue3';
                             <span>
                                 Manage your
                                 <a
-                                    href="/products"
+                                    href="/store/all-products"
                                     class="ml-1 inline-flex items-center space-x-1 font-medium text-[#f53003] underline underline-offset-4 dark:text-[#FF4433]"
                                 >
                                     <span>Products</span>

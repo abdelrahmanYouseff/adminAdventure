@@ -3,6 +3,7 @@ import { Head, Link, useForm } from '@inertiajs/vue3';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { Button } from '@/components/ui/button';
 import { Plus, Edit, Trash2 } from 'lucide-vue-next';
+import { formatPrice, formatInteger } from '@/lib/formatNumber';
 
 interface Package {
     id: number;
@@ -74,7 +75,7 @@ const deletePackage = (packageId: number) => {
                                     </td>
                                 </tr>
                                 <tr v-for="pkg in packages" :key="pkg.id" class="hover:bg-neutral-50 dark:hover:bg-neutral-700">
-                                    <td class="border border-neutral-200 dark:border-neutral-600 px-4 py-3">{{ pkg.id }}</td>
+                                    <td class="border border-neutral-200 dark:border-neutral-600 px-4 py-3 tabular-nums" dir="ltr">{{ formatInteger(pkg.id) }}</td>
 
                                     <!-- Image -->
                                     <td class="border border-neutral-200 dark:border-neutral-600 px-4 py-3">
@@ -106,8 +107,8 @@ const deletePackage = (packageId: number) => {
                                     </td>
 
                                     <!-- Price -->
-                                    <td class="border border-neutral-200 dark:border-neutral-600 px-4 py-3">
-                                        SAR {{ pkg.price }}
+                                    <td class="border border-neutral-200 dark:border-neutral-600 px-4 py-3 tabular-nums" dir="ltr">
+                                        {{ formatPrice(pkg.price) }} ر.س
                                     </td>
 
                                     <!-- Status -->

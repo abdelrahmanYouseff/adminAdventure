@@ -4,6 +4,7 @@ import AppLayout from '@/layouts/AppLayout.vue';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Plus, Edit, Trash2, ImageIcon } from 'lucide-vue-next';
+import { formatDate, formatTime, formatInteger } from '@/lib/formatNumber';
 
 interface Category {
     id: number;
@@ -32,28 +33,6 @@ const deleteCategory = (categoryId: number) => {
     }
 };
 
-function formatDate(iso: string): string {
-    try {
-        return new Intl.DateTimeFormat('ar-SA-u-ca-gregory', {
-            year: 'numeric',
-            month: 'short',
-            day: 'numeric',
-        }).format(new Date(iso));
-    } catch {
-        return iso;
-    }
-}
-
-function formatTime(iso: string): string {
-    try {
-        return new Intl.DateTimeFormat('ar-SA-u-ca-gregory', {
-            hour: '2-digit',
-            minute: '2-digit',
-        }).format(new Date(iso));
-    } catch {
-        return '';
-    }
-}
 </script>
 
 <template>
@@ -117,7 +96,7 @@ function formatTime(iso: string): string {
                                     <div class="flex flex-col items-center gap-0.5 py-0.5">
                                         <span class="text-[10px] font-medium uppercase tracking-wide text-neutral-400">معرّف</span>
                                         <span class="font-mono text-sm font-semibold tabular-nums text-neutral-900 dark:text-neutral-100">
-                                            {{ category.id }}
+                                            {{ formatInteger(category.id) }}
                                         </span>
                                     </div>
                                 </TableCell>
@@ -177,7 +156,7 @@ function formatTime(iso: string): string {
                                         <span
                                             class="inline-flex min-h-8 min-w-[2.25rem] items-center justify-center rounded-full bg-neutral-100 px-2.5 text-sm font-bold tabular-nums text-neutral-900 dark:bg-neutral-800 dark:text-neutral-100"
                                         >
-                                            {{ category.products_count }}
+                                            {{ formatInteger(category.products_count) }}
                                         </span>
                                     </div>
                                 </TableCell>

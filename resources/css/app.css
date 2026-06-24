@@ -85,6 +85,10 @@
 }
 
 :root {
+    --brand-primary: #3b89d2;
+    --brand-primary-dark: #2f6eb0;
+    --brand-primary-light: #6baee3;
+    --brand-primary-soft: #7ab8e8;
     --background: hsl(0 0% 100%);
     --foreground: hsl(0 0% 3.9%);
     --card: hsl(0 0% 100%);

@@ -2,6 +2,7 @@
 import { Head } from '@inertiajs/vue3';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { Button } from '@/components/ui/button';
+import { formatDateTime, formatInteger } from '@/lib/formatNumber';
 
 interface User {
     id: number;
@@ -45,11 +46,11 @@ defineOptions({ layout: AppLayout });
                                     </td>
                                 </tr>
                                 <tr v-for="user in users" :key="user.id" class="hover:bg-neutral-50 dark:hover:bg-neutral-700">
-                                    <td class="border px-4 py-3">{{ user.id }}</td>
+                                    <td class="border px-4 py-3 tabular-nums" dir="ltr">{{ formatInteger(user.id) }}</td>
                                     <td class="border px-4 py-3 font-medium">{{ user.name }}</td>
                                     <td class="border px-4 py-3">{{ user.email }}</td>
                                     <td class="border px-4 py-3">{{ user.phone || '—' }}</td>
-                                    <td class="border px-4 py-3">{{ new Date(user.created_at).toLocaleString() }}</td>
+                                    <td class="border px-4 py-3 tabular-nums" dir="ltr">{{ formatDateTime(user.created_at) }}</td>
                                 </tr>
                             </tbody>
                         </table>

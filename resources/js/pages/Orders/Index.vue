@@ -25,6 +25,7 @@ import {
     ChevronRight,
     Eye,
 } from 'lucide-vue-next';
+import { formatCurrency, formatDate, formatInteger } from '@/lib/formatNumber';
 
 interface Order {
     id: number;
@@ -138,21 +139,6 @@ const getPaymentMethodText = (method: string) => {
     return map[method] || method;
 };
 
-const formatCurrency = (amount: number, currency: string) => {
-    return new Intl.NumberFormat('ar-SA', {
-        style: 'currency',
-        currency: currency || 'SAR',
-    }).format(amount || 0);
-};
-
-const formatDate = (date: string) => {
-    return new Date(date).toLocaleDateString('ar-SA', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-    });
-};
-
 const pendingCount = () => props.orders.data.filter((o) => o.status === 'pending').length;
 const paidCount = () => props.orders.data.filter((o) => o.status === 'paid').length;
 </script>
@@ -178,7 +164,7 @@ const paidCount = () => props.orders.data.filter((o) => o.status === 'paid').len
                     <ShoppingCart class="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                    <div class="text-2xl font-bold">{{ orders.total }}</div>
+                    <div class="text-2xl font-bold tabular-nums">{{ formatInteger(orders.total) }}</div>
                 </CardContent>
             </Card>
             <Card>
@@ -186,7 +172,7 @@ const paidCount = () => props.orders.data.filter((o) => o.status === 'paid').len
                     <CardTitle class="text-sm font-medium">قيد الانتظار (هذه الصفحة)</CardTitle>
                 </CardHeader>
                 <CardContent>
-                    <div class="text-2xl font-bold">{{ pendingCount() }}</div>
+                    <div class="text-2xl font-bold tabular-nums">{{ formatInteger(pendingCount()) }}</div>
                 </CardContent>
             </Card>
             <Card>
@@ -194,7 +180,7 @@ const paidCount = () => props.orders.data.filter((o) => o.status === 'paid').len
                     <CardTitle class="text-sm font-medium">مدفوع (هذه الصفحة)</CardTitle>
                 </CardHeader>
                 <CardContent>
-                    <div class="text-2xl font-bold">{{ paidCount() }}</div>
+                    <div class="text-2xl font-bold tabular-nums">{{ formatInteger(paidCount()) }}</div>
                 </CardContent>
             </Card>
             <Card>
@@ -202,7 +188,7 @@ const paidCount = () => props.orders.data.filter((o) => o.status === 'paid').len
                     <CardTitle class="text-sm font-medium">في هذه الصفحة</CardTitle>
                 </CardHeader>
                 <CardContent>
-                    <div class="text-2xl font-bold">{{ orders.data.length }}</div>
+                    <div class="text-2xl font-bold tabular-nums">{{ formatInteger(orders.data.length) }}</div>
                 </CardContent>
             </Card>
         </div>
@@ -379,11 +365,11 @@ const paidCount = () => props.orders.data.filter((o) => o.status === 'paid').len
                 >
                     <p class="text-sm text-muted-foreground">
                         عرض
-                        <span class="font-medium">{{ orders.from ?? 0 }}</span>
+                        <span class="font-medium tabular-nums">{{ formatInteger(orders.from ?? 0) }}</span>
                         إلى
-                        <span class="font-medium">{{ orders.to ?? 0 }}</span>
+                        <span class="font-medium tabular-nums">{{ formatInteger(orders.to ?? 0) }}</span>
                         من
-                        <span class="font-medium">{{ orders.total }}</span>
+                        <span class="font-medium tabular-nums">{{ formatInteger(orders.total) }}</span>
                         طلب
                     </p>
                     <div class="flex items-center gap-2">
@@ -397,7 +383,7 @@ const paidCount = () => props.orders.data.filter((o) => o.status === 'paid').len
                             السابق
                         </Button>
                         <span class="text-sm text-muted-foreground">
-                            {{ orders.current_page }} / {{ orders.last_page }}
+                            {{ formatInteger(orders.current_page) }} / {{ formatInteger(orders.last_page) }}
                         </span>
                         <Button
                             variant="outline"

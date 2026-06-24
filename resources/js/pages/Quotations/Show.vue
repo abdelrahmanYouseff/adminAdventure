@@ -7,6 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { ArrowLeft, Edit, Download, MoreHorizontal, Send, Check, X, Clock } from 'lucide-vue-next';
 import AppSidebarLayout from '@/layouts/app/AppSidebarLayout.vue';
+import { formatCurrency, formatDate, formatInteger } from '@/lib/formatNumber';
 
 interface QuotationItem {
     id: number;
@@ -103,7 +104,7 @@ const updateStatus = (status: string) => {
                             Quotation {{ quotation.quotation_number }}
                         </h1>
                         <p class="text-muted-foreground">
-                            Created on {{ new Date(quotation.created_at).toLocaleDateString() }}
+                            Created on {{ formatDate(quotation.created_at) }}
                         </p>
                     </div>
                 </div>
@@ -178,7 +179,7 @@ const updateStatus = (status: string) => {
                         </div>
                         <div>
                             <h4 class="font-medium text-sm">Valid Until:</h4>
-                            <p class="text-sm text-muted-foreground">{{ new Date(quotation.valid_until).toLocaleDateString() }}</p>
+                            <p class="text-sm text-muted-foreground tabular-nums" dir="ltr">{{ formatDate(quotation.valid_until) }}</p>
                         </div>
                     </CardContent>
                 </Card>
@@ -205,7 +206,7 @@ const updateStatus = (status: string) => {
                         </div>
                         <div class="flex justify-between">
                             <span class="text-sm">Created Date:</span>
-                            <span class="font-medium">{{ new Date(quotation.created_at).toLocaleDateString() }}</span>
+                            <span class="font-medium tabular-nums" dir="ltr">{{ formatDate(quotation.created_at) }}</span>
                         </div>
                     </CardContent>
                 </Card>
@@ -218,15 +219,15 @@ const updateStatus = (status: string) => {
                     <CardContent class="space-y-4">
                         <div class="flex justify-between">
                             <span>Subtotal:</span>
-                            <span>${{ Number(quotation.subtotal || 0).toFixed(2) }}</span>
+                            <span class="tabular-nums" dir="ltr">{{ formatCurrency(quotation.subtotal) }}</span>
                         </div>
                         <div class="flex justify-between">
                             <span>Tax (15%):</span>
-                            <span>${{ Number(quotation.tax_amount || 0).toFixed(2) }}</span>
+                            <span class="tabular-nums" dir="ltr">{{ formatCurrency(quotation.tax_amount) }}</span>
                         </div>
                         <div class="flex justify-between text-lg font-bold border-t pt-2">
                             <span>Total:</span>
-                                                            <span>${{ Number(quotation.total_amount || 0).toFixed(2) }}</span>
+                            <span class="tabular-nums" dir="ltr">{{ formatCurrency(quotation.total_amount) }}</span>
                         </div>
                     </CardContent>
                 </Card>
@@ -256,14 +257,14 @@ const updateStatus = (status: string) => {
                                 <TableCell>
                                     {{ item.description }}
                                 </TableCell>
-                                <TableCell class="text-right">
-                                    {{ item.quantity }}
+                                <TableCell class="text-right tabular-nums" dir="ltr">
+                                    {{ formatInteger(item.quantity) }}
                                 </TableCell>
-                                <TableCell class="text-right">
-                                    ${{ item.unit_price.toFixed(2) }}
+                                <TableCell class="text-right tabular-nums" dir="ltr">
+                                    {{ formatCurrency(item.unit_price) }}
                                 </TableCell>
-                                <TableCell class="text-right font-medium">
-                                    ${{ Number(item.total_price || 0).toFixed(2) }}
+                                <TableCell class="text-right font-medium tabular-nums" dir="ltr">
+                                    {{ formatCurrency(item.total_price) }}
                                 </TableCell>
                             </TableRow>
                         </TableBody>

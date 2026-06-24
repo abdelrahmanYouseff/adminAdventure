@@ -4,6 +4,7 @@ import { Head, Link } from '@inertiajs/vue3';
 import AppFooter from '@/components/AppFooter.vue';
 import StoreHeader from '@/components/StoreHeader.vue';
 import { useStoreCart } from '@/composables/useStoreCart';
+import { formatAmount } from '@/lib/formatNumber';
 import { Swiper, SwiperSlide } from 'swiper/vue';
 import { FreeMode } from 'swiper/modules';
 import 'swiper/css';
@@ -93,6 +94,34 @@ const categoriesWithCounts = computed(() =>
         .sort((a, b) => b.count - a.count),
 );
 
+/** أبرز التصنيفات لقسم «تصفح تصنيفات الألعاب» */
+const browseCategories = computed(() =>
+    categoriesWithCounts.value.filter((c) => c.count > 0).slice(0, 10),
+);
+
+function categoryThumb(id: number): string | null {
+    const product = props.products.find((p) => p.category_id === id && imageUrl(p));
+    return product ? imageUrl(product) : null;
+}
+
+function categoryCountLabel(name: string, count: number): string {
+    const n = Number(count).toLocaleString('en-US');
+    if (/قطار/i.test(name)) return `${n} ${count === 1 ? 'قطار' : 'قطارات'}`;
+    if (/عرب/i.test(name)) return `${n} ${count === 1 ? 'عربة' : 'عربات'}`;
+    if (/ملعب/i.test(name)) return `${n} ${count === 1 ? 'ملعب' : 'ملاعب'}`;
+    if (/باق/i.test(name)) return 'الباقات';
+    if (/خدم/i.test(name)) return 'خدمات ترفيهية';
+    if (/بلايستيشن|playstation/i.test(name)) return 'البلايستيشن';
+    return `${n} لعبة`;
+}
+
+function browseCategory(id: number) {
+    pickCategory(id);
+    requestAnimationFrame(() => {
+        document.getElementById('home-products')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+}
+
 /** إن كان التصنيف المختار خارج المعاينة يُدرَج تلقائياً ليبقى التمييز واضحاً */
 const sidebarCategoriesShown = computed(() => {
     const sorted = categoriesWithCounts.value;
@@ -164,70 +193,56 @@ const features = [
 
     <div dir="rtl" class="min-h-screen bg-[#f4f6f8] pb-[env(safe-area-inset-bottom,0px)]" style="font-family: 'Noto Kufi Arabic', sans-serif">
 
-        <StoreHeader />
+        <StoreHeader :show-store-link="false" />
 
         <!-- Hero -->
-        <section class="border-b border-neutral-200/80 bg-white py-8 sm:py-12 lg:py-20">
-            <div class="mx-auto max-w-7xl px-3.5 sm:px-6 lg:px-8">
-                <div class="grid items-center gap-8 lg:grid-cols-2 lg:gap-16" dir="ltr">
-                    <div class="aw-reveal-left relative order-2 lg:order-1">
-                        <div class="relative overflow-hidden rounded-xl border border-neutral-200 bg-[#f4f6f8] shadow-sm sm:rounded-2xl">
-                            <img
-                                src="/assets/pic01.png"
-                                alt="طفلة تلعب في نطاطة ملونة"
-                                class="h-full max-h-[38vh] min-h-[200px] w-full object-cover sm:max-h-none sm:min-h-[320px] lg:min-h-[400px]"
-                                onerror="this.parentElement.style.background='#eef1f4';this.style.display='none'"
-                            />
-                        </div>
-                        <div
-                            class="absolute bottom-3 left-3 flex items-center gap-2 rounded-lg border border-neutral-200 bg-white px-3 py-2 shadow-sm sm:bottom-5 sm:left-5 sm:gap-2.5 sm:rounded-xl sm:px-4 sm:py-3"
-                        >
-                            <span class="text-base sm:text-lg">⭐</span>
-                            <div>
-                                <p class="text-xs font-bold text-neutral-900 sm:text-sm">4.9</p>
-                                <p class="text-[10px] text-neutral-500 sm:text-xs">+١٬٥٠٠ تقييم</p>
-                            </div>
-                        </div>
-                    </div>
+        <section class="relative isolate overflow-hidden border-b border-neutral-200/80">
+            <div
+                class="absolute inset-0 min-h-[min(88vh,640px)] bg-cover bg-center bg-no-repeat sm:min-h-[520px] lg:min-h-[580px]"
+                style="background-image: url('/assets/pic01.png')"
+                role="img"
+                aria-label="طفلة تلعب في نطاطة ملونة"
+            />
+            <div class="absolute inset-0 bg-gradient-to-l from-black/85 via-black/55 to-black/25" />
 
-                    <div class="aw-reveal-right order-1 flex flex-col gap-5 sm:gap-6 lg:order-2" dir="rtl">
-                        <div>
-                            <p class="mb-1.5 text-xs font-semibold text-[#00a854] sm:mb-2 sm:text-sm">عالم المغامرة</p>
-                            <h1 class="text-2xl font-extrabold leading-snug tracking-tight text-neutral-900 sm:text-4xl lg:text-5xl xl:text-[3.25rem]">
-                                اجعل كل حفلة
-                                <br />
-                                <span class="text-[#00a854]">لا تُنسى</span>
-                            </h1>
-                            <p class="mt-2 text-sm font-medium text-neutral-600 sm:mt-3 sm:text-lg">
-                                تأجير ألعاب ترفيهية للأطفال بسهولة كمتجرك المفضل
-                            </p>
-                        </div>
-                        <p class="text-sm leading-relaxed text-neutral-600 sm:text-base lg:text-lg">
-                            نوفّر لك أفضل ألعاب الترفيه للأطفال بأعلى معايير الأمان — من نطاطات هوائية وألعاب مائية إلى ملاعب ترفيهية متكاملة.
+            <div class="relative mx-auto flex min-h-[min(88vh,640px)] max-w-7xl items-center justify-start px-3.5 py-12 sm:min-h-[520px] sm:px-6 sm:py-16 lg:min-h-[580px] lg:px-8 lg:py-24">
+                <div class="aw-reveal-right w-full max-w-xl text-start" dir="rtl">
+                    <div>
+                        <p class="mb-1.5 text-xs font-semibold text-[#6baee3] sm:mb-2 sm:text-sm">عالم المغامرة</p>
+                        <h1 class="text-2xl font-extrabold leading-snug tracking-tight text-white sm:text-4xl lg:text-5xl xl:text-[3.25rem]">
+                            اجعل كل حفلة
+                            <br />
+                            <span class="text-[#6baee3]">لا تُنسى</span>
+                        </h1>
+                        <p class="mt-2 text-sm font-medium text-white/90 sm:mt-3 sm:text-lg">
+                            تأجير ألعاب ترفيهية للأطفال بسهولة كمتجرك المفضل
                         </p>
-                        <div class="flex flex-col gap-2.5 sm:flex-row sm:flex-wrap sm:gap-3">
-                            <Link
-                                href="/store"
-                                class="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#00a854] px-6 py-3 text-sm font-bold text-white shadow-sm transition active:scale-[0.99] hover:bg-[#009648] hover:shadow sm:w-auto sm:px-7 sm:text-base"
-                            >
-                                <ShoppingCart class="h-5 w-5 shrink-0" />
-                                تصفح الألعاب
-                            </Link>
-                            <a
-                                href="#exceptional-features"
-                                class="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg border border-neutral-300 bg-white px-6 py-3 text-sm font-bold text-neutral-800 transition active:scale-[0.99] hover:border-neutral-400 hover:bg-neutral-50 sm:w-auto sm:px-7 sm:text-base"
-                            >
-                                الباقات والمزايا
-                            </a>
-                        </div>
-                        <div class="flex flex-wrap gap-2 sm:gap-3">
-                            <span class="inline-flex min-h-10 items-center gap-2 rounded-lg border border-neutral-200 bg-[#f4f6f8] px-3 py-2 text-xs font-medium text-neutral-700 sm:px-4 sm:text-sm">
-                                <span>🛡️</span> معايير أمان معتمدة
-                            </span>
-                            <span class="inline-flex min-h-10 items-center gap-2 rounded-lg border border-neutral-200 bg-[#f4f6f8] px-3 py-2 text-xs font-medium text-neutral-700 sm:px-4 sm:text-sm">
-                                <span>🚚</span> توصيل مجاني
-                            </span>
-                        </div>
+                    </div>
+                    <p class="mt-4 text-sm leading-relaxed text-white/80 sm:mt-5 sm:text-base lg:text-lg">
+                        نوفّر لك أفضل ألعاب الترفيه للأطفال بأعلى معايير الأمان — من نطاطات هوائية وألعاب مائية إلى ملاعب ترفيهية متكاملة.
+                    </p>
+                    <div class="mt-5 flex flex-col gap-2.5 sm:mt-6 sm:flex-row sm:flex-wrap sm:justify-start sm:gap-3">
+                        <Link
+                            href="/store"
+                            class="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#3b89d2] px-6 py-3 text-sm font-bold text-white shadow-sm transition active:scale-[0.99] hover:bg-[#2f6eb0] hover:shadow sm:w-auto sm:px-7 sm:text-base"
+                        >
+                            <ShoppingCart class="h-5 w-5 shrink-0" />
+                            تصفح الألعاب
+                        </Link>
+                        <a
+                            href="#exceptional-features"
+                            class="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg border border-white/30 bg-white/10 px-6 py-3 text-sm font-bold text-white backdrop-blur-sm transition active:scale-[0.99] hover:bg-white/20 sm:w-auto sm:px-7 sm:text-base"
+                        >
+                            الباقات والمزايا
+                        </a>
+                    </div>
+                    <div class="mt-4 flex flex-wrap justify-start gap-2 sm:mt-5 sm:gap-3">
+                        <span class="inline-flex min-h-10 items-center gap-2 rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-xs font-medium text-white/95 backdrop-blur-sm sm:px-4 sm:text-sm">
+                            <span>🛡️</span> معايير أمان معتمدة
+                        </span>
+                        <span class="inline-flex min-h-10 items-center gap-2 rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-xs font-medium text-white/95 backdrop-blur-sm sm:px-4 sm:text-sm">
+                            <span>🚚</span> توصيل مجاني
+                        </span>
                     </div>
                 </div>
             </div>
@@ -251,10 +266,98 @@ const features = [
             </div>
         </div>
 
+        <!-- شركاء النجاح -->
+        <section
+            id="partners"
+            class="border-b border-neutral-200/80 bg-white py-10 sm:py-14 lg:py-16"
+        >
+            <div class="mx-auto max-w-5xl px-3.5 sm:px-6 lg:px-8">
+                <div class="aw-reveal mb-8 flex flex-col items-center gap-2 text-center sm:mb-10 sm:gap-3">
+                    <div
+                        class="flex h-12 w-12 items-center justify-center rounded-xl border border-neutral-200 bg-[#f4f6f8] text-xl sm:h-14 sm:w-14 sm:text-2xl"
+                    >
+                        🤝
+                    </div>
+                    <h2 class="text-xl font-bold text-neutral-900 sm:text-3xl lg:text-4xl">شركاء النجاح</h2>
+                    <p class="max-w-md text-sm text-neutral-500 sm:text-base">نفتخر بثقة المؤسسات والجهات التي نخدمها يوماً بعد يوم</p>
+                </div>
+
+                <figure class="aw-reveal overflow-hidden rounded-xl border border-neutral-200 bg-white p-4 shadow-sm sm:rounded-2xl sm:p-6">
+                    <img
+                        src="/assets/partners.png"
+                        alt="شركاء النجاح"
+                        class="mx-auto w-full object-contain"
+                        style="max-height: 300px"
+                        onerror="this.style.display='none'"
+                    />
+                </figure>
+            </div>
+        </section>
+
+        <!-- تصفح تصنيفات الألعاب -->
+        <section
+            id="browse-categories"
+            class="border-b border-neutral-200/80 bg-[#f4f6f8] py-10 sm:py-14 lg:py-16"
+        >
+            <div class="mx-auto max-w-7xl px-3.5 sm:px-6 lg:px-8">
+                <div class="aw-reveal mb-8 text-center sm:mb-10">
+                    <h2 class="text-xl font-extrabold tracking-tight text-neutral-900 sm:text-3xl lg:text-4xl">
+                        تصفح تصنيفات الألعاب
+                    </h2>
+                    <p class="mt-2 text-sm text-neutral-500 sm:mt-3 sm:text-base">
+                        ترفيه على كل شكل ولون
+                    </p>
+                </div>
+
+                <div
+                    v-if="browseCategories.length > 0"
+                    class="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-5 lg:gap-4"
+                >
+                    <button
+                        v-for="(cat, idx) in browseCategories"
+                        :key="cat.id"
+                        type="button"
+                        class="aw-reveal group flex min-h-[5.5rem] items-center gap-3 rounded-2xl border border-neutral-200/90 bg-white p-3 text-start shadow-sm transition hover:-translate-y-0.5 hover:border-[#3b89d2]/30 hover:shadow-md active:scale-[0.99] sm:min-h-[6rem] sm:p-4"
+                        :style="`transition-delay: ${idx * 40}ms`"
+                        @click="browseCategory(cat.id)"
+                    >
+                        <div
+                            class="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full border border-neutral-100 bg-[#f4f6f8] sm:h-16 sm:w-16"
+                        >
+                            <img
+                                v-if="categoryThumb(cat.id)"
+                                :src="categoryThumb(cat.id)!"
+                                :alt="cat.category_name"
+                                class="h-full w-full object-cover transition group-hover:scale-105"
+                            />
+                            <span
+                                v-else
+                                class="text-lg font-extrabold text-[#3b89d2]/80 sm:text-xl"
+                            >
+                                {{ cat.category_name.charAt(0) }}
+                            </span>
+                        </div>
+                        <div class="min-w-0 flex-1">
+                            <p class="line-clamp-2 text-sm font-bold leading-snug text-neutral-900 sm:text-[15px]">
+                                {{ cat.category_name }}
+                            </p>
+                            <p class="mt-1 text-xs font-medium text-neutral-500 sm:text-sm">
+                                {{ categoryCountLabel(cat.category_name, cat.count) }}
+                            </p>
+                        </div>
+                    </button>
+                </div>
+
+                <p v-else class="aw-reveal text-center text-sm text-neutral-500">
+                    لا توجد تصنيفات متاحة حالياً.
+                </p>
+            </div>
+        </section>
+
         <!-- ═══════════════════════════════════════════
              3 + 4. CATEGORIES & PRODUCTS (مثل صفحة /products)
         ═══════════════════════════════════════════ -->
-        <section class="border-t border-neutral-200/80 bg-[#f4f6f8] py-10 sm:py-14 lg:py-20">
+        <section id="home-products" class="scroll-mt-20 border-t border-neutral-200/80 bg-[#f4f6f8] py-10 sm:py-14 lg:py-20">
             <div class="mx-auto max-w-7xl px-3.5 sm:px-6 lg:px-8">
 
                 <div class="aw-reveal mb-6 text-center sm:mb-8">
@@ -277,7 +380,7 @@ const features = [
                                     type="button"
                                     class="flex w-full items-center justify-between gap-3 rounded-lg px-3.5 py-3 text-sm font-medium transition"
                                     :class="selectedCategoryHome === null
-                                        ? 'bg-[#00a854] text-white shadow-sm'
+                                        ? 'bg-[#3b89d2] text-white shadow-sm'
                                         : 'text-neutral-600 hover:bg-[#f4f6f8]'"
                                     @click="pickCategory(null)"
                                 >
@@ -290,7 +393,7 @@ const features = [
                                     type="button"
                                     class="flex w-full items-center justify-between gap-3 rounded-lg px-3.5 py-3 text-sm font-medium transition"
                                     :class="selectedCategoryHome === cat.id
-                                        ? 'bg-[#00a854] text-white shadow-sm'
+                                        ? 'bg-[#3b89d2] text-white shadow-sm'
                                         : 'text-neutral-600 hover:bg-[#f4f6f8]'"
                                     :title="cat.category_name"
                                     @click="pickCategory(cat.id)"
@@ -301,7 +404,7 @@ const features = [
                                 <button
                                     v-if="categories.length > SIDEBAR_PREVIEW"
                                     type="button"
-                                    class="mt-1 flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-[#00a854]/40 bg-[#00a854]/5 px-3 py-2.5 text-sm font-semibold text-[#00a854] transition hover:bg-[#00a854]/10"
+                                    class="mt-1 flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-[#3b89d2]/40 bg-[#3b89d2]/5 px-3 py-2.5 text-sm font-semibold text-[#3b89d2] transition hover:bg-[#3b89d2]/10"
                                     @click="categoriesDialogOpen = true"
                                 >
                                     <LayoutGrid class="h-4 w-4 shrink-0 opacity-90" />
@@ -318,7 +421,7 @@ const features = [
                         <!-- التصنيفات — موبايل: شريط أفقي سريع + ورقة سفلية لكل التصنيفات -->
                         <div class="mb-5 lg:hidden">
                             <div class="w-full rounded-xl border border-neutral-200 bg-white p-3 shadow-sm sm:rounded-2xl sm:p-4">
-                                <div class="mb-2 flex items-center justify-between gap-2 border-b border-neutral-100 pb-2">
+                                <div class="mb-2 flex flex-row-reverse items-center justify-between gap-2 border-b border-neutral-100 pb-2">
                                     <h3 class="text-sm font-bold text-neutral-800">التصنيفات</h3>
                                     <span class="text-[11px] text-neutral-400">{{ categories.length }} تصنيف</span>
                                 </div>
@@ -338,7 +441,7 @@ const features = [
                                                 type="button"
                                                 class="inline-flex min-h-11 max-w-[min(100vw-4rem,14rem)] touch-manipulation items-center rounded-full border px-4 py-2.5 text-xs font-bold transition active:scale-[0.98]"
                                                 :class="selectedCategoryHome === null
-                                                    ? 'border-[#00a854] bg-[#00a854] text-white shadow-sm'
+                                                    ? 'border-[#3b89d2] bg-[#3b89d2] text-white shadow-sm'
                                                     : 'border-neutral-200 bg-[#f4f6f8] text-neutral-800'"
                                                 @click="pickCategory(null)"
                                             >
@@ -355,7 +458,7 @@ const features = [
                                                 type="button"
                                                 class="inline-flex min-h-11 max-w-[min(100vw-4rem,14rem)] touch-manipulation items-center truncate rounded-full border px-4 py-2.5 text-xs font-semibold transition active:scale-[0.98]"
                                                 :class="selectedCategoryHome === cat.id
-                                                    ? 'border-[#00a854] bg-[#00a854] text-white shadow-sm'
+                                                    ? 'border-[#3b89d2] bg-[#3b89d2] text-white shadow-sm'
                                                     : 'border-neutral-200 bg-[#f4f6f8] text-neutral-800'"
                                                 :title="cat.category_name"
                                                 @click="pickCategory(cat.id)"
@@ -367,7 +470,7 @@ const features = [
                                         <SwiperSlide v-if="categories.length > 0" class="!w-auto">
                                             <button
                                                 type="button"
-                                                class="inline-flex min-h-11 touch-manipulation items-center gap-1.5 rounded-full border border-[#00a854]/35 bg-white px-4 py-2.5 text-xs font-bold text-[#00a854] shadow-sm transition active:scale-[0.98] hover:bg-[#00a854]/5"
+                                                class="inline-flex min-h-11 touch-manipulation items-center gap-1.5 rounded-full border border-[#3b89d2]/35 bg-white px-4 py-2.5 text-xs font-bold text-[#3b89d2] shadow-sm transition active:scale-[0.98] hover:bg-[#3b89d2]/5"
                                                 @click="categorySheetOpen = true"
                                             >
                                                 <LayoutGrid class="h-3.5 w-3.5 shrink-0" />
@@ -382,7 +485,7 @@ const features = [
                                 >
                                     <span>
                                         التصفية:
-                                        <strong class="text-[#00a854]">{{
+                                        <strong class="text-[#3b89d2]">{{
                                             categories.find((c) => c.id === selectedCategoryHome)?.category_name
                                         }}</strong>
                                     </span>
@@ -407,7 +510,7 @@ const features = [
                         </p>
 
                         <!-- Products grid -->
-                        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-5 xl:grid-cols-3">
+                        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-5 lg:grid-cols-3 xl:grid-cols-3">
                             <article
                                 v-for="(product, idx) in displayProducts"
                                 :key="product.id"
@@ -416,7 +519,7 @@ const features = [
                             >
                                 <Link
                                     :href="route('store.product.show', product.id)"
-                                    class="flex min-h-0 flex-1 flex-col outline-none transition hover:bg-neutral-50/50 focus-visible:ring-2 focus-visible:ring-[#00a854] focus-visible:ring-offset-2"
+                                    class="flex min-h-0 flex-1 flex-col outline-none transition hover:bg-neutral-50/50 focus-visible:ring-2 focus-visible:ring-[#3b89d2] focus-visible:ring-offset-2"
                                 >
                                     <div class="relative h-44 overflow-hidden border-b border-neutral-100 bg-[#fafbfc] sm:h-52 lg:h-[220px]">
                                         <img
@@ -451,10 +554,10 @@ const features = [
                                             <span class="mr-1 text-xs text-neutral-400">(5.0)</span>
                                         </div>
                                         <p class="text-start text-base font-extrabold text-neutral-900 sm:text-lg">
-                                            {{ Number(product.price).toLocaleString('ar-SA') }}
+                                            {{ formatAmount(product.price) }}
                                             <span class="text-xs font-semibold text-neutral-500 sm:text-sm">ريال</span>
                                         </p>
-                                        <p class="text-start text-xs font-medium text-[#00a854] sm:hidden">
+                                        <p class="text-start text-xs font-medium text-[#3b89d2] sm:hidden">
                                             اضغط للتفاصيل والحجز ←
                                         </p>
                                     </div>
@@ -470,8 +573,8 @@ const features = [
                                         type="button"
                                         class="flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-lg py-3 text-sm font-bold text-white transition"
                                         :class="addedIds.has(product.id)
-                                            ? 'bg-emerald-600 hover:bg-emerald-700'
-                                            : 'bg-[#00a854] hover:bg-[#009648]'"
+                                            ? 'bg-[#3b89d2] hover:bg-[#2f6eb0]'
+                                            : 'bg-[#3b89d2] hover:bg-[#2f6eb0]'"
                                         @click.stop="addToCartHome(product)"
                                     >
                                         <ShoppingCart class="h-4 w-4 shrink-0" />
@@ -483,8 +586,8 @@ const features = [
 
                         <div class="aw-reveal mt-8 text-center sm:mt-10">
                             <Link
-                                href="/products"
-                                class="inline-flex min-h-11 w-full max-w-sm items-center justify-center gap-2 rounded-lg border border-neutral-300 bg-white px-6 py-3 text-sm font-bold text-neutral-800 shadow-sm transition hover:border-[#00a854] hover:text-[#00a854] sm:w-auto sm:px-8 sm:text-base"
+                                href="/store/all-products"
+                                class="inline-flex min-h-11 w-full max-w-sm items-center justify-center gap-2 rounded-lg border border-neutral-300 bg-white px-6 py-3 text-sm font-bold text-neutral-800 shadow-sm transition hover:border-[#3b89d2] hover:text-[#3b89d2] sm:w-auto sm:px-8 sm:text-base"
                             >
                                 عرض كل الألعاب
                             </Link>
@@ -511,7 +614,7 @@ const features = [
                                     type="button"
                                     class="flex w-full items-center justify-between gap-3 rounded-xl px-3.5 py-3.5 text-start text-sm font-medium transition"
                                     :class="selectedCategoryHome === null
-                                        ? 'bg-[#00a854] text-white shadow-sm'
+                                        ? 'bg-[#3b89d2] text-white shadow-sm'
                                         : 'text-neutral-700 hover:bg-[#f4f6f8]'"
                                     @click="pickCategoryCloseDialog(null)"
                                 >
@@ -524,7 +627,7 @@ const features = [
                                     type="button"
                                     class="flex w-full items-center justify-between gap-3 rounded-xl px-3.5 py-3.5 text-start text-sm font-medium transition"
                                     :class="selectedCategoryHome === row.id
-                                        ? 'bg-[#00a854] text-white shadow-sm'
+                                        ? 'bg-[#3b89d2] text-white shadow-sm'
                                         : 'text-neutral-700 hover:bg-[#f4f6f8]'"
                                     @click="pickCategoryCloseDialog(row.id)"
                                 >
@@ -557,7 +660,7 @@ const features = [
                                     type="button"
                                     class="flex min-h-12 w-full items-center justify-between gap-3 rounded-xl px-3.5 py-3.5 text-start text-sm font-medium transition active:scale-[0.99]"
                                     :class="selectedCategoryHome === null
-                                        ? 'bg-[#00a854] text-white shadow-sm'
+                                        ? 'bg-[#3b89d2] text-white shadow-sm'
                                         : 'text-neutral-700 hover:bg-[#f4f6f8]'"
                                     @click="pickCategoryCloseSheet(null)"
                                 >
@@ -570,7 +673,7 @@ const features = [
                                     type="button"
                                     class="flex min-h-12 w-full items-center justify-between gap-3 rounded-xl px-3.5 py-3.5 text-start text-sm font-medium transition active:scale-[0.99]"
                                     :class="selectedCategoryHome === row.id
-                                        ? 'bg-[#00a854] text-white shadow-sm'
+                                        ? 'bg-[#3b89d2] text-white shadow-sm'
                                         : 'text-neutral-700 hover:bg-[#f4f6f8]'"
                                     @click="pickCategoryCloseSheet(row.id)"
                                 >
@@ -627,42 +730,15 @@ const features = [
             </div>
         </section>
 
-        <section
-            id="partners"
-            class="border-t border-neutral-200/80 bg-white py-10 sm:py-14 lg:py-20"
-        >
-            <div class="mx-auto max-w-5xl px-3.5 sm:px-6 lg:px-8">
-                <div class="aw-reveal mb-8 flex flex-col items-center gap-2 text-center sm:mb-10 sm:gap-3">
-                    <div
-                        class="flex h-12 w-12 items-center justify-center rounded-xl border border-neutral-200 bg-[#f4f6f8] text-xl sm:h-14 sm:w-14 sm:text-2xl"
-                    >
-                        🤝
-                    </div>
-                    <h2 class="text-xl font-bold text-neutral-900 sm:text-3xl lg:text-4xl">شركاء النجاح</h2>
-                    <p class="max-w-md text-sm text-neutral-500 sm:text-base">نفتخر بثقة المؤسسات والجهات التي نخدمها يوماً بعد يوم</p>
-                </div>
-
-                <figure class="aw-reveal overflow-hidden rounded-xl border border-neutral-200 bg-white p-4 shadow-sm sm:rounded-2xl sm:p-6">
-                    <img
-                        src="/assets/partners.png"
-                        alt="شركاء النجاح"
-                        class="mx-auto w-full object-contain"
-                        style="max-height: 300px"
-                        onerror="this.style.display='none'"
-                    />
-                </figure>
-            </div>
-        </section>
-
-        <section class="border-t border-[#009648] bg-[#00a854] py-10 sm:py-14 lg:py-24">
+        <section class="border-t border-[#2f6eb0] bg-[#3b89d2] py-10 sm:py-14 lg:py-24">
             <div class="aw-reveal mx-auto max-w-3xl px-3.5 text-center sm:px-4">
                 <h2 class="text-2xl font-extrabold text-white sm:text-3xl lg:text-4xl">جاهز لذكريات لا تُنسى؟</h2>
                 <p class="mt-3 text-sm text-white/95 sm:mt-4 sm:text-lg">
                     استأجر ألعابك المفضلة الآن وادفع بأمان تام — التوصيل حتى بابك
                 </p>
                 <Link
-                    href="/products"
-                    class="mt-6 inline-flex min-h-11 w-full max-w-xs items-center justify-center gap-2 rounded-lg bg-white px-8 py-3 text-sm font-extrabold text-[#00a854] shadow-md transition hover:bg-neutral-50 sm:mt-8 sm:w-auto sm:px-10 sm:py-4 sm:text-base"
+                    href="/store/all-products"
+                    class="mt-6 inline-flex min-h-11 w-full max-w-xs items-center justify-center gap-2 rounded-lg bg-white px-8 py-3 text-sm font-extrabold text-[#3b89d2] shadow-md transition hover:bg-neutral-50 sm:mt-8 sm:w-auto sm:px-10 sm:py-4 sm:text-base"
                 >
                     <ShoppingCart class="h-5 w-5" />
                     ابدأ التصفح
@@ -673,65 +749,28 @@ const features = [
         <section class="relative overflow-hidden border-t border-neutral-800 bg-[#18181b] py-10 sm:py-16 lg:py-24">
             <div
                 class="pointer-events-none absolute inset-0 opacity-30"
-                style="background: radial-gradient(ellipse 80% 50% at 50% 0%, rgba(0,168,84,0.15), transparent 55%)"
+                style="background: radial-gradient(ellipse 80% 50% at 50% 0%, rgba(59,137,210,0.15), transparent 55%)"
             ></div>
 
             <div class="relative mx-auto max-w-7xl px-3.5 sm:px-6 lg:px-8">
                 <div class="grid items-center gap-8 lg:grid-cols-2 lg:gap-12" dir="ltr">
-                    <div class="aw-reveal-left order-2 flex justify-center max-lg:scale-[0.88] max-lg:origin-top lg:order-1">
-                        <div class="relative">
-                            <div
-                                class="relative h-[min(72vh,480px)] w-[min(72vw,240px)] rounded-[2.75rem] border border-neutral-700/80 bg-neutral-900 shadow-xl sm:h-[520px] sm:w-[260px] sm:rounded-[3rem]"
-                            >
-                                <div
-                                    class="absolute top-5 left-1/2 h-5 w-24 -translate-x-1/2 rounded-full bg-[#18181b]"
-                                ></div>
-                                <div
-                                    class="absolute inset-3 top-8 flex items-center justify-center overflow-hidden rounded-[2.25rem] bg-white"
-                                >
-                                    <img
-                                        src="/assets/logo.png"
-                                        alt="عالم المغامرة"
-                                        class="w-36 object-contain"
-                                        onerror="this.style.display='none'"
-                                    />
-                                </div>
-                                <div
-                                    class="absolute bottom-3 left-1/2 h-1 w-24 -translate-x-1/2 rounded-full bg-neutral-600"
-                                ></div>
-                            </div>
-
-                            <div
-                                class="absolute -top-2 -right-4 flex items-center gap-2 rounded-lg border border-neutral-200 bg-white px-3 py-2 shadow-md sm:-top-3 sm:-right-6 sm:rounded-xl sm:px-4 sm:py-2.5 max-[380px]:hidden"
-                            >
-                                <span class="text-lg">⭐</span>
-                                <div>
-                                    <p class="text-xs font-bold text-neutral-900">4.9</p>
-                                    <p class="text-[10px] text-neutral-500">+١٠٠٠ تقييم</p>
-                                </div>
-                            </div>
-
-                            <div
-                                class="absolute -bottom-2 -left-4 flex items-center gap-2 rounded-lg border border-neutral-200 bg-white px-3 py-2 shadow-md sm:-bottom-3 sm:-left-6 sm:rounded-xl sm:px-4 sm:py-2.5 max-[380px]:hidden"
-                            >
-                                <span class="text-lg">📦</span>
-                                <div>
-                                    <p class="text-xs font-bold text-neutral-900">توصيل سريع</p>
-                                    <p class="text-[10px] text-neutral-500">حتى بابك</p>
-                                </div>
-                            </div>
-                        </div>
+                    <div class="aw-reveal-left order-2 flex justify-center max-lg:scale-[0.92] max-lg:origin-top lg:order-1">
+                        <img
+                            src="/assets/app-phone-mockup-transparent.png"
+                            alt="تطبيق عالم المغامرة على الهاتف"
+                            class="h-auto w-[min(82vw,300px)] object-contain drop-shadow-[0_20px_50px_rgba(0,0,0,0.35)] sm:w-[320px] lg:w-[360px]"
+                        />
                     </div>
 
                     <div class="aw-reveal-right order-1 flex flex-col gap-4 sm:gap-6 lg:order-2" dir="rtl">
                         <div
-                            class="inline-flex w-fit items-center gap-2 rounded-lg border border-[#00a854]/40 bg-[#00a854]/10 px-3 py-1.5 text-xs font-medium text-[#4ade80] sm:text-sm"
+                            class="inline-flex w-fit items-center gap-2 rounded-lg border border-[#3b89d2]/40 bg-[#3b89d2]/10 px-3 py-1.5 text-xs font-medium text-[#6baee3] sm:text-sm"
                         >
                             <span>📱</span> متاح الآن
                         </div>
                         <div>
                             <h2 class="text-2xl font-extrabold text-white sm:text-4xl lg:text-5xl">حمّل تطبيق</h2>
-                            <h2 class="mt-1 text-2xl font-extrabold text-[#4ade80] sm:text-4xl lg:text-5xl">
+                            <h2 class="mt-1 text-2xl font-extrabold text-[#6baee3] sm:text-4xl lg:text-5xl">
                                 عالم المغامرة
                             </h2>
                         </div>

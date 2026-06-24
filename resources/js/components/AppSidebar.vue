@@ -4,7 +4,7 @@ import NavUser from '@/components/NavUser.vue';
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar';
 import { type NavItem } from '@/types';
 import { Link, router } from '@inertiajs/vue3';
-import { LayoutGrid, ShoppingBag, Users, Receipt, Package, FileText, FileSpreadsheet, ShoppingCart } from 'lucide-vue-next';
+import { LayoutGrid, ShoppingBag, Users, Package, FileText, FileSpreadsheet, ShoppingCart, Tags } from 'lucide-vue-next';
 import AppLogo from './AppLogo.vue';
 
 const mainNavItems: NavItem[] = [
@@ -15,8 +15,13 @@ const mainNavItems: NavItem[] = [
     },
     {
         title: 'المنتجات',
-        href: '/products',
+        href: route('products'),
         icon: ShoppingBag,
+    },
+    {
+        title: 'الأصناف',
+        href: route('categories.index'),
+        icon: Tags,
     },
     {
         title: 'الباقات',

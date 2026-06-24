@@ -101,6 +101,7 @@ class StoreController extends Controller
                 'items.*.product_id' => 'required|exists:products,id',
                 'items.*.product_name' => 'required|string|max:255',
                 'items.*.quantity' => 'required|integer|min:1',
+                'items.*.duration' => 'nullable|integer|min:1',
                 'items.*.price' => 'required|numeric|min:0',
             ]);
         } catch (\Illuminate\Validation\ValidationException $e) {
@@ -118,11 +119,13 @@ class StoreController extends Controller
         $totalAmount = 0;
         $orderItems = [];
         foreach ($items as $item) {
-            $subtotal = (float) $item['price'] * (int) $item['quantity'];
+            $duration = max(1, (int) ($item['duration'] ?? 1));
+            $subtotal = (float) $item['price'] * (int) $item['quantity'] * $duration;
             $totalAmount += $subtotal;
             $orderItems[] = [
                 'name' => $item['product_name'],
                 'quantity' => (int) $item['quantity'],
+                'duration' => $duration,
                 'amount' => $subtotal,
                 'price' => (float) $item['price'],
             ];
@@ -134,6 +137,9 @@ class StoreController extends Controller
                 'message' => 'إجمالي الطلب يجب أن يكون أكبر من صفر.',
             ], 422);
         }
+
+        $vatAmount = round($totalAmount * 0.15, 2);
+        $grandTotal = round($totalAmount + $vatAmount, 2);
 
         try {
             $guestUser = User::firstOrCreate(
@@ -159,7 +165,7 @@ class StoreController extends Controller
                 'address' => $validated['address'],
                 'activity_date' => $validated['activity_date'],
                 'order_number' => $orderNumber,
-                'total_amount' => $totalAmount,
+                'total_amount' => $grandTotal,
                 'currency' => 'SAR',
                 'status' => 'pending',
                 'payment_method' => 'noon',
@@ -177,7 +183,7 @@ class StoreController extends Controller
             $paymentController = app(PaymentController::class);
             $paymentResponse = $paymentController->createNoonSession([
                 'user_id' => $guestUser->id,
-                'amount' => round($totalAmount, 2),
+                'amount' => $grandTotal,
                 'currency' => 'SAR',
                 'order_id' => $orderNumber,
                 'customer_email' => $validated['customer_email'],

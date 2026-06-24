@@ -192,12 +192,7 @@ class PaymentController extends Controller
                 ], 500);
             }
 
-            $authHeader = $noon['auth_header'] ?? null;
-            if ($authHeader !== null && $authHeader !== '') {
-                $authHeader = preg_replace('/^Key_/', 'Key ', trim((string) $authHeader));
-            } else {
-                $authHeader = 'Key ' . base64_encode($noon['business_id'] . '.' . $noon['app_id'] . ':' . $noon['api_key']);
-            }
+            $authHeader = $this->resolveNoonAuthHeader($noon);
 
             $fromApp = ! empty($data['from_app']);
             $orderId = $data['order_id'];
@@ -1015,12 +1010,7 @@ HTML;
         }
         try {
             $url = rtrim($noon['api_url'], '/') . '/order/' . $noonOrderId;
-            $authHeader = $noon['auth_header'] ?? null;
-            if ($authHeader === null || $authHeader === '') {
-                $authHeader = 'Key ' . base64_encode($noon['business_id'] . '.' . $noon['app_id'] . ':' . $noon['api_key']);
-            } else {
-                $authHeader = preg_replace('/^Key_/', 'Key ', trim((string) $authHeader));
-            }
+            $authHeader = $this->resolveNoonAuthHeader($noon);
             $response = Http::withHeaders([
                 'Authorization' => $authHeader,
                 'Accept' => 'application/json',
@@ -1195,7 +1185,24 @@ HTML;
         ], 404);
     }
 
-        /**
+    /**
+     * Build Noon Authorization header from business_id + app_id + api_key.
+     * Falls back to NOON_AUTH_HEADER only when those three are not all set.
+     */
+    private function resolveNoonAuthHeader(array $noon): string
+    {
+        if (! empty($noon['business_id']) && ! empty($noon['app_id']) && ! empty($noon['api_key'])) {
+            return 'Key ' . base64_encode($noon['business_id'] . '.' . $noon['app_id'] . ':' . $noon['api_key']);
+        }
+
+        $authHeader = trim((string) ($noon['auth_header'] ?? ''));
+
+        return $authHeader !== ''
+            ? preg_replace('/^Key_/', 'Key ', $authHeader)
+            : '';
+    }
+
+    /**
      * Get payment URL from Noon response
      */
     private function getPaymentUrl($paymentResponse)

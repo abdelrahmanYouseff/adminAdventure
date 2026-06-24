@@ -5,6 +5,7 @@ import { ShoppingCart, Star, Search, SlidersHorizontal, X } from 'lucide-vue-nex
 import StoreHeader from '@/components/StoreHeader.vue';
 import AppFooter from '@/components/AppFooter.vue';
 import { useStoreCart } from '@/composables/useStoreCart';
+import { formatAmount } from '@/lib/formatNumber';
 
 interface Category {
     id: number;
@@ -113,25 +114,16 @@ function addToCart(product: Product) {
         <link href="https://fonts.googleapis.com/css2?family=Noto+Kufi+Arabic:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
     </Head>
 
-    <div dir="rtl" class="min-h-screen bg-white pb-[env(safe-area-inset-bottom,0px)]" style="font-family: 'Noto Kufi Arabic', sans-serif">
+    <div dir="rtl" class="min-h-screen bg-[#f4f6f8] pb-[env(safe-area-inset-bottom,0px)]" style="font-family: 'Noto Kufi Arabic', sans-serif">
 
         <StoreHeader />
 
         <!-- ── Hero banner ── -->
-        <div
-            class="relative overflow-hidden py-8 sm:py-12 lg:py-16"
-            style="background: linear-gradient(135deg, rgba(255,217,61,0.15) 0%, rgba(255,107,53,0.08) 50%, rgba(74,144,226,0.15) 100%)"
-        >
-            <div class="pointer-events-none absolute -top-20 -right-20 h-72 w-72 rounded-full opacity-20 blur-3xl" style="background:#FFD93D"></div>
-            <div class="pointer-events-none absolute -bottom-16 -left-16 h-64 w-64 rounded-full opacity-20 blur-3xl" style="background:#4A90E2"></div>
-
-            <div class="relative mx-auto max-w-7xl px-3.5 sm:px-6 lg:px-8">
+        <div class="border-b border-neutral-200/80 bg-white py-8 sm:py-12 lg:py-16">
+            <div class="mx-auto max-w-7xl px-3.5 sm:px-6 lg:px-8">
                 <h1 class="text-2xl font-extrabold text-neutral-900 sm:text-3xl lg:text-4xl">
                     جميع
-                    <span
-                        class="bg-clip-text text-transparent"
-                        style="background-image: linear-gradient(135deg,#FF6B35,#FFD93D); -webkit-background-clip:text"
-                    >الألعاب</span>
+                    <span class="text-[#3b89d2]">الألعاب</span>
                 </h1>
                 <p class="mt-1.5 text-sm text-neutral-500 sm:mt-2 sm:text-base">{{ products.length }} منتج متاح للإيجار</p>
 
@@ -143,8 +135,7 @@ function addToCart(product: Product) {
                         type="search"
                         enterkeyhint="search"
                         placeholder="ابحث عن لعبة..."
-                        class="w-full rounded-xl border border-neutral-200 bg-white py-3.5 pr-10 pl-11 text-base shadow-sm outline-none transition focus:border-[#FF6B35] focus:ring-2 sm:rounded-2xl sm:pr-11 sm:text-sm"
-                        style="focus:ring-color: #FF6B3530"
+                        class="w-full rounded-xl border border-neutral-200 bg-white py-3.5 pr-10 pl-11 text-base shadow-sm outline-none transition focus:border-[#3b89d2] focus:ring-2 focus:ring-[#3b89d2]/25 sm:rounded-2xl sm:pr-11 sm:text-sm"
                     />
                     <button
                         v-if="searchQuery"
@@ -170,10 +161,9 @@ function addToCart(product: Product) {
                                 <button
                                     type="button"
                                     class="flex w-full items-center justify-between gap-3 rounded-lg px-3.5 py-3 text-sm font-medium transition"
-                                    :style="selectedCategory === null
-                                        ? 'background:#FF6B35; color:#fff'
-                                        : 'color:#4b5563'"
-                                    :class="selectedCategory === null ? '' : 'hover:bg-neutral-100'"
+                                    :class="selectedCategory === null
+                                        ? 'bg-[#3b89d2] text-white shadow-sm'
+                                        : 'text-neutral-600 hover:bg-[#f4f6f8]'"
                                     @click="selectedCategory = null"
                                 >
                                     <span class="min-w-0 truncate whitespace-nowrap text-start">الكل</span>
@@ -184,10 +174,9 @@ function addToCart(product: Product) {
                                     :key="cat.id"
                                     type="button"
                                     class="flex w-full items-center justify-between gap-3 rounded-lg px-3.5 py-3 text-sm font-medium transition"
-                                    :style="selectedCategory === cat.id
-                                        ? 'background:#FF6B35; color:#fff'
-                                        : 'color:#4b5563'"
-                                    :class="selectedCategory === cat.id ? '' : 'hover:bg-neutral-100'"
+                                    :class="selectedCategory === cat.id
+                                        ? 'bg-[#3b89d2] text-white shadow-sm'
+                                        : 'text-neutral-600 hover:bg-[#f4f6f8]'"
                                     :title="cat.category_name"
                                     @click="selectedCategory = cat.id"
                                 >
@@ -211,10 +200,9 @@ function addToCart(product: Product) {
                                     :key="opt.value"
                                     type="button"
                                     class="flex w-full items-center rounded-lg px-3.5 py-3 text-start text-sm font-medium transition"
-                                    :style="sortBy === opt.value
-                                        ? 'background:#FF6B3515; color:#FF6B35'
-                                        : 'color:#4b5563'"
-                                    :class="sortBy === opt.value ? '' : 'hover:bg-neutral-100'"
+                                    :class="sortBy === opt.value
+                                        ? 'bg-[#3b89d2]/10 text-[#3b89d2]'
+                                        : 'text-neutral-600 hover:bg-[#f4f6f8]'"
                                     @click="sortBy = opt.value as typeof sortBy"
                                 >
                                     <span class="min-w-0 leading-snug">{{ opt.label }}</span>
@@ -242,7 +230,7 @@ function addToCart(product: Product) {
                         <button
                             type="button"
                             class="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border px-4 py-3 text-sm font-semibold transition touch-manipulation active:scale-[0.99] sm:w-auto sm:justify-start"
-                            :style="showFilters ? 'background:#FF6B35; color:#fff; border-color:#FF6B35' : 'color:#4b5563; border-color:#e5e7eb; background:#fff'"
+                            :style="showFilters ? 'background:#3b89d2; color:#fff; border-color:#3b89d2' : 'color:#4b5563; border-color:#e5e7eb; background:#fff'"
                             @click="showFilters = !showFilters"
                         >
                             <SlidersHorizontal class="h-4 w-4 shrink-0" />
@@ -250,7 +238,7 @@ function addToCart(product: Product) {
                             <span
                                 v-if="activeFiltersCount > 0"
                                 class="flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-white px-1 text-xs font-bold"
-                                :style="showFilters ? 'color:#FF6B35' : 'background:#FF6B35; color:#fff'"
+                                :style="showFilters ? 'color:#3b89d2' : 'background:#3b89d2; color:#fff'"
                             >
                                 {{ activeFiltersCount }}
                             </span>
@@ -265,7 +253,7 @@ function addToCart(product: Product) {
                                     type="button"
                                     class="flex min-h-[3rem] w-full items-center justify-center rounded-xl border px-2 py-2 text-center text-xs font-semibold leading-tight transition active:scale-[0.98] sm:inline-flex sm:min-h-[2.75rem] sm:max-w-full sm:px-4 sm:py-2.5 sm:text-sm"
                                     :style="selectedCategory === (cat.id ?? null)
-                                        ? 'background:#FF6B35; color:#fff; border-color:#FF6B35'
+                                        ? 'background:#3b89d2; color:#fff; border-color:#3b89d2'
                                         : 'background:#f8fafc; color:#374151; border-color:#e5e7eb'"
                                     :title="cat.category_name"
                                     @click="selectedCategory = cat.id ?? null"
@@ -290,7 +278,7 @@ function addToCart(product: Product) {
                                 type="button"
                                 class="rounded-xl px-4 py-2 text-xs font-semibold transition"
                                 :style="sortBy === opt.value
-                                    ? 'background:#FF6B35; color:#fff'
+                                    ? 'background:#3b89d2; color:#fff'
                                     : 'background:#fff; color:#4b5563; border:1px solid #e5e7eb'"
                                 @click="sortBy = opt.value as typeof sortBy"
                             >
@@ -326,7 +314,7 @@ function addToCart(product: Product) {
                         <button
                             type="button"
                             class="mt-5 rounded-xl px-6 py-2.5 text-sm font-bold text-white"
-                            style="background: linear-gradient(135deg,#FF6B35,#FFD93D)"
+                            style="background: #3b89d2"
                             @click="clearFilters"
                         >
                             عرض الكل
@@ -346,7 +334,7 @@ function addToCart(product: Product) {
                         >
                             <Link
                                 :href="route('store.product.show', product.id)"
-                                class="flex min-h-0 flex-1 flex-col outline-none transition hover:bg-neutral-50/50 focus-visible:ring-2 focus-visible:ring-[#FF6B35] focus-visible:ring-offset-2"
+                                class="flex min-h-0 flex-1 flex-col outline-none transition hover:bg-neutral-50/50 focus-visible:ring-2 focus-visible:ring-[#3b89d2] focus-visible:ring-offset-2"
                             >
                                 <div class="relative h-48 overflow-hidden sm:h-56 lg:h-64">
                                     <img
@@ -358,7 +346,7 @@ function addToCart(product: Product) {
                                     <div
                                         v-else
                                         class="flex h-full w-full items-center justify-center"
-                                        style="background: linear-gradient(135deg, #FFD93D22, #FF6B3522)"
+                                        style="background: linear-gradient(135deg, rgba(59,137,210,0.12), rgba(47,110,176,0.10))"
                                     >
                                         <span class="text-5xl">🎮</span>
                                     </div>
@@ -368,14 +356,14 @@ function addToCart(product: Product) {
                                     ></div>
                                     <div
                                         class="pointer-events-none absolute top-3 left-3 rounded-full px-3 py-1.5 text-sm font-bold text-white shadow"
-                                        style="background: linear-gradient(135deg, #FFD93D, #FF6B35)"
+                                        style="background: linear-gradient(135deg, #3b89d2, #2f6eb0)"
                                     >
-                                        {{ Number(product.price).toLocaleString('ar-SA') }} ريال
+                                        {{ formatAmount(product.price) }} ريال
                                     </div>
                                     <div
                                         v-if="product.category"
                                         class="pointer-events-none absolute top-3 right-3 rounded-full px-3 py-1 text-xs font-semibold"
-                                        style="background: rgba(255,255,255,0.9); color: #FF6B35"
+                                        style="background: rgba(255,255,255,0.95); color: #3b89d2"
                                     >
                                         {{ product.category.category_name }}
                                     </div>
@@ -389,10 +377,10 @@ function addToCart(product: Product) {
                                         {{ product.description }}
                                     </p>
                                     <div class="flex items-center gap-1">
-                                        <Star v-for="s in 5" :key="s" class="h-3.5 w-3.5 sm:h-4 sm:w-4" style="fill:#FFD93D; color:#FFD93D" />
+                                        <Star v-for="s in 5" :key="s" class="h-3.5 w-3.5 sm:h-4 sm:w-4 fill-amber-400 text-amber-400" />
                                         <span class="mr-1 text-xs text-neutral-400">(5.0)</span>
                                     </div>
-                                    <p class="text-start text-xs font-medium text-[#FF6B35] sm:hidden">
+                                    <p class="text-start text-xs font-medium text-[#3b89d2] sm:hidden">
                                         اضغط للتفاصيل الكاملة ←
                                     </p>
                                 </div>
@@ -401,7 +389,7 @@ function addToCart(product: Product) {
                                 <Link
                                     :href="route('store.product.show', product.id)"
                                     class="flex min-h-11 flex-1 items-center justify-center rounded-xl border-2 py-3 text-sm font-bold transition hover:opacity-80"
-                                    style="border-color: #FF6B35; color: #FF6B35"
+                                    style="border-color: #3b89d2; color: #3b89d2"
                                 >
                                     التفاصيل
                                 </Link>
@@ -409,8 +397,8 @@ function addToCart(product: Product) {
                                     type="button"
                                     class="flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-xl py-3 text-sm font-bold text-white transition active:scale-[0.99]"
                                     :style="addedIds.has(product.id)
-                                        ? 'background: linear-gradient(135deg,#6BCF7F,#4ade80)'
-                                        : 'background: linear-gradient(135deg,#FF6B35,#FFD93D)'"
+                                        ? 'background: linear-gradient(135deg,#7ab8e8,#6baee3)'
+                                        : 'background: linear-gradient(135deg,#3b89d2,#2f6eb0)'"
                                     @click.stop="addToCart(product)"
                                 >
                                     <ShoppingCart class="h-4 w-4 shrink-0" />

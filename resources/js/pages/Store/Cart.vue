@@ -5,6 +5,7 @@ import { ChevronRight, ShoppingBag, Plus, Minus, Trash2, ArrowLeft, ShoppingCart
 import StoreHeader from '@/components/StoreHeader.vue';
 import AppFooter from '@/components/AppFooter.vue';
 import { useStoreCart } from '@/composables/useStoreCart';
+import { formatPrice } from '@/lib/formatNumber';
 
 const { cartItems, count, total, setQuantity, setDuration, removeItem, clearCart, syncFromStorage } =
     useStoreCart();
@@ -18,7 +19,7 @@ const subtotal = total;
 const vat = computed(() => subtotal.value * VAT_RATE);
 const grandTotal = computed(() => subtotal.value + vat.value + DELIVERY);
 
-const fmt = (n: number) => n.toLocaleString('ar-SA', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const fmt = formatPrice;
 
 const lineTotal = (price: number, qty: number, dur: number) => fmt(price * qty * dur);
 
@@ -58,12 +59,12 @@ const summaryBenefits = [
                 class="flex flex-col items-center gap-6 rounded-2xl border border-neutral-200 bg-white px-5 py-10 text-center shadow-sm sm:px-10 sm:py-14"
             >
                 <div
-                    class="flex h-24 w-24 items-center justify-center rounded-full bg-[#00a854]/10 sm:h-28 sm:w-28"
+                    class="flex h-24 w-24 items-center justify-center rounded-full bg-[#3b89d2]/10 sm:h-28 sm:w-28"
                 >
-                    <ShoppingBag class="h-12 w-12 text-[#00a854]/70 sm:h-14 sm:w-14" />
+                    <ShoppingBag class="h-12 w-12 text-[#3b89d2]/70 sm:h-14 sm:w-14" />
                 </div>
                 <div class="space-y-2">
-                    <p class="text-xs font-semibold text-[#00a854]">عالم المغامرة</p>
+                    <p class="text-xs font-semibold text-[#3b89d2]">عالم المغامرة</p>
                     <h1 class="text-xl font-extrabold tracking-tight text-neutral-900 sm:text-3xl">
                         سلة التسوق فارغة
                     </h1>
@@ -73,7 +74,7 @@ const summaryBenefits = [
                 </div>
                 <Link
                     href="/store"
-                    class="inline-flex min-h-12 w-full max-w-xs touch-manipulation items-center justify-center gap-2 rounded-xl bg-[#00a854] px-8 py-3.5 text-base font-bold text-white shadow-sm transition active:scale-[0.99] hover:bg-[#009648] hover:shadow-md sm:w-auto sm:min-w-[14rem]"
+                    class="inline-flex min-h-12 w-full max-w-xs touch-manipulation items-center justify-center gap-2 rounded-xl bg-[#3b89d2] px-8 py-3.5 text-base font-bold text-white shadow-sm transition active:scale-[0.99] hover:bg-[#2f6eb0] hover:shadow-md sm:w-auto sm:min-w-[14rem]"
                 >
                     <ShoppingCart class="h-5 w-5 shrink-0" />
                     تصفح الألعاب
@@ -90,18 +91,18 @@ const summaryBenefits = [
                         class="-mx-1 flex flex-nowrap items-center gap-1.5 overflow-x-auto px-1 pb-1 text-[13px] text-neutral-500 sm:text-sm [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
                         aria-label="مسار الصفحة"
                     >
-                        <Link href="/home" class="shrink-0 whitespace-nowrap py-1 transition hover:text-[#00a854]">
+                        <Link href="/home" class="shrink-0 whitespace-nowrap py-1 transition hover:text-[#3b89d2]">
                             الرئيسية
                         </Link>
                         <ChevronRight class="h-3 w-3 shrink-0 rotate-180 text-neutral-300" aria-hidden="true" />
-                        <Link href="/store" class="shrink-0 whitespace-nowrap py-1 transition hover:text-[#00a854]">
+                        <Link href="/store" class="shrink-0 whitespace-nowrap py-1 transition hover:text-[#3b89d2]">
                             المتجر
                         </Link>
                         <ChevronRight class="h-3 w-3 shrink-0 rotate-180 text-neutral-300" aria-hidden="true" />
                         <span class="shrink-0 whitespace-nowrap py-1 font-medium text-neutral-800">سلة التسوق</span>
                     </nav>
                     <div class="mt-3 flex flex-col gap-1 sm:mt-4">
-                        <p class="text-xs font-semibold text-[#00a854] sm:text-sm">عالم المغامرة</p>
+                        <p class="text-xs font-semibold text-[#3b89d2] sm:text-sm">عالم المغامرة</p>
                         <h1 class="text-xl font-extrabold tracking-tight text-neutral-900 sm:text-3xl lg:text-4xl">
                             سلة التسوق
                         </h1>
@@ -125,7 +126,7 @@ const summaryBenefits = [
                             <div class="flex flex-row items-start gap-3 p-3.5 sm:gap-5 sm:p-5">
                                 <Link
                                     :href="route('store.product.show', item.product_id)"
-                                    class="group shrink-0 touch-manipulation outline-none focus-visible:ring-2 focus-visible:ring-[#00a854] focus-visible:ring-offset-2 rounded-xl"
+                                    class="group shrink-0 touch-manipulation outline-none focus-visible:ring-2 focus-visible:ring-[#3b89d2] focus-visible:ring-offset-2 rounded-xl"
                                 >
                                     <div
                                         class="h-[5.5rem] w-[5.5rem] overflow-hidden rounded-xl border border-neutral-100 bg-[#f4f6f8] sm:h-28 sm:w-28"
@@ -138,7 +139,7 @@ const summaryBenefits = [
                                         />
                                         <div
                                             v-else
-                                            class="flex h-full w-full items-center justify-center bg-gradient-to-br from-[#00a854] to-[#009648] text-xl font-bold text-white sm:text-2xl"
+                                            class="flex h-full w-full items-center justify-center bg-gradient-to-br from-[#3b89d2] to-[#2f6eb0] text-xl font-bold text-white sm:text-2xl"
                                         >
                                             {{ item.product_name.charAt(0) }}
                                         </div>
@@ -150,7 +151,7 @@ const summaryBenefits = [
                                         <div class="min-w-0 flex-1 text-start">
                                             <Link
                                                 :href="route('store.product.show', item.product_id)"
-                                                class="line-clamp-2 text-[15px] font-bold leading-snug text-neutral-900 transition hover:text-[#00a854] sm:text-lg"
+                                                class="line-clamp-2 text-[15px] font-bold leading-snug text-neutral-900 transition hover:text-[#3b89d2] sm:text-lg"
                                             >
                                                 {{ item.product_name }}
                                             </Link>
@@ -237,7 +238,7 @@ const summaryBenefits = [
                                         <span class="text-xs text-neutral-400 sm:order-2">
                                             {{ item.quantity }} × {{ item.duration }} يوم
                                         </span>
-                                        <span class="text-base font-extrabold tabular-nums text-[#00a854] sm:text-xl">
+                                        <span class="text-base font-extrabold tabular-nums text-[#3b89d2] sm:text-xl">
                                             {{ lineTotal(item.price, item.quantity, item.duration) }} ريال
                                         </span>
                                     </div>
@@ -271,17 +272,17 @@ const summaryBenefits = [
                                 </div>
                                 <div class="flex justify-between gap-3">
                                     <span class="text-neutral-500">التوصيل والتركيب</span>
-                                    <span class="shrink-0 font-semibold text-[#00a854]">مجاني</span>
+                                    <span class="shrink-0 font-semibold text-[#3b89d2]">مجاني</span>
                                 </div>
                                 <div class="flex justify-between gap-3">
-                                    <span class="leading-snug text-neutral-500">ضريبة القيمة المضافة (١٥٪)</span>
+                                    <span class="leading-snug text-neutral-500">ضريبة القيمة المضافة (15%)</span>
                                     <span class="shrink-0 font-semibold tabular-nums text-neutral-900">{{ fmt(vat) }} ريال</span>
                                 </div>
                             </div>
 
                             <div class="mt-4 flex items-center justify-between gap-3 border-t border-neutral-100 pt-4 sm:mt-5 sm:pt-5">
                                 <span class="text-base font-extrabold text-neutral-900">الإجمالي</span>
-                                <span class="text-xl font-extrabold tabular-nums text-[#00a854] sm:text-2xl">
+                                <span class="text-xl font-extrabold tabular-nums text-[#3b89d2] sm:text-2xl">
                                     {{ fmt(grandTotal) }} ريال
                                 </span>
                             </div>
@@ -290,7 +291,7 @@ const summaryBenefits = [
                             <div class="mt-5 hidden flex-col gap-3 lg:flex">
                                 <Link
                                     :href="route('store.checkout')"
-                                    class="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#00a854] px-4 py-3.5 text-base font-bold text-white shadow-sm transition hover:bg-[#009648] active:scale-[0.99]"
+                                    class="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#3b89d2] px-4 py-3.5 text-base font-bold text-white shadow-sm transition hover:bg-[#2f6eb0] active:scale-[0.99]"
                                 >
                                     إتمام الطلب
                                     <ArrowLeft class="h-5 w-5 shrink-0" />
@@ -339,13 +340,13 @@ const summaryBenefits = [
                 <div class="mx-auto flex max-w-lg items-center gap-3 pb-1">
                     <div class="min-w-0 flex-1">
                         <p class="text-[11px] font-medium text-neutral-500">الإجمالي شامل الضريبة</p>
-                        <p class="text-lg font-extrabold tabular-nums leading-tight text-[#00a854]">
+                        <p class="text-lg font-extrabold tabular-nums leading-tight text-[#3b89d2]">
                             {{ fmt(grandTotal) }} ريال
                         </p>
                     </div>
                     <Link
                         :href="route('store.checkout')"
-                        class="inline-flex min-h-12 min-w-[10.5rem] shrink-0 touch-manipulation items-center justify-center gap-2 rounded-xl bg-[#00a854] px-5 text-sm font-bold text-white shadow-sm transition active:scale-[0.98] hover:bg-[#009648]"
+                        class="inline-flex min-h-12 min-w-[10.5rem] shrink-0 touch-manipulation items-center justify-center gap-2 rounded-xl bg-[#3b89d2] px-5 text-sm font-bold text-white shadow-sm transition active:scale-[0.98] hover:bg-[#2f6eb0]"
                     >
                         إتمام الطلب
                         <ArrowLeft class="h-4 w-4 shrink-0" />

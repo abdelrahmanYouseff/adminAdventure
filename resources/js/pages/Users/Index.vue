@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Users, Mail, Phone, MapPin, Globe, Trash2, Plus, X, Eye, EyeOff } from 'lucide-vue-next';
+import { formatDate, formatInteger } from '@/lib/formatNumber';
 import { ref } from 'vue';
 
 interface User {
@@ -105,7 +106,7 @@ const deleteUser = (user: User) => {
                                     </td>
                                 </tr>
                                 <tr v-for="user in users" :key="user.id" class="hover:bg-neutral-50 dark:hover:bg-neutral-700">
-                                    <td class="border border-neutral-200 dark:border-neutral-600 px-4 py-3 text-sm text-neutral-500">#{{ user.id }}</td>
+                                    <td class="border border-neutral-200 dark:border-neutral-600 px-4 py-3 text-sm text-neutral-500 tabular-nums" dir="ltr">#{{ formatInteger(user.id) }}</td>
                                     <td class="border border-neutral-200 dark:border-neutral-600 px-4 py-3 font-medium">{{ user.name }}</td>
                                     <td class="border border-neutral-200 dark:border-neutral-600 px-4 py-3">
                                         <div class="flex items-center gap-2">
@@ -126,7 +127,7 @@ const deleteUser = (user: User) => {
                                         </div>
                                     </td>
                                     <td class="border border-neutral-200 dark:border-neutral-600 px-4 py-3 tabular-nums text-sm" dir="ltr">
-                                        {{ new Date(user.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) }}
+                                        {{ formatDate(user.created_at) }}
                                     </td>
                                     <td class="border border-neutral-200 dark:border-neutral-600 px-4 py-3 text-center">
                                         <Button @click="deleteUser(user)" variant="destructive" size="sm" class="flex items-center gap-1">

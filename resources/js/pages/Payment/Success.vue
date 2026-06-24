@@ -5,6 +5,7 @@ import AppLogo from '@/components/AppLogo.vue';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Copy, Check, MessageCircle } from 'lucide-vue-next';
+import { formatAmount } from '@/lib/formatNumber';
 
 interface OrderItem {
     name: string;
@@ -65,13 +66,13 @@ const whatsappUrl = computed(() => {
 </script>
 
 <template>
-    <div class="min-h-screen bg-gradient-to-br from-emerald-50 via-white to-teal-50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950">
+    <div class="min-h-screen bg-gradient-to-br from-blue-50 via-white to-sky-50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950">
         <Head title="تم الدفع بنجاح - عالم المغامرة" />
 
         <Dialog :open="showPopup" @update:open="showPopup = $event">
             <DialogContent class="text-center sm:max-w-md">
                 <DialogHeader>
-                    <DialogTitle class="flex items-center justify-center gap-2 text-emerald-600 dark:text-emerald-400">
+                    <DialogTitle class="flex items-center justify-center gap-2 text-[#3b89d2] dark:text-[#6baee3]">
                         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
                         </svg>
@@ -91,8 +92,8 @@ const whatsappUrl = computed(() => {
 
         <div class="relative overflow-hidden">
             <div class="absolute inset-0 -z-10 opacity-30 pointer-events-none">
-                <div class="absolute -top-24 -right-24 w-72 h-72 rounded-full bg-emerald-400 blur-3xl mix-blend-multiply"></div>
-                <div class="absolute -bottom-24 -left-24 w-72 h-72 rounded-full bg-teal-400 blur-3xl mix-blend-multiply"></div>
+                <div class="absolute -top-24 -right-24 w-72 h-72 rounded-full bg-[#3b89d2]/40 blur-3xl mix-blend-multiply"></div>
+                <div class="absolute -bottom-24 -left-24 w-72 h-72 rounded-full bg-sky-400 blur-3xl mix-blend-multiply"></div>
             </div>
 
             <div class="max-w-2xl mx-auto px-4 pt-16 pb-12">
@@ -104,8 +105,8 @@ const whatsappUrl = computed(() => {
 
                 <div class="bg-white/90 dark:bg-gray-900/80 backdrop-blur-xl rounded-3xl shadow-2xl ring-1 ring-black/5 dark:ring-white/5 overflow-hidden">
                     <div class="px-8 py-10 text-center">
-                        <div class="mx-auto w-16 h-16 rounded-full bg-emerald-100 dark:bg-emerald-900/50 flex items-center justify-center mb-6">
-                            <svg class="w-8 h-8 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <div class="mx-auto w-16 h-16 rounded-full bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center mb-6">
+                            <svg class="w-8 h-8 text-[#3b89d2] dark:text-[#6baee3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
                             </svg>
                         </div>
@@ -133,7 +134,7 @@ const whatsappUrl = computed(() => {
                                         :title="copied ? 'تم النسخ' : 'نسخ رقم الطلب'"
                                         @click="copyOrderNumber"
                                     >
-                                        <Check v-if="copied" class="h-4 w-4 text-emerald-600" />
+                                        <Check v-if="copied" class="h-4 w-4 text-[#3b89d2]" />
                                         <Copy v-else class="h-4 w-4" />
                                     </Button>
                                 </div>
@@ -168,7 +169,7 @@ const whatsappUrl = computed(() => {
                                         class="flex justify-between text-sm"
                                     >
                                         <span class="text-gray-900 dark:text-white">{{ item.name }} × {{ item.quantity }}</span>
-                                        <span class="text-gray-700 dark:text-gray-300 tabular-nums">{{ Number(item.amount ?? (item.price ?? 0) * item.quantity).toLocaleString('ar-SA') }} {{ order.currency }}</span>
+                                        <span class="text-gray-700 dark:text-gray-300 tabular-nums">{{ formatAmount(Number(item.amount ?? (item.price ?? 0) * item.quantity)) }} {{ order.currency }}</span>
                                     </li>
                                 </ul>
                             </div>
@@ -176,7 +177,7 @@ const whatsappUrl = computed(() => {
                             <!-- الإجمالي -->
                             <div class="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700 flex justify-between items-center">
                                 <span class="text-gray-500 dark:text-gray-400">الإجمالي</span>
-                                <span class="text-lg font-semibold text-gray-900 dark:text-white tabular-nums">{{ Number(order.total_amount).toLocaleString('ar-SA') }} {{ order.currency }}</span>
+                                <span class="text-lg font-semibold text-gray-900 dark:text-white tabular-nums">{{ formatAmount(Number(order.total_amount)) }} {{ order.currency }}</span>
                             </div>
                         </div>
 
@@ -192,7 +193,7 @@ const whatsappUrl = computed(() => {
                         <div class="flex flex-col sm:flex-row items-center justify-center gap-3">
                             <Link
                                 href="/store"
-                                class="inline-flex items-center justify-center rounded-xl bg-emerald-600 px-6 py-3 text-white font-medium hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2"
+                                class="inline-flex items-center justify-center rounded-xl bg-[#3b89d2] px-6 py-3 text-white font-medium hover:bg-[#2f6eb0] focus:outline-none focus:ring-2 focus:ring-[#3b89d2]/50 focus:ring-offset-2"
                             >
                                 العودة للمتجر
                             </Link>
@@ -201,7 +202,7 @@ const whatsappUrl = computed(() => {
                                 :href="whatsappUrl"
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                class="inline-flex items-center justify-center gap-2 rounded-xl border-2 border-emerald-600 bg-white dark:bg-gray-900 px-6 py-3 text-emerald-600 dark:text-emerald-400 font-medium hover:bg-emerald-50 dark:hover:bg-emerald-950/30 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2"
+                                class="inline-flex items-center justify-center gap-2 rounded-xl border-2 border-[#3b89d2] bg-white dark:bg-gray-900 px-6 py-3 text-[#3b89d2] dark:text-[#6baee3] font-medium hover:bg-blue-50 dark:hover:bg-blue-950/30 focus:outline-none focus:ring-2 focus:ring-[#3b89d2]/50 focus:ring-offset-2"
                             >
                                 <MessageCircle class="h-5 w-5" />
                                 تواصل واتساب

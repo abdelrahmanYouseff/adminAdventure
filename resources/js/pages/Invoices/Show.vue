@@ -204,6 +204,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import Icon from '@/components/Icon.vue'
+import {
+  formatCurrency,
+  formatDate as formatDateEn,
+  formatDateTime as formatDateTimeEn,
+} from '@/lib/formatNumber'
 
 const props = defineProps({
   invoice: Object,
@@ -227,31 +232,14 @@ const resendInvoice = () => {
   console.log('Resend invoice')
 }
 
-const formatCurrency = (amount) => {
-  return new Intl.NumberFormat('ar-SA', {
-    style: 'currency',
-    currency: 'SAR',
-  }).format(amount)
-}
-
 const formatDate = (date) => {
   if (!date) return 'N/A'
-  return new Date(date).toLocaleDateString('ar-SA', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-  })
+  return formatDateEn(date)
 }
 
 const formatDateTime = (date) => {
   if (!date) return 'N/A'
-  return new Date(date).toLocaleString('ar-SA', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
+  return formatDateTimeEn(date)
 }
 
 const formatStatus = (status) => {

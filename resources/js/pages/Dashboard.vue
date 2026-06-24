@@ -3,6 +3,7 @@ import AppLayout from '@/layouts/AppLayout.vue';
 import { type BreadcrumbItem } from '@/types';
 import { Head, usePage } from '@inertiajs/vue3';
 import { Package, FileText, Box } from 'lucide-vue-next';
+import { formatInteger } from '@/lib/formatNumber';
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
@@ -29,7 +30,7 @@ const totalPackages = page.props.totalPackages as number | undefined;
                     <div class="flex items-center justify-between">
                         <div>
                             <p class="text-sm font-medium text-gray-600 dark:text-gray-400">إجمالي المنتجات</p>
-                            <p class="text-3xl font-bold text-gray-900 dark:text-white">{{ totalProducts || 0 }}</p>
+                            <p class="text-3xl font-bold tabular-nums text-gray-900 dark:text-white">{{ formatInteger(totalProducts || 0) }}</p>
                         </div>
                         <div class="w-12 h-12 bg-blue-100 dark:bg-blue-900/20 rounded-xl flex items-center justify-center">
                             <Package class="w-6 h-6 text-blue-600 dark:text-blue-400" />
@@ -42,7 +43,7 @@ const totalPackages = page.props.totalPackages as number | undefined;
                     <div class="flex items-center justify-between">
                         <div>
                             <p class="text-sm font-medium text-gray-600 dark:text-gray-400">إجمالي الفواتير</p>
-                            <p class="text-3xl font-bold text-gray-900 dark:text-white">{{ totalInvoices || 0 }}</p>
+                            <p class="text-3xl font-bold tabular-nums text-gray-900 dark:text-white">{{ formatInteger(totalInvoices || 0) }}</p>
                         </div>
                         <div class="w-12 h-12 bg-green-100 dark:bg-green-900/20 rounded-xl flex items-center justify-center">
                             <FileText class="w-6 h-6 text-green-600 dark:text-green-400" />
@@ -55,7 +56,7 @@ const totalPackages = page.props.totalPackages as number | undefined;
                     <div class="flex items-center justify-between">
                         <div>
                             <p class="text-sm font-medium text-gray-600 dark:text-gray-400">إجمالي الباقات</p>
-                            <p class="text-3xl font-bold text-gray-900 dark:text-white">{{ totalPackages || 0 }}</p>
+                            <p class="text-3xl font-bold tabular-nums text-gray-900 dark:text-white">{{ formatInteger(totalPackages || 0) }}</p>
                         </div>
                         <div class="w-12 h-12 bg-orange-100 dark:bg-orange-900/20 rounded-xl flex items-center justify-center">
                             <Box class="w-6 h-6 text-orange-600 dark:text-orange-400" />

@@ -133,6 +133,42 @@
                 </div>
             </div>
 
+            <!-- السجل التجاري + الرقم الضريبي -->
+            <div
+                class="mt-10 flex flex-col items-stretch gap-4 border-t border-neutral-100 pt-8 sm:flex-row sm:flex-wrap sm:items-center sm:justify-center sm:gap-10 lg:gap-16"
+            >
+                <div class="flex items-center gap-3 sm:gap-4">
+                    <img
+                        src="/assets/commercial-register.png"
+                        alt="السجل التجاري"
+                        class="h-12 w-12 shrink-0 rounded-md object-cover sm:h-14 sm:w-14"
+                        width="56"
+                        height="56"
+                    />
+                    <div class="min-w-0">
+                        <p class="text-xs font-medium text-neutral-500 sm:text-sm">Commercial Register</p>
+                        <p class="mt-0.5 text-base font-extrabold tabular-nums tracking-wide text-[#1e3a5f] sm:text-lg" dir="ltr">
+                            1010792791
+                        </p>
+                    </div>
+                </div>
+                <div class="flex items-center gap-3 sm:gap-4">
+                    <img
+                        src="/assets/vat-badge.svg"
+                        alt=""
+                        class="h-12 w-12 shrink-0 rounded-md object-contain sm:h-14 sm:w-14"
+                        width="56"
+                        height="56"
+                    />
+                    <div class="min-w-0">
+                        <p class="text-xs font-medium text-neutral-500 sm:text-sm">VAT Account Number</p>
+                        <p class="mt-0.5 text-base font-extrabold tabular-nums tracking-wide text-[#1e3a5f] sm:text-lg" dir="ltr">
+                            311691903100003
+                        </p>
+                    </div>
+                </div>
+            </div>
+
             <!-- Bottom bar -->
             <div class="mt-12 flex flex-col items-center justify-between gap-4 border-t border-neutral-200 pt-6 sm:flex-row">
                 <p class="text-xs text-neutral-400">

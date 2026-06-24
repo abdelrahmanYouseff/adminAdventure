@@ -7,6 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Plus, MoreHorizontal, Eye, Edit, Download, Trash2 } from 'lucide-vue-next';
 import AppSidebarLayout from '@/layouts/app/AppSidebarLayout.vue';
+import { formatDate, formatInteger, formatPrice } from '@/lib/formatNumber';
 
 interface Quotation {
     id: number;
@@ -103,7 +104,7 @@ const deleteQuotation = (id: number) => {
                         <CardTitle class="text-sm font-medium">إجمالي العروض</CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <div class="text-2xl font-bold">{{ props.quotations.total }}</div>
+                        <div class="text-2xl font-bold tabular-nums">{{ formatInteger(props.quotations.total) }}</div>
                     </CardContent>
                 </Card>
                 <Card>
@@ -111,8 +112,8 @@ const deleteQuotation = (id: number) => {
                         <CardTitle class="text-sm font-medium">مسودة</CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <div class="text-2xl font-bold">
-                            {{ props.quotations.data.filter(q => q.status === 'draft').length }}
+                        <div class="text-2xl font-bold tabular-nums">
+                            {{ formatInteger(props.quotations.data.filter(q => q.status === 'draft').length) }}
                         </div>
                     </CardContent>
                 </Card>
@@ -121,8 +122,8 @@ const deleteQuotation = (id: number) => {
                         <CardTitle class="text-sm font-medium">مرسل</CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <div class="text-2xl font-bold">
-                            {{ props.quotations.data.filter(q => q.status === 'sent').length }}
+                        <div class="text-2xl font-bold tabular-nums">
+                            {{ formatInteger(props.quotations.data.filter(q => q.status === 'sent').length) }}
                         </div>
                     </CardContent>
                 </Card>
@@ -131,8 +132,8 @@ const deleteQuotation = (id: number) => {
                         <CardTitle class="text-sm font-medium">مقبول</CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <div class="text-2xl font-bold">
-                            {{ props.quotations.data.filter(q => q.status === 'accepted').length }}
+                        <div class="text-2xl font-bold tabular-nums">
+                            {{ formatInteger(props.quotations.data.filter(q => q.status === 'accepted').length) }}
                         </div>
                     </CardContent>
                 </Card>
@@ -171,22 +172,22 @@ const deleteQuotation = (id: number) => {
                                         <div class="text-sm text-muted-foreground">{{ quotation.customer_email }}</div>
                                     </div>
                                 </TableCell>
-                                <TableCell>
-                                    {{ Number(quotation.total_amount || 0).toFixed(2) }} ريال
+                                <TableCell class="tabular-nums" dir="ltr">
+                                    {{ formatPrice(quotation.total_amount) }} ر.س
                                 </TableCell>
                                 <TableCell>
                                     <Badge :variant="getStatusBadgeVariant(quotation.status)">
                                         {{ getStatusText(quotation.status) }}
                                     </Badge>
                                 </TableCell>
-                                <TableCell>
-                                    {{ new Date(quotation.valid_until).toLocaleDateString() }}
+                                <TableCell class="tabular-nums" dir="ltr">
+                                    {{ formatDate(quotation.valid_until) }}
                                 </TableCell>
                                 <TableCell>
                                     {{ quotation.user?.name || 'غير معروف' }}
                                 </TableCell>
-                                <TableCell>
-                                    {{ new Date(quotation.created_at).toLocaleDateString() }}
+                                <TableCell class="tabular-nums" dir="ltr">
+                                    {{ formatDate(quotation.created_at) }}
                                 </TableCell>
                                 <TableCell>
                                     <DropdownMenu>

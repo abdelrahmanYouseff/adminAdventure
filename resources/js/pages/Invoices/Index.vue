@@ -130,7 +130,7 @@
             <!-- Pagination -->
             <div class="mt-6 flex items-center justify-between">
               <div class="text-sm text-gray-700 dark:text-gray-300">
-                Showing {{ invoices.from }} to {{ invoices.to }} of {{ invoices.total }} results
+                Showing {{ formatInteger(invoices.from) }} to {{ formatInteger(invoices.to) }} of {{ formatInteger(invoices.total) }} results
               </div>
               <div class="flex items-center space-x-2">
                 <Button
@@ -171,6 +171,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import Icon from '@/components/Icon.vue'
+import { formatCurrency, formatDate, formatInteger } from '@/lib/formatNumber'
 
 const props = defineProps({
   invoices: Object,
@@ -201,21 +202,6 @@ const updateOverdueInvoices = () => {
       // Refresh the page to show updated stats
       router.reload()
     }
-  })
-}
-
-const formatCurrency = (amount) => {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'SAR',
-  }).format(amount)
-}
-
-const formatDate = (date) => {
-  return new Date(date).toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
   })
 }
 

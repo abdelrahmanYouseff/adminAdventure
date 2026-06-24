@@ -10,6 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Plus, Trash2, Calculator } from 'lucide-vue-next';
 import AppSidebarLayout from '@/layouts/app/AppSidebarLayout.vue';
+import { formatCurrency } from '@/lib/formatNumber';
 import { ref, computed, watch } from 'vue';
 
 interface Product {
@@ -285,8 +286,8 @@ watch(selectedProductId, (newValue) => {
                                                 @input="updateItemPrice(index)"
                                             />
                                         </TableCell>
-                                        <TableCell class="font-medium">
-                                            ${{ Number(item.total_price || 0).toFixed(2) }}
+                                        <TableCell class="font-medium tabular-nums" dir="ltr">
+                                            {{ formatCurrency(item.total_price) }}
                                         </TableCell>
                                         <TableCell>
                                             <Button
@@ -314,15 +315,15 @@ watch(selectedProductId, (newValue) => {
                         <div class="space-y-4">
                             <div class="flex justify-between">
                                 <span>Subtotal:</span>
-                                <span>${{ Number(subtotal || 0).toFixed(2) }}</span>
+                                <span class="tabular-nums" dir="ltr">{{ formatCurrency(subtotal) }}</span>
                             </div>
                             <div class="flex justify-between">
                                 <span>Tax (15%):</span>
-                                <span>${{ Number(taxAmount || 0).toFixed(2) }}</span>
+                                <span class="tabular-nums" dir="ltr">{{ formatCurrency(taxAmount) }}</span>
                             </div>
                             <div class="flex justify-between text-lg font-bold">
                                 <span>Total:</span>
-                                <span>${{ Number(totalAmount || 0).toFixed(2) }}</span>
+                                <span class="tabular-nums" dir="ltr">{{ formatCurrency(totalAmount) }}</span>
                             </div>
                         </div>
                     </CardContent>

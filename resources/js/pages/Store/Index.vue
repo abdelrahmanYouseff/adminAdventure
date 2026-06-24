@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { ShoppingCart, ImageIcon } from 'lucide-vue-next';
 import StoreHeader from '@/components/StoreHeader.vue';
 import { useStoreCart } from '@/composables/useStoreCart';
+import { formatAmount } from '@/lib/formatNumber';
 
 interface Category {
     id: number;
@@ -218,10 +219,10 @@ const addToCart = (product: Product) => {
                                         {{ product.product_name }}
                                     </span>
                                     <p class="text-start text-base font-semibold text-neutral-900 dark:text-white sm:text-lg">
-                                        {{ Number(product.price).toLocaleString('ar-SA') }}
+                                        {{ formatAmount(product.price) }}
                                         <span class="text-xs font-normal text-neutral-500 dark:text-neutral-400 sm:text-sm">ريال</span>
                                     </p>
-                                    <p class="text-start text-xs font-medium text-[#FF6B35] sm:hidden">
+                                    <p class="text-start text-xs font-medium text-[#3b89d2] sm:hidden">
                                         عرض التفاصيل ←
                                     </p>
                                 </div>
@@ -229,7 +230,7 @@ const addToCart = (product: Product) => {
                             <div class="flex flex-col gap-2 border-t border-neutral-100 p-3 dark:border-neutral-700 sm:flex-row sm:border-0 sm:pt-0">
                                 <Link
                                     :href="route('store.product.show', product.id)"
-                                    class="flex min-h-11 flex-1 items-center justify-center rounded-xl border border-neutral-300 py-3 text-sm font-medium text-neutral-700 transition hover:border-[#FF6B35] hover:text-[#FF6B35] dark:border-neutral-600 dark:text-neutral-200"
+                                    class="flex min-h-11 flex-1 items-center justify-center rounded-xl border border-neutral-300 py-3 text-sm font-medium text-neutral-700 transition hover:border-[#3b89d2] hover:text-[#3b89d2] dark:border-neutral-600 dark:text-neutral-200"
                                 >
                                     التفاصيل
                                 </Link>

@@ -3,6 +3,7 @@ import { Head, Link, router } from '@inertiajs/vue3';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { Button } from '@/components/ui/button';
 import { ArrowRight, Edit, Package } from 'lucide-vue-next';
+import { formatCurrency, formatInteger } from '@/lib/formatNumber';
 import { ref } from 'vue';
 
 interface Product {
@@ -59,8 +60,6 @@ function toggleStatus(product: Product) {
     );
 }
 
-const formatPrice = (price: number) =>
-    new Intl.NumberFormat('en-US', { style: 'currency', currency: 'SAR' }).format(price);
 </script>
 
 <template>
@@ -144,7 +143,7 @@ const formatPrice = (price: number) =>
                                 >
                                     <!-- ID -->
                                     <td class="border border-neutral-200 dark:border-neutral-600 px-4 py-3 text-sm text-neutral-500">
-                                        #{{ product.id }}
+                                        #{{ formatInteger(product.id) }}
                                     </td>
 
                                     <!-- Image — always shown regardless of status -->
@@ -172,7 +171,7 @@ const formatPrice = (price: number) =>
 
                                     <!-- Price -->
                                     <td class="border border-neutral-200 dark:border-neutral-600 px-4 py-3 tabular-nums" dir="ltr">
-                                        {{ formatPrice(Number(product.price)) }}
+                                        {{ formatCurrency(Number(product.price)) }}
                                     </td>
 
                                     <!-- Status Toggle -->
