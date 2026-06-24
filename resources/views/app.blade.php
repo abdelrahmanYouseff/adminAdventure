@@ -30,7 +30,19 @@
             }
         </style>
 
-        <title inertia>{{ config('app.name', 'Adventure World') }}</title>
+        <title inertia>{{ config('app.name', 'عالم المغامرة للترفيه') }}</title>
+
+        <meta name="description" content="عالم المغامرة للترفيه — تأجير ألعاب ترفيهية للأطفال في المملكة العربية السعودية">
+        <meta property="og:type" content="website">
+        <meta property="og:title" content="{{ config('app.name', 'عالم المغامرة للترفيه') }}">
+        <meta property="og:site_name" content="{{ config('app.name', 'عالم المغامرة للترفيه') }}">
+        <meta property="og:description" content="عالم المغامرة للترفيه — تأجير ألعاب ترفيهية للأطفال في المملكة العربية السعودية">
+        <meta property="og:image" content="{{ url('/assets/logo.png') }}">
+        <meta property="og:url" content="{{ url()->current() }}">
+        <meta name="twitter:card" content="summary">
+        <meta name="twitter:title" content="{{ config('app.name', 'عالم المغامرة للترفيه') }}">
+        <meta name="twitter:description" content="عالم المغامرة للترفيه — تأجير ألعاب ترفيهية للأطفال في المملكة العربية السعودية">
+        <meta name="twitter:image" content="{{ url('/assets/logo.png') }}">
 
         {{-- نفس شعار الهيدر (StoreHeader وغيره): /assets/logo.png --}}
         <link rel="icon" href="/assets/logo.png" type="image/png" sizes="any">

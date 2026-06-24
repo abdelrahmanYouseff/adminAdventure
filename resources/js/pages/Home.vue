@@ -184,8 +184,10 @@ const features = [
 
 <template>
     <Head>
-        <title>عالم المغامرة — تأجير ألعاب ترفيهية للأطفال</title>
-        <meta name="description" content="اجعل كل حفلة لا تُنسى مع عالم المغامرة — أفضل خدمة تأجير ألعاب ترفيهية في المملكة" />
+        <title>عالم المغامرة للترفيه — تأجير ألعاب ترفيهية للأطفال</title>
+        <meta name="description" content="اجعل كل حفلة لا تُنسى مع عالم المغامرة للترفيه — أفضل خدمة تأجير ألعاب ترفيهية في المملكة" />
+        <meta property="og:title" content="عالم المغامرة للترفيه" head-key="og-title" />
+        <meta property="og:description" content="اجعل كل حفلة لا تُنسى مع عالم المغامرة للترفيه — أفضل خدمة تأجير ألعاب ترفيهية في المملكة" head-key="og-description" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous" />
         <link href="https://fonts.googleapis.com/css2?family=Noto+Kufi+Arabic:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
