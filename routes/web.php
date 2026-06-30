@@ -177,6 +177,7 @@ Route::get('store/checkout', [\App\Http\Controllers\StoreController::class, 'che
 Route::post('store/checkout', [\App\Http\Controllers\StoreController::class, 'submitCheckout'])->name('store.checkout.submit');
 Route::get('store/products/{product}', [\App\Http\Controllers\StoreController::class, 'showProduct'])->name('store.product.show');
 Route::get('store/all-products', [\App\Http\Controllers\StoreController::class, 'allProducts'])->name('store.all-products');
+Route::get('store/categories/{category}', [\App\Http\Controllers\StoreController::class, 'categoryProducts'])->name('store.category.show');
 
 Route::middleware('auth')->group(function () {
     Route::get('store/account', [\App\Http\Controllers\StoreAccountController::class, 'edit'])->name('store.account');

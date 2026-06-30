@@ -44,6 +44,25 @@ class StoreController extends Controller
     }
 
     /**
+     * Products filtered by category with sidebar of all categories.
+     */
+    public function categoryProducts(Category $category)
+    {
+        $products = Product::with('category')
+            ->where('status', 'active')
+            ->orderBy('created_at', 'desc')
+            ->get();
+        $categories = Category::orderBy('category_name')->get();
+
+        return Inertia::render('Store/AllProducts', [
+            'products' => $products,
+            'categories' => $categories,
+            'activeCategoryId' => $category->id,
+            'pageTitle' => $category->category_name,
+        ]);
+    }
+
+    /**
      * Public product detail page.
      */
     public function showProduct(Product $product)

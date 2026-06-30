@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import { Head, Link } from '@inertiajs/vue3';
-import { ShoppingCart, Star, Search, SlidersHorizontal, X } from 'lucide-vue-next';
+import { ShoppingCart, Star, SlidersHorizontal, X, Heart } from 'lucide-vue-next';
 import StoreHeader from '@/components/StoreHeader.vue';
 import AppFooter from '@/components/AppFooter.vue';
 import { useStoreCart } from '@/composables/useStoreCart';
+import { useStoreWishlist } from '@/composables/useStoreWishlist';
 import { formatAmount } from '@/lib/formatNumber';
 
 interface Category {
@@ -23,14 +24,24 @@ interface Product {
     category?: Category | null;
 }
 
-const props = defineProps<{
-    products: Product[];
-    categories: Category[];
-}>();
+const props = withDefaults(
+    defineProps<{
+        products: Product[];
+        categories: Category[];
+        activeCategoryId?: number | null;
+        pageTitle?: string | null;
+    }>(),
+    {
+        activeCategoryId: null,
+        pageTitle: null,
+    },
+);
 
 const { addItem, syncFromStorage } = useStoreCart();
+const { isInWishlist, toggle: toggleWishlist, syncFromStorage: syncWishlist } = useStoreWishlist();
 onMounted(() => {
     syncFromStorage();
+    syncWishlist();
     initReveal();
 });
 
@@ -62,8 +73,14 @@ const imageUrl = (p: Product): string | null => {
 };
 
 // ── Filters ──────────────────────────────────
-const selectedCategory = ref<number | null>(null);
-const searchQuery      = ref('');
+const selectedCategory = ref<number | null>(props.activeCategoryId ?? null);
+
+watch(
+    () => props.activeCategoryId,
+    (id) => {
+        selectedCategory.value = id ?? null;
+    },
+);
 const sortBy           = ref<'default' | 'price_asc' | 'price_desc'>('default');
 const showFilters      = ref(false);
 
@@ -73,11 +90,6 @@ const filteredProducts = computed(() => {
     if (selectedCategory.value !== null)
         list = list.filter((p) => p.category_id === selectedCategory.value);
 
-    if (searchQuery.value.trim())
-        list = list.filter((p) =>
-            p.product_name.toLowerCase().includes(searchQuery.value.toLowerCase()),
-        );
-
     if (sortBy.value === 'price_asc')  list.sort((a, b) => Number(a.price) - Number(b.price));
     if (sortBy.value === 'price_desc') list.sort((a, b) => Number(b.price) - Number(a.price));
 
@@ -86,13 +98,11 @@ const filteredProducts = computed(() => {
 
 const activeFiltersCount = computed(() =>
     (selectedCategory.value !== null ? 1 : 0) +
-    (searchQuery.value.trim() ? 1 : 0) +
     (sortBy.value !== 'default' ? 1 : 0),
 );
 
 function clearFilters() {
     selectedCategory.value = null;
-    searchQuery.value = '';
     sortBy.value = 'default';
 }
 
@@ -110,7 +120,7 @@ function addToCart(product: Product) {
 
 <template>
     <Head>
-        <title>جميع الألعاب — عالم المغامرة</title>
+        <title>{{ pageTitle ? `${pageTitle} — عالم المغامرة` : 'جميع الألعاب — عالم المغامرة' }}</title>
         <link href="https://fonts.googleapis.com/css2?family=Noto+Kufi+Arabic:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
     </Head>
 
@@ -122,30 +132,17 @@ function addToCart(product: Product) {
         <div class="border-b border-neutral-200/80 bg-white py-8 sm:py-12 lg:py-16">
             <div class="mx-auto max-w-7xl px-3.5 sm:px-6 lg:px-8">
                 <h1 class="text-2xl font-extrabold text-neutral-900 sm:text-3xl lg:text-4xl">
-                    جميع
-                    <span class="text-[#3b89d2]">الألعاب</span>
+                    <template v-if="pageTitle">{{ pageTitle }}</template>
+                    <template v-else>
+                        جميع
+                        <span class="text-[#3b89d2]">الألعاب</span>
+                    </template>
                 </h1>
-                <p class="mt-1.5 text-sm text-neutral-500 sm:mt-2 sm:text-base">{{ products.length }} منتج متاح للإيجار</p>
-
-                <!-- Search bar -->
-                <div class="relative mt-4 max-w-xl sm:mt-6">
-                    <Search class="absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2 text-neutral-400 sm:right-4" />
-                    <input
-                        v-model="searchQuery"
-                        type="search"
-                        enterkeyhint="search"
-                        placeholder="ابحث عن لعبة..."
-                        class="w-full rounded-xl border border-neutral-200 bg-white py-3.5 pr-10 pl-11 text-base shadow-sm outline-none transition focus:border-[#3b89d2] focus:ring-2 focus:ring-[#3b89d2]/25 sm:rounded-2xl sm:pr-11 sm:text-sm"
-                    />
-                    <button
-                        v-if="searchQuery"
-                        type="button"
-                        class="absolute top-1/2 left-3 -translate-y-1/2 touch-manipulation rounded-md p-1 text-neutral-400 hover:text-neutral-700 sm:left-4"
-                        @click="searchQuery = ''"
-                    >
-                        <X class="h-4 w-4" />
-                    </button>
-                </div>
+                <p class="mt-1.5 text-sm text-neutral-500 sm:mt-2 sm:text-base">
+                    {{ filteredProducts.length }} منتج
+                    <span v-if="pageTitle">في هذا القسم</span>
+                    <span v-else>متاح للإيجار</span>
+                </p>
             </div>
         </div>
 
@@ -158,33 +155,31 @@ function addToCart(product: Product) {
                         <div class="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
                             <h3 class="mb-3 border-b border-neutral-100 pb-2 ps-1 text-sm font-bold text-neutral-800">التصنيفات</h3>
                             <nav class="flex flex-col gap-1">
-                                <button
-                                    type="button"
+                                <Link
+                                    :href="route('store.all-products')"
                                     class="flex w-full items-center justify-between gap-3 rounded-lg px-3.5 py-3 text-sm font-medium transition"
                                     :class="selectedCategory === null
                                         ? 'bg-[#3b89d2] text-white shadow-sm'
                                         : 'text-neutral-600 hover:bg-[#f4f6f8]'"
-                                    @click="selectedCategory = null"
                                 >
                                     <span class="min-w-0 truncate whitespace-nowrap text-start">الكل</span>
                                     <span class="shrink-0 tabular-nums text-xs opacity-90">{{ products.length }}</span>
-                                </button>
-                                <button
+                                </Link>
+                                <Link
                                     v-for="cat in categories"
                                     :key="cat.id"
-                                    type="button"
+                                    :href="route('store.category.show', cat.id)"
                                     class="flex w-full items-center justify-between gap-3 rounded-lg px-3.5 py-3 text-sm font-medium transition"
                                     :class="selectedCategory === cat.id
                                         ? 'bg-[#3b89d2] text-white shadow-sm'
                                         : 'text-neutral-600 hover:bg-[#f4f6f8]'"
                                     :title="cat.category_name"
-                                    @click="selectedCategory = cat.id"
                                 >
                                     <span class="min-w-0 flex-1 truncate text-start leading-none">{{ cat.category_name }}</span>
                                     <span class="shrink-0 tabular-nums text-xs opacity-90">
                                         {{ products.filter(p => p.category_id === cat.id).length }}
                                     </span>
-                                </button>
+                                </Link>
                             </nav>
                         </div>
 
@@ -247,19 +242,18 @@ function addToCart(product: Product) {
                         <div class="w-full rounded-xl border border-neutral-200 bg-white p-3.5 shadow-sm sm:rounded-2xl sm:p-4">
                             <h3 class="mb-3 border-b border-neutral-100 pb-2 text-sm font-bold text-neutral-800">التصنيفات</h3>
                             <div class="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:gap-2">
-                                <button
-                                    v-for="cat in [{ id: null, category_name: 'الكل' }, ...categories]"
+                                <Link
+                                    v-for="cat in [{ id: null, category_name: 'الكل', href: route('store.all-products') }, ...categories.map(c => ({ ...c, href: route('store.category.show', c.id) }))]"
                                     :key="cat.id ?? 'all'"
-                                    type="button"
+                                    :href="cat.href"
                                     class="flex min-h-[3rem] w-full items-center justify-center rounded-xl border px-2 py-2 text-center text-xs font-semibold leading-tight transition active:scale-[0.98] sm:inline-flex sm:min-h-[2.75rem] sm:max-w-full sm:px-4 sm:py-2.5 sm:text-sm"
                                     :style="selectedCategory === (cat.id ?? null)
                                         ? 'background:#3b89d2; color:#fff; border-color:#3b89d2'
                                         : 'background:#f8fafc; color:#374151; border-color:#e5e7eb'"
                                     :title="cat.category_name"
-                                    @click="selectedCategory = cat.id ?? null"
                                 >
                                     <span class="line-clamp-2 sm:line-clamp-1 sm:max-w-[min(100%,20rem)] sm:truncate">{{ cat.category_name }}</span>
-                                </button>
+                                </Link>
                             </div>
                         </div>
                     </div>
@@ -310,7 +304,7 @@ function addToCart(product: Product) {
                     >
                         <span class="text-6xl">🔍</span>
                         <p class="mt-4 text-lg font-bold text-neutral-700">لا توجد نتائج</p>
-                        <p class="mt-1 text-sm text-neutral-400">جرّب تغيير الفلاتر أو البحث بكلمة مختلفة</p>
+                        <p class="mt-1 text-sm text-neutral-400">جرّب تغيير الفلاتر</p>
                         <button
                             type="button"
                             class="mt-5 rounded-xl px-6 py-2.5 text-sm font-bold text-white"
@@ -380,19 +374,9 @@ function addToCart(product: Product) {
                                         <Star v-for="s in 5" :key="s" class="h-3.5 w-3.5 sm:h-4 sm:w-4 fill-amber-400 text-amber-400" />
                                         <span class="mr-1 text-xs text-neutral-400">(5.0)</span>
                                     </div>
-                                    <p class="text-start text-xs font-medium text-[#3b89d2] sm:hidden">
-                                        اضغط للتفاصيل الكاملة ←
-                                    </p>
                                 </div>
                             </Link>
-                            <div class="flex flex-col gap-2 border-t border-neutral-100 bg-white p-3.5 sm:flex-row sm:gap-3 sm:p-5 sm:pt-0">
-                                <Link
-                                    :href="route('store.product.show', product.id)"
-                                    class="flex min-h-11 flex-1 items-center justify-center rounded-xl border-2 py-3 text-sm font-bold transition hover:opacity-80"
-                                    style="border-color: #3b89d2; color: #3b89d2"
-                                >
-                                    التفاصيل
-                                </Link>
+                            <div class="flex items-center gap-2 border-t border-neutral-100 bg-white p-3.5 sm:gap-3 sm:p-5 sm:pt-0">
                                 <button
                                     type="button"
                                     class="flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-xl py-3 text-sm font-bold text-white transition active:scale-[0.99]"
@@ -402,7 +386,23 @@ function addToCart(product: Product) {
                                     @click.stop="addToCart(product)"
                                 >
                                     <ShoppingCart class="h-4 w-4 shrink-0" />
-                                    {{ addedIds.has(product.id) ? '✓ أُضيف' : 'أضف' }}
+                                    {{ addedIds.has(product.id) ? '✓ أُضيف' : 'أضف إلى السلة' }}
+                                </button>
+                                <button
+                                    type="button"
+                                    class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border-2 transition hover:opacity-80 active:scale-[0.99]"
+                                    :class="isInWishlist(product.id)
+                                        ? 'border-red-300 bg-red-50'
+                                        : 'border-neutral-200 bg-white'"
+                                    :aria-label="isInWishlist(product.id) ? 'إزالة من المفضلة' : 'أضف للمفضلة'"
+                                    @click.stop="toggleWishlist(product.id)"
+                                >
+                                    <Heart
+                                        class="h-5 w-5 transition-colors"
+                                        :class="isInWishlist(product.id)
+                                            ? 'fill-red-500 text-red-500'
+                                            : 'text-neutral-400'"
+                                    />
                                 </button>
                             </div>
                         </article>

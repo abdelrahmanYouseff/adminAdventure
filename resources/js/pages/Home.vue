@@ -44,12 +44,8 @@ function guardAction(action: () => void) {
     requireLogin(action, openLoginModal);
 }
 
-function browseCategory() {
-    guardAction(() => {
-        requestAnimationFrame(() => {
-            document.getElementById('home-products')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        });
-    });
+function openCategory(categoryId: number) {
+    router.visit(route('store.category.show', categoryId));
 }
 
 function openProduct(productId: number) {
@@ -292,7 +288,7 @@ const features = [
                         type="button"
                         class="aw-reveal group flex w-full flex-col items-center border-0 bg-transparent p-0 text-center outline-none transition active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-[#3b89d2] focus-visible:ring-offset-2"
                         :style="`transition-delay: ${idx * 40}ms`"
-                        @click="browseCategory"
+                        @click="openCategory(cat.id)"
                     >
                         <div
                             class="relative flex aspect-[5/4] w-full items-center justify-center overflow-hidden rounded-xl bg-[#f3f3f5] shadow-[0_6px_18px_rgba(15,23,42,0.06)] transition duration-300 group-hover:shadow-[0_10px_24px_rgba(15,23,42,0.1)] sm:rounded-2xl"
