@@ -51,4 +51,9 @@ return [
         'payment_return_url' => env('PAYMENT_RETURN_URL'),
     ],
 
+    'store' => [
+        /** When true, checkout skips Noon and auto-completes payment (for flow testing). */
+        'mock_payment' => env('STORE_MOCK_PAYMENT', true),
+    ],
+
 ];

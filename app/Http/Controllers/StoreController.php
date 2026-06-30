@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Category;
+use App\Models\Invoice;
 use App\Models\Order;
 use App\Models\Product;
 use App\Models\User;
@@ -224,6 +225,10 @@ class StoreController extends Controller
                 ]);
             }
 
+            if (config('services.store.mock_payment', false)) {
+                return $this->completeMockStoreCheckout($order, $expectsJson);
+            }
+
             $paymentController = app(PaymentController::class);
             $paymentResponse = $paymentController->createNoonSession([
                 'user_id' => $orderUser->id,
@@ -301,6 +306,49 @@ class StoreController extends Controller
                 'form' => 'حدث خطأ في الخادم. حاول مرة أخرى.',
             ]);
         }
+    }
+
+    /**
+     * Skip Noon — mark order paid immediately and redirect to home with success popup.
+     */
+    private function completeMockStoreCheckout(Order $order, bool $expectsJson)
+    {
+        $invoice = Invoice::create([
+            'user_id' => $order->user_id,
+            'rental_id' => null,
+            'invoice_number' => $order->order_number,
+            'amount' => $order->total_amount,
+            'status' => 'paid',
+            'payment_method' => 'mock',
+            'issued_at' => now(),
+            'due_date' => now()->addDays(7),
+        ]);
+
+        $order->update([
+            'invoice_id' => $invoice->id,
+            'status' => 'paid',
+            'payment_status' => 'paid',
+            'payment_method' => 'mock',
+            'payment_id' => 'MOCK-' . Str::upper(Str::random(8)),
+        ]);
+
+        $redirectUrl = route('home', ['paid_order' => $order->order_number]);
+
+        Log::info('Store mock payment completed', [
+            'order_number' => $order->order_number,
+            'amount' => $order->total_amount,
+        ]);
+
+        if ($expectsJson) {
+            return response()->json([
+                'success' => true,
+                'redirect_url' => $redirectUrl,
+                'order_number' => $order->order_number,
+                'mock' => true,
+            ]);
+        }
+
+        return redirect()->to($redirectUrl);
     }
 
     private function phoneForCheckout(?string $phone): string
