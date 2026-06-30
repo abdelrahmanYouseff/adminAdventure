@@ -47,6 +47,7 @@ return [
         'order_category' => env('NOON_ORDER_CATEGORY', 'pay'),
         'order_channel' => env('NOON_ORDER_CHANNEL'),
         'store_checkout_debug' => env('STORE_CHECKOUT_DEBUG', false),
+        'payment_return_url' => env('PAYMENT_RETURN_URL'),
     ],
 
 ];

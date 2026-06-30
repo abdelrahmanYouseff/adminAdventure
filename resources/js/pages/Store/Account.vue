@@ -48,7 +48,7 @@ function submit() {
         class="min-h-screen bg-[#f4f6f8] pb-[env(safe-area-inset-bottom,0px)]"
         style="font-family: 'Noto Kufi Arabic', sans-serif"
     >
-        <StoreHeader :show-store-link="true" :show-login-button="true" />
+        <StoreHeader :show-login-button="true" />
 
         <div class="mx-auto max-w-lg px-3.5 py-8 sm:px-6 sm:py-10">
             <div class="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm sm:p-6">

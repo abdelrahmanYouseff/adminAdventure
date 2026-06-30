@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue';
 import { Head, Link } from '@inertiajs/vue3';
-import { ShoppingCart, Star, SlidersHorizontal, X, Heart } from 'lucide-vue-next';
+import { ShoppingCart, SlidersHorizontal, X, Heart } from 'lucide-vue-next';
 import StoreHeader from '@/components/StoreHeader.vue';
 import AppFooter from '@/components/AppFooter.vue';
 import { useStoreCart } from '@/composables/useStoreCart';
@@ -348,19 +348,6 @@ function addToCart(product: Product) {
                                         class="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100"
                                         style="background: linear-gradient(to top, rgba(0,0,0,0.25) 0%, transparent 60%)"
                                     ></div>
-                                    <div
-                                        class="pointer-events-none absolute top-3 left-3 rounded-full px-3 py-1.5 text-sm font-bold text-white shadow"
-                                        style="background: linear-gradient(135deg, #3b89d2, #2f6eb0)"
-                                    >
-                                        {{ formatAmount(product.price) }} ريال
-                                    </div>
-                                    <div
-                                        v-if="product.category"
-                                        class="pointer-events-none absolute top-3 right-3 rounded-full px-3 py-1 text-xs font-semibold"
-                                        style="background: rgba(255,255,255,0.95); color: #3b89d2"
-                                    >
-                                        {{ product.category.category_name }}
-                                    </div>
                                 </div>
 
                                 <div class="flex flex-1 flex-col gap-2 p-3.5 sm:gap-3 sm:p-5">
@@ -370,10 +357,9 @@ function addToCart(product: Product) {
                                     <p v-if="product.description" class="line-clamp-2 text-start text-xs text-neutral-500 sm:text-sm">
                                         {{ product.description }}
                                     </p>
-                                    <div class="flex items-center gap-1">
-                                        <Star v-for="s in 5" :key="s" class="h-3.5 w-3.5 sm:h-4 sm:w-4 fill-amber-400 text-amber-400" />
-                                        <span class="mr-1 text-xs text-neutral-400">(5.0)</span>
-                                    </div>
+                                    <p class="text-start text-base font-bold text-[#3b89d2] sm:text-lg">
+                                        {{ formatAmount(product.price) }} ريال
+                                    </p>
                                 </div>
                             </Link>
                             <div class="flex items-center gap-2 border-t border-neutral-100 bg-white p-3.5 sm:gap-3 sm:p-5 sm:pt-0">

@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
-import { Head, Link, router } from '@inertiajs/vue3';
+import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import AppFooter from '@/components/AppFooter.vue';
 import StoreHeader from '@/components/StoreHeader.vue';
 import StoreLoginModal from '@/components/StoreLoginModal.vue';
+import PaymentSuccessModal, { type PaymentSuccessData } from '@/components/PaymentSuccessModal.vue';
 import { useStoreCart } from '@/composables/useStoreCart';
 import { useStoreAuth } from '@/composables/useStoreAuth';
 import { formatAmount } from '@/lib/formatNumber';
@@ -32,9 +33,12 @@ const props = defineProps<{
     categories: Category[];
 }>();
 
-const { count, addItem, syncFromStorage } = useStoreCart();
+const { count, addItem, syncFromStorage, clearCart } = useStoreCart();
 const { requireLogin } = useStoreAuth();
+const page = usePage();
 const loginModalOpen = ref(false);
+const paymentSuccessOpen = ref(false);
+const paymentSuccessData = ref<PaymentSuccessData | null>(null);
 
 function openLoginModal() {
     loginModalOpen.value = true;
@@ -62,6 +66,14 @@ function goToStore(path: string) {
 
 onMounted(() => {
     syncFromStorage();
+
+    const paymentSuccess = (page.props.flash as { payment_success?: PaymentSuccessData })?.payment_success;
+    if (paymentSuccess?.order_number) {
+        paymentSuccessData.value = paymentSuccess;
+        paymentSuccessOpen.value = true;
+        clearCart();
+    }
+
     const observer = new IntersectionObserver(
         (entries) => {
             entries.forEach((entry) => {
@@ -160,8 +172,9 @@ const features = [
 
     <div dir="rtl" class="min-h-screen bg-[#f4f6f8] pb-[env(safe-area-inset-bottom,0px)]" style="font-family: 'Noto Kufi Arabic', sans-serif">
 
-        <StoreHeader :show-store-link="false" :show-login-button="true" @open-login="openLoginModal" />
+        <StoreHeader :show-login-button="true" @open-login="openLoginModal" />
         <StoreLoginModal v-model:open="loginModalOpen" />
+        <PaymentSuccessModal v-model:open="paymentSuccessOpen" :data="paymentSuccessData" />
 
         <!-- Hero -->
         <section class="relative isolate overflow-hidden border-b border-neutral-200/80">

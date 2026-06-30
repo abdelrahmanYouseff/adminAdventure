@@ -21,12 +21,21 @@ import {
     CreditCard,
 } from 'lucide-vue-next';
 
+const props = defineProps<{
+    customer?: {
+        customer_name: string;
+        customer_phone: string;
+        customer_email: string;
+    } | null;
+}>();
+
+const page = usePage();
 const { cartItems, count, total, syncFromStorage } = useStoreCart();
 
 const form = ref({
-    customer_name: '',
-    customer_phone: '',
-    customer_email: '',
+    customer_name: props.customer?.customer_name ?? '',
+    customer_phone: props.customer?.customer_phone ?? '',
+    customer_email: props.customer?.customer_email ?? '',
     address: '',
     activity_date: '',
 });
@@ -48,7 +57,6 @@ const minDate = computed(() => new Date().toISOString().split('T')[0]);
 onMounted(() => syncFromStorage());
 
 const payload = computed(() => {
-    const page = usePage();
     const token = (page.props as { csrf_token?: string })?.csrf_token ?? '';
     return {
         ...form.value,
@@ -64,7 +72,6 @@ const payload = computed(() => {
 });
 
 function getCsrfHeaders(): Record<string, string> {
-    const page = usePage();
     const shared = (page.props as { csrf_token?: string })?.csrf_token;
     if (shared) {
         return { 'X-CSRF-TOKEN': shared };

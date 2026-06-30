@@ -182,8 +182,7 @@ class PaymentController extends Controller
     {
         try {
             $noon = config('services.noon', []);
-            $noonApiUrl = rtrim($noon['api_url'] ?? 'https://api-test.sa.noonpayments.com/payment/v1/', '/') . '/';
-            $baseUrl = rtrim(config('app.url', env('APP_URL', '')), '/');
+            $baseUrl = $this->resolvePaymentBaseUrl($data['return_base_url'] ?? null);
 
             if (empty($noon['api_key']) || empty($noon['business_id']) || empty($noon['app_id'])) {
                 return response()->json([
@@ -191,6 +190,8 @@ class PaymentController extends Controller
                     'message' => 'Noon API configuration incomplete',
                 ], 500);
             }
+
+            $noonApiUrl = rtrim($noon['api_url'] ?? 'https://api-test.sa.noonpayments.com/payment/v1/', '/') . '/';
 
             $authHeader = $this->resolveNoonAuthHeader($noon);
 
@@ -248,6 +249,7 @@ class PaymentController extends Controller
             if ($response->successful()) {
                 $paymentResponse = $response->json();
                 $checkoutUrl = $paymentResponse['result']['checkoutData']['postUrl'] ?? null;
+                $noonInternalOrderId = $this->extractNoonOrderId($paymentResponse);
 
                 $paymentSessionData = [
                     'user_id' => $data['user_id'],
@@ -258,7 +260,7 @@ class PaymentController extends Controller
                     'customer_email' => $data['customer_email'] ?? null,
                     'customer_name' => $data['customer_name'] ?? null,
                     'customer_phone' => $data['customer_phone'] ?? null,
-                    'noon_order_id' => $paymentResponse['order']['id'] ?? null,
+                    'noon_order_id' => $noonInternalOrderId,
                     'created_at' => now()->toIso8601String(),
                 ];
                 Cache::put('payment_session_' . $orderId, $paymentSessionData, 3600);
@@ -271,7 +273,7 @@ class PaymentController extends Controller
                             'amount' => $paymentSessionData['amount'],
                             'currency' => $paymentSessionData['currency'] ?? 'SAR',
                             'payload' => $paymentSessionData,
-                            'noon_order_id' => $paymentResponse['order']['id'] ?? null,
+                            'noon_order_id' => $noonInternalOrderId,
                         ]
                     );
                 } catch (\Throwable $e) {
@@ -286,7 +288,7 @@ class PaymentController extends Controller
                     'message' => 'Payment session created successfully',
                     'data' => [
                         'checkout_url' => $checkoutUrl,
-                        'payment_id' => $paymentResponse['result']['order']['id'] ?? null,
+                        'payment_id' => $noonInternalOrderId,
                         'order_id' => $orderId,
                         'status' => $paymentResponse['result']['order']['status'] ?? null,
                         'noon_response' => $paymentResponse,
@@ -390,6 +392,7 @@ class PaymentController extends Controller
                 $existingOrder->update([
                     'invoice_id' => $invoice->id,
                     'status' => 'paid',
+                    'payment_status' => 'paid',
                     'payment_method' => 'noon',
                     'payment_id' => $paymentId,
                 ]);
@@ -401,6 +404,7 @@ class PaymentController extends Controller
                     'total_amount' => $paymentSessionData['amount'],
                     'currency' => $paymentSessionData['currency'] ?? 'SAR',
                     'status' => 'paid',
+                    'payment_status' => 'paid',
                     'payment_method' => 'noon',
                     'payment_id' => $paymentId,
                     'notes' => $paymentSessionData['description'] ?? 'دفع حجز مغامرة',
@@ -554,49 +558,53 @@ class PaymentController extends Controller
      */
     public function paymentSuccessPage(Request $request)
     {
-        // Resolve our merchant reference (order_number) from multiple possible params
         $orderId = $request->get('order_id')
             ?? $request->get('orderReference')
             ?? $request->get('merchantReference');
 
-        // Noon's internal order ID and status from the redirect
-        $noonOrderId   = $request->get('orderId');
-        $noonStatus    = strtoupper((string) ($request->get('orderStatus') ?? $request->get('status') ?? ''));
-        $fromApp       = $request->query('from_app') === '1';
+        $noonOrderId = $request->get('orderId');
+        $noonStatus  = strtoupper((string) ($request->get('orderStatus') ?? $request->get('status') ?? ''));
+        $fromApp     = $request->query('from_app') === '1';
 
-        $noonConfirmed = in_array($noonStatus, ['CAPTURED', 'AUTHORIZED'], true);
+        Log::info('paymentSuccessPage hit', [
+            'order_id' => $orderId,
+            'noon_order_id' => $noonOrderId,
+            'noon_status' => $noonStatus,
+            'method' => $request->method(),
+            'query' => $request->query(),
+        ]);
 
-        // If Noon confirmed payment in redirect params, update Order immediately
-        if ($orderId && $noonConfirmed) {
-            try {
-                $order = Order::where('order_number', $orderId)->first();
-                if ($order && $order->payment_status !== 'paid') {
-                    $order->update([
-                        'payment_status'          => 'paid',
-                        'status'                  => 'paid',
-                        'payment_id'              => $noonOrderId ?? $order->payment_id,
-                        'payment_order_reference' => $orderId,
-                    ]);
-                }
-            } catch (\Throwable $e) {
-                Log::warning('paymentSuccessPage order update failed', [
-                    'order_id' => $orderId,
-                    'message'  => $e->getMessage(),
-                ]);
-            }
+        if ($orderId) {
+            $this->confirmStorePaymentOrder($orderId, $noonOrderId, $noonStatus);
         }
 
-        $success      = $noonConfirmed || $this->isPaymentProcessed($orderId);
-        $orderIdSafe  = $orderId !== null && $orderId !== '' ? e((string) $orderId) : '—';
-        $orderIdJson  = json_encode((string) ($orderId ?? ''));
-        $processedJson = $success ? 'true' : 'false';
+        $success = $this->isPaymentProcessed($orderId);
 
-        $title   = $success ? 'Payment Successful' : 'Payment Pending';
+        if ($success && $orderId && ! $fromApp && ! $this->isAppWebView($request)) {
+            $order = Order::where('order_number', $orderId)->first();
+            if ($order) {
+                return redirect()
+                    ->route('home')
+                    ->with('payment_success', $this->paymentSuccessPayload($order));
+            }
+
+            return redirect()->route('home');
+        }
+
+        $orderIdSafe   = $orderId !== null && $orderId !== '' ? e((string) $orderId) : '—';
+        $orderIdJson   = json_encode((string) ($orderId ?? ''));
+        $processedJson = $success ? 'true' : 'false';
+        $homeUrl       = e(route('home'));
+
+        $title   = $success ? 'تم الدفع بنجاح' : 'جاري تأكيد الدفع';
         $message = $success
-            ? 'Your payment has been confirmed.'
-            : 'Your payment is being processed. You can close this page.';
+            ? 'تم تأكيد عملية الدفع. سيتم تحويلك للصفحة الرئيسية.'
+            : 'جاري تأكيد الدفع. إن لم يتم التحويل تلقائياً، ارجع للمتجر من الزر أدناه.';
         $bg    = $success ? '#f0fdf4' : '#fffbeb';
         $color = $success ? '#166534' : '#92400e';
+        $redirectScript = $success
+            ? "<script>setTimeout(function(){ window.location.href = '{$homeUrl}'; }, 1500);</script>"
+            : '';
 
         // Deep-link redirect for Flutter when payment is confirmed
         $deepLinkScript = '';
@@ -623,25 +631,27 @@ JS;
 
         $html = <<<HTML
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ar" dir="rtl">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{$title}</title>
     <style>
-        body { font-family: system-ui, sans-serif; margin: 0; padding: 2rem; min-height: 100vh; display: flex; align-items: center; justify-content: center; background: {$bg}; color: {$color}; text-align: center; }
+        body { font-family: 'Noto Kufi Arabic', system-ui, sans-serif; margin: 0; padding: 2rem; min-height: 100vh; display: flex; align-items: center; justify-content: center; background: {$bg}; color: {$color}; text-align: center; }
         .box { max-width: 24rem; }
         h1 { font-size: 1.5rem; margin-bottom: 0.5rem; }
-        p { margin-bottom: 1rem; }
-        .order { font-size: 0.875rem; color: #4b5563; }
+        p { margin-bottom: 1rem; line-height: 1.7; }
+        .order { font-size: 0.875rem; color: #4b5563; margin-bottom: 1.25rem; }
+        a.btn { display: inline-block; padding: 0.75rem 1.25rem; border-radius: 0.75rem; background: #3b89d2; color: #fff; text-decoration: none; font-weight: 700; }
     </style>
 </head>
 <body>
     <div class="box">
         <h1>{$title}</h1>
         <p>{$message}</p>
-        <p class="order">Order: {$orderIdSafe}</p>
-    </div>{$deepLinkScript}
+        <p class="order">رقم الطلب: {$orderIdSafe}</p>
+        <a class="btn" href="{$homeUrl}">العودة للرئيسية</a>
+    </div>{$redirectScript}{$deepLinkScript}
 </body>
 </html>
 HTML;
@@ -659,7 +669,7 @@ HTML;
         }
 
         $order = Order::where('order_number', $orderId)->first();
-        if ($order && $order->status === 'paid') {
+        if ($order && ($order->status === 'paid' || $order->payment_status === 'paid')) {
             return true;
         }
 
@@ -1183,6 +1193,154 @@ HTML;
             'status'  => 'not_found',
             'message' => 'Payment session not found',
         ], 404);
+    }
+
+    /**
+     * Confirm a store checkout payment from Noon return URL or API verification.
+     */
+    protected function confirmStorePaymentOrder(?string $orderId, ?string $noonOrderId, string $noonStatus): void
+    {
+        if (! $orderId) {
+            return;
+        }
+
+        $noonConfirmed = in_array($noonStatus, ['CAPTURED', 'AUTHORIZED'], true);
+
+        if ($noonConfirmed) {
+            try {
+                $this->processPaymentSuccess($orderId, $noonOrderId);
+            } catch (\Throwable $e) {
+                Log::warning('confirmStorePaymentOrder processPaymentSuccess failed', [
+                    'order_id' => $orderId,
+                    'message' => $e->getMessage(),
+                ]);
+            }
+
+            $order = Order::where('order_number', $orderId)->first();
+            if ($order && $order->payment_status !== 'paid') {
+                $order->update([
+                    'payment_status' => 'paid',
+                    'status' => 'paid',
+                    'payment_id' => $noonOrderId ?? $order->payment_id,
+                    'payment_order_reference' => $orderId,
+                ]);
+            }
+
+            return;
+        }
+
+        $session = PaymentSession::where('merchant_reference', $orderId)->first();
+        $storedNoonId = $noonOrderId ?: $session?->noon_order_id;
+
+        if (! $storedNoonId || ! $this->verifyNoonOrderStatus($storedNoonId, 'CAPTURED')) {
+            return;
+        }
+
+        try {
+            $this->processPaymentSuccess($orderId, $storedNoonId);
+        } catch (\Throwable $e) {
+            Log::warning('confirmStorePaymentOrder API verify failed', [
+                'order_id' => $orderId,
+                'message' => $e->getMessage(),
+            ]);
+        }
+
+        $order = Order::where('order_number', $orderId)->first();
+        if ($order && $order->payment_status !== 'paid') {
+            $order->update([
+                'payment_status' => 'paid',
+                'status' => 'paid',
+                'payment_id' => $storedNoonId,
+                'payment_order_reference' => $orderId,
+            ]);
+        }
+
+        Cache::forget('payment_session_' . $orderId);
+        $this->markPaymentSessionUsed($orderId);
+    }
+
+    /**
+     * @param  array<string, mixed>  $paymentResponse
+     */
+    protected function extractNoonOrderId(array $paymentResponse): ?string
+    {
+        $id = $paymentResponse['result']['order']['id']
+            ?? $paymentResponse['order']['id']
+            ?? null;
+
+        return $id !== null ? (string) $id : null;
+    }
+
+    protected function resolvePaymentBaseUrl(?string $returnBaseUrl = null): string
+    {
+        $configured = config('services.noon.payment_return_url') ?: config('app.url');
+        $baseUrl = rtrim((string) $configured, '/');
+
+        if (! $returnBaseUrl) {
+            return $baseUrl;
+        }
+
+        $parsed = parse_url($returnBaseUrl);
+        $host = strtolower((string) ($parsed['host'] ?? ''));
+        $scheme = strtolower((string) ($parsed['scheme'] ?? ''));
+
+        // 3DS requires a public HTTPS return URL — localhost breaks TermURL (CRes POST).
+        if ($scheme !== 'https' || $host === '') {
+            Log::info('Noon return URL fallback: non-HTTPS or invalid host', [
+                'requested' => $returnBaseUrl,
+                'using' => $baseUrl,
+            ]);
+
+            return $baseUrl;
+        }
+
+        if (in_array($host, ['127.0.0.1', 'localhost'], true)) {
+            Log::info('Noon return URL fallback: localhost not supported for 3DS', [
+                'requested' => $returnBaseUrl,
+                'using' => $baseUrl,
+            ]);
+
+            return $baseUrl;
+        }
+
+        $appHost = strtolower((string) parse_url((string) config('app.url'), PHP_URL_HOST));
+        $isAllowedDomain = $host === $appHost || str_ends_with($host, 'adventureksa.com');
+
+        if ($isAllowedDomain) {
+            return rtrim($returnBaseUrl, '/');
+        }
+
+        Log::info('Noon return URL fallback: host not allowed', [
+            'requested' => $returnBaseUrl,
+            'using' => $baseUrl,
+        ]);
+
+        return $baseUrl;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function paymentSuccessPayload(Order $order): array
+    {
+        $items = collect($order->items ?? [])->map(function ($item) {
+            return [
+                'name' => $item['name'] ?? 'منتج',
+                'quantity' => (int) ($item['quantity'] ?? 1),
+                'duration' => (int) ($item['duration'] ?? 1),
+                'amount' => (float) ($item['amount'] ?? $item['price'] ?? 0),
+            ];
+        })->values()->all();
+
+        return [
+            'order_number' => $order->order_number,
+            'total_amount' => (float) $order->total_amount,
+            'currency' => $order->currency ?? 'SAR',
+            'customer_name' => $order->customer_name ?? '',
+            'activity_date' => $order->activity_date?->format('Y-m-d'),
+            'items' => $items,
+            'paid_at' => now()->format('Y-m-d H:i'),
+        ];
     }
 
     /**

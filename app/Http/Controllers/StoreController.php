@@ -97,9 +97,21 @@ class StoreController extends Controller
     /**
      * Checkout form page.
      */
-    public function checkoutForm()
+    public function checkoutForm(Request $request)
     {
-        return Inertia::render('Store/Checkout');
+        $customer = null;
+
+        if ($user = $request->user()) {
+            $customer = [
+                'customer_name' => $user->customer_name ?? '',
+                'customer_phone' => $this->phoneForCheckout($user->phone),
+                'customer_email' => $user->email ?? '',
+            ];
+        }
+
+        return Inertia::render('Store/Checkout', [
+            'customer' => $customer,
+        ]);
     }
 
     /**
@@ -161,23 +173,35 @@ class StoreController extends Controller
         $grandTotal = round($totalAmount + $vatAmount, 2);
 
         try {
-            $guestUser = User::firstOrCreate(
-                ['email' => $validated['customer_email']],
-                [
+            $customerUser = $request->user();
+
+            if ($customerUser) {
+                $customerUser->fill([
                     'customer_name' => $validated['customer_name'],
                     'phone' => $validated['customer_phone'],
-                    'password' => Hash::make(Str::random(32)),
-                ]
-            );
-            $guestUser->fill([
-                'customer_name' => $validated['customer_name'],
-                'phone' => $validated['customer_phone'],
-            ]);
-            $guestUser->save();
+                    'email' => $validated['customer_email'],
+                ]);
+                $customerUser->save();
+                $orderUser = $customerUser;
+            } else {
+                $orderUser = User::firstOrCreate(
+                    ['email' => $validated['customer_email']],
+                    [
+                        'customer_name' => $validated['customer_name'],
+                        'phone' => $validated['customer_phone'],
+                        'password' => Hash::make(Str::random(32)),
+                    ]
+                );
+                $orderUser->fill([
+                    'customer_name' => $validated['customer_name'],
+                    'phone' => $validated['customer_phone'],
+                ]);
+                $orderUser->save();
+            }
 
             $orderNumber = Order::generateOrderNumber();
             $order = Order::create([
-                'user_id' => $guestUser->id,
+                'user_id' => $orderUser->id,
                 'customer_name' => $validated['customer_name'],
                 'customer_email' => $validated['customer_email'],
                 'customer_phone' => $validated['customer_phone'],
@@ -187,6 +211,7 @@ class StoreController extends Controller
                 'total_amount' => $grandTotal,
                 'currency' => 'SAR',
                 'status' => 'pending',
+                'payment_status' => 'pending',
                 'payment_method' => 'noon',
                 'items' => $orderItems,
                 'notes' => 'طلب من المتجر - تاريخ الفعالية: ' . $validated['activity_date'],
@@ -201,7 +226,7 @@ class StoreController extends Controller
 
             $paymentController = app(PaymentController::class);
             $paymentResponse = $paymentController->createNoonSession([
-                'user_id' => $guestUser->id,
+                'user_id' => $orderUser->id,
                 'amount' => $grandTotal,
                 'currency' => 'SAR',
                 'order_id' => $orderNumber,
@@ -276,5 +301,25 @@ class StoreController extends Controller
                 'form' => 'حدث خطأ في الخادم. حاول مرة أخرى.',
             ]);
         }
+    }
+
+    private function phoneForCheckout(?string $phone): string
+    {
+        if (! $phone) {
+            return '';
+        }
+
+        $digits = preg_replace('/\D/', '', $phone) ?? '';
+        if (str_starts_with($digits, '966')) {
+            $digits = substr($digits, 3);
+        }
+        if (str_starts_with($digits, '0')) {
+            $digits = substr($digits, 1);
+        }
+        if (strlen($digits) === 9 && str_starts_with($digits, '5')) {
+            return '0'.$digits;
+        }
+
+        return $phone;
     }
 }

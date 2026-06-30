@@ -7,10 +7,9 @@ import StoreUserMenu from '@/components/StoreUserMenu.vue';
 
 withDefaults(
     defineProps<{
-        showStoreLink?: boolean;
         showLoginButton?: boolean;
     }>(),
-    { showStoreLink: true, showLoginButton: false },
+    { showLoginButton: false },
 );
 
 const emit = defineEmits<{
@@ -41,13 +40,6 @@ onMounted(() => syncFromStorage());
             </Link>
 
             <nav class="ms-auto flex shrink-0 items-center gap-1.5 sm:gap-2">
-                <Link
-                    v-if="showStoreLink"
-                    href="/store"
-                    class="hidden min-h-8 items-center rounded-lg px-2.5 py-1.5 text-xs font-medium text-neutral-600 transition hover:bg-neutral-100 hover:text-neutral-900 sm:inline-flex sm:text-sm"
-                >
-                    المتجر
-                </Link>
                 <Link
                     href="/home"
                     class="hidden min-h-8 items-center rounded-lg px-2.5 py-1.5 text-xs font-medium text-neutral-600 transition hover:bg-neutral-100 hover:text-neutral-900 sm:inline-flex sm:text-sm"
