@@ -31,6 +31,7 @@ interface Product {
 const props = defineProps<{
     products: Product[];
     categories: Category[];
+    payment_success?: PaymentSuccessData | null;
 }>();
 
 const { count, addItem, syncFromStorage, clearCart } = useStoreCart();
@@ -67,7 +68,8 @@ function goToStore(path: string) {
 onMounted(() => {
     syncFromStorage();
 
-    const paymentSuccess = (page.props.flash as { payment_success?: PaymentSuccessData })?.payment_success;
+    const paymentSuccess = props.payment_success
+        ?? (page.props.flash as { payment_success?: PaymentSuccessData })?.payment_success;
     if (paymentSuccess?.order_number) {
         paymentSuccessData.value = paymentSuccess;
         paymentSuccessOpen.value = true;

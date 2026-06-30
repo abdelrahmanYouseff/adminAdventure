@@ -12,16 +12,30 @@ use Illuminate\Support\Facades\Auth;
 
 use Inertia\Inertia;
 
+use App\Http\Controllers\PaymentController;
+use Illuminate\Http\Request;
+
 Route::get('/', function () {
     return redirect()->route('home');
 });
 
-Route::get('/home', function () {
+Route::get('/home', function (Request $request) {
     $products   = \App\Models\Product::with('category')->where('status', 'active')->orderBy('created_at', 'desc')->get();
     $categories = \App\Models\Category::orderBy('category_name')->get();
+
+    $paymentSuccess = $request->session()->get('payment_success');
+
+    if (! $paymentSuccess && $request->filled('paid_order')) {
+        $order = \App\Models\Order::where('order_number', $request->string('paid_order'))->first();
+        if ($order && ($order->payment_status === 'paid' || $order->status === 'paid')) {
+            $paymentSuccess = app(PaymentController::class)->buildPaymentSuccessPayload($order);
+        }
+    }
+
     return Inertia::render('Home', [
-        'products'   => $products,
-        'categories' => $categories,
+        'products'         => $products,
+        'categories'       => $categories,
+        'payment_success'  => $paymentSuccess,
     ]);
 })->name('home');
 
@@ -186,6 +200,10 @@ Route::middleware('auth')->group(function () {
 });
 
 // Payment return URLs (no auth - used by payment gateway redirect)
+Route::match(['GET', 'POST'], 'payment/return/{order}', [\App\Http\Controllers\PaymentController::class, 'paymentReturnPage'])
+    ->name('payment.return');
+Route::get('payment/return/{order}/status', [\App\Http\Controllers\PaymentController::class, 'paymentReturnStatus'])
+    ->name('payment.return.status');
 Route::match(['GET', 'POST'], 'payment/success', [\App\Http\Controllers\PaymentController::class, 'paymentSuccessPage'])
     ->name('payment.success');
 Route::match(['GET', 'POST'], 'payment/fail', [\App\Http\Controllers\PaymentController::class, 'paymentFailPage'])

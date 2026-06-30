@@ -197,13 +197,14 @@ class PaymentController extends Controller
 
             $fromApp = ! empty($data['from_app']);
             $orderId = $data['order_id'];
-            $returnUrl = $baseUrl . '/payment/success?order_id=' . $orderId . ($fromApp ? '&from_app=1' : '');
-            $failUrl = $baseUrl . '/payment/fail?order_id=' . $orderId . ($fromApp ? '&from_app=1' : '');
+            $returnUrl = $baseUrl . '/payment/return/' . rawurlencode($orderId) . ($fromApp ? '?from_app=1' : '');
             $configuration = [
                 'returnUrl' => $returnUrl,
-                'paymentAction' => $noon['payment_action'] ?? 'SALE',
+                'paymentAction' => $noon['payment_action'] ?? 'Sale',
+                'locale' => $noon['locale'] ?? 'ar',
             ];
-            if ($noon['cancel_url_enabled'] ?? true) {
+            if ($noon['cancel_url_enabled'] ?? false) {
+                $failUrl = $baseUrl . '/payment/fail?order_id=' . $orderId . ($fromApp ? '&from_app=1' : '');
                 $configuration['cancelUrl'] = $failUrl;
             }
 
@@ -562,17 +563,62 @@ class PaymentController extends Controller
             ?? $request->get('orderReference')
             ?? $request->get('merchantReference');
 
-        $noonOrderId = $request->get('orderId');
-        $noonStatus  = strtoupper((string) ($request->get('orderStatus') ?? $request->get('status') ?? ''));
-        $fromApp     = $request->query('from_app') === '1';
+        return $this->handlePaymentReturn($request, $orderId);
+    }
 
-        Log::info('paymentSuccessPage hit', [
+    public function paymentReturnPage(Request $request, string $order)
+    {
+        return $this->handlePaymentReturn($request, $order);
+    }
+
+    public function paymentReturnStatus(string $order): \Illuminate\Http\JsonResponse
+    {
+        $this->confirmStorePaymentOrder($order, null, '');
+
+        $orderModel = Order::where('order_number', $order)->first();
+
+        if ($orderModel && ($orderModel->payment_status === 'paid' || $orderModel->status === 'paid')) {
+            return response()->json([
+                'success' => true,
+                'redirect_url' => route('home', ['paid_order' => $order]),
+            ]);
+        }
+
+        return response()->json([
+            'success' => false,
+            'status' => $orderModel?->payment_status ?? 'pending',
+        ]);
+    }
+
+    /**
+     * @return \Illuminate\Http\RedirectResponse|\Illuminate\Http\Response
+     */
+    private function handlePaymentReturn(Request $request, ?string $orderId)
+    {
+        $input = array_merge($request->query(), $request->post());
+
+        $orderId = $orderId
+            ?? ($input['order_id'] ?? null)
+            ?? ($input['orderReference'] ?? null)
+            ?? ($input['merchantReference'] ?? null);
+
+        $noonOrderId = $input['orderId'] ?? null;
+        $noonStatus  = strtoupper((string) ($input['orderStatus'] ?? $input['status'] ?? ''));
+        $fromApp     = ($input['from_app'] ?? $request->query('from_app')) === '1';
+
+        Log::info('payment return hit', [
             'order_id' => $orderId,
             'noon_order_id' => $noonOrderId,
             'noon_status' => $noonStatus,
             'method' => $request->method(),
-            'query' => $request->query(),
+            'input' => $input,
         ]);
+
+        if ($orderId && $noonOrderId) {
+            PaymentSession::where('merchant_reference', $orderId)
+                ->whereNull('noon_order_id')
+                ->update(['noon_order_id' => $noonOrderId]);
+        }
 
         if ($orderId) {
             $this->confirmStorePaymentOrder($orderId, $noonOrderId, $noonStatus);
@@ -581,37 +627,62 @@ class PaymentController extends Controller
         $success = $this->isPaymentProcessed($orderId);
 
         if ($success && $orderId && ! $fromApp && ! $this->isAppWebView($request)) {
-            $order = Order::where('order_number', $orderId)->first();
-            if ($order) {
-                return redirect()
-                    ->route('home')
-                    ->with('payment_success', $this->paymentSuccessPayload($order));
-            }
-
-            return redirect()->route('home');
+            return redirect()->route('home', ['paid_order' => $orderId]);
         }
 
-        $orderIdSafe   = $orderId !== null && $orderId !== '' ? e((string) $orderId) : '—';
-        $orderIdJson   = json_encode((string) ($orderId ?? ''));
-        $processedJson = $success ? 'true' : 'false';
-        $homeUrl       = e(route('home'));
+        $orderIdSafe    = $orderId !== null && $orderId !== '' ? e((string) $orderId) : '—';
+        $orderIdJson    = json_encode((string) ($orderId ?? ''));
+        $processedJson  = $success ? 'true' : 'false';
+        $homeUrl        = e(route('home'));
+        $statusUrlJson  = $orderId ? json_encode(route('payment.return.status', ['order' => $orderId])) : 'null';
 
         $title   = $success ? 'تم الدفع بنجاح' : 'جاري تأكيد الدفع';
         $message = $success
             ? 'تم تأكيد عملية الدفع. سيتم تحويلك للصفحة الرئيسية.'
-            : 'جاري تأكيد الدفع. إن لم يتم التحويل تلقائياً، ارجع للمتجر من الزر أدناه.';
+            : 'جاري التحقق من عملية الدفع. يرجى الانتظار قليلاً...';
         $bg    = $success ? '#f0fdf4' : '#fffbeb';
         $color = $success ? '#166534' : '#92400e';
+
         $redirectScript = $success
-            ? "<script>setTimeout(function(){ window.location.href = '{$homeUrl}'; }, 1500);</script>"
+            ? "<script>setTimeout(function(){ window.location.href = '{$homeUrl}'; }, 1200);</script>"
             : '';
 
-        // Deep-link redirect for Flutter when payment is confirmed
+        $pollScript = (! $success && $orderId)
+            ? <<<JS
+
+    <script>
+        (function () {
+            var attempts = 0;
+            var maxAttempts = 30;
+            var statusUrl = {$statusUrlJson};
+            var timer = setInterval(function () {
+                attempts++;
+                fetch(statusUrl, {
+                    credentials: 'same-origin',
+                    headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                })
+                    .then(function (r) { return r.json(); })
+                    .then(function (data) {
+                        if (data.success && data.redirect_url) {
+                            clearInterval(timer);
+                            window.location.href = data.redirect_url;
+                        }
+                    })
+                    .catch(function () {});
+                if (attempts >= maxAttempts) {
+                    clearInterval(timer);
+                }
+            }, 2000);
+        })();
+    </script>
+JS
+            : '';
+
         $deepLinkScript = '';
         if ($fromApp && $success) {
-            $scheme        = config('app.mobile_scheme', 'adventureworld');
-            $deepLinkUrl   = e("{$scheme}://payment/success?order_id=" . urlencode((string) ($orderId ?? '')));
-            $deepLinkJson  = json_encode($deepLinkUrl);
+            $scheme       = config('app.mobile_scheme', 'adventureworld');
+            $deepLinkUrl  = e("{$scheme}://payment/success?order_id=" . urlencode((string) ($orderId ?? '')));
+            $deepLinkJson = json_encode($deepLinkUrl);
             $deepLinkScript = <<<JS
 
     <script>
@@ -638,20 +709,23 @@ JS;
     <title>{$title}</title>
     <style>
         body { font-family: 'Noto Kufi Arabic', system-ui, sans-serif; margin: 0; padding: 2rem; min-height: 100vh; display: flex; align-items: center; justify-content: center; background: {$bg}; color: {$color}; text-align: center; }
-        .box { max-width: 24rem; }
+        .box { max-width: 26rem; }
         h1 { font-size: 1.5rem; margin-bottom: 0.5rem; }
         p { margin-bottom: 1rem; line-height: 1.7; }
         .order { font-size: 0.875rem; color: #4b5563; margin-bottom: 1.25rem; }
+        .spinner { width: 2.5rem; height: 2.5rem; border: 3px solid rgba(59,137,210,0.2); border-top-color: #3b89d2; border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 1rem; }
+        @keyframes spin { to { transform: rotate(360deg); } }
         a.btn { display: inline-block; padding: 0.75rem 1.25rem; border-radius: 0.75rem; background: #3b89d2; color: #fff; text-decoration: none; font-weight: 700; }
     </style>
 </head>
 <body>
     <div class="box">
+        <div class="spinner"></div>
         <h1>{$title}</h1>
         <p>{$message}</p>
         <p class="order">رقم الطلب: {$orderIdSafe}</p>
         <a class="btn" href="{$homeUrl}">العودة للرئيسية</a>
-    </div>{$redirectScript}{$deepLinkScript}
+    </div>{$redirectScript}{$pollScript}{$deepLinkScript}
 </body>
 </html>
 HTML;
@@ -1230,7 +1304,10 @@ HTML;
         }
 
         $session = PaymentSession::where('merchant_reference', $orderId)->first();
-        $storedNoonId = $noonOrderId ?: $session?->noon_order_id;
+        $cacheData = Cache::get('payment_session_' . $orderId);
+        $storedNoonId = $noonOrderId
+            ?: $session?->noon_order_id
+            ?: (is_array($cacheData) ? ($cacheData['noon_order_id'] ?? null) : null);
 
         if (! $storedNoonId || ! $this->verifyNoonOrderStatus($storedNoonId, 'CAPTURED')) {
             return;
@@ -1321,7 +1398,7 @@ HTML;
     /**
      * @return array<string, mixed>
      */
-    private function paymentSuccessPayload(Order $order): array
+    public function buildPaymentSuccessPayload(Order $order): array
     {
         $items = collect($order->items ?? [])->map(function ($item) {
             return [
