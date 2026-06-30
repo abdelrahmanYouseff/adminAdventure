@@ -1,15 +1,24 @@
 <script setup lang="ts">
-import { onMounted } from 'vue';
-import { Link } from '@inertiajs/vue3';
-import { ShoppingCart } from 'lucide-vue-next';
+import { computed, onMounted } from 'vue';
+import { Link, usePage } from '@inertiajs/vue3';
+import { ShoppingCart, User } from 'lucide-vue-next';
 import { useStoreCart } from '@/composables/useStoreCart';
+import StoreUserMenu from '@/components/StoreUserMenu.vue';
 
 withDefaults(
     defineProps<{
         showStoreLink?: boolean;
+        showLoginButton?: boolean;
     }>(),
-    { showStoreLink: true },
+    { showStoreLink: true, showLoginButton: false },
 );
+
+const emit = defineEmits<{
+    openLogin: [];
+}>();
+
+const page = usePage();
+const isLoggedIn = computed(() => Boolean(page.props.auth?.user));
 
 const { count, syncFromStorage } = useStoreCart();
 onMounted(() => syncFromStorage());
@@ -45,6 +54,17 @@ onMounted(() => syncFromStorage());
                 >
                     الرئيسية
                 </Link>
+                <StoreUserMenu v-if="showLoginButton && isLoggedIn" />
+
+                <button
+                    v-if="showLoginButton && !isLoggedIn"
+                    type="button"
+                    class="inline-flex min-h-9 touch-manipulation items-center justify-center gap-1.5 rounded-lg border border-neutral-200 bg-white px-2.5 py-1.5 text-xs font-medium text-neutral-700 transition hover:bg-neutral-50 active:scale-[0.98] sm:px-3 sm:text-sm"
+                    @click="emit('openLogin')"
+                >
+                    <User class="h-4 w-4 shrink-0" />
+                    <span>تسجيل الدخول</span>
+                </button>
 
                 <Link
                     :href="route('store.cart')"

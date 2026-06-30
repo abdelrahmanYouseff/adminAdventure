@@ -1,8 +1,16 @@
 <script setup lang="ts">
+import { computed } from 'vue';
+import { usePage } from '@inertiajs/vue3';
+
 /**
  * زر واتساب ثابت على جميع الصفحات — يمين الشاشة (LTR physical right).
  * يمكن ضبط الرقم عبر VITE_WHATSAPP_NUMBER في .env (أرقام فقط، مع رمز الدولة).
  */
+const page = usePage();
+const hidden = computed(
+    () => page.component === 'Store/Cart' || page.url.startsWith('/store/cart'),
+);
+
 const raw =
     (import.meta.env.VITE_WHATSAPP_NUMBER as string | undefined)?.trim() ||
     '966500000000';
@@ -13,6 +21,7 @@ const href = `https://wa.me/${digits}?text=${encodeURIComponent('مرحباً، 
 
 <template>
     <a
+        v-if="!hidden"
         :href="href"
         target="_blank"
         rel="noopener noreferrer"

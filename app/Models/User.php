@@ -23,6 +23,8 @@ class User extends Authenticatable
         'password',
         'phone',
         'country',
+        'date_of_birth',
+        'gender',
     ];
 
     /**
@@ -60,6 +62,7 @@ class User extends Authenticatable
     {
         return [
             'password' => 'hashed',
+            'date_of_birth' => 'date',
             'created_at' => 'datetime',
             'updated_at' => 'datetime',
         ];

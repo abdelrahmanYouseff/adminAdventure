@@ -47,7 +47,12 @@ class CategoryController extends Controller
     {
         $data = $request->validate([
             'category_name' => 'required|string|max:255|unique:categories,category_name',
+            'image' => 'nullable|image|max:2048',
         ]);
+
+        if ($request->hasFile('image')) {
+            $data['image'] = $request->file('image')->store('categories', 'public');
+        }
 
         Category::create($data);
 
@@ -71,7 +76,14 @@ class CategoryController extends Controller
     {
         $data = $request->validate([
             'category_name' => 'required|string|max:255|unique:categories,category_name,' . $category->id,
+            'image' => 'nullable|image|max:2048',
         ]);
+
+        if ($request->hasFile('image')) {
+            $data['image'] = $request->file('image')->store('categories', 'public');
+        } else {
+            unset($data['image']);
+        }
 
         $category->update($data);
 

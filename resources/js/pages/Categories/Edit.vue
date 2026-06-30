@@ -21,15 +21,20 @@ defineOptions({
 });
 
 const form = useForm({
+    _method: 'PUT',
     category_name: props.category.category_name,
-    image: null,
+    image: null as File | null,
 });
 
-const handleImageChange = (event) => {
-    const file = event.target.files[0];
+const handleImageChange = (event: Event) => {
+    const file = (event.target as HTMLInputElement).files?.[0];
     if (file) {
         form.image = file;
     }
+};
+
+const submit = () => {
+    form.post(route('categories.update', props.category.id));
 };
 </script>
 
@@ -48,7 +53,7 @@ const handleImageChange = (event) => {
                         </Button>
                         <h1 class="text-2xl font-semibold">تعديل الفئة</h1>
                     </div>
-                    <form @submit.prevent="form.post(`/categories/${props.category.id}`, { _method: 'put' })" class="space-y-6" enctype="multipart/form-data">
+                    <form @submit.prevent="submit" class="space-y-6" enctype="multipart/form-data">
                         <div>
                             <label class="block mb-1 font-medium">اسم الفئة</label>
                             <input v-model="form.category_name" type="text" class="w-full rounded border px-3 py-2" required />

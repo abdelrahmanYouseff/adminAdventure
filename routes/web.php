@@ -178,6 +178,12 @@ Route::post('store/checkout', [\App\Http\Controllers\StoreController::class, 'su
 Route::get('store/products/{product}', [\App\Http\Controllers\StoreController::class, 'showProduct'])->name('store.product.show');
 Route::get('store/all-products', [\App\Http\Controllers\StoreController::class, 'allProducts'])->name('store.all-products');
 
+Route::middleware('auth')->group(function () {
+    Route::get('store/account', [\App\Http\Controllers\StoreAccountController::class, 'edit'])->name('store.account');
+    Route::patch('store/account', [\App\Http\Controllers\StoreAccountController::class, 'update'])->name('store.account.update');
+    Route::get('store/orders', [\App\Http\Controllers\StoreOrdersController::class, 'index'])->name('store.orders');
+});
+
 // Payment return URLs (no auth - used by payment gateway redirect)
 Route::match(['GET', 'POST'], 'payment/success', [\App\Http\Controllers\PaymentController::class, 'paymentSuccessPage'])
     ->name('payment.success');
