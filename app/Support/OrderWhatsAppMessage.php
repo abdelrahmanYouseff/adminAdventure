@@ -20,7 +20,7 @@ class OrderWhatsAppMessage
             $lines[] = 'تاريخ الفعالية: '.self::formatActivityDate($order->activity_date);
         }
 
-        $locationUrl = self::locationPageUrl($order->order_number);
+        $locationUrl = self::locationPageUrl($order);
         if ($locationUrl && ($order->address || self::locationMapsUrl($order->address))) {
             $lines[] = 'الموقع: '.$locationUrl;
         }
@@ -37,9 +37,11 @@ class OrderWhatsAppMessage
         return implode("\n", $lines);
     }
 
-    public static function locationPageUrl(string $orderNumber): string
+    public static function locationPageUrl(Order $order): string
     {
-        return route('store.order.location', ['order' => $orderNumber], absolute: true);
+        $slug = $order->location_slug ?: $order->order_number;
+
+        return PublicAppUrl::to('/order/'.$slug.'/location');
     }
 
     public static function locationMapsUrl(?string $address): ?string

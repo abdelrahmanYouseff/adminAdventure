@@ -10,8 +10,11 @@ class OrderWhatsAppMessageTest extends TestCase
 {
     public function test_message_builder_includes_order_details_without_prices(): void
     {
+        config(['app.public_url' => 'https://admin.adventureksa.com']);
+
         $order = new Order([
             'order_number' => 'ORD-202606-0001',
+            'location_slug' => 'shz71',
             'customer_name' => 'أحمد محمد',
             'customer_phone' => '0512345678',
             'address' => '24.7136,46.6753',
@@ -34,7 +37,7 @@ class OrderWhatsAppMessageTest extends TestCase
         $this->assertStringContainsString('أحمد محمد', $message);
         $this->assertStringContainsString('0512345678', $message);
         $this->assertStringContainsString('2026-06-15', $message);
-        $this->assertStringContainsString('/order/ORD-202606-0001/location', $message);
+        $this->assertStringContainsString('https://admin.adventureksa.com/order/shz71/location', $message);
         $this->assertStringContainsString('ترامبولين', $message);
         $this->assertStringNotContainsString('ريال', $message);
         $this->assertStringNotContainsString('1,699', $message);

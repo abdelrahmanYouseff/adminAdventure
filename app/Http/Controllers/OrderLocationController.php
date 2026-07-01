@@ -8,10 +8,11 @@ use Symfony\Component\HttpFoundation\Response;
 
 class OrderLocationController extends Controller
 {
-    public function show(string $order): Response
+    public function show(string $slug): Response
     {
         $orderModel = Order::query()
-            ->where('order_number', $order)
+            ->where('location_slug', $slug)
+            ->orWhere('order_number', $slug)
             ->firstOrFail();
 
         $mapsUrl = OrderWhatsAppMessage::locationMapsUrl($orderModel->address);

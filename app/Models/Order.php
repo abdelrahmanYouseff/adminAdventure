@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Str;
 
 class Order extends Model
 {
@@ -15,6 +16,7 @@ class Order extends Model
         'activity_date',
         'invoice_id',
         'order_number',
+        'location_slug',
         'total_amount',
         'currency',
         'status',
@@ -35,6 +37,15 @@ class Order extends Model
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];
+
+    protected static function booted(): void
+    {
+        static::creating(function (Order $order) {
+            if (empty($order->location_slug)) {
+                $order->location_slug = self::generateLocationSlug();
+            }
+        });
+    }
 
     /**
      * Get the user that owns the order.
@@ -83,5 +94,14 @@ class Order extends Model
         }
 
         return sprintf('%s-%s%s-%04d', $prefix, $year, $month, $newNumber);
+    }
+
+    public static function generateLocationSlug(): string
+    {
+        do {
+            $slug = Str::lower(Str::random(5));
+        } while (self::where('location_slug', $slug)->exists());
+
+        return $slug;
     }
 }

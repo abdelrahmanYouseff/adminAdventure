@@ -210,7 +210,7 @@ Route::get('store/products/{product}', [\App\Http\Controllers\StoreController::c
 Route::get('store/all-products', [\App\Http\Controllers\StoreController::class, 'allProducts'])->name('store.all-products');
 Route::get('store/categories/{category}', [\App\Http\Controllers\StoreController::class, 'categoryProducts'])->name('store.category.show');
 
-Route::get('order/{order}/location', [\App\Http\Controllers\OrderLocationController::class, 'show'])
+Route::get('order/{slug}/location', [\App\Http\Controllers\OrderLocationController::class, 'show'])
     ->name('store.order.location');
 
 Route::middleware('auth')->group(function () {

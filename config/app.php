@@ -56,6 +56,18 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Public Application URL (no www)
+    |--------------------------------------------------------------------------
+    |
+    | Canonical URL for links shared externally (WhatsApp, SMS, etc.).
+    | www is stripped automatically if present.
+    |
+    */
+
+    'public_url' => env('APP_PUBLIC_URL', env('APP_URL', 'http://localhost')),
+
+    /*
+    |--------------------------------------------------------------------------
     | Application Timezone
     |--------------------------------------------------------------------------
     |
