@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Invoice;
+use App\Support\InvoicePdfData;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -28,7 +29,7 @@ class InvoiceController extends Controller
      */
     public function show(Invoice $invoice)
     {
-        $invoice->load(['user', 'rental.product']);
+        $invoice->load(['user', 'rental.product', 'order']);
 
         return Inertia::render('Invoices/Show', [
             'invoice' => $invoice,
@@ -40,16 +41,19 @@ class InvoiceController extends Controller
      */
     public function generatePdf(Invoice $invoice)
     {
-        $invoice->load(['user', 'rental.product']);
+        $data = InvoicePdfData::fromInvoice($invoice);
 
-        $pdf = Pdf::loadView('invoice-pdf', compact('invoice'))
+        $pdf = Pdf::loadView('invoice-pdf', compact('data'))
             ->setPaper('a4', 'portrait')
             ->setOptions([
                 'dpi' => 150,
                 'defaultFont' => 'DejaVu Sans',
                 'isHtml5ParserEnabled' => true,
                 'isPhpEnabled' => true,
-                'isRemoteEnabled' => true,
+                'isRemoteEnabled' => false,
+                'chroot' => public_path(),
+                'fontHeightRatio' => 1.1,
+                'isFontSubsettingEnabled' => true,
             ]);
 
         return $pdf->stream("invoice-{$invoice->invoice_number}.pdf");
