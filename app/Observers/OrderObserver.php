@@ -4,21 +4,39 @@ namespace App\Observers;
 
 use App\Jobs\SendOrderWhatsAppNotification;
 use App\Models\Order;
+use Illuminate\Support\Facades\Log;
 
 class OrderObserver
 {
     public function created(Order $order): void
     {
         if ($this->shouldNotify($order)) {
-            SendOrderWhatsAppNotification::dispatch($order->id);
+            $this->dispatchNotification($order);
         }
     }
 
     public function updated(Order $order): void
     {
-        if ($order->wasChanged('payment_status') && $this->shouldNotify($order)) {
-            SendOrderWhatsAppNotification::dispatch($order->id);
+        if (($order->wasChanged('payment_status') || $order->wasChanged('status')) && $this->shouldNotify($order)) {
+            $this->dispatchNotification($order);
         }
+    }
+
+    private function dispatchNotification(Order $order): void
+    {
+        Log::info('WhatsApp order notification queued', [
+            'order_id' => $order->id,
+            'order_number' => $order->order_number,
+            'sync' => config('services.whatsapp.dispatch_sync', true),
+        ]);
+
+        if (config('services.whatsapp.dispatch_sync', true)) {
+            SendOrderWhatsAppNotification::dispatchSync($order->id);
+
+            return;
+        }
+
+        SendOrderWhatsAppNotification::dispatch($order->id)->afterCommit();
     }
 
     private function shouldNotify(Order $order): bool

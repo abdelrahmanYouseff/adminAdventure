@@ -37,15 +37,25 @@ class SendOrderWhatsAppNotification implements ShouldQueue
         }
 
         if (! $whatsapp->isConfigured()) {
-            Log::info('WhatsApp order notification skipped: service not configured', [
+            Log::warning('WhatsApp order notification skipped: service not configured', [
                 'order_id' => $order->id,
+                'order_number' => $order->order_number,
+                'enabled' => config('services.whatsapp.enabled'),
+                'recipients' => $whatsapp->recipientNumbers(),
             ]);
 
             return;
         }
 
         $message = OrderWhatsAppMessage::build($order);
-        $whatsapp->sendToDefaultRecipient($message);
+
+        Log::info('WhatsApp order notification sending', [
+            'order_id' => $order->id,
+            'order_number' => $order->order_number,
+            'recipients' => $whatsapp->recipientNumbers(),
+        ]);
+
+        $whatsapp->sendToAllRecipients($message);
 
         $order->forceFill(['whatsapp_notified_at' => now()])->save();
     }
