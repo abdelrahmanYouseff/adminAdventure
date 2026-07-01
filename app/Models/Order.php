@@ -22,6 +22,7 @@ class Order extends Model
         'payment_status',
         'payment_id',
         'payment_order_reference',
+        'whatsapp_notified_at',
         'notes',
         'items',
     ];
@@ -30,6 +31,7 @@ class Order extends Model
         'total_amount' => 'decimal:2',
         'items' => 'array',
         'activity_date' => 'date',
+        'whatsapp_notified_at' => 'datetime',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];

@@ -64,4 +64,12 @@ return [
         'app_name' => env('AUTHENTICA_APP_NAME', 'adventurworldapp'),
     ],
 
+    'whatsapp' => [
+        'enabled' => env('WHATSAPP_ENABLED', false),
+        'phone_number_id' => env('WHATSAPP_PHONE_NUMBER_ID'),
+        'access_token' => env('WHATSAPP_ACCESS_TOKEN'),
+        'to' => env('WHATSAPP_TO', '966538388299'),
+        'graph_version' => env('WHATSAPP_GRAPH_VERSION', 'v21.0'),
+    ],
+
 ];
