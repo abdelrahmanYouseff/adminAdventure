@@ -3,8 +3,10 @@ import { ref, computed, onMounted, watch } from 'vue';
 import { Head, Link } from '@inertiajs/vue3';
 import { ShoppingCart, SlidersHorizontal, X, Heart } from 'lucide-vue-next';
 import StoreHeader from '@/components/StoreHeader.vue';
+import StoreLoginModal from '@/components/StoreLoginModal.vue';
 import AppFooter from '@/components/AppFooter.vue';
 import { useStoreCart } from '@/composables/useStoreCart';
+import { useStoreAuth } from '@/composables/useStoreAuth';
 import { useStoreWishlist } from '@/composables/useStoreWishlist';
 import { formatAmount } from '@/lib/formatNumber';
 
@@ -38,7 +40,17 @@ const props = withDefaults(
 );
 
 const { addItem, syncFromStorage } = useStoreCart();
+const { requireLogin } = useStoreAuth();
+const loginModalOpen = ref(false);
 const { isInWishlist, toggle: toggleWishlist, syncFromStorage: syncWishlist } = useStoreWishlist();
+
+function openLoginModal() {
+    loginModalOpen.value = true;
+}
+
+function guardAction(action: () => void) {
+    requireLogin(action, openLoginModal);
+}
 onMounted(() => {
     syncFromStorage();
     syncWishlist();
@@ -109,12 +121,14 @@ function clearFilters() {
 // ── Added feedback ──────────────────────────
 const addedIds = ref<Set<number>>(new Set());
 function addToCart(product: Product) {
-    addItem(product.id, product.product_name, Number(product.price), 1, imageUrl(product));
-    addedIds.value = new Set([...addedIds.value, product.id]);
-    setTimeout(() => {
-        addedIds.value.delete(product.id);
-        addedIds.value = new Set(addedIds.value);
-    }, 1800);
+    guardAction(() => {
+        addItem(product.id, product.product_name, Number(product.price), 1, imageUrl(product));
+        addedIds.value = new Set([...addedIds.value, product.id]);
+        setTimeout(() => {
+            addedIds.value.delete(product.id);
+            addedIds.value = new Set(addedIds.value);
+        }, 1800);
+    });
 }
 </script>
 
@@ -126,7 +140,8 @@ function addToCart(product: Product) {
 
     <div dir="rtl" class="min-h-screen bg-[#f4f6f8] pb-[env(safe-area-inset-bottom,0px)]" style="font-family: 'Noto Kufi Arabic', sans-serif">
 
-        <StoreHeader />
+        <StoreHeader :show-login-button="true" @open-login="openLoginModal" />
+        <StoreLoginModal v-model:open="loginModalOpen" />
 
         <!-- ── Hero banner ── -->
         <div class="border-b border-neutral-200/80 bg-white py-8 sm:py-12 lg:py-16">

@@ -5,7 +5,9 @@ import AppLogo from '@/components/AppLogo.vue';
 import { Button } from '@/components/ui/button';
 import { ShoppingCart, ImageIcon } from 'lucide-vue-next';
 import StoreHeader from '@/components/StoreHeader.vue';
+import StoreLoginModal from '@/components/StoreLoginModal.vue';
 import { useStoreCart } from '@/composables/useStoreCart';
+import { useStoreAuth } from '@/composables/useStoreAuth';
 import { formatAmount } from '@/lib/formatNumber';
 
 interface Category {
@@ -29,7 +31,17 @@ const props = defineProps<{
 }>();
 
 const { count, addItem, syncFromStorage } = useStoreCart();
+const { requireLogin } = useStoreAuth();
+const loginModalOpen = ref(false);
 const selectedCategoryId = ref<number | null>(null);
+
+function openLoginModal() {
+    loginModalOpen.value = true;
+}
+
+function guardAction(action: () => void) {
+    requireLogin(action, openLoginModal);
+}
 
 onMounted(() => syncFromStorage());
 
@@ -48,7 +60,9 @@ const imageUrl = (product: Product): string | null => {
 };
 
 const addToCart = (product: Product) => {
-    addItem(product.id, product.product_name, Number(product.price), 1, imageUrl(product));
+    guardAction(() => {
+        addItem(product.id, product.product_name, Number(product.price), 1, imageUrl(product));
+    });
 };
 </script>
 
@@ -56,7 +70,8 @@ const addToCart = (product: Product) => {
     <Head title="المتجر - عالم المغامرة" />
 
     <div class="min-h-screen bg-white dark:bg-neutral-950">
-        <StoreHeader />
+        <StoreHeader :show-login-button="true" @open-login="openLoginModal" />
+        <StoreLoginModal v-model:open="loginModalOpen" />
 
         <div class="mx-auto max-w-7xl px-3.5 sm:px-6 lg:px-8">
             <div class="flex flex-row-reverse gap-0 lg:gap-10">

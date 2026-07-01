@@ -3,7 +3,9 @@ import { ref, computed, onMounted } from 'vue';
 import { Head, Link } from '@inertiajs/vue3';
 import { ShoppingCart, Star, Shield, Check, ChevronRight, ArrowRight, Package, Clock, Truck } from 'lucide-vue-next';
 import StoreHeader from '@/components/StoreHeader.vue';
+import StoreLoginModal from '@/components/StoreLoginModal.vue';
 import { useStoreCart } from '@/composables/useStoreCart';
+import { useStoreAuth } from '@/composables/useStoreAuth';
 import { formatAmount, formatPrice } from '@/lib/formatNumber';
 
 interface Category {
@@ -29,6 +31,16 @@ const props = defineProps<{
 }>();
 
 const { addItem, syncFromStorage } = useStoreCart();
+const { requireLogin } = useStoreAuth();
+const loginModalOpen = ref(false);
+
+function openLoginModal() {
+    loginModalOpen.value = true;
+}
+
+function guardAction(action: () => void) {
+    requireLogin(action, openLoginModal);
+}
 
 onMounted(() => syncFromStorage());
 
@@ -48,15 +60,17 @@ const total = computed(() => formatPrice(Number(props.product.price) * duration.
 const durations = [1, 2, 3, 4, 5, 7, 10, 14];
 
 function addToCart() {
-    addItem(
-        props.product.id,
-        props.product.product_name,
-        Number(props.product.price),
-        duration.value,
-        mainImage.value,
-    );
-    added.value = true;
-    setTimeout(() => (added.value = false), 2000);
+    guardAction(() => {
+        addItem(
+            props.product.id,
+            props.product.product_name,
+            Number(props.product.price),
+            duration.value,
+            mainImage.value,
+        );
+        added.value = true;
+        setTimeout(() => (added.value = false), 2000);
+    });
 }
 
 function onDurationSelect(e: Event) {
@@ -76,7 +90,8 @@ const trustBadges = [
     <div dir="rtl" class="min-h-screen bg-white" style="font-family: 'Noto Kufi Arabic', sans-serif">
 
         <!-- ── Header ── -->
-        <StoreHeader />
+        <StoreHeader :show-login-button="true" @open-login="openLoginModal" />
+        <StoreLoginModal v-model:open="loginModalOpen" />
 
         <!-- ── Breadcrumb ── -->
         <div class="border-b border-neutral-100 bg-neutral-50">
