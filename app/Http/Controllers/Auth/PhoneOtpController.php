@@ -9,7 +9,9 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 class PhoneOtpController extends Controller
@@ -88,9 +90,7 @@ class PhoneOtpController extends Controller
         $user = $this->findUserByPhone($data['phone']);
 
         if (! $user) {
-            throw ValidationException::withMessages([
-                'phone' => 'رقم الجوال غير مسجل',
-            ]);
+            $user = $this->createUserFromPhone($data['phone']);
         }
 
         Auth::login($user);
@@ -102,7 +102,37 @@ class PhoneOtpController extends Controller
             $redirect = '/home';
         }
 
+        if (! $user->profile_completed) {
+            return redirect()->route('store.complete-registration', ['redirect' => $redirect]);
+        }
+
         return redirect()->to($redirect);
+    }
+
+    private function createUserFromPhone(string $phone): User
+    {
+        $digits = $this->normalizePhoneDigits($phone);
+
+        return User::create([
+            'customer_name' => '',
+            'email' => $digits.'@phone.adventureksa.com',
+            'password' => Hash::make(Str::random(32)),
+            'phone' => $digits,
+            'profile_completed' => false,
+        ]);
+    }
+
+    private function normalizePhoneDigits(string $phone): string
+    {
+        $digits = preg_replace('/\D/', '', $phone) ?? '';
+        if (str_starts_with($digits, '966')) {
+            $digits = substr($digits, 3);
+        }
+        if (str_starts_with($digits, '0')) {
+            $digits = substr($digits, 1);
+        }
+
+        return $digits;
     }
 
     private function cacheKey(string $phone): string

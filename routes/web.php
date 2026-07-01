@@ -201,6 +201,10 @@ Route::get('store/all-products', [\App\Http\Controllers\StoreController::class, 
 Route::get('store/categories/{category}', [\App\Http\Controllers\StoreController::class, 'categoryProducts'])->name('store.category.show');
 
 Route::middleware('auth')->group(function () {
+    Route::get('store/complete-registration', [\App\Http\Controllers\StoreCompleteRegistrationController::class, 'create'])
+        ->name('store.complete-registration');
+    Route::post('store/complete-registration', [\App\Http\Controllers\StoreCompleteRegistrationController::class, 'store'])
+        ->name('store.complete-registration.store');
     Route::get('store/account', [\App\Http\Controllers\StoreAccountController::class, 'edit'])->name('store.account');
     Route::patch('store/account', [\App\Http\Controllers\StoreAccountController::class, 'update'])->name('store.account.update');
     Route::get('store/orders', [\App\Http\Controllers\StoreOrdersController::class, 'index'])->name('store.orders');
