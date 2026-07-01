@@ -26,9 +26,16 @@ Route::get('/home', function (Request $request) {
     $paymentSuccess = $request->session()->get('payment_success');
 
     if (! $paymentSuccess && $request->filled('paid_order')) {
-        $order = \App\Models\Order::where('order_number', $request->string('paid_order'))->first();
-        if ($order && ($order->payment_status === 'paid' || $order->status === 'paid')) {
-            $paymentSuccess = app(PaymentController::class)->buildPaymentSuccessPayload($order);
+        try {
+            $order = \App\Models\Order::where('order_number', $request->string('paid_order'))->first();
+            if ($order && ($order->payment_status === 'paid' || $order->status === 'paid')) {
+                $paymentSuccess = app(PaymentController::class)->buildPaymentSuccessPayload($order);
+            }
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('home paid_order payload failed', [
+                'paid_order' => $request->string('paid_order'),
+                'message' => $e->getMessage(),
+            ]);
         }
     }
 

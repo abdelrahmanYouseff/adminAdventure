@@ -56,4 +56,12 @@ return [
         'mock_payment' => env('STORE_MOCK_PAYMENT', false),
     ],
 
+    'authentica' => [
+        'base_url' => env('AUTHENTICA_BASE_URL', 'https://api.authentica.sa/api/v2'),
+        'api_key' => env('AUTHENTICA_API_KEY'),
+        'template_id' => env('AUTHENTICA_TEMPLATE_ID', 31),
+        'timeout' => (int) env('AUTHENTICA_TIMEOUT', 30),
+        'app_name' => env('AUTHENTICA_APP_NAME', 'adventurworldapp'),
+    ],
+
 ];

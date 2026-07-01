@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { Link } from '@inertiajs/vue3';
-import { CheckCircle2, Calendar, Hash, Package, User, X } from 'lucide-vue-next';
+import { CheckCircle2, Calendar, Hash, MapPin, Package, User, X } from 'lucide-vue-next';
 import { formatAmount } from '@/lib/formatNumber';
 
 export interface PaymentSuccessData {
@@ -9,6 +9,7 @@ export interface PaymentSuccessData {
     total_amount: number;
     currency: string;
     customer_name: string;
+    address?: string | null;
     activity_date?: string | null;
     items: Array<{
         name: string;
@@ -32,11 +33,21 @@ const formattedDate = computed(() => {
             year: 'numeric',
             month: 'long',
             day: 'numeric',
-        }).format(new Date(props.data.activity_date));
+        }).format(new Date(props.data.activity_date + 'T12:00:00'));
     } catch {
         return props.data.activity_date;
     }
 });
+
+function locationMapsUrl(address: string | null | undefined): string | null {
+    if (!address?.trim()) return null;
+    const trimmed = address.trim();
+    const coordMatch = trimmed.match(/^(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)$/);
+    if (coordMatch) {
+        return `https://www.google.com/maps?q=${coordMatch[1]},${coordMatch[2]}`;
+    }
+    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(trimmed)}`;
+}
 
 function close() {
     open.value = false;
@@ -139,6 +150,28 @@ function close() {
                                     <div class="min-w-0 text-start">
                                         <p class="text-xs text-neutral-500">تاريخ الفعالية</p>
                                         <p class="mt-0.5 text-sm font-bold text-neutral-900">{{ formattedDate }}</p>
+                                    </div>
+                                </div>
+
+                                <div
+                                    v-if="data.address"
+                                    class="flex items-start gap-3 rounded-xl border border-neutral-100 bg-neutral-50/80 p-3.5 sm:col-span-2"
+                                >
+                                    <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#3b89d2]/10 text-[#3b89d2]">
+                                        <MapPin class="h-4 w-4" />
+                                    </div>
+                                    <div class="min-w-0 text-start">
+                                        <p class="text-xs text-neutral-500">موقع العميل</p>
+                                        <a
+                                            v-if="locationMapsUrl(data.address)"
+                                            :href="locationMapsUrl(data.address)!"
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            class="mt-0.5 block text-sm font-bold text-[#3b89d2] hover:underline"
+                                        >
+                                            {{ data.address }}
+                                        </a>
+                                        <p v-else class="mt-0.5 text-sm font-bold text-neutral-900">{{ data.address }}</p>
                                     </div>
                                 </div>
 

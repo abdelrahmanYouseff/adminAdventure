@@ -579,9 +579,18 @@ class PaymentController extends Controller
 
     public function paymentReturnStatus(string $order): \Illuminate\Http\JsonResponse
     {
+        $orderModel = Order::where('order_number', $order)->first();
+
+        if ($orderModel && ($orderModel->payment_status === 'paid' || $orderModel->status === 'paid')) {
+            return response()->json([
+                'success' => true,
+                'redirect_url' => route('home', ['paid_order' => $order]),
+            ]);
+        }
+
         $this->confirmStorePaymentOrder($order, null, '');
 
-        $orderModel = Order::where('order_number', $order)->first();
+        $orderModel = $orderModel?->fresh() ?? Order::where('order_number', $order)->first();
 
         if ($orderModel && ($orderModel->payment_status === 'paid' || $orderModel->status === 'paid')) {
             return response()->json([
@@ -608,9 +617,15 @@ class PaymentController extends Controller
             ?? ($input['orderReference'] ?? null)
             ?? ($input['merchantReference'] ?? null);
 
+        $fromApp = ($input['from_app'] ?? $request->query('from_app')) === '1';
+
+        // Already confirmed — redirect immediately (avoids repeated Noon API calls on refresh).
+        if ($orderId && $this->isPaymentProcessed($orderId) && ! $fromApp && ! $this->isAppWebView($request)) {
+            return redirect()->route('home', ['paid_order' => $orderId]);
+        }
+
         $noonOrderId = $input['orderId'] ?? null;
         $noonStatus  = strtoupper((string) ($input['orderStatus'] ?? $input['status'] ?? ''));
-        $fromApp     = ($input['from_app'] ?? $request->query('from_app')) === '1';
 
         Log::info('payment return hit', [
             'order_id' => $orderId,
@@ -1431,6 +1446,7 @@ HTML;
             'total_amount' => (float) $order->total_amount,
             'currency' => $order->currency ?? 'SAR',
             'customer_name' => $order->customer_name ?? '',
+            'address' => $order->address,
             'activity_date' => $order->activity_date?->format('Y-m-d'),
             'items' => $items,
             'paid_at' => now()->format('Y-m-d H:i'),

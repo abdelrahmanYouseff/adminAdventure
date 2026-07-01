@@ -9,7 +9,8 @@ const mode = ref<'phone' | 'otp' | 'email'>('phone');
 const phone = ref('');
 const phoneError = ref('');
 const normalizedPhone = ref('');
-const otpDigits = ref(['', '', '', '']);
+const otpLength = 6;
+const otpDigits = ref<string[]>(Array.from({ length: otpLength }, () => ''));
 const otpError = ref('');
 const otpInputRefs = ref<(HTMLInputElement | null)[]>([]);
 const resendSeconds = ref(0);
@@ -81,7 +82,7 @@ function startResendTimer(seconds = 25) {
 }
 
 function resetOtpState() {
-    otpDigits.value = ['', '', '', ''];
+    otpDigits.value = Array.from({ length: otpLength }, () => '');
     otpError.value = '';
     verifyOtpForm.clearErrors();
     stopResendTimer();
@@ -185,7 +186,7 @@ function onOtpInput(index: number, event: Event) {
     input.value = digit;
     otpError.value = '';
 
-    if (digit && index < 3) {
+    if (digit && index < otpLength - 1) {
         otpInputRefs.value[index + 1]?.focus();
     }
 }
@@ -201,24 +202,24 @@ function onOtpKeydown(index: number, event: KeyboardEvent) {
 
 function onOtpPaste(event: ClipboardEvent) {
     event.preventDefault();
-    const pasted = event.clipboardData?.getData('text').replace(/\D/g, '').slice(0, 4) ?? '';
+    const pasted = event.clipboardData?.getData('text').replace(/\D/g, '').slice(0, otpLength) ?? '';
     if (!pasted) {
         return;
     }
 
     pasted.split('').forEach((digit, index) => {
-        if (index < 4) {
+        if (index < otpLength) {
             otpDigits.value[index] = digit;
         }
     });
 
-    const focusIndex = Math.min(pasted.length, 3);
+    const focusIndex = Math.min(pasted.length, otpLength - 1);
     nextTick(() => otpInputRefs.value[focusIndex]?.focus());
 }
 
 function submitOtp() {
     if (!otpComplete.value) {
-        otpError.value = 'أدخل رمز التحقق المكوّن من 4 أرقام';
+        otpError.value = 'أدخل رمز التحقق المكوّن من 6 أرقام';
         return;
     }
 
@@ -341,7 +342,7 @@ function submitEmail() {
                         </p>
                         <p class="text-lg font-bold text-neutral-900" dir="ltr">{{ formattedPhone }}</p>
 
-                        <div class="flex items-center justify-center gap-3" dir="ltr" @paste="onOtpPaste">
+                        <div class="flex flex-wrap items-center justify-center gap-2 sm:gap-3" dir="ltr" @paste="onOtpPaste">
                             <input
                                 v-for="(_, index) in otpDigits"
                                 :key="index"
@@ -350,7 +351,7 @@ function submitEmail() {
                                 inputmode="numeric"
                                 maxlength="1"
                                 autocomplete="one-time-code"
-                                class="h-14 w-14 rounded-xl border border-neutral-200 bg-white text-center text-xl font-bold text-neutral-900 outline-none transition focus:border-[#b565d8] focus:ring-2 focus:ring-[#b565d8]/20"
+                                class="h-12 w-11 rounded-xl border border-neutral-200 bg-white text-center text-lg font-bold text-neutral-900 outline-none transition focus:border-[#b565d8] focus:ring-2 focus:ring-[#b565d8]/20 sm:h-14 sm:w-12 sm:text-xl"
                                 :value="otpDigits[index]"
                                 :disabled="verifyOtpForm.processing"
                                 @input="onOtpInput(index, $event)"
