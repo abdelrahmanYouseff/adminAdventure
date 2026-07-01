@@ -24,6 +24,8 @@ import {
     ChevronLeft,
     ChevronRight,
     Eye,
+    MapPin,
+    ExternalLink,
 } from 'lucide-vue-next';
 import { formatCurrency, formatDate, formatInteger } from '@/lib/formatNumber';
 
@@ -37,6 +39,8 @@ interface Order {
     currency: string;
     payment_method: string;
     status: string;
+    activity_date: string | null;
+    address: string | null;
     created_at: string;
 }
 
@@ -141,6 +145,21 @@ const getPaymentMethodText = (method: string) => {
 
 const pendingCount = () => props.orders.data.filter((o) => o.status === 'pending').length;
 const paidCount = () => props.orders.data.filter((o) => o.status === 'paid').length;
+
+function formatActivityDate(date: string | null): string {
+    if (!date) return '—';
+    return formatDate(date);
+}
+
+function locationMapsUrl(address: string | null): string | null {
+    if (!address?.trim()) return null;
+    const trimmed = address.trim();
+    const coordMatch = trimmed.match(/^(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)$/);
+    if (coordMatch) {
+        return `https://www.google.com/maps?q=${coordMatch[1]},${coordMatch[2]}`;
+    }
+    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(trimmed)}`;
+}
 </script>
 
 <template>
@@ -276,6 +295,8 @@ const paidCount = () => props.orders.data.filter((o) => o.status === 'paid').len
                                 <TableHead>رقم الطلب</TableHead>
                                 <TableHead>العميل</TableHead>
                                 <TableHead>التواصل</TableHead>
+                                <TableHead>تاريخ الفعالية</TableHead>
+                                <TableHead>الموقع</TableHead>
                                 <TableHead>المبلغ</TableHead>
                                 <TableHead>طريقة الدفع</TableHead>
                                 <TableHead>الحالة</TableHead>
@@ -285,7 +306,7 @@ const paidCount = () => props.orders.data.filter((o) => o.status === 'paid').len
                         </TableHeader>
                         <TableBody>
                             <TableRow v-if="orders.data.length === 0">
-                                <TableCell colspan="8" class="h-24 text-center text-muted-foreground">
+                                <TableCell colspan="10" class="h-24 text-center text-muted-foreground">
                                     لا توجد طلبات
                                 </TableCell>
                             </TableRow>
@@ -312,6 +333,25 @@ const paidCount = () => props.orders.data.filter((o) => o.status === 'paid').len
                                         </span>
                                         <span v-if="!order.customer_email && !order.customer_phone">—</span>
                                     </div>
+                                </TableCell>
+                                <TableCell class="whitespace-nowrap text-muted-foreground">
+                                    {{ formatActivityDate(order.activity_date) }}
+                                </TableCell>
+                                <TableCell class="max-w-[220px]">
+                                    <template v-if="order.address && locationMapsUrl(order.address)">
+                                        <a
+                                            :href="locationMapsUrl(order.address)!"
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            class="inline-flex max-w-full items-start gap-1.5 text-sm text-primary hover:underline"
+                                            :title="order.address"
+                                        >
+                                            <MapPin class="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                                            <span class="line-clamp-2 min-w-0">{{ order.address }}</span>
+                                            <ExternalLink class="mt-0.5 h-3 w-3 shrink-0 opacity-60" />
+                                        </a>
+                                    </template>
+                                    <span v-else class="text-muted-foreground">—</span>
                                 </TableCell>
                                 <TableCell>
                                     <span class="font-semibold text-green-600 dark:text-green-400">
