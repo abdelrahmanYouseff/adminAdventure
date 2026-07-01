@@ -199,3 +199,34 @@
 .dark [data-sidebar="sidebar"] [data-sidebar="menu-button"]:hover:not([data-active="true"]) {
     background: rgba(255, 255, 255, 0.06) !important;
 }
+
+/* Admin dashboard RTL */
+.admin-rtl {
+    font-family: 'Noto Kufi Arabic', ui-sans-serif, system-ui, sans-serif;
+}
+
+.admin-rtl th.text-left,
+.admin-rtl td.text-left,
+.admin-rtl .text-left:not([dir='ltr']) {
+    text-align: start;
+}
+
+.admin-rtl .absolute.left-3:not([dir='ltr'] *) {
+    left: auto;
+    right: 0.75rem;
+}
+
+.admin-rtl input.pl-10:not([dir='ltr']) {
+    padding-left: 0.75rem;
+    padding-right: 2.5rem;
+}
+
+.admin-rtl .absolute.inset-y-0.left-0:not([dir='ltr'] *) {
+    left: auto;
+    right: 0;
+}
+
+.admin-rtl input.pl-12:not([dir='ltr']) {
+    padding-left: 0.75rem;
+    padding-right: 3rem;
+}

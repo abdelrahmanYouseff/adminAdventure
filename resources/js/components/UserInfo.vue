@@ -30,7 +30,7 @@ const displayName = computed(() => (props.user.name?.trim() || props.user.email 
         </AvatarFallback>
     </Avatar>
 
-    <div class="grid flex-1 text-left text-sm leading-tight">
+    <div class="grid flex-1 text-start text-sm leading-tight">
         <span class="truncate font-medium">{{ displayName }}</span>
         <span v-if="showEmail" class="truncate text-xs text-muted-foreground">{{ user.email }}</span>
     </div>

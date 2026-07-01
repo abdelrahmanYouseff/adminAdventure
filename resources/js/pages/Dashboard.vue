@@ -86,7 +86,7 @@ const totalPackages = page.props.totalPackages as number | undefined;
                             </p>
                         </div>
                     </div>
-                    <ArrowLeft class="h-5 w-5 shrink-0 text-green-600 dark:text-green-400" />
+                    <ArrowLeft class="h-5 w-5 shrink-0 text-green-600 dark:text-green-400 rtl:rotate-180" />
                 </Link>
             </div>
         </div>

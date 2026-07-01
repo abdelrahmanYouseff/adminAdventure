@@ -63,9 +63,10 @@ const mainNavItems: NavItem[] = [
 
 <template>
     <Sidebar
+        side="right"
         collapsible="icon"
         variant="sidebar"
-        class="!bg-[#f5f5f5] dark:!bg-[hsl(0,0%,11%)] border-r border-neutral-200 dark:border-neutral-700 shadow-sm"
+        class="!bg-[#f5f5f5] dark:!bg-[hsl(0,0%,11%)] shadow-sm"
     >
         <SidebarHeader class="p-5 pb-3 border-b border-neutral-200/80 dark:border-neutral-700/80">
             <SidebarMenu>

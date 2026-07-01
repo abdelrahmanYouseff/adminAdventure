@@ -132,7 +132,7 @@ const orderItems = () => {
             <div class="flex items-center gap-3">
                 <Link :href="route('orders.index')">
                     <Button variant="ghost" size="sm">
-                        <ArrowRight class="ml-2 h-4 w-4" />
+                        <ArrowRight class="me-2 h-4 w-4" />
                         العودة للطلبات
                     </Button>
                 </Link>
