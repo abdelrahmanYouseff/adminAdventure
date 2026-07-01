@@ -9,47 +9,30 @@ class OrderWhatsAppMessage
 {
     public static function build(Order $order): string
     {
-        $separator = '────────────────────';
-
         $lines = [
             'طلب جديد — عالم المغامرة',
-            $separator,
-            '',
-            'رقم الطلب',
-            $order->order_number,
-            '',
-            'العميل',
-            $order->customer_name ?: '—',
-            '',
-            'الجوال',
-            $order->customer_phone ?: '—',
+            'رقم الطلب: '.$order->order_number,
+            'العميل: '.($order->customer_name ?: '—'),
+            'الجوال: '.($order->customer_phone ?: '—'),
         ];
 
         if ($order->activity_date) {
-            $lines[] = '';
-            $lines[] = 'تاريخ الفعالية';
-            $lines[] = self::formatActivityDate($order->activity_date);
+            $lines[] = 'تاريخ الفعالية: '.self::formatActivityDate($order->activity_date);
         }
 
         $locationUrl = self::locationPageUrl($order->order_number);
         if ($locationUrl && ($order->address || self::locationMapsUrl($order->address))) {
-            $lines[] = '';
-            $lines[] = 'الموقع';
-            $lines[] = $locationUrl;
+            $lines[] = 'الموقع: '.$locationUrl;
         }
 
         $items = collect($order->items ?? []);
         if ($items->isNotEmpty()) {
-            $lines[] = '';
-            $lines[] = 'المنتجات';
+            $lines[] = 'المنتجات:';
             foreach ($items as $item) {
                 $name = $item['name'] ?? $item['product_name'] ?? 'منتج';
                 $lines[] = '• '.$name;
             }
         }
-
-        $lines[] = '';
-        $lines[] = $separator;
 
         return implode("\n", $lines);
     }
