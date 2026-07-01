@@ -2,7 +2,6 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
@@ -18,38 +17,6 @@ return new class extends Migration
 
             $table->unique('phone');
         });
-
-        $defaults = array_filter(array_unique(array_merge(
-            [(string) config('services.whatsapp.to')],
-            array_map('trim', explode(',', (string) config('services.whatsapp.extra_to', '')))
-        )));
-
-        $now = now();
-        foreach ($defaults as $phone) {
-            if ($phone === '') {
-                continue;
-            }
-
-            $normalized = preg_replace('/\D/', '', $phone) ?? '';
-            if (str_starts_with($normalized, '0')) {
-                $normalized = '966'.substr($normalized, 1);
-            }
-            if (strlen($normalized) === 9 && str_starts_with($normalized, '5')) {
-                $normalized = '966'.$normalized;
-            }
-
-            if ($normalized === '') {
-                continue;
-            }
-
-            DB::table('whatsapp_notification_recipients')->insertOrIgnore([
-                'phone' => $normalized,
-                'label' => null,
-                'is_active' => true,
-                'created_at' => $now,
-                'updated_at' => $now,
-            ]);
-        }
     }
 
     public function down(): void

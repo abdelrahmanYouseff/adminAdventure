@@ -235,5 +235,7 @@ class DatabaseSeeder extends Seeder
                 'notes' => 'Paid in cash on pickup',
             ]);
         }
+
+        $this->call(WhatsappNotificationRecipientSeeder::class);
     }
 }
