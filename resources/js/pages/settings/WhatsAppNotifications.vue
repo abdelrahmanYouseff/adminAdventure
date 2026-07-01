@@ -22,11 +22,9 @@ const props = defineProps<{
     whatsapp_configured: boolean;
 }>();
 
-defineOptions({ layout: AppLayout });
-
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'لوحة التحكم', href: '/dashboard' },
-    { title: 'إعدادات واتساب الطلبات', href: route('settings.whatsapp.index') },
+    { title: 'إعدادات واتساب الطلبات', href: '/settings/whatsapp' },
 ];
 
 const page = usePage();
@@ -67,9 +65,10 @@ const activeCount = computed(() => props.recipients.filter((r) => r.is_active).l
 </script>
 
 <template>
-    <Head title="إعدادات واتساب الطلبات" />
+    <AppLayout :breadcrumbs="breadcrumbs">
+        <Head title="إعدادات واتساب الطلبات" />
 
-    <div class="flex h-full flex-1 flex-col gap-6 rounded-xl p-6">
+        <div class="flex h-full flex-1 flex-col gap-6 rounded-xl p-6">
         <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div class="flex items-center gap-3">
                 <div class="flex h-11 w-11 items-center justify-center rounded-xl bg-green-100 dark:bg-green-900/30">
@@ -175,5 +174,6 @@ const activeCount = computed(() => props.recipients.filter((r) => r.is_active).l
                 </ul>
             </div>
         </div>
-    </div>
+        </div>
+    </AppLayout>
 </template>

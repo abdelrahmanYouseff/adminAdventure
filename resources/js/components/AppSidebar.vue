@@ -55,7 +55,7 @@ const mainNavItems: NavItem[] = [
     },
     {
         title: 'إعدادات واتساب',
-        href: route('settings.whatsapp.index'),
+        href: '/settings/whatsapp',
         icon: MessageCircle,
     },
 ];

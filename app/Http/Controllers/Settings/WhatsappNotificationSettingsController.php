@@ -26,7 +26,7 @@ class WhatsappNotificationSettingsController extends Controller
                 'is_active' => $recipient->is_active,
             ]);
 
-        return Inertia::render('Settings/WhatsAppNotifications', [
+        return Inertia::render('settings/WhatsAppNotifications', [
             'recipients' => $recipients,
             'whatsapp_configured' => app(WhatsAppCloudService::class)->isConfigured(),
         ]);

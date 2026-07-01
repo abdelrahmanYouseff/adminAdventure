@@ -72,7 +72,7 @@ const totalPackages = page.props.totalPackages as number | undefined;
                 <p class="text-gray-600 dark:text-gray-400 mb-6">مرحباً بك في لوحة تحكم نظام عالم المغامرات.</p>
 
                 <Link
-                    :href="route('settings.whatsapp.index')"
+                    href="/settings/whatsapp"
                     class="flex items-center justify-between gap-4 rounded-2xl border border-green-100 bg-green-50/80 p-5 transition hover:border-green-200 hover:bg-green-50 dark:border-green-900/40 dark:bg-green-900/10 dark:hover:bg-green-900/20"
                 >
                     <div class="flex items-center gap-4">
