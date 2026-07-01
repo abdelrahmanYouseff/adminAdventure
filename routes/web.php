@@ -55,6 +55,16 @@ Route::get('dashboard', [DashboardController::class, 'index'])
     ->middleware(['auth', 'verified'])
     ->name('dashboard');
 
+Route::middleware(['auth', 'verified'])->prefix('settings')->name('settings.')->group(function () {
+    Route::get('whatsapp', [\App\Http\Controllers\Settings\WhatsappNotificationSettingsController::class, 'index'])
+        ->name('whatsapp.index');
+    Route::post('whatsapp', [\App\Http\Controllers\Settings\WhatsappNotificationSettingsController::class, 'store'])
+        ->name('whatsapp.store');
+    Route::patch('whatsapp/{recipient}', [\App\Http\Controllers\Settings\WhatsappNotificationSettingsController::class, 'update'])
+        ->name('whatsapp.update');
+    Route::delete('whatsapp/{recipient}', [\App\Http\Controllers\Settings\WhatsappNotificationSettingsController::class, 'destroy'])
+        ->name('whatsapp.destroy');
+});
 
 Route::get('products', [ProductController::class, 'index'])
     ->middleware(['auth', 'verified'])

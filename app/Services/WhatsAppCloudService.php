@@ -10,10 +10,13 @@ class WhatsAppCloudService
 {
     public function isConfigured(): bool
     {
-        return config('services.whatsapp.enabled', false)
-            && filled(config('services.whatsapp.phone_number_id'))
-            && filled(config('services.whatsapp.access_token'))
-            && filled(config('services.whatsapp.to'));
+        if (! config('services.whatsapp.enabled', false)
+            || ! filled(config('services.whatsapp.phone_number_id'))
+            || ! filled(config('services.whatsapp.access_token'))) {
+            return false;
+        }
+
+        return $this->recipientNumbers() !== [];
     }
 
     public function sendText(string $to, string $body): void
@@ -59,7 +62,68 @@ class WhatsAppCloudService
 
     public function sendToDefaultRecipient(string $body): void
     {
-        $this->sendText((string) config('services.whatsapp.to'), $body);
+        $this->sendToAllRecipients($body);
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function recipientNumbers(): array
+    {
+        if (\Illuminate\Support\Facades\Schema::hasTable('whatsapp_notification_recipients')) {
+            $fromDb = \App\Models\WhatsappNotificationRecipient::query()
+                ->where('is_active', true)
+                ->orderBy('id')
+                ->pluck('phone')
+                ->all();
+
+            if ($fromDb !== []) {
+                return array_values(array_unique(array_map(
+                    fn (string $number) => self::normalizePhone($number),
+                    $fromDb
+                )));
+            }
+        }
+
+        $numbers = array_filter([
+            (string) config('services.whatsapp.to'),
+        ]);
+
+        $extra = (string) config('services.whatsapp.extra_to', '');
+        if ($extra !== '') {
+            foreach (explode(',', $extra) as $number) {
+                $trimmed = trim($number);
+                if ($trimmed !== '') {
+                    $numbers[] = $trimmed;
+                }
+            }
+        }
+
+        $normalized = array_map(fn (string $number) => self::normalizePhone($number), $numbers);
+
+        return array_values(array_unique($normalized));
+    }
+
+    public function sendToAllRecipients(string $body): void
+    {
+        $recipients = $this->recipientNumbers();
+        $successCount = 0;
+
+        foreach ($recipients as $recipient) {
+            try {
+                $this->sendText($recipient, $body);
+                $successCount++;
+            } catch (\Throwable $e) {
+                Log::warning('WhatsApp send to recipient failed', [
+                    'to' => $recipient,
+                    'message' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        if ($successCount === 0) {
+            throw new \RuntimeException('فشل إرسال رسالة واتساب لجميع المستلمين');
+        }
     }
 
     public static function normalizePhone(string $phone): string
