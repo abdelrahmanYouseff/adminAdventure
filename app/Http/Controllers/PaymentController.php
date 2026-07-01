@@ -196,27 +196,33 @@ class PaymentController extends Controller
             $authHeader = $this->resolveNoonAuthHeader($noon);
 
             $fromApp = ! empty($data['from_app']);
-            $orderId = $data['order_id'];
+            $orderId = (string) $data['order_id'];
             $returnUrl = $baseUrl . '/payment/return/' . rawurlencode($orderId) . ($fromApp ? '?from_app=1' : '');
+
             $configuration = [
                 'returnUrl' => $returnUrl,
                 'paymentAction' => $noon['payment_action'] ?? 'Sale',
                 'locale' => $noon['locale'] ?? 'ar',
             ];
             if ($noon['cancel_url_enabled'] ?? false) {
-                $failUrl = $baseUrl . '/payment/fail?order_id=' . $orderId . ($fromApp ? '&from_app=1' : '');
+                $failUrl = $baseUrl . '/payment/fail?order_id=' . rawurlencode($orderId) . ($fromApp ? '&from_app=1' : '');
                 $configuration['cancelUrl'] = $failUrl;
             }
 
+            $orderName = $this->sanitizeNoonOrderName($data['description'] ?? 'Order from Adventure World');
+            $channel = $fromApp ? 'MOBILE' : strtoupper((string) ($noon['order_channel'] ?? 'WEB'));
+
             $orderPayload = [
-                'amount' => (float) $data['amount'],
-                'currency' => $data['currency'],
+                'amount' => round((float) $data['amount'], 2),
+                'currency' => strtoupper((string) $data['currency']),
+                'channel' => $channel,
+                'category' => (string) ($noon['order_category'] ?? 'pay'),
                 'reference' => $orderId,
-                'name' => $data['description'] ?? 'Order from Adventure World',
-                'category' => $noon['order_category'] ?? 'pay',
+                'name' => $orderName,
             ];
-            if (! empty($noon['order_channel'])) {
-                $orderPayload['channel'] = $noon['order_channel'];
+
+            if (! empty($data['ip_address'])) {
+                $orderPayload['ipAddress'] = (string) $data['ip_address'];
             }
 
             $paymentData = [
@@ -1346,6 +1352,17 @@ HTML;
             ?? null;
 
         return $id !== null ? (string) $id : null;
+    }
+
+    protected function sanitizeNoonOrderName(string $name): string
+    {
+        $name = trim(preg_replace('/\s+/u', ' ', $name) ?? '');
+
+        if ($name === '') {
+            $name = 'Adventure World Order';
+        }
+
+        return mb_substr($name, 0, 50);
     }
 
     protected function resolvePaymentBaseUrl(?string $returnBaseUrl = null): string

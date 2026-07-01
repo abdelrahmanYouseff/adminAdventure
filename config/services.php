@@ -46,14 +46,14 @@ return [
         'cancel_url_enabled' => env('NOON_CANCEL_URL_ENABLED', false),
         'locale' => env('NOON_LOCALE', 'ar'),
         'order_category' => env('NOON_ORDER_CATEGORY', 'pay'),
-        'order_channel' => env('NOON_ORDER_CHANNEL'),
+        'order_channel' => env('NOON_ORDER_CHANNEL', 'WEB'),
         'store_checkout_debug' => env('STORE_CHECKOUT_DEBUG', false),
         'payment_return_url' => env('PAYMENT_RETURN_URL'),
     ],
 
     'store' => [
         /** When true, checkout skips Noon and auto-completes payment (for flow testing). */
-        'mock_payment' => env('STORE_MOCK_PAYMENT', true),
+        'mock_payment' => env('STORE_MOCK_PAYMENT', false),
     ],
 
 ];

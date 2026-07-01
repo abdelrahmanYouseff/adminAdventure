@@ -238,8 +238,9 @@ class StoreController extends Controller
                 'customer_email' => $validated['customer_email'],
                 'customer_name' => $validated['customer_name'],
                 'customer_phone' => $validated['customer_phone'],
-                'description' => 'طلب متجر - ' . $orderNumber,
+                'description' => 'طلب متجر ' . $orderNumber,
                 'from_app' => false,
+                'ip_address' => $request->ip(),
             ]);
 
             if (! $paymentResponse instanceof \Illuminate\Http\JsonResponse) {
