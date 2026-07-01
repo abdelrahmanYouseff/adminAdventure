@@ -9,51 +9,54 @@ class OrderWhatsAppMessage
 {
     public static function build(Order $order): string
     {
+        $separator = '────────────────────';
+
         $lines = [
-            'طلب جديد - عالم المغامرة',
-            'رقم الطلب: '.$order->order_number,
-            'العميل: '.($order->customer_name ?: '—'),
-            'الجوال: '.($order->customer_phone ?: '—'),
+            'طلب جديد — عالم المغامرة',
+            $separator,
+            '',
+            'رقم الطلب',
+            $order->order_number,
+            '',
+            'العميل',
+            $order->customer_name ?: '—',
+            '',
+            'الجوال',
+            $order->customer_phone ?: '—',
         ];
 
         if ($order->activity_date) {
-            $lines[] = 'تاريخ الفعالية: '.self::formatActivityDate($order->activity_date);
+            $lines[] = '';
+            $lines[] = 'تاريخ الفعالية';
+            $lines[] = self::formatActivityDate($order->activity_date);
         }
 
-        $mapsUrl = self::locationMapsUrl($order->address);
-        if ($mapsUrl) {
-            $lines[] = 'الموقع: '.$mapsUrl;
-        } elseif ($order->address) {
-            $lines[] = 'الموقع: '.$order->address;
+        $locationUrl = self::locationPageUrl($order->order_number);
+        if ($locationUrl && ($order->address || self::locationMapsUrl($order->address))) {
+            $lines[] = '';
+            $lines[] = 'الموقع';
+            $lines[] = $locationUrl;
         }
 
         $items = collect($order->items ?? []);
         if ($items->isNotEmpty()) {
-            $lines[] = 'المنتجات:';
+            $lines[] = '';
+            $lines[] = 'المنتجات';
             foreach ($items as $item) {
                 $name = $item['name'] ?? $item['product_name'] ?? 'منتج';
-                $quantity = (int) ($item['quantity'] ?? 1);
-                $duration = (int) ($item['duration'] ?? 1);
-                $amount = (float) ($item['amount'] ?? (($item['price'] ?? 0) * $quantity * max(1, $duration)));
-                $lines[] = sprintf(
-                    '• %s × %d (%d يوم) — %s ريال',
-                    $name,
-                    $quantity,
-                    $duration,
-                    number_format($amount, 2)
-                );
+                $lines[] = '• '.$name;
             }
         }
 
-        $currency = $order->currency ?? 'SAR';
-        $currencyLabel = $currency === 'SAR' ? 'ريال' : $currency;
-        $lines[] = sprintf(
-            'الإجمالي: %s %s',
-            number_format((float) $order->total_amount, 2),
-            $currencyLabel
-        );
+        $lines[] = '';
+        $lines[] = $separator;
 
         return implode("\n", $lines);
+    }
+
+    public static function locationPageUrl(string $orderNumber): string
+    {
+        return route('store.order.location', ['order' => $orderNumber], absolute: true);
     }
 
     public static function locationMapsUrl(?string $address): ?string
@@ -75,6 +78,6 @@ class OrderWhatsAppMessage
     {
         $carbon = $date instanceof Carbon ? $date : Carbon::parse($date);
 
-        return $carbon->locale('ar')->translatedFormat('j F Y');
+        return $carbon->format('Y-m-d');
     }
 }

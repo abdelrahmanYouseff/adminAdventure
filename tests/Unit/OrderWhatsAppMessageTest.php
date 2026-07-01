@@ -8,7 +8,7 @@ use Tests\TestCase;
 
 class OrderWhatsAppMessageTest extends TestCase
 {
-    public function test_message_builder_includes_order_details(): void
+    public function test_message_builder_includes_order_details_without_prices(): void
     {
         $order = new Order([
             'order_number' => 'ORD-202606-0001',
@@ -33,9 +33,12 @@ class OrderWhatsAppMessageTest extends TestCase
         $this->assertStringContainsString('ORD-202606-0001', $message);
         $this->assertStringContainsString('أحمد محمد', $message);
         $this->assertStringContainsString('0512345678', $message);
-        $this->assertStringContainsString('google.com/maps?q=24.7136,46.6753', $message);
+        $this->assertStringContainsString('2026-06-15', $message);
+        $this->assertStringContainsString('/order/ORD-202606-0001/location', $message);
         $this->assertStringContainsString('ترامبولين', $message);
-        $this->assertStringContainsString('1,699.70', $message);
+        $this->assertStringNotContainsString('ريال', $message);
+        $this->assertStringNotContainsString('1,699', $message);
+        $this->assertStringNotContainsString('google.com/maps', $message);
     }
 
     public function test_location_maps_url_for_text_address(): void
