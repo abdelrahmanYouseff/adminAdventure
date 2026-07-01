@@ -60,6 +60,7 @@ return [
         'base_url' => env('AUTHENTICA_BASE_URL', 'https://api.authentica.sa/api/v2'),
         'api_key' => env('AUTHENTICA_API_KEY'),
         'template_id' => env('AUTHENTICA_TEMPLATE_ID', 31),
+        'otp_length' => (int) env('AUTHENTICA_OTP_LENGTH', 4),
         'timeout' => (int) env('AUTHENTICA_TIMEOUT', 30),
         'app_name' => env('AUTHENTICA_APP_NAME', 'adventurworldapp'),
     ],

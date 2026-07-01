@@ -26,7 +26,8 @@ class PhoneOtpController extends Controller
 
         if ($this->authentica->isConfigured()) {
             try {
-                $this->authentica->sendOtp($e164);
+                $otp = $this->authentica->sendOtp($e164);
+                Cache::put($this->cacheKey($data['phone']), $otp, now()->addMinutes(5));
             } catch (\Throwable $e) {
                 Log::error('Store OTP send failed', [
                     'phone' => $e164,
@@ -53,7 +54,7 @@ class PhoneOtpController extends Controller
     {
         $data = $request->validate([
             'phone' => ['required', 'string', 'regex:/^5\d{8}$/'],
-            'code' => ['required', 'string', 'regex:/^\d{4,6}$/'],
+            'code' => ['required', 'string', 'regex:/^\d{4}$/'],
             'redirect' => ['nullable', 'string', 'max:255'],
         ]);
 
@@ -62,6 +63,11 @@ class PhoneOtpController extends Controller
 
         if ($this->authentica->isConfigured()) {
             $verified = $this->authentica->verifyOtp($e164, $data['code']);
+
+            if (! $verified) {
+                $cached = Cache::get($this->cacheKey($data['phone']));
+                $verified = is_string($cached) && hash_equals($cached, $data['code']);
+            }
         } else {
             $cached = Cache::get($this->cacheKey($data['phone']));
             $verified = $cached && $cached === $data['code'];
@@ -76,6 +82,8 @@ class PhoneOtpController extends Controller
                 'code' => 'رمز التحقق غير صحيح أو منتهي الصلاحية',
             ]);
         }
+
+        Cache::forget($this->cacheKey($data['phone']));
 
         $user = $this->findUserByPhone($data['phone']);
 
@@ -104,15 +112,41 @@ class PhoneOtpController extends Controller
 
     private function findUserByPhone(string $phone): ?User
     {
-        $variants = [
+        $digits = preg_replace('/\D/', '', $phone) ?? '';
+        if (str_starts_with($digits, '966')) {
+            $digits = substr($digits, 3);
+        }
+        if (str_starts_with($digits, '0')) {
+            $digits = substr($digits, 1);
+        }
+
+        $variants = array_unique(array_filter([
             $phone,
-            '0'.$phone,
-            '+966'.$phone,
-            '966'.$phone,
-        ];
+            $digits,
+            '0'.$digits,
+            '+966'.$digits,
+            '966'.$digits,
+        ]));
+
+        $user = User::query()->whereIn('phone', $variants)->first();
+
+        if ($user) {
+            return $user;
+        }
 
         return User::query()
-            ->whereIn('phone', $variants)
-            ->first();
+            ->whereNotNull('phone')
+            ->get()
+            ->first(function (User $candidate) use ($digits) {
+                $stored = preg_replace('/\D/', '', (string) $candidate->phone) ?? '';
+                if (str_starts_with($stored, '966')) {
+                    $stored = substr($stored, 3);
+                }
+                if (str_starts_with($stored, '0')) {
+                    $stored = substr($stored, 1);
+                }
+
+                return $stored === $digits;
+            });
     }
 }

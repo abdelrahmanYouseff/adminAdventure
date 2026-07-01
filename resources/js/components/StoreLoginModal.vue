@@ -9,7 +9,7 @@ const mode = ref<'phone' | 'otp' | 'email'>('phone');
 const phone = ref('');
 const phoneError = ref('');
 const normalizedPhone = ref('');
-const otpLength = 6;
+const otpLength = 4;
 const otpDigits = ref<string[]>(Array.from({ length: otpLength }, () => ''));
 const otpError = ref('');
 const otpInputRefs = ref<(HTMLInputElement | null)[]>([]);
@@ -219,7 +219,7 @@ function onOtpPaste(event: ClipboardEvent) {
 
 function submitOtp() {
     if (!otpComplete.value) {
-        otpError.value = 'أدخل رمز التحقق المكوّن من 6 أرقام';
+        otpError.value = 'أدخل رمز التحقق المكوّن من 4 أرقام';
         return;
     }
 

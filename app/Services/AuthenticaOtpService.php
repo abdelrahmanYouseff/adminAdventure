@@ -13,12 +13,19 @@ class AuthenticaOtpService
         return filled(config('services.authentica.api_key'));
     }
 
-    public function sendOtp(string $phoneE164): void
+    /**
+     * Send OTP via SMS. Returns the OTP code that was sent (for local fallback).
+     */
+    public function sendOtp(string $phoneE164): string
     {
+        $length = (int) config('services.authentica.otp_length', 4);
+        $otp = $this->generateOtp($length);
+
         $response = $this->client()->post('send-otp', [
             'method' => 'sms',
             'phone' => $phoneE164,
             'template_id' => (int) config('services.authentica.template_id', 31),
+            'otp' => $otp,
         ]);
 
         if (! $response->successful()) {
@@ -30,6 +37,13 @@ class AuthenticaOtpService
 
             throw new \RuntimeException('فشل إرسال رمز التحقق عبر SMS');
         }
+
+        Log::info('Authentica send-otp success', [
+            'phone' => $phoneE164,
+            'response' => $response->json(),
+        ]);
+
+        return $otp;
     }
 
     public function verifyOtp(string $phoneE164, string $otp): bool
@@ -39,23 +53,27 @@ class AuthenticaOtpService
             'otp' => $otp,
         ]);
 
+        $data = $response->json() ?? [];
+
         if (! $response->successful()) {
-            Log::warning('Authentica verify-otp rejected', [
+            Log::warning('Authentica verify-otp HTTP error', [
                 'phone' => $phoneE164,
                 'status' => $response->status(),
-                'body' => $response->json() ?? $response->body(),
+                'body' => $data,
             ]);
 
             return false;
         }
 
-        $data = $response->json() ?? [];
+        $verified = $this->parseVerifiedResponse($data);
 
-        if (array_key_exists('verified', $data)) {
-            return $data['verified'] === true;
-        }
+        Log::info('Authentica verify-otp response', [
+            'phone' => $phoneE164,
+            'verified' => $verified,
+            'body' => $data,
+        ]);
 
-        return ($data['success'] ?? false) === true;
+        return $verified;
     }
 
     public static function formatPhoneE164(string $localPhone): string
@@ -71,6 +89,44 @@ class AuthenticaOtpService
         }
 
         return '+966'.$digits;
+    }
+
+    private function generateOtp(int $length): string
+    {
+        $max = (10 ** $length) - 1;
+
+        return str_pad((string) random_int(0, $max), $length, '0', STR_PAD_LEFT);
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     */
+    private function parseVerifiedResponse(array $data): bool
+    {
+        if (array_key_exists('verified', $data)) {
+            return $data['verified'] === true;
+        }
+
+        if (array_key_exists('status', $data)) {
+            return $data['status'] === true;
+        }
+
+        if (($data['success'] ?? false) === true) {
+            $message = strtolower((string) ($data['message'] ?? ''));
+
+            if ($message !== '' && (str_contains($message, 'invalid') || str_contains($message, 'expired') || str_contains($message, 'fail'))) {
+                return false;
+            }
+
+            return true;
+        }
+
+        $inner = $data['data'] ?? null;
+        if (is_array($inner)) {
+            return $this->parseVerifiedResponse($inner);
+        }
+
+        return false;
     }
 
     private function client(): PendingRequest
