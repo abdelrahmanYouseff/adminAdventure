@@ -3,10 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Models\Invoice;
+use App\Services\InvoicePdfService;
 use App\Support\InvoicePdfData;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
-use Barryvdh\DomPDF\Facade\Pdf;
 
 class InvoiceController extends Controller
 {
@@ -39,24 +39,15 @@ class InvoiceController extends Controller
     /**
      * Generate PDF for the specified invoice
      */
-    public function generatePdf(Invoice $invoice)
+    public function generatePdf(Invoice $invoice, InvoicePdfService $pdfService)
     {
         $data = InvoicePdfData::fromInvoice($invoice);
+        $content = $pdfService->render($data);
 
-        $pdf = Pdf::loadView('invoice-pdf', compact('data'))
-            ->setPaper('a4', 'portrait')
-            ->setOptions([
-                'dpi' => 150,
-                'defaultFont' => 'DejaVu Sans',
-                'isHtml5ParserEnabled' => true,
-                'isPhpEnabled' => true,
-                'isRemoteEnabled' => false,
-                'chroot' => public_path(),
-                'fontHeightRatio' => 1.1,
-                'isFontSubsettingEnabled' => true,
-            ]);
-
-        return $pdf->stream("invoice-{$invoice->invoice_number}.pdf");
+        return response($content, 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="invoice-'.$invoice->invoice_number.'.pdf"',
+        ]);
     }
 
     /**

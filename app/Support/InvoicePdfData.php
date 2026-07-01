@@ -211,6 +211,6 @@ class InvoicePdfData
 
     public function formatMoney(float $amount): string
     {
-        return number_format($amount, 2).' '.$this->currencyLabel();
+        return number_format($amount, 2).' ر.س';
     }
 }
