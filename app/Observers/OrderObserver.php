@@ -63,6 +63,10 @@ class OrderObserver
 
     private function shouldNotify(Order $order): bool
     {
-        return $order->whatsapp_notified_at === null;
+        if ($order->whatsapp_notified_at !== null) {
+            return false;
+        }
+
+        return $order->payment_status === 'paid' || $order->status === 'paid';
     }
 }

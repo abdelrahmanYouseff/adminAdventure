@@ -23,6 +23,7 @@ class WhatsappDiagnose extends Command
             ['WHATSAPP_PHONE_NUMBER_ID', config('services.whatsapp.phone_number_id') ?: '—'],
             ['WHATSAPP_ACCESS_TOKEN', filled(config('services.whatsapp.access_token')) ? 'مضبوط' : 'غير مضبوط'],
             ['WHATSAPP_BUSINESS_PHONE', config('services.whatsapp.business_phone') ?: '—'],
+            ['WHATSAPP_ORDER_TEMPLATE', config('services.whatsapp.order_template') ?: '—'],
             ['إرسال واتساب', 'فوري — بدون queue worker'],
             ['GRAPH_VERSION', config('services.whatsapp.graph_version')],
         ]);
@@ -64,7 +65,15 @@ class WhatsappDiagnose extends Command
             return self::FAILURE;
         }
 
-        $this->info('الإعدادات تبدو صحيحة. جرّب: php artisan whatsapp:test');
+        $this->info('الإعدادات تبدو صحيحة.');
+        $template = (string) config('services.whatsapp.order_template', '');
+        if ($template === '') {
+            $this->warn('WHATSAPP_ORDER_TEMPLATE غير مضبوط — الرسائل النصية قد لا تصل خارج نافذة 24 ساعة.');
+        } else {
+            $this->line("قالب الطلبات: {$template} (".config('services.whatsapp.order_template_language').')');
+            $this->line('يجب أن يكون القالب معتمداً في Meta بنص: طلب جديد — عالم المغامرة ثم {{1}}');
+        }
+        $this->line('جرّب: php artisan whatsapp:test --order=ORD-XXXX');
 
         return self::SUCCESS;
     }

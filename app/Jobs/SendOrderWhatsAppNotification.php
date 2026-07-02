@@ -42,6 +42,17 @@ class SendOrderWhatsAppNotification implements ShouldQueue
             return;
         }
 
+        if ($order->payment_status !== 'paid' && $order->status !== 'paid') {
+            Log::info('WhatsApp order notification skipped: not paid', [
+                'order_id' => $order->id,
+                'order_number' => $order->order_number,
+                'payment_status' => $order->payment_status,
+                'status' => $order->status,
+            ]);
+
+            return;
+        }
+
         $issues = WhatsAppConfig::issues();
         if ($issues !== []) {
             Log::error('WhatsApp order notification skipped: configuration incomplete', [
@@ -62,7 +73,7 @@ class SendOrderWhatsAppNotification implements ShouldQueue
             'recipients' => $recipients,
         ]);
 
-        $results = $whatsapp->sendToAllRecipientsWithReport($message);
+        $results = $whatsapp->sendOrderToAllRecipientsWithReport($message);
 
         $successCount = count(array_filter($results, fn (array $r) => $r['success']));
 

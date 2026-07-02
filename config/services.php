@@ -71,6 +71,9 @@ return [
         'access_token' => env('WHATSAPP_ACCESS_TOKEN'),
         // رقم الإرسال (النشاط التجاري) — لا يُرسل إليه أبداً
         'business_phone' => env('WHATSAPP_BUSINESS_PHONE', '966538388299'),
+        // قالب معتمد في Meta (مطلوب لإيصال الرسائل خارج نافذة 24 ساعة)
+        'order_template' => env('WHATSAPP_ORDER_TEMPLATE', 'order_new'),
+        'order_template_language' => env('WHATSAPP_ORDER_TEMPLATE_LANGUAGE', 'ar'),
         'dispatch_sync' => env('WHATSAPP_DISPATCH_SYNC', true),
         'graph_version' => env('WHATSAPP_GRAPH_VERSION', 'v21.0'),
     ],

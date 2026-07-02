@@ -23,6 +23,10 @@ class RetryPendingWhatsAppNotifications extends Command
 
         $orders = Order::query()
             ->whereNull('whatsapp_notified_at')
+            ->where(function ($query) {
+                $query->where('payment_status', 'paid')
+                    ->orWhere('status', 'paid');
+            })
             ->where('created_at', '>=', now()->subDays(7))
             ->orderBy('id')
             ->limit($limit)

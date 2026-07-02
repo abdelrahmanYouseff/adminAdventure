@@ -14,7 +14,74 @@ class WhatsAppCloudService
     }
 
     /**
+     * @return array{success: bool, message_id: ?string, error: ?string, status: ?int, mode: string}
+     */
+    public function sendOrderMessageWithReport(string $to, string $body): array
+    {
+        $template = (string) config('services.whatsapp.order_template', '');
+
+        if ($template !== '') {
+            $result = $this->sendTemplateWithReport(
+                $to,
+                $template,
+                (string) config('services.whatsapp.order_template_language', 'ar'),
+                [[
+                    'type' => 'body',
+                    'parameters' => [[
+                        'type' => 'text',
+                        'text' => mb_substr($body, 0, 1024),
+                    ]],
+                ]]
+            );
+            $result['mode'] = 'template:'.$template;
+
+            return $result;
+        }
+
+        $result = $this->sendTextWithReport($to, $body);
+        $result['mode'] = 'text';
+
+        return $result;
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $components
      * @return array{success: bool, message_id: ?string, error: ?string, status: ?int}
+     */
+    public function sendTemplateWithReport(string $to, string $templateName, string $languageCode, array $components): array
+    {
+        if (! $this->isConfigured()) {
+            return [
+                'success' => false,
+                'message_id' => null,
+                'error' => 'واتساب غير مفعّل أو الإعدادات ناقصة',
+                'status' => null,
+            ];
+        }
+
+        $phoneNumberId = (string) config('services.whatsapp.phone_number_id');
+        $version = (string) config('services.whatsapp.graph_version', 'v21.0');
+        $recipient = self::normalizePhone($to);
+
+        $response = $this->client()->post(
+            "https://graph.facebook.com/{$version}/{$phoneNumberId}/messages",
+            [
+                'messaging_product' => 'whatsapp',
+                'to' => $recipient,
+                'type' => 'template',
+                'template' => [
+                    'name' => $templateName,
+                    'language' => ['code' => $languageCode],
+                    'components' => $components,
+                ],
+            ]
+        );
+
+        return $this->parseMessageResponse($response, $recipient, 'template');
+    }
+
+    /**
+     * @return array{success: bool, message_id: ?string, error: ?string, status: ?int, mode?: string}
      */
     public function sendTextWithReport(string $to, string $body): array
     {
@@ -44,9 +111,18 @@ class WhatsAppCloudService
             ]
         );
 
+        return $this->parseMessageResponse($response, $recipient, 'text');
+    }
+
+    /**
+     * @return array{success: bool, message_id: ?string, error: ?string, status: ?int}
+     */
+    private function parseMessageResponse(\Illuminate\Http\Client\Response $response, string $recipient, string $mode): array
+    {
         if ($response->successful()) {
             Log::info('WhatsApp message sent', [
                 'to' => $recipient,
+                'mode' => $mode,
                 'message_id' => $response->json('messages.0.id'),
             ]);
 
@@ -65,6 +141,7 @@ class WhatsAppCloudService
 
         Log::error('WhatsApp send failed', [
             'to' => $recipient,
+            'mode' => $mode,
             'status' => $response->status(),
             'body' => $errorBody,
         ]);
@@ -166,6 +243,28 @@ class WhatsAppCloudService
 
             throw new \RuntimeException('فشل إرسال رسالة واتساب لجميع المستلمين — '.$errors);
         }
+    }
+
+    /**
+     * @return list<array{to: string, success: bool, detail: string}>
+     */
+    public function sendOrderToAllRecipientsWithReport(string $body): array
+    {
+        $results = [];
+
+        foreach ($this->recipientNumbers() as $recipient) {
+            $report = $this->sendOrderMessageWithReport($recipient, $body);
+
+            $results[] = [
+                'to' => $recipient,
+                'success' => $report['success'],
+                'detail' => $report['success']
+                    ? (($report['mode'] ?? 'text').' — message_id='.($report['message_id'] ?? '—'))
+                    : ('HTTP '.($report['status'] ?? '—').' — '.($report['error'] ?? 'خطأ غير معروف')),
+            ];
+        }
+
+        return $results;
     }
 
     /**

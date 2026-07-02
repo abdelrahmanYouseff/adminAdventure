@@ -45,7 +45,9 @@ class WhatsappTest extends Command
         $this->line('------------------');
         $this->newLine();
 
-        $results = $whatsapp->sendToAllRecipientsWithReport($message);
+        $results = $orderNumber
+            ? $whatsapp->sendOrderToAllRecipientsWithReport($message)
+            : $whatsapp->sendToAllRecipientsWithReport($message);
 
         $this->table(['الرقم', 'الحالة', 'التفاصيل'], array_map(
             fn (array $row) => [$row['to'], $row['success'] ? 'نجح' : 'فشل', $row['detail']],
