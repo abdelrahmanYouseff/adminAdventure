@@ -69,8 +69,10 @@ return [
         'enabled' => env('WHATSAPP_ENABLED', false),
         'phone_number_id' => env('WHATSAPP_PHONE_NUMBER_ID'),
         'access_token' => env('WHATSAPP_ACCESS_TOKEN'),
-        'to' => env('WHATSAPP_TO', '966538388299'),
-        'extra_to' => env('WHATSAPP_EXTRA_TO', '966538778559'),
+        'to' => env('WHATSAPP_TO', '966538778559'),
+        'extra_to' => env('WHATSAPP_EXTRA_TO', ''),
+        // أرقام لا تُرسل إليها (مثل رقم النشاط التجاري نفسه على Meta)
+        'exclude_to' => env('WHATSAPP_EXCLUDE_TO', '966538388299'),
         // الإرسال فوري مع الطلب — لا يعتمد على queue:work
         'dispatch_sync' => env('WHATSAPP_DISPATCH_SYNC', true),
         'graph_version' => env('WHATSAPP_GRAPH_VERSION', 'v21.0'),

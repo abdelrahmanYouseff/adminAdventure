@@ -104,10 +104,10 @@ class WhatsAppCloudService
                 ->all();
 
             if ($fromDb !== []) {
-                return array_values(array_unique(array_map(
+                return $this->filterExcluded(array_values(array_unique(array_map(
                     fn (string $number) => self::normalizePhone($number),
                     $fromDb
-                )));
+                ))));
             }
         }
 
@@ -127,7 +127,28 @@ class WhatsAppCloudService
 
         $normalized = array_map(fn (string $number) => self::normalizePhone($number), $numbers);
 
-        return array_values(array_unique($normalized));
+        return $this->filterExcluded(array_values(array_unique($normalized)));
+    }
+
+    /**
+     * @param  list<string>  $numbers
+     * @return list<string>
+     */
+    private function filterExcluded(array $numbers): array
+    {
+        $excluded = collect(explode(',', (string) config('services.whatsapp.exclude_to', '')))
+            ->map(fn (string $n) => self::normalizePhone(trim($n)))
+            ->filter()
+            ->all();
+
+        if ($excluded === []) {
+            return $numbers;
+        }
+
+        return array_values(array_filter(
+            $numbers,
+            fn (string $number) => ! in_array($number, $excluded, true)
+        ));
     }
 
     public function sendToAllRecipients(string $body): void

@@ -12,8 +12,8 @@ class WhatsappNotificationRecipientSeeder extends Seeder
         $recipients = [
             [
                 'phone' => '966538388299',
-                'label' => 'رقم النشاط التجاري',
-                'is_active' => true,
+                'label' => 'رقم النشاط التجاري (لا يُستخدم للاستقبال)',
+                'is_active' => false,
             ],
             [
                 'phone' => '966538778559',
