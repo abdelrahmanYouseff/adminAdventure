@@ -32,10 +32,6 @@ class SendOrderWhatsAppNotification implements ShouldQueue
             return;
         }
 
-        if ($order->payment_status !== 'paid' && $order->status !== 'paid') {
-            return;
-        }
-
         if (! $whatsapp->isConfigured()) {
             Log::warning('WhatsApp order notification skipped: service not configured', [
                 'order_id' => $order->id,

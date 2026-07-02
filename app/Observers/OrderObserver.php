@@ -17,7 +17,11 @@ class OrderObserver
 
     public function updated(Order $order): void
     {
-        if (($order->wasChanged('payment_status') || $order->wasChanged('status')) && $this->shouldNotify($order)) {
+        if (! $order->wasChanged('payment_status') && ! $order->wasChanged('status')) {
+            return;
+        }
+
+        if ($this->shouldNotify($order)) {
             $this->dispatchNotification($order);
         }
     }
@@ -45,6 +49,6 @@ class OrderObserver
             return false;
         }
 
-        return $order->payment_status === 'paid' || $order->status === 'paid';
+        return true;
     }
 }

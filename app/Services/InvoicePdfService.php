@@ -19,15 +19,18 @@ class InvoicePdfService
         $mpdf = new Mpdf([
             'mode' => 'utf-8',
             'format' => 'A4',
-            'margin_left' => 14,
-            'margin_right' => 14,
-            'margin_top' => 14,
+            'margin_left' => 12,
+            'margin_right' => 12,
+            'margin_top' => 12,
             'margin_bottom' => 14,
+            'margin_header' => 4,
+            'margin_footer' => 4,
             'default_font' => 'xbriyaz',
             'directionality' => 'rtl',
             'tempDir' => $tempDir,
             'autoScriptToLang' => true,
             'autoLangToFont' => true,
+            'useSubstitutions' => true,
         ]);
 
         $mpdf->SetTitle('فاتورة '.$data->invoiceNumber());

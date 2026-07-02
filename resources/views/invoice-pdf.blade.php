@@ -9,425 +9,220 @@
     <style>
         body {
             font-family: xbriyaz, sans-serif;
-            font-size: 11pt;
-            line-height: 1.6;
+            font-size: 10pt;
             color: #1f2937;
-            direction: rtl;
-            text-align: right;
-        }
-
-        .brand-bar {
-            height: 5px;
-            background-color: #3b89d2;
-            margin-bottom: 18px;
-        }
-
-        .header-table,
-        .meta-table,
-        .items-table,
-        .info-row,
-        .total-row,
-        .totals-wrap {
-            width: 100%;
-            border-collapse: collapse;
-        }
-
-        .header-table td {
-            vertical-align: middle;
+            margin: 0;
             padding: 0;
         }
-
-        .logo {
-            width: 70px;
-            height: 70px;
-        }
-
-        .company-name {
-            font-size: 18pt;
-            font-weight: bold;
-            color: #1e3a5f;
-            margin-bottom: 4px;
-        }
-
-        .company-tagline {
-            font-size: 9pt;
-            color: #6b7280;
-            line-height: 1.5;
-        }
-
-        .invoice-title {
-            font-size: 22pt;
-            font-weight: bold;
-            color: #3b89d2;
-            margin-bottom: 4px;
-            text-align: left;
-        }
-
-        .invoice-number {
+        .muted { color: #6b7280; }
+        .bold { font-weight: bold; }
+        .section-head {
             font-size: 11pt;
-            color: #6b7280;
-            text-align: left;
-            direction: ltr;
-        }
-
-        .meta-table {
-            margin-bottom: 18px;
-        }
-
-        .meta-table > tbody > tr > td {
-            width: 50%;
-            vertical-align: top;
-            padding: 0 0 0 8px;
-        }
-
-        .card {
-            background-color: #f8fafc;
-            border: 1px solid #e5e7eb;
-            border-radius: 8px;
-            padding: 12px 14px;
-        }
-
-        .card-title {
-            font-size: 12pt;
             font-weight: bold;
             color: #1e3a5f;
-            margin-bottom: 10px;
-            padding-bottom: 6px;
             border-bottom: 2px solid #3b89d2;
+            padding-bottom: 5px;
+            margin-bottom: 8px;
         }
-
-        .info-row td {
-            padding: 3px 0;
-            vertical-align: top;
-            font-size: 10pt;
-        }
-
-        .info-label {
-            color: #6b7280;
-            width: 40%;
-            padding-left: 8px;
-        }
-
-        .info-value {
-            color: #111827;
-            font-weight: bold;
-        }
-
-        .ltr {
-            direction: ltr;
-            text-align: left;
-            unicode-bidi: embed;
-        }
-
-        .status-badge {
-            display: inline-block;
-            padding: 3px 10px;
-            border-radius: 12px;
-            font-size: 9pt;
-            font-weight: bold;
-        }
-
         .status-paid { background-color: #dcfce7; color: #166534; }
         .status-pending { background-color: #fef3c7; color: #92400e; }
         .status-cancelled { background-color: #fee2e2; color: #991b1b; }
         .status-overdue { background-color: #ffedd5; color: #c2410c; }
-
-        .section-title {
-            font-size: 13pt;
-            font-weight: bold;
-            color: #1e3a5f;
-            margin: 10px 0 12px;
-            padding-bottom: 6px;
-            border-bottom: 2px solid #3b89d2;
-        }
-
-        .items-table {
-            margin-bottom: 16px;
-            border: 1px solid #e5e7eb;
-        }
-
-        .items-table th {
-            background-color: #1e3a5f;
-            color: #ffffff;
-            padding: 9px 10px;
-            font-size: 10pt;
-            font-weight: bold;
-            text-align: right;
-            border: 1px solid #1e3a5f;
-        }
-
-        .items-table th.center { text-align: center; }
-
-        .items-table td {
-            padding: 10px;
-            border: 1px solid #e5e7eb;
-            font-size: 10pt;
-            vertical-align: top;
-        }
-
-        .item-name {
-            font-weight: bold;
-            color: #111827;
-        }
-
-        .item-meta {
-            color: #6b7280;
+        .status-badge {
+            padding: 3px 10px;
             font-size: 9pt;
-            margin-top: 2px;
-        }
-
-        .money {
-            direction: ltr;
-            text-align: left;
-            unicode-bidi: embed;
             font-weight: bold;
-            white-space: nowrap;
-        }
-
-        .totals-box {
-            width: 260px;
-            margin-right: 0;
-            margin-left: auto;
-            background-color: #f8fafc;
-            border: 1px solid #e5e7eb;
-            border-radius: 8px;
-            padding: 12px 14px;
-        }
-
-        .total-row td {
-            padding: 4px 0;
-            font-size: 10pt;
-        }
-
-        .total-label {
-            color: #6b7280;
-        }
-
-        .total-value {
-            text-align: left;
-            direction: ltr;
-            font-weight: bold;
-        }
-
-        .total-final td {
-            padding-top: 8px;
-            border-top: 2px solid #3b89d2;
-            font-size: 12pt;
-            font-weight: bold;
-            color: #1e3a5f;
-        }
-
-        .notes-box {
-            margin-top: 16px;
-            background-color: #fffbeb;
-            border: 1px solid #fcd34d;
-            border-radius: 8px;
-            padding: 12px 14px;
-        }
-
-        .notes-title {
-            font-size: 10pt;
-            font-weight: bold;
-            color: #92400e;
-            margin-bottom: 4px;
-        }
-
-        .notes-text {
-            color: #a16207;
-            font-size: 9pt;
-        }
-
-        .footer {
-            margin-top: 24px;
-            padding-top: 14px;
-            border-top: 1px solid #e5e7eb;
-            text-align: center;
-        }
-
-        .footer-title {
-            font-size: 12pt;
-            font-weight: bold;
-            color: #1e3a5f;
-            margin-bottom: 4px;
-        }
-
-        .footer-text,
-        .footer-contact {
-            color: #6b7280;
-            font-size: 9pt;
-            line-height: 1.7;
-        }
-
-        .footer-meta {
-            margin-top: 8px;
-            font-size: 8pt;
-            color: #9ca3af;
         }
     </style>
 </head>
 <body>
 
-<div class="brand-bar"></div>
-
-<table class="header-table">
+{{-- شريط العلامة --}}
+<table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom: 16px;">
     <tr>
-        <td style="width: 80px;">
+        <td height="5" bgcolor="#3b89d2"></td>
+        <td width="8" height="5" bgcolor="#ff6b35"></td>
+    </tr>
+</table>
+
+{{-- الهيدر --}}
+<table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom: 20px; border-bottom: 1px solid #e5e7eb; padding-bottom: 14px;">
+    <tr>
+        <td width="72" align="right" valign="middle">
             @if(file_exists($data->logoPath()))
-                <img src="{{ $data->logoPath() }}" alt="عالم المغامرة" class="logo">
+                <img src="{{ $data->logoPath() }}" width="64" height="64" alt="عالم المغامرة">
             @endif
         </td>
-        <td style="padding-right: 12px;">
-            <div class="company-name">عالم المغامرة للترفيه</div>
-            <div class="company-tagline">
+        <td align="right" valign="middle" style="padding-right: 12px;">
+            <div style="font-size: 17pt; font-weight: bold; color: #1e3a5f;">عالم المغامرة للترفيه</div>
+            <div class="muted" style="font-size: 9pt; line-height: 1.6; margin-top: 4px;">
                 تأجير ألعاب ترفيهية للأطفال في المملكة العربية السعودية<br>
                 admin.adventureksa.com
             </div>
         </td>
-        <td style="width: 170px;">
-            <div class="invoice-title">فاتورة</div>
-            <div class="invoice-number">#{{ $data->invoiceNumber() }}</div>
+        <td width="180" align="left" valign="middle">
+            <div style="font-size: 20pt; font-weight: bold; color: #3b89d2;">فاتورة</div>
+            <div class="muted" style="font-size: 10pt; margin-top: 4px;" dir="ltr" align="left">#{{ $data->invoiceNumber() }}</div>
         </td>
     </tr>
 </table>
 
-<table class="meta-table">
+{{-- بيانات الفاتورة والعميل --}}
+<table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom: 18px;">
     <tr>
-        <td>
-            <div class="card">
-                <div class="card-title">بيانات الفاتورة</div>
-                <table class="info-row">
-                    <tr>
-                        <td class="info-label">رقم الفاتورة</td>
-                        <td class="info-value ltr">{{ $data->invoiceNumber() }}</td>
-                    </tr>
-                    <tr>
-                        <td class="info-label">تاريخ الإصدار</td>
-                        <td class="info-value ltr">{{ $data->issueDate() }}</td>
-                    </tr>
-                    <tr>
-                        <td class="info-label">تاريخ الاستحقاق</td>
-                        <td class="info-value ltr">{{ $data->dueDate() ?? '—' }}</td>
-                    </tr>
-                    <tr>
-                        <td class="info-label">الحالة</td>
-                        <td class="info-value">
-                            <span class="status-badge {{ $data->statusClass() }}">{{ $data->statusLabel() }}</span>
-                        </td>
-                    </tr>
-                    <tr>
-                        <td class="info-label">طريقة الدفع</td>
-                        <td class="info-value">{{ $data->paymentMethodLabel() }}</td>
-                    </tr>
-                </table>
-            </div>
+        {{-- بيانات الفاتورة --}}
+        <td width="49%" valign="top" bgcolor="#f8fafc" style="border: 1px solid #e5e7eb; padding: 12px;">
+            <div class="section-head">بيانات الفاتورة</div>
+            <table width="100%" cellpadding="5" cellspacing="0">
+                <tr>
+                    <td width="42%" align="right" class="muted">رقم الفاتورة</td>
+                    <td width="58%" align="right" class="bold" dir="ltr">{{ $data->invoiceNumber() }}</td>
+                </tr>
+                <tr>
+                    <td align="right" class="muted">تاريخ الإصدار</td>
+                    <td align="right" class="bold" dir="ltr">{{ $data->issueDate() }}</td>
+                </tr>
+                <tr>
+                    <td align="right" class="muted">تاريخ الاستحقاق</td>
+                    <td align="right" class="bold" dir="ltr">{{ $data->dueDate() ?? '—' }}</td>
+                </tr>
+                <tr>
+                    <td align="right" class="muted">الحالة</td>
+                    <td align="right">
+                        <span class="status-badge {{ $data->statusClass() }}">{{ $data->statusLabel() }}</span>
+                    </td>
+                </tr>
+                <tr>
+                    <td align="right" class="muted">طريقة الدفع</td>
+                    <td align="right" class="bold">{{ $data->paymentMethodLabel() }}</td>
+                </tr>
+            </table>
         </td>
-        <td>
-            <div class="card">
-                <div class="card-title">بيانات العميل</div>
-                <table class="info-row">
-                    <tr>
-                        <td class="info-label">اسم العميل</td>
-                        <td class="info-value">{{ $data->customerName() }}</td>
-                    </tr>
-                    <tr>
-                        <td class="info-label">البريد الإلكتروني</td>
-                        <td class="info-value ltr">{{ $data->customerEmail() }}</td>
-                    </tr>
-                    <tr>
-                        <td class="info-label">رقم الجوال</td>
-                        <td class="info-value ltr">{{ $data->customerPhone() }}</td>
-                    </tr>
-                    @if($data->activityDate())
-                    <tr>
-                        <td class="info-label">تاريخ الفعالية</td>
-                        <td class="info-value ltr">{{ $data->activityDate() }}</td>
-                    </tr>
-                    @endif
-                    @if($data->address())
-                    <tr>
-                        <td class="info-label">الموقع</td>
-                        <td class="info-value">{{ $data->address() }}</td>
-                    </tr>
-                    @endif
-                </table>
-            </div>
+
+        <td width="2%"></td>
+
+        {{-- بيانات العميل --}}
+        <td width="49%" valign="top" bgcolor="#f8fafc" style="border: 1px solid #e5e7eb; padding: 12px;">
+            <div class="section-head">بيانات العميل</div>
+            <table width="100%" cellpadding="5" cellspacing="0">
+                <tr>
+                    <td width="42%" align="right" class="muted">اسم العميل</td>
+                    <td width="58%" align="right" class="bold">{{ $data->customerName() }}</td>
+                </tr>
+                <tr>
+                    <td align="right" class="muted">البريد الإلكتروني</td>
+                    <td align="right" class="bold" dir="ltr">{{ $data->customerEmail() }}</td>
+                </tr>
+                <tr>
+                    <td align="right" class="muted">رقم الجوال</td>
+                    <td align="right" class="bold" dir="ltr">{{ $data->customerPhone() }}</td>
+                </tr>
+                @if($data->activityDate())
+                <tr>
+                    <td align="right" class="muted">تاريخ الفعالية</td>
+                    <td align="right" class="bold" dir="ltr">{{ $data->activityDate() }}</td>
+                </tr>
+                @endif
+                @if($data->address())
+                <tr>
+                    <td align="right" class="muted" valign="top">الموقع</td>
+                    <td align="right" class="bold">{{ $data->address() }}</td>
+                </tr>
+                @endif
+            </table>
         </td>
     </tr>
 </table>
 
-<div class="section-title">تفاصيل الفاتورة</div>
+{{-- عنوان الجدول --}}
+<table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom: 8px;">
+    <tr>
+        <td class="section-head">تفاصيل الفاتورة</td>
+    </tr>
+</table>
 
-<table class="items-table">
+{{-- جدول المنتجات --}}
+<table width="100%" cellpadding="8" cellspacing="0" style="border: 1px solid #e5e7eb; margin-bottom: 16px;">
     <thead>
-        <tr>
-            <th style="width: 40%;">الوصف</th>
-            <th class="center" style="width: 10%;">الكمية</th>
-            <th class="center" style="width: 12%;">المدة</th>
-            <th style="width: 19%;">سعر الوحدة</th>
-            <th style="width: 19%;">الإجمالي</th>
+        <tr bgcolor="#1e3a5f" style="color: #ffffff;">
+            <th width="38%" align="right" style="color: #ffffff; font-size: 10pt;">الوصف</th>
+            <th width="10%" align="center" style="color: #ffffff; font-size: 10pt;">الكمية</th>
+            <th width="12%" align="center" style="color: #ffffff; font-size: 10pt;">المدة</th>
+            <th width="20%" align="right" style="color: #ffffff; font-size: 10pt;">سعر الوحدة</th>
+            <th width="20%" align="right" style="color: #ffffff; font-size: 10pt;">الإجمالي</th>
         </tr>
     </thead>
     <tbody>
-        @foreach($data->lineItems() as $item)
-            <tr>
-                <td>
-                    <div class="item-name">{{ $item['name'] }}</div>
+        @foreach($data->lineItems() as $index => $item)
+            <tr bgcolor="{{ $index % 2 === 0 ? '#ffffff' : '#f9fafb' }}">
+                <td align="right" valign="top">
+                    <span class="bold">{{ $item['name'] }}</span>
                     @if(!empty($item['duration']) && $item['duration'] > 1)
-                        <div class="item-meta">مدة الحجز: {{ $item['duration'] }} يوم</div>
+                        <br><span class="muted" style="font-size: 9pt;">مدة الحجز: {{ $item['duration'] }} يوم</span>
                     @endif
                 </td>
-                <td class="center">{{ $item['quantity'] }}</td>
-                <td class="center">{{ !empty($item['duration']) ? $item['duration'].' يوم' : '—' }}</td>
-                <td class="money">{{ $data->formatMoney($item['unit_price']) }}</td>
-                <td class="money">{{ $data->formatMoney($item['total']) }}</td>
+                <td align="center" valign="middle">{{ $item['quantity'] }}</td>
+                <td align="center" valign="middle">{{ !empty($item['duration']) ? $item['duration'].' يوم' : '—' }}</td>
+                <td align="right" valign="middle" dir="ltr" class="bold">{{ $data->formatMoney($item['unit_price']) }}</td>
+                <td align="right" valign="middle" dir="ltr" class="bold">{{ $data->formatMoney($item['total']) }}</td>
             </tr>
         @endforeach
     </tbody>
 </table>
 
-<table class="totals-wrap">
+{{-- الإجماليات --}}
+<table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom: 16px;">
     <tr>
-        <td></td>
-        <td style="width: 260px;">
-            <div class="totals-box">
-                <table class="total-row">
-                    <tr>
-                        <td class="total-label">المجموع الفرعي</td>
-                        <td class="total-value">{{ $data->formatMoney($data->subtotal()) }}</td>
-                    </tr>
-                    <tr>
-                        <td class="total-label">ضريبة القيمة المضافة (15%)</td>
-                        <td class="total-value">{{ $data->formatMoney($data->vatAmount()) }}</td>
-                    </tr>
-                    <tr class="total-final">
-                        <td>الإجمالي المستحق</td>
-                        <td class="total-value">{{ $data->formatMoney($data->total()) }}</td>
-                    </tr>
-                </table>
-            </div>
+        <td width="58%"></td>
+        <td width="42%" valign="top">
+            <table width="100%" cellpadding="7" cellspacing="0" bgcolor="#f8fafc" style="border: 1px solid #e5e7eb;">
+                <tr>
+                    <td align="right" class="muted">المجموع الفرعي</td>
+                    <td width="42%" align="right" dir="ltr" class="bold">{{ $data->formatMoney($data->subtotal()) }}</td>
+                </tr>
+                <tr>
+                    <td align="right" class="muted">ضريبة القيمة المضافة (15%)</td>
+                    <td align="right" dir="ltr" class="bold">{{ $data->formatMoney($data->vatAmount()) }}</td>
+                </tr>
+                <tr>
+                    <td colspan="2" style="border-top: 2px solid #3b89d2; padding-top: 4px;"></td>
+                </tr>
+                <tr>
+                    <td align="right" style="font-size: 11pt; font-weight: bold; color: #1e3a5f;">الإجمالي المستحق</td>
+                    <td align="right" dir="ltr" style="font-size: 11pt; font-weight: bold; color: #1e3a5f;">{{ $data->formatMoney($data->total()) }}</td>
+                </tr>
+            </table>
         </td>
     </tr>
 </table>
 
 @if($data->notes())
-    <div class="notes-box">
-        <div class="notes-title">ملاحظات</div>
-        <div class="notes-text">{{ $data->notes() }}</div>
-    </div>
+<table width="100%" cellpadding="12" cellspacing="0" bgcolor="#fffbeb" style="border: 1px solid #fcd34d; margin-bottom: 16px;">
+    <tr>
+        <td align="right">
+            <div style="font-weight: bold; color: #92400e; margin-bottom: 4px;">ملاحظات</div>
+            <div style="color: #a16207; font-size: 9pt; line-height: 1.7;">{{ $data->notes() }}</div>
+        </td>
+    </tr>
+</table>
 @endif
 
-<div class="footer">
-    <div class="footer-title">شكراً لاختياركم عالم المغامرة!</div>
-    <div class="footer-text">نقدّر ثقتكم ونتطلع لخدمتكم مجدداً.</div>
-    <div class="footer-contact">
-        <strong>عالم المغامرة للترفيه</strong><br>
-        البريد: info@adventureksa.com<br>
-        الموقع: admin.adventureksa.com
-    </div>
-    <div class="footer-meta">
-        تم إنشاء هذه الفاتورة آلياً بتاريخ <span class="ltr">{{ $data->generatedAt() }}</span>
-    </div>
-</div>
+{{-- الفوتر --}}
+<table width="100%" cellpadding="14" cellspacing="0" style="border-top: 1px solid #e5e7eb; margin-top: 8px;">
+    <tr>
+        <td align="center">
+            <div style="font-size: 11pt; font-weight: bold; color: #1e3a5f; margin-bottom: 4px;">شكراً لاختياركم عالم المغامرة!</div>
+            <div class="muted" style="font-size: 9pt; margin-bottom: 6px;">نقدّر ثقتكم ونتطلع لخدمتكم مجدداً.</div>
+            <div class="muted" style="font-size: 9pt; line-height: 1.8;">
+                <strong>عالم المغامرة للترفيه</strong><br>
+                البريد: info@adventureksa.com &nbsp;|&nbsp; الموقع: admin.adventureksa.com
+            </div>
+            <div style="font-size: 8pt; color: #9ca3af; margin-top: 8px;">
+                تم إنشاء هذه الفاتورة آلياً بتاريخ <span dir="ltr">{{ $data->generatedAt() }}</span>
+            </div>
+        </td>
+    </tr>
+</table>
 
 </body>
 </html>
