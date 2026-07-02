@@ -10,21 +10,21 @@ class WhatsAppCloudService
 {
     public function isConfigured(): bool
     {
-        if (! config('services.whatsapp.enabled', false)
-            || ! filled(config('services.whatsapp.phone_number_id'))
-            || ! filled(config('services.whatsapp.access_token'))) {
-            return false;
-        }
-
-        return $this->recipientNumbers() !== [];
+        return \App\Support\WhatsAppConfig::isReady();
     }
 
-    public function sendText(string $to, string $body): void
+    /**
+     * @return array{success: bool, message_id: ?string, error: ?string, status: ?int}
+     */
+    public function sendTextWithReport(string $to, string $body): array
     {
         if (! $this->isConfigured()) {
-            Log::info('WhatsApp notification skipped: not configured');
-
-            return;
+            return [
+                'success' => false,
+                'message_id' => null,
+                'error' => 'واتساب غير مفعّل أو الإعدادات ناقصة',
+                'status' => null,
+            ];
         }
 
         $phoneNumberId = (string) config('services.whatsapp.phone_number_id');
@@ -44,20 +44,46 @@ class WhatsAppCloudService
             ]
         );
 
-        if (! $response->successful()) {
-            Log::error('WhatsApp send failed', [
+        if ($response->successful()) {
+            Log::info('WhatsApp message sent', [
                 'to' => $recipient,
-                'status' => $response->status(),
-                'body' => $response->json() ?? $response->body(),
+                'message_id' => $response->json('messages.0.id'),
             ]);
 
-            throw new \RuntimeException('فشل إرسال رسالة واتساب');
+            return [
+                'success' => true,
+                'message_id' => $response->json('messages.0.id'),
+                'error' => null,
+                'status' => $response->status(),
+            ];
         }
 
-        Log::info('WhatsApp message sent', [
+        $errorBody = $response->json() ?? $response->body();
+        $errorMessage = is_array($errorBody)
+            ? ($errorBody['error']['message'] ?? json_encode($errorBody, JSON_UNESCAPED_UNICODE))
+            : (string) $errorBody;
+
+        Log::error('WhatsApp send failed', [
             'to' => $recipient,
-            'message_id' => $response->json('messages.0.id'),
+            'status' => $response->status(),
+            'body' => $errorBody,
         ]);
+
+        return [
+            'success' => false,
+            'message_id' => null,
+            'error' => $errorMessage,
+            'status' => $response->status(),
+        ];
+    }
+
+    public function sendText(string $to, string $body): void
+    {
+        $result = $this->sendTextWithReport($to, $body);
+
+        if (! $result['success']) {
+            throw new \RuntimeException($result['error'] ?? 'فشل إرسال رسالة واتساب');
+        }
     }
 
     public function sendToDefaultRecipient(string $body): void
@@ -106,24 +132,39 @@ class WhatsAppCloudService
 
     public function sendToAllRecipients(string $body): void
     {
-        $recipients = $this->recipientNumbers();
-        $successCount = 0;
+        $results = $this->sendToAllRecipientsWithReport($body);
 
-        foreach ($recipients as $recipient) {
-            try {
-                $this->sendText($recipient, $body);
-                $successCount++;
-            } catch (\Throwable $e) {
-                Log::warning('WhatsApp send to recipient failed', [
-                    'to' => $recipient,
-                    'message' => $e->getMessage(),
-                ]);
-            }
-        }
+        $successCount = count(array_filter($results, fn (array $r) => $r['success']));
 
         if ($successCount === 0) {
-            throw new \RuntimeException('فشل إرسال رسالة واتساب لجميع المستلمين');
+            $errors = collect($results)
+                ->map(fn (array $r) => "{$r['to']}: {$r['detail']}")
+                ->implode(' | ');
+
+            throw new \RuntimeException('فشل إرسال رسالة واتساب لجميع المستلمين — '.$errors);
         }
+    }
+
+    /**
+     * @return list<array{to: string, success: bool, detail: string}>
+     */
+    public function sendToAllRecipientsWithReport(string $body): array
+    {
+        $results = [];
+
+        foreach ($this->recipientNumbers() as $recipient) {
+            $report = $this->sendTextWithReport($recipient, $body);
+
+            $results[] = [
+                'to' => $recipient,
+                'success' => $report['success'],
+                'detail' => $report['success']
+                    ? ('message_id='.($report['message_id'] ?? '—'))
+                    : ('HTTP '.($report['status'] ?? '—').' — '.($report['error'] ?? 'خطأ غير معروف')),
+            ];
+        }
+
+        return $results;
     }
 
     public static function normalizePhone(string $phone): string

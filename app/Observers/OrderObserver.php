@@ -4,6 +4,7 @@ namespace App\Observers;
 
 use App\Jobs\SendOrderWhatsAppNotification;
 use App\Models\Order;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 class OrderObserver
@@ -28,27 +29,40 @@ class OrderObserver
 
     private function dispatchNotification(Order $order): void
     {
-        Log::info('WhatsApp order notification queued', [
-            'order_id' => $order->id,
-            'order_number' => $order->order_number,
-            'sync' => config('services.whatsapp.dispatch_sync', true),
-        ]);
+        $orderId = $order->id;
 
-        if (config('services.whatsapp.dispatch_sync', true)) {
-            SendOrderWhatsAppNotification::dispatchSync($order->id);
+        $run = function () use ($orderId, $order) {
+            Log::info('WhatsApp order notification sending immediately (no queue)', [
+                'order_id' => $orderId,
+                'order_number' => $order->order_number,
+            ]);
 
-            return;
+            try {
+                $this->sendNow($orderId);
+            } catch (\Throwable $e) {
+                Log::error('WhatsApp order notification failed', [
+                    'order_id' => $orderId,
+                    'order_number' => $order->order_number,
+                    'message' => $e->getMessage(),
+                ]);
+            }
+        };
+
+        if (DB::transactionLevel() > 0) {
+            DB::afterCommit($run);
+        } else {
+            $run();
         }
+    }
 
-        SendOrderWhatsAppNotification::dispatch($order->id)->afterCommit();
+    private function sendNow(int $orderId): void
+    {
+        $job = new SendOrderWhatsAppNotification($orderId);
+        app()->call([$job, 'handle']);
     }
 
     private function shouldNotify(Order $order): bool
     {
-        if ($order->whatsapp_notified_at !== null) {
-            return false;
-        }
-
-        return true;
+        return $order->whatsapp_notified_at === null;
     }
 }

@@ -5,6 +5,7 @@ namespace App\Jobs;
 use App\Models\Order;
 use App\Services\WhatsAppCloudService;
 use App\Support\OrderWhatsAppMessage;
+use App\Support\WhatsAppConfig;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\Log;
@@ -25,34 +26,58 @@ class SendOrderWhatsAppNotification implements ShouldQueue
         $order = Order::query()->find($this->orderId);
 
         if (! $order) {
+            Log::warning('WhatsApp order notification skipped: order not found', [
+                'order_id' => $this->orderId,
+            ]);
+
             return;
         }
 
         if ($order->whatsapp_notified_at !== null) {
+            Log::info('WhatsApp order notification skipped: already sent', [
+                'order_id' => $order->id,
+                'order_number' => $order->order_number,
+            ]);
+
             return;
         }
 
-        if (! $whatsapp->isConfigured()) {
-            Log::warning('WhatsApp order notification skipped: service not configured', [
+        $issues = WhatsAppConfig::issues();
+        if ($issues !== []) {
+            Log::error('WhatsApp order notification skipped: configuration incomplete', [
                 'order_id' => $order->id,
                 'order_number' => $order->order_number,
-                'enabled' => config('services.whatsapp.enabled'),
-                'recipients' => $whatsapp->recipientNumbers(),
+                'issues' => $issues,
             ]);
 
             return;
         }
 
         $message = OrderWhatsAppMessage::build($order);
+        $recipients = $whatsapp->recipientNumbers();
 
         Log::info('WhatsApp order notification sending', [
             'order_id' => $order->id,
             'order_number' => $order->order_number,
-            'recipients' => $whatsapp->recipientNumbers(),
+            'recipients' => $recipients,
         ]);
 
-        $whatsapp->sendToAllRecipients($message);
+        $results = $whatsapp->sendToAllRecipientsWithReport($message);
 
-        $order->forceFill(['whatsapp_notified_at' => now()])->save();
+        $successCount = count(array_filter($results, fn (array $r) => $r['success']));
+
+        Log::info('WhatsApp order notification results', [
+            'order_id' => $order->id,
+            'order_number' => $order->order_number,
+            'results' => $results,
+            'success_count' => $successCount,
+        ]);
+
+        if ($successCount === 0) {
+            $errors = collect($results)->pluck('detail')->implode(' | ');
+            throw new \RuntimeException('فشل إرسال واتساب لجميع المستلمين — '.$errors);
+        }
+
+        $order->forceFill(['whatsapp_notified_at' => now()])->saveQuietly();
     }
 }
