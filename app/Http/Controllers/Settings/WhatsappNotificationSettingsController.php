@@ -29,6 +29,7 @@ class WhatsappNotificationSettingsController extends Controller
         return Inertia::render('settings/WhatsAppNotifications', [
             'recipients' => $recipients,
             'whatsapp_configured' => app(WhatsAppCloudService::class)->isConfigured(),
+            'sender_phone' => WhatsAppCloudService::senderDisplayPhone(),
         ]);
     }
 
@@ -44,6 +45,12 @@ class WhatsappNotificationSettingsController extends Controller
         if (! preg_match('/^9665\d{8}$/', $normalized)) {
             return back()->withErrors([
                 'phone' => 'أدخل رقم جوال سعودي صحيحاً',
+            ]);
+        }
+
+        if (WhatsAppCloudService::isSenderNumber($normalized)) {
+            return back()->withErrors([
+                'phone' => 'هذا رقم الإرسال (النشاط التجاري) — أضف رقماً آخر لاستقبال الإشعارات',
             ]);
         }
 
@@ -76,6 +83,12 @@ class WhatsappNotificationSettingsController extends Controller
             if (! preg_match('/^9665\d{8}$/', $normalized)) {
                 return back()->withErrors([
                     'phone' => 'أدخل رقم جوال سعودي صحيحاً',
+                ]);
+            }
+
+            if (WhatsAppCloudService::isSenderNumber($normalized)) {
+                return back()->withErrors([
+                    'phone' => 'هذا رقم الإرسال (النشاط التجاري) — لا يمكن إضافته كمستلم',
                 ]);
             }
 

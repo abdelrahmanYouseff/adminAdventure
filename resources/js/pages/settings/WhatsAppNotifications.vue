@@ -20,6 +20,7 @@ interface Recipient {
 const props = defineProps<{
     recipients: Recipient[];
     whatsapp_configured: boolean;
+    sender_phone: string;
 }>();
 
 const breadcrumbs: BreadcrumbItem[] = [
@@ -77,7 +78,7 @@ const activeCount = computed(() => props.recipients.filter((r) => r.is_active).l
                 <div>
                     <h1 class="text-2xl font-bold text-gray-900 dark:text-white">إعدادات واتساب الطلبات</h1>
                     <p class="text-sm text-gray-500 dark:text-gray-400">
-                        الأرقام التي تستقبل رسالة تفاصيل الطلب عند تأكيد الدفع
+                        الأرقام التي تستقبل إشعار تفاصيل الطلب — من أي رقم تضيفه هنا فقط
                     </p>
                 </div>
             </div>
@@ -89,6 +90,14 @@ const activeCount = computed(() => props.recipients.filter((r) => r.is_active).l
         <p v-if="successMessage" class="rounded-xl bg-green-50 px-4 py-3 text-sm font-medium text-green-700 dark:bg-green-900/20 dark:text-green-300">
             {{ successMessage }}
         </p>
+
+        <div class="rounded-xl border border-blue-100 bg-blue-50/80 px-4 py-3 text-sm text-blue-900 dark:border-blue-900/40 dark:bg-blue-900/20 dark:text-blue-200">
+            <span class="font-semibold">رقم الإرسال:</span>
+            <span dir="ltr" class="ms-1 font-mono">{{ sender_phone }}</span>
+            <span class="mt-1 block text-blue-800/80 dark:text-blue-300/90">
+                هذا رقم النشاط التجاري الذي تُرسل منه الرسائل — لا يمكن إضافته كمستلم.
+            </span>
+        </div>
 
         <div class="grid gap-6 lg:grid-cols-5">
             <div class="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-800 lg:col-span-2">

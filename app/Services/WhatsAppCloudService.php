@@ -96,58 +96,60 @@ class WhatsAppCloudService
      */
     public function recipientNumbers(): array
     {
-        if (\Illuminate\Support\Facades\Schema::hasTable('whatsapp_notification_recipients')) {
-            $fromDb = \App\Models\WhatsappNotificationRecipient::query()
-                ->where('is_active', true)
-                ->orderBy('id')
-                ->pluck('phone')
-                ->all();
-
-            if ($fromDb !== []) {
-                return $this->filterExcluded(array_values(array_unique(array_map(
-                    fn (string $number) => self::normalizePhone($number),
-                    $fromDb
-                ))));
-            }
+        if (! \Illuminate\Support\Facades\Schema::hasTable('whatsapp_notification_recipients')) {
+            return [];
         }
 
-        $numbers = array_filter([
-            (string) config('services.whatsapp.to'),
-        ]);
+        $fromDb = \App\Models\WhatsappNotificationRecipient::query()
+            ->where('is_active', true)
+            ->orderBy('id')
+            ->pluck('phone')
+            ->all();
 
-        $extra = (string) config('services.whatsapp.extra_to', '');
-        if ($extra !== '') {
-            foreach (explode(',', $extra) as $number) {
-                $trimmed = trim($number);
-                if ($trimmed !== '') {
-                    $numbers[] = $trimmed;
-                }
-            }
+        $normalized = array_values(array_unique(array_map(
+            fn (string $number) => self::normalizePhone($number),
+            $fromDb
+        )));
+
+        return $this->filterSenderNumber($normalized);
+    }
+
+    public static function isSenderNumber(string $phone): bool
+    {
+        $sender = self::normalizePhone((string) config('services.whatsapp.business_phone', ''));
+
+        if ($sender === '') {
+            return false;
         }
 
-        $normalized = array_map(fn (string $number) => self::normalizePhone($number), $numbers);
+        return self::normalizePhone($phone) === $sender;
+    }
 
-        return $this->filterExcluded(array_values(array_unique($normalized)));
+    public static function senderDisplayPhone(): string
+    {
+        $phone = (string) config('services.whatsapp.business_phone', '');
+        if ($phone === '') {
+            return '—';
+        }
+
+        $digits = self::normalizePhone($phone);
+
+        if (strlen($digits) === 12 && str_starts_with($digits, '966')) {
+            return '+966 '.substr($digits, 3, 2).' '.substr($digits, 5, 3).' '.substr($digits, 8);
+        }
+
+        return '+'.$digits;
     }
 
     /**
      * @param  list<string>  $numbers
      * @return list<string>
      */
-    private function filterExcluded(array $numbers): array
+    private function filterSenderNumber(array $numbers): array
     {
-        $excluded = collect(explode(',', (string) config('services.whatsapp.exclude_to', '')))
-            ->map(fn (string $n) => self::normalizePhone(trim($n)))
-            ->filter()
-            ->all();
-
-        if ($excluded === []) {
-            return $numbers;
-        }
-
         return array_values(array_filter(
             $numbers,
-            fn (string $number) => ! in_array($number, $excluded, true)
+            fn (string $number) => ! self::isSenderNumber($number)
         ));
     }
 

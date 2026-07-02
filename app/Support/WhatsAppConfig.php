@@ -25,7 +25,7 @@ class WhatsAppConfig
 
         $recipients = app(\App\Services\WhatsAppCloudService::class)->recipientNumbers();
         if ($recipients === []) {
-            $issues[] = 'لا توجد أرقام مستلمة (أضف أرقاماً من إعدادات واتساب أو عيّن WHATSAPP_TO في .env)';
+            $issues[] = 'لا توجد أرقام مستلمة — أضف أرقاماً من لوحة التحكم → إعدادات واتساب';
         }
 
         return $issues;

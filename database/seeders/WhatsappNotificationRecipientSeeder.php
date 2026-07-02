@@ -9,27 +9,17 @@ class WhatsappNotificationRecipientSeeder extends Seeder
 {
     public function run(): void
     {
-        $recipients = [
+        // رقم الإرسال 966538388299 لا يُضاف كمستلم — يُدار من WHATSAPP_BUSINESS_PHONE فقط
+        WhatsappNotificationRecipient::query()
+            ->where('phone', '966538388299')
+            ->delete();
+
+        WhatsappNotificationRecipient::updateOrCreate(
+            ['phone' => '966538778559'],
             [
-                'phone' => '966538388299',
-                'label' => 'رقم النشاط التجاري (لا يُستخدم للاستقبال)',
-                'is_active' => false,
-            ],
-            [
-                'phone' => '966538778559',
                 'label' => 'مدير المتجر',
                 'is_active' => true,
-            ],
-        ];
-
-        foreach ($recipients as $recipient) {
-            WhatsappNotificationRecipient::updateOrCreate(
-                ['phone' => $recipient['phone']],
-                [
-                    'label' => $recipient['label'],
-                    'is_active' => $recipient['is_active'],
-                ]
-            );
-        }
+            ]
+        );
     }
 }

@@ -22,7 +22,7 @@ class WhatsappDiagnose extends Command
             ['WHATSAPP_ENABLED', config('services.whatsapp.enabled') ? 'true' : 'false'],
             ['WHATSAPP_PHONE_NUMBER_ID', config('services.whatsapp.phone_number_id') ?: '—'],
             ['WHATSAPP_ACCESS_TOKEN', filled(config('services.whatsapp.access_token')) ? 'مضبوط' : 'غير مضبوط'],
-            ['QUEUE_CONNECTION (عام)', config('queue.default')],
+            ['WHATSAPP_BUSINESS_PHONE', config('services.whatsapp.business_phone') ?: '—'],
             ['إرسال واتساب', 'فوري — بدون queue worker'],
             ['GRAPH_VERSION', config('services.whatsapp.graph_version')],
         ]);
@@ -33,7 +33,7 @@ class WhatsappDiagnose extends Command
                 ->get(['phone', 'label', 'is_active']);
 
             if ($dbRecipients->isEmpty()) {
-                $this->warn('جدول whatsapp_notification_recipients فارغ — سيتم استخدام WHATSAPP_TO من .env');
+                $this->warn('لا توجد أرقام مستلمة — أضف أرقاماً من إعدادات واتساب في لوحة التحكم');
             } else {
                 $this->info('الأرقام في قاعدة البيانات:');
                 $this->table(
@@ -45,7 +45,8 @@ class WhatsappDiagnose extends Command
             $this->error('جدول whatsapp_notification_recipients غير موجود — شغّل: php artisan migrate');
         }
 
-        $this->info('الأرقام المستخدمة فعلياً للإرسال:');
+        $this->line('رقم الإرسال (لا يُرسل إليه): '.WhatsAppCloudService::senderDisplayPhone());
+        $this->info('الأرقام المستخدمة فعلياً للإرسال (من الإعدادات فقط):');
         foreach ($whatsapp->recipientNumbers() as $number) {
             $this->line("  • {$number}");
         }
