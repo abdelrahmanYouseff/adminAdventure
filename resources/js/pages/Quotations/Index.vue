@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { Head, Link, router } from '@inertiajs/vue3';
+import { computed, onMounted } from 'vue';
+import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -34,6 +35,16 @@ interface Props {
 }
 
 const props = defineProps<Props>();
+
+const page = usePage();
+const successMessage = computed(() => page.props.flash?.success as string | undefined);
+
+onMounted(() => {
+    const pdfId = page.props.flash?.open_pdf as number | undefined;
+    if (pdfId) {
+        window.open(route('quotations.pdf', pdfId), '_blank');
+    }
+});
 
 const getStatusBadgeVariant = (status: string) => {
     switch (status) {
@@ -81,6 +92,13 @@ const deleteQuotation = (id: number) => {
 
     <AppSidebarLayout>
         <div class="space-y-6">
+            <p
+                v-if="successMessage"
+                class="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm font-medium text-green-800 dark:border-green-900/50 dark:bg-green-950/30 dark:text-green-300"
+            >
+                {{ successMessage }}
+            </p>
+
             <!-- Header -->
             <div class="flex items-center justify-between">
                 <div>
@@ -198,25 +216,35 @@ const deleteQuotation = (id: number) => {
                                         </DropdownMenuTrigger>
                                         <DropdownMenuContent align="end">
                                             <DropdownMenuItem as-child>
-                                                <Link :href="route('quotations.pdf', quotation.id)">
-                                                    <Eye class="mr-2 h-4 w-4" />
+                                                <a
+                                                    :href="route('quotations.pdf', quotation.id)"
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    class="relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none transition-colors hover:bg-accent hover:text-accent-foreground"
+                                                >
+                                                    <Eye class="ms-2 h-4 w-4" />
                                                     عرض PDF
-                                                </Link>
+                                                </a>
                                             </DropdownMenuItem>
                                             <DropdownMenuItem as-child>
                                                 <Link :href="route('quotations.edit', quotation.id)">
-                                                    <Edit class="mr-2 h-4 w-4" />
+                                                    <Edit class="ms-2 h-4 w-4" />
                                                     تعديل
                                                 </Link>
                                             </DropdownMenuItem>
                                             <DropdownMenuItem as-child>
-                                                <Link :href="route('quotations.pdf', quotation.id)">
-                                                    <Download class="mr-2 h-4 w-4" />
+                                                <a
+                                                    :href="route('quotations.pdf', quotation.id)"
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    class="relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none transition-colors hover:bg-accent hover:text-accent-foreground"
+                                                >
+                                                    <Download class="ms-2 h-4 w-4" />
                                                     تحميل PDF
-                                                </Link>
+                                                </a>
                                             </DropdownMenuItem>
                                             <DropdownMenuItem @click="deleteQuotation(quotation.id)" class="text-red-600">
-                                                <Trash2 class="mr-2 h-4 w-4" />
+                                                <Trash2 class="ms-2 h-4 w-4" />
                                                 حذف
                                             </DropdownMenuItem>
                                         </DropdownMenuContent>

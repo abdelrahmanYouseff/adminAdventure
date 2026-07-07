@@ -2,9 +2,11 @@
 
 namespace App\Http\Middleware;
 
+use Closure;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
+use Symfony\Component\HttpFoundation\Response;
 use Tighten\Ziggy\Ziggy;
 
 class HandleInertiaRequests extends Middleware
@@ -26,6 +28,15 @@ class HandleInertiaRequests extends Middleware
     public function version(Request $request): ?string
     {
         return parent::version($request);
+    }
+
+    public function handle(Request $request, Closure $next): Response
+    {
+        if ($request->routeIs('quotations.pdf', 'invoices.pdf')) {
+            return $next($request);
+        }
+
+        return parent::handle($request, $next);
     }
 
     /**
@@ -55,6 +66,7 @@ class HandleInertiaRequests extends Middleware
                 'success' => $request->session()->get('success'),
                 'error' => $request->session()->get('error'),
                 'payment_success' => $request->session()->get('payment_success'),
+                'open_pdf' => $request->session()->get('open_pdf'),
             ],
             'csrf_token' => $request->session()->token(),
         ];

@@ -5,11 +5,12 @@ namespace App\Http\Controllers;
 use App\Models\Quotation;
 use App\Models\QuotationItem;
 use App\Models\Product;
+use App\Services\QuotationPdfService;
+use App\Support\QuotationPdfData;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
-use Barryvdh\DomPDF\Facade\Pdf;
 
 class QuotationController extends Controller
 {
@@ -60,6 +61,21 @@ class QuotationController extends Controller
             'items.*.product_id' => 'required|exists:products,id',
             'items.*.quantity' => 'required|integer|min:1',
             'items.*.unit_price' => 'required|numeric|min:0',
+        ], [
+            'customer_name.required' => 'اسم العميل مطلوب.',
+            'customer_name.max' => 'اسم العميل طويل جداً.',
+            'customer_email.email' => 'البريد الإلكتروني غير صالح.',
+            'valid_until.required' => 'تاريخ الصلاحية مطلوب.',
+            'valid_until.date' => 'تاريخ الصلاحية غير صالح.',
+            'valid_until.after' => 'تاريخ الصلاحية يجب أن يكون بعد اليوم.',
+            'items.required' => 'يجب إضافة منتج واحد على الأقل.',
+            'items.min' => 'يجب إضافة منتج واحد على الأقل.',
+            'items.*.product_id.required' => 'المنتج مطلوب.',
+            'items.*.product_id.exists' => 'المنتج المحدد غير موجود.',
+            'items.*.quantity.required' => 'الكمية مطلوبة.',
+            'items.*.quantity.min' => 'الكمية يجب أن تكون 1 على الأقل.',
+            'items.*.unit_price.required' => 'سعر الوحدة مطلوب.',
+            'items.*.unit_price.min' => 'سعر الوحدة لا يمكن أن يكون سالباً.',
         ]);
 
         try {
@@ -103,25 +119,31 @@ class QuotationController extends Controller
 
             DB::commit();
 
-            return redirect()->route('quotations.pdf', $quotation)
-                ->with('success', 'Quotation created successfully.');
+            return redirect()->route('quotations.index')
+                ->with('success', 'تم إنشاء عرض السعر بنجاح.')
+                ->with('open_pdf', $quotation->id);
         } catch (\Exception $e) {
             DB::rollBack();
-            return back()->withErrors(['error' => 'Failed to create quotation.']);
+            return back()->withErrors(['error' => 'فشل إنشاء عرض السعر.']);
         }
     }
 
     /**
      * Display the specified resource.
      */
-    public function show(Quotation $quotation)
+    public function show(Request $request, Quotation $quotation)
     {
         try {
-            // Redirect to PDF instead of showing the web page
-            return redirect()->route('quotations.pdf', $quotation);
+            $pdfUrl = route('quotations.pdf', $quotation);
+
+            if ($request->header('X-Inertia')) {
+                return Inertia::location($pdfUrl);
+            }
+
+            return redirect()->to($pdfUrl);
         } catch (\Exception $e) {
             Log::error('Error in quotation show: ' . $e->getMessage());
-            return back()->withErrors(['error' => 'Failed to load quotation.']);
+            return back()->withErrors(['error' => 'فشل تحميل عرض السعر.']);
         }
     }
 
@@ -200,11 +222,12 @@ class QuotationController extends Controller
 
             DB::commit();
 
-            return redirect()->route('quotations.pdf', $quotation)
-                ->with('success', 'Quotation updated successfully.');
+            return redirect()->route('quotations.index')
+                ->with('success', 'تم تحديث عرض السعر بنجاح.')
+                ->with('open_pdf', $quotation->id);
         } catch (\Exception $e) {
             DB::rollBack();
-            return back()->withErrors(['error' => 'Failed to update quotation.']);
+            return back()->withErrors(['error' => 'فشل تحديث عرض السعر.']);
         }
     }
 
@@ -225,27 +248,18 @@ class QuotationController extends Controller
     /**
      * Generate PDF for the quotation
      */
-    public function generatePdf(Quotation $quotation)
+    public function generatePdf(Quotation $quotation, QuotationPdfService $pdfService)
     {
-        $quotation->load(['user', 'items.product']);
+        $data = QuotationPdfData::fromQuotation($quotation);
+        $content = $pdfService->render($data);
+        $filename = 'quotation-'.$quotation->quotation_number.'.pdf';
 
-        $pdf = PDF::loadView('quotation-pdf', [
-            'quotation' => $quotation,
+        return response($content, 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'attachment; filename="'.$filename.'"',
+            'Content-Length' => (string) strlen($content),
+            'Cache-Control' => 'private, max-age=0, must-revalidate',
         ]);
-
-        // Set PDF options for Arabic support
-        $pdf->setOptions([
-            'isHtml5ParserEnabled' => true,
-            'isRemoteEnabled' => true,
-            'defaultFont' => 'Arial',
-            'chroot' => public_path(),
-            'defaultPaperSize' => 'a4',
-            'dpi' => 150,
-            'fontHeightRatio' => 0.9,
-            'isFontSubsettingEnabled' => true,
-        ]);
-
-        return $pdf->download("quotation-{$quotation->quotation_number}.pdf");
     }
 
     /**

@@ -66,14 +66,31 @@ class WhatsappDiagnose extends Command
         }
 
         $this->info('الإعدادات تبدو صحيحة.');
+
         $template = (string) config('services.whatsapp.order_template', '');
         if ($template === '') {
             $this->warn('WHATSAPP_ORDER_TEMPLATE غير مضبوط — الرسائل النصية قد لا تصل خارج نافذة 24 ساعة.');
         } else {
-            $this->line("قالب الطلبات: {$template} (".config('services.whatsapp.order_template_language').')');
-            $this->line('يجب أن يكون القالب معتمداً في Meta بنص: طلب جديد — عالم المغامرة ثم {{1}}');
+            $lang = (string) config('services.whatsapp.order_template_language', 'ar');
+            $this->line("قالب الطلبات: {$template} ({$lang})");
+
+            $verify = $whatsapp->verifyOrderTemplate();
+            if ($verify['error']) {
+                $this->warn('تعذّر التحقق من القالب: '.$verify['error']);
+            } elseif ($verify['found']) {
+                $status = strtoupper((string) $verify['status']);
+                if ($status === 'APPROVED') {
+                    $this->info('✓ القالب موجود ومعتمد في Meta');
+                } else {
+                    $this->warn("القالب موجود لكن حالته: {$verify['status']}");
+                }
+            } else {
+                $this->error("✗ القالب {$template} / {$lang} غير موجود — شغّل: php artisan whatsapp:list-templates");
+            }
         }
-        $this->line('جرّب: php artisan whatsapp:test --order=ORD-XXXX');
+
+        $this->line('جرّب: php artisan whatsapp:list-templates');
+        $this->line('ثم: php artisan whatsapp:test --order=ORD-XXXX');
 
         return self::SUCCESS;
     }

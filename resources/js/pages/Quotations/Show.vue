@@ -109,12 +109,16 @@ const updateStatus = (status: string) => {
                     </div>
                 </div>
                 <div class="flex items-center space-x-2">
-                    <Link :href="route('quotations.pdf', quotation.id)">
-                        <Button variant="default">
+                    <Button as-child variant="default">
+                        <a
+                            :href="route('quotations.pdf', quotation.id)"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                        >
                             <Download class="mr-2 h-4 w-4" />
                             View PDF
-                        </Button>
-                    </Link>
+                        </a>
+                    </Button>
                     <Badge :variant="getStatusBadgeVariant(quotation.status)">
                         {{ getStatusText(quotation.status) }}
                     </Badge>
@@ -133,10 +137,15 @@ const updateStatus = (status: string) => {
                                 </Link>
                             </DropdownMenuItem>
                             <DropdownMenuItem as-child>
-                                <Link :href="route('quotations.pdf', quotation.id)">
+                                <a
+                                    :href="route('quotations.pdf', quotation.id)"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    class="relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none transition-colors hover:bg-accent hover:text-accent-foreground"
+                                >
                                     <Download class="mr-2 h-4 w-4" />
                                     Download PDF
-                                </Link>
+                                </a>
                             </DropdownMenuItem>
                             <DropdownMenuItem as-child>
                                 <Link :href="route('quotations.index')">

@@ -304,6 +304,120 @@ class WhatsAppCloudService
         return $digits;
     }
 
+    /**
+     * @return array{success: bool, waba_id: ?string, error: ?string}
+     */
+    public function resolveBusinessAccountId(): array
+    {
+        $configured = (string) config('services.whatsapp.waba_id', '');
+        if ($configured !== '') {
+            return ['success' => true, 'waba_id' => $configured, 'error' => null];
+        }
+
+        if (! $this->isConfigured()) {
+            return ['success' => false, 'waba_id' => null, 'error' => 'واتساب غير مفعّل'];
+        }
+
+        $phoneNumberId = (string) config('services.whatsapp.phone_number_id');
+        $version = (string) config('services.whatsapp.graph_version', 'v21.0');
+
+        $response = $this->client()->get(
+            "https://graph.facebook.com/{$version}/{$phoneNumberId}",
+            ['fields' => 'whatsapp_business_account']
+        );
+
+        if (! $response->successful()) {
+            $error = $response->json('error.message') ?? $response->body();
+
+            return ['success' => false, 'waba_id' => null, 'error' => (string) $error];
+        }
+
+        $wabaId = $response->json('whatsapp_business_account.id');
+
+        if (! is_string($wabaId) || $wabaId === '') {
+            return ['success' => false, 'waba_id' => null, 'error' => 'تعذّر جلب WhatsApp Business Account'];
+        }
+
+        return ['success' => true, 'waba_id' => $wabaId, 'error' => null];
+    }
+
+    /**
+     * @return array{success: bool, templates: list<array{name: string, language: string, status: string, category: string}>, error: ?string}
+     */
+    public function listMessageTemplates(): array
+    {
+        $account = $this->resolveBusinessAccountId();
+        if (! $account['success']) {
+            return ['success' => false, 'templates' => [], 'error' => $account['error']];
+        }
+
+        $version = (string) config('services.whatsapp.graph_version', 'v21.0');
+        $templates = [];
+        $url = "https://graph.facebook.com/{$version}/{$account['waba_id']}/message_templates";
+        $params = ['limit' => 100, 'fields' => 'name,language,status,category'];
+
+        do {
+            $response = $this->client()->get($url, $params);
+
+            if (! $response->successful()) {
+                $error = $response->json('error.message') ?? $response->body();
+
+                return ['success' => false, 'templates' => [], 'error' => (string) $error];
+            }
+
+            foreach ($response->json('data', []) as $row) {
+                if (! is_array($row)) {
+                    continue;
+                }
+
+                $templates[] = [
+                    'name' => (string) ($row['name'] ?? '—'),
+                    'language' => (string) ($row['language'] ?? '—'),
+                    'status' => (string) ($row['status'] ?? '—'),
+                    'category' => (string) ($row['category'] ?? '—'),
+                ];
+            }
+
+            $next = $response->json('paging.next');
+            if (is_string($next) && $next !== '') {
+                $url = $next;
+                $params = [];
+            } else {
+                $url = '';
+            }
+        } while ($url !== '');
+
+        usort($templates, fn (array $a, array $b) => [$a['name'], $a['language']] <=> [$b['name'], $b['language']]);
+
+        return ['success' => true, 'templates' => $templates, 'error' => null];
+    }
+
+    /**
+     * @return array{found: bool, status: ?string, error: ?string}
+     */
+    public function verifyOrderTemplate(): array
+    {
+        $name = (string) config('services.whatsapp.order_template', '');
+        $language = (string) config('services.whatsapp.order_template_language', 'ar');
+
+        if ($name === '') {
+            return ['found' => false, 'status' => null, 'error' => 'WHATSAPP_ORDER_TEMPLATE غير مضبوط'];
+        }
+
+        $list = $this->listMessageTemplates();
+        if (! $list['success']) {
+            return ['found' => false, 'status' => null, 'error' => $list['error']];
+        }
+
+        foreach ($list['templates'] as $template) {
+            if ($template['name'] === $name && $template['language'] === $language) {
+                return ['found' => true, 'status' => $template['status'], 'error' => null];
+            }
+        }
+
+        return ['found' => false, 'status' => null, 'error' => null];
+    }
+
     private function client(): PendingRequest
     {
         return Http::timeout(30)

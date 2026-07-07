@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import AppLayout from '@/layouts/AppLayout.vue';
 import { type BreadcrumbItem } from '@/types';
-import { Head, usePage } from '@inertiajs/vue3';
-import { Package, FileText, Box, MessageCircle, ArrowLeft } from 'lucide-vue-next';
-import { Link } from '@inertiajs/vue3';
+import { Head, Link, usePage } from '@inertiajs/vue3';
+import { Package, FileText, Box, MessageCircle, ArrowLeft, FileSpreadsheet } from 'lucide-vue-next';
 import { formatInteger } from '@/lib/formatNumber';
+import { computed } from 'vue';
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
@@ -14,80 +14,122 @@ const breadcrumbs: BreadcrumbItem[] = [
 ];
 
 const page = usePage();
-const totalProducts = page.props.totalProducts as number | undefined;
-const totalInvoices = page.props.totalInvoices as number | undefined;
-const totalPackages = page.props.totalPackages as number | undefined;
+const totalProducts = computed(() => (page.props.totalProducts as number | undefined) ?? 0);
+const totalInvoices = computed(() => (page.props.totalInvoices as number | undefined) ?? 0);
+const totalPackages = computed(() => (page.props.totalPackages as number | undefined) ?? 0);
+const totalQuotations = computed(() => (page.props.totalQuotations as number | undefined) ?? 0);
+
+const stats = computed(() => [
+    {
+        label: 'إجمالي المنتجات',
+        value: totalProducts.value,
+        icon: Package,
+        iconClass: 'bg-blue-100 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400',
+        href: '/products',
+    },
+    {
+        label: 'إجمالي الفواتير',
+        value: totalInvoices.value,
+        icon: FileText,
+        iconClass: 'bg-green-100 text-green-600 dark:bg-green-900/20 dark:text-green-400',
+        href: '/invoices',
+    },
+    {
+        label: 'إجمالي الباقات',
+        value: totalPackages.value,
+        icon: Box,
+        iconClass: 'bg-orange-100 text-orange-600 dark:bg-orange-900/20 dark:text-orange-400',
+        href: '/packages',
+    },
+    {
+        label: 'عروض الأسعار',
+        value: totalQuotations.value,
+        icon: FileSpreadsheet,
+        iconClass: 'bg-purple-100 text-purple-600 dark:bg-purple-900/20 dark:text-purple-400',
+        href: '/quotations',
+    },
+]);
 </script>
 
 <template>
     <Head title="عالم المغامرات - لوحة التحكم" />
 
     <AppLayout :breadcrumbs="breadcrumbs">
-        <div class="flex h-full flex-1 flex-col gap-6 rounded-xl p-6">
-            <!-- Statistics Cards -->
-            <div class="grid gap-6 md:grid-cols-3">
-                <!-- Total Products -->
-                <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 p-6">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <p class="text-sm font-medium text-gray-600 dark:text-gray-400">إجمالي المنتجات</p>
-                            <p class="text-3xl font-bold tabular-nums text-gray-900 dark:text-white">{{ formatInteger(totalProducts || 0) }}</p>
-                        </div>
-                        <div class="w-12 h-12 bg-blue-100 dark:bg-blue-900/20 rounded-xl flex items-center justify-center">
-                            <Package class="w-6 h-6 text-blue-600 dark:text-blue-400" />
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Total Invoices -->
-                <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 p-6">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <p class="text-sm font-medium text-gray-600 dark:text-gray-400">إجمالي الفواتير</p>
-                            <p class="text-3xl font-bold tabular-nums text-gray-900 dark:text-white">{{ formatInteger(totalInvoices || 0) }}</p>
-                        </div>
-                        <div class="w-12 h-12 bg-green-100 dark:bg-green-900/20 rounded-xl flex items-center justify-center">
-                            <FileText class="w-6 h-6 text-green-600 dark:text-green-400" />
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Total Packages -->
-                <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 p-6">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <p class="text-sm font-medium text-gray-600 dark:text-gray-400">إجمالي الباقات</p>
-                            <p class="text-3xl font-bold tabular-nums text-gray-900 dark:text-white">{{ formatInteger(totalPackages || 0) }}</p>
-                        </div>
-                        <div class="w-12 h-12 bg-orange-100 dark:bg-orange-900/20 rounded-xl flex items-center justify-center">
-                            <Box class="w-6 h-6 text-orange-600 dark:text-orange-400" />
-                        </div>
-                    </div>
-                </div>
+        <div class="flex min-w-0 flex-1 flex-col gap-4 overflow-x-hidden p-3 pb-[max(1rem,env(safe-area-inset-bottom))] sm:gap-6 sm:p-6">
+            <div class="sm:hidden">
+                <h1 class="text-lg font-bold text-gray-900 dark:text-white">لوحة التحكم</h1>
+                <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">نظرة سريعة على أهم الأرقام</p>
             </div>
 
-            <!-- Main Content Area -->
-            <div class="flex-1 bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 p-6">
-                <h2 class="text-xl font-semibold text-gray-900 dark:text-white mb-4">نظرة عامة على لوحة التحكم</h2>
-                <p class="text-gray-600 dark:text-gray-400 mb-6">مرحباً بك في لوحة تحكم نظام عالم المغامرات.</p>
-
+            <div class="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
                 <Link
-                    href="/settings/whatsapp"
-                    class="flex items-center justify-between gap-4 rounded-2xl border border-green-100 bg-green-50/80 p-5 transition hover:border-green-200 hover:bg-green-50 dark:border-green-900/40 dark:bg-green-900/10 dark:hover:bg-green-900/20"
+                    v-for="stat in stats"
+                    :key="stat.label"
+                    :href="stat.href"
+                    class="min-w-0 rounded-2xl border border-gray-100 bg-white p-4 shadow-sm transition active:scale-[0.98] hover:border-purple-200 hover:shadow-md dark:border-gray-700 dark:bg-gray-800 dark:hover:border-purple-900/40 sm:p-6 sm:shadow-lg"
                 >
-                    <div class="flex items-center gap-4">
-                        <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-green-100 dark:bg-green-900/30">
-                            <MessageCircle class="h-6 w-6 text-green-600 dark:text-green-400" />
-                        </div>
-                        <div class="text-start">
-                            <p class="font-bold text-gray-900 dark:text-white">إعدادات واتساب الطلبات</p>
-                            <p class="mt-1 text-sm text-gray-600 dark:text-gray-400">
-                                إدارة الأرقام التي تستقبل رسالة تفاصيل الطلب عند الدفع
+                    <div class="flex items-start justify-between gap-2">
+                        <div class="min-w-0 flex-1">
+                            <p class="text-xs font-medium leading-snug text-gray-600 dark:text-gray-400 sm:text-sm">
+                                {{ stat.label }}
+                            </p>
+                            <p class="mt-1 text-2xl font-bold tabular-nums text-gray-900 dark:text-white sm:mt-2 sm:text-3xl">
+                                {{ formatInteger(stat.value) }}
                             </p>
                         </div>
+                        <div
+                            class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl sm:h-12 sm:w-12"
+                            :class="stat.iconClass"
+                        >
+                            <component :is="stat.icon" class="h-5 w-5 sm:h-6 sm:w-6" />
+                        </div>
                     </div>
-                    <ArrowLeft class="h-5 w-5 shrink-0 text-green-600 dark:text-green-400 rtl:rotate-180" />
                 </Link>
+            </div>
+
+            <div class="min-w-0 flex-1 rounded-2xl border border-gray-100 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800 sm:p-6 sm:shadow-lg">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white sm:text-xl">نظرة عامة</h2>
+                <p class="mt-1 text-sm text-gray-600 dark:text-gray-400 sm:mt-0 sm:mb-6">
+                    مرحباً بك في لوحة تحكم نظام عالم المغامرات.
+                </p>
+
+                <div class="mt-4 space-y-3 sm:mt-0">
+                    <Link
+                        href="/quotations/create"
+                        class="flex items-center justify-between gap-3 rounded-2xl border border-purple-100 bg-purple-50/80 p-4 transition active:scale-[0.99] hover:border-purple-200 hover:bg-purple-50 dark:border-purple-900/40 dark:bg-purple-900/10 dark:hover:bg-purple-900/20 sm:gap-4 sm:p-5"
+                    >
+                        <div class="flex min-w-0 items-center gap-3 sm:gap-4">
+                            <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-purple-100 dark:bg-purple-900/30 sm:h-12 sm:w-12">
+                                <FileSpreadsheet class="h-5 w-5 text-purple-600 dark:text-purple-400 sm:h-6 sm:w-6" />
+                            </div>
+                            <div class="min-w-0 text-start">
+                                <p class="font-bold text-gray-900 dark:text-white">إنشاء عرض سعر</p>
+                                <p class="mt-0.5 line-clamp-2 text-xs text-gray-600 dark:text-gray-400 sm:text-sm">
+                                    إعداد عرض سعر جديد للعميل وتصديره PDF
+                                </p>
+                            </div>
+                        </div>
+                        <ArrowLeft class="h-5 w-5 shrink-0 text-purple-600 dark:text-purple-400 rtl:rotate-180" />
+                    </Link>
+
+                    <Link
+                        href="/settings/whatsapp"
+                        class="flex items-center justify-between gap-3 rounded-2xl border border-green-100 bg-green-50/80 p-4 transition active:scale-[0.99] hover:border-green-200 hover:bg-green-50 dark:border-green-900/40 dark:bg-green-900/10 dark:hover:bg-green-900/20 sm:gap-4 sm:p-5"
+                    >
+                        <div class="flex min-w-0 items-center gap-3 sm:gap-4">
+                            <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-green-100 dark:bg-green-900/30 sm:h-12 sm:w-12">
+                                <MessageCircle class="h-5 w-5 text-green-600 dark:text-green-400 sm:h-6 sm:w-6" />
+                            </div>
+                            <div class="min-w-0 text-start">
+                                <p class="font-bold text-gray-900 dark:text-white">إعدادات واتساب الطلبات</p>
+                                <p class="mt-0.5 line-clamp-2 text-xs text-gray-600 dark:text-gray-400 sm:text-sm">
+                                    إدارة الأرقام التي تستقبل رسالة تفاصيل الطلب عند الدفع
+                                </p>
+                            </div>
+                        </div>
+                        <ArrowLeft class="h-5 w-5 shrink-0 text-green-600 dark:text-green-400 rtl:rotate-180" />
+                    </Link>
+                </div>
             </div>
         </div>
     </AppLayout>

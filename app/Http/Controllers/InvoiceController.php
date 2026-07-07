@@ -43,10 +43,13 @@ class InvoiceController extends Controller
     {
         $data = InvoicePdfData::fromInvoice($invoice);
         $content = $pdfService->render($data);
+        $filename = 'invoice-'.$invoice->invoice_number.'.pdf';
 
         return response($content, 200, [
             'Content-Type' => 'application/pdf',
-            'Content-Disposition' => 'inline; filename="invoice-'.$invoice->invoice_number.'.pdf"',
+            'Content-Disposition' => 'attachment; filename="'.$filename.'"',
+            'Content-Length' => (string) strlen($content),
+            'Cache-Control' => 'private, max-age=0, must-revalidate',
         ]);
     }
 
