@@ -9,7 +9,6 @@ use App\Models\Package;
 use App\Models\Order;
 // use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
-use Illuminate\Support\Facades\Hash;
 
 class DatabaseSeeder extends Seeder
 {
@@ -22,20 +21,13 @@ class DatabaseSeeder extends Seeder
 
 
         // Create admin user
-        User::updateOrCreate(
-            ['email' => 'admin@gmail.com'],
-            [
-                'customer_name' => 'Admin',
-                'password' => Hash::make('password123'),
-            ]
-        );
+        $this->call(AdminUserSeeder::class);
 
         User::updateOrCreate(
             ['email' => 'superadmin@gmail.com'],
             [
                 'customer_name' => 'Super Admin',
-                'password' => Hash::make('
-                 '),
+                'password' => 'password123',
             ]
         );
 
