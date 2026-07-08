@@ -15,8 +15,14 @@ interface User {
     phone: string | null;
     country: string | null;
     address: string | null;
+    role: 'admin' | 'worker';
     created_at: string;
 }
+
+const roleLabels: Record<User['role'], string> = {
+    admin: 'مسؤول',
+    worker: 'عامل',
+};
 
 interface Props {
     users: User[];
@@ -35,6 +41,7 @@ const form = useForm({
     email:                  '',
     phone:                  '',
     country:                '',
+    role:                   'worker' as 'admin' | 'worker',
     password:               '',
     password_confirmation:  '',
 });
@@ -95,13 +102,14 @@ const deleteUser = (user: User) => {
                                     <th class="border border-neutral-200 dark:border-neutral-600 px-4 py-3 text-right font-medium">البريد الإلكتروني</th>
                                     <th class="border border-neutral-200 dark:border-neutral-600 px-4 py-3 text-right font-medium">الهاتف</th>
                                     <th class="border border-neutral-200 dark:border-neutral-600 px-4 py-3 text-right font-medium">البلد</th>
+                                    <th class="border border-neutral-200 dark:border-neutral-600 px-4 py-3 text-right font-medium">الدور</th>
                                     <th class="border border-neutral-200 dark:border-neutral-600 px-4 py-3 text-right font-medium">تاريخ الإنشاء</th>
                                     <th class="border border-neutral-200 dark:border-neutral-600 px-4 py-3 text-center font-medium">الإجراءات</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 <tr v-if="users.length === 0">
-                                    <td colspan="7" class="border border-neutral-200 dark:border-neutral-600 px-4 py-8 text-neutral-500 text-center">
+                                    <td colspan="8" class="border border-neutral-200 dark:border-neutral-600 px-4 py-8 text-neutral-500 text-center">
                                         لا يوجد مستخدمون حتى الآن.
                                     </td>
                                 </tr>
@@ -125,6 +133,16 @@ const deleteUser = (user: User) => {
                                             <Globe class="w-4 h-4 text-neutral-400 shrink-0" />
                                             {{ user.country || '—' }}
                                         </div>
+                                    </td>
+                                    <td class="border border-neutral-200 dark:border-neutral-600 px-4 py-3">
+                                        <span
+                                            class="inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium"
+                                            :class="user.role === 'admin'
+                                                ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
+                                                : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'"
+                                        >
+                                            {{ roleLabels[user.role] }}
+                                        </span>
                                     </td>
                                     <td class="border border-neutral-200 dark:border-neutral-600 px-4 py-3 tabular-nums text-sm" dir="ltr">
                                         {{ formatDate(user.created_at) }}
@@ -230,6 +248,21 @@ const deleteUser = (user: User) => {
                             :class="{ 'border-red-500': form.errors.country }"
                         />
                         <p v-if="form.errors.country" class="text-xs text-red-500">{{ form.errors.country }}</p>
+                    </div>
+
+                    <!-- Role -->
+                    <div class="space-y-1.5">
+                        <Label for="role">الدور <span class="text-red-500">*</span></Label>
+                        <select
+                            id="role"
+                            v-model="form.role"
+                            class="flex h-10 w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm ring-offset-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-950 focus-visible:ring-offset-2 dark:border-neutral-700 dark:bg-neutral-900 dark:ring-offset-neutral-950 dark:focus-visible:ring-neutral-300"
+                            :class="{ 'border-red-500': form.errors.role }"
+                        >
+                            <option value="worker">عامل</option>
+                            <option value="admin">مسؤول</option>
+                        </select>
+                        <p v-if="form.errors.role" class="text-xs text-red-500">{{ form.errors.role }}</p>
                     </div>
 
                     <!-- Password -->

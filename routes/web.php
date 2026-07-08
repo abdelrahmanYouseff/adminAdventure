@@ -52,10 +52,10 @@ Route::get('/privacy', function () {
 })->name('privacy');
 
 Route::get('dashboard', [DashboardController::class, 'index'])
-    ->middleware(['auth', 'verified'])
+    ->middleware(['auth', 'verified', 'staff'])
     ->name('dashboard');
 
-Route::middleware(['auth', 'verified'])->prefix('settings')->name('settings.')->group(function () {
+Route::middleware(['auth', 'verified', 'admin'])->prefix('settings')->name('settings.')->group(function () {
     Route::get('whatsapp', [\App\Http\Controllers\Settings\WhatsappNotificationSettingsController::class, 'index'])
         ->name('whatsapp.index');
     Route::post('whatsapp', [\App\Http\Controllers\Settings\WhatsappNotificationSettingsController::class, 'store'])
@@ -67,139 +67,147 @@ Route::middleware(['auth', 'verified'])->prefix('settings')->name('settings.')->
 });
 
 Route::get('products', [ProductController::class, 'index'])
-    ->middleware(['auth', 'verified'])
+    ->middleware(['auth', 'verified', 'admin'])
     ->name('products');
 
 Route::get('products/create', [ProductController::class, 'create'])
-    ->middleware(['auth', 'verified'])
+    ->middleware(['auth', 'verified', 'admin'])
     ->name('products.create');
 
 Route::post('products', [ProductController::class, 'store'])
-    ->middleware(['auth', 'verified'])
+    ->middleware(['auth', 'verified', 'admin'])
     ->name('products.store');
 
 Route::post('products/import', [ProductController::class, 'import'])
-    ->middleware(['auth', 'verified'])
+    ->middleware(['auth', 'verified', 'admin'])
     ->name('products.import');
 
 Route::get('products/{product}/edit', [ProductController::class, 'edit'])
-    ->middleware(['auth', 'verified'])
+    ->middleware(['auth', 'verified', 'admin'])
     ->name('products.edit');
 
 Route::put('products/{product}', [ProductController::class, 'update'])
-    ->middleware(['auth', 'verified'])
+    ->middleware(['auth', 'verified', 'admin'])
     ->name('products.update');
 
 Route::patch('products/{product}', [ProductController::class, 'update'])
-    ->middleware(['auth', 'verified'])
+    ->middleware(['auth', 'verified', 'admin'])
     ->name('products.patch');
 
 Route::patch('products/{product}/toggle-status', [ProductController::class, 'toggleStatus'])
-    ->middleware(['auth', 'verified'])
+    ->middleware(['auth', 'verified', 'admin'])
     ->name('products.toggle-status');
 
 Route::delete('products/{product}', [ProductController::class, 'destroy'])
-    ->middleware(['auth', 'verified'])
+    ->middleware(['auth', 'verified', 'admin'])
     ->name('products.destroy');
 
 Route::get('categories', [CategoryController::class, 'index'])
-    ->middleware(['auth', 'verified'])
+    ->middleware(['auth', 'verified', 'admin'])
     ->name('categories.index');
 
 Route::get('categories/create', [CategoryController::class, 'create'])
-    ->middleware(['auth', 'verified'])
+    ->middleware(['auth', 'verified', 'admin'])
     ->name('categories.create');
 
 Route::post('categories', [CategoryController::class, 'store'])
-    ->middleware(['auth', 'verified'])
+    ->middleware(['auth', 'verified', 'admin'])
     ->name('categories.store');
 
 Route::get('categories/{category}', [CategoryController::class, 'show'])
-    ->middleware(['auth', 'verified'])
+    ->middleware(['auth', 'verified', 'admin'])
     ->name('categories.show');
 
 Route::get('categories/{category}/edit', [CategoryController::class, 'edit'])
-    ->middleware(['auth', 'verified'])
+    ->middleware(['auth', 'verified', 'admin'])
     ->name('categories.edit');
 
 Route::put('categories/{category}', [CategoryController::class, 'update'])
-    ->middleware(['auth', 'verified'])
+    ->middleware(['auth', 'verified', 'admin'])
     ->name('categories.update');
 
 Route::delete('categories/{category}', [CategoryController::class, 'destroy'])
-    ->middleware(['auth', 'verified'])
+    ->middleware(['auth', 'verified', 'admin'])
     ->name('categories.destroy');
 
 Route::get('customers', [\App\Http\Controllers\CustomerController::class, 'index'])
-    ->middleware(['auth', 'verified'])
+    ->middleware(['auth', 'verified', 'admin'])
     ->name('customers');
 
 
 
 
 Route::get('users', [\App\Http\Controllers\UserController::class, 'index'])
-    ->middleware(['auth', 'verified'])
+    ->middleware(['auth', 'verified', 'admin'])
     ->name('users');
 
 Route::post('users', [\App\Http\Controllers\UserController::class, 'store'])
-    ->middleware(['auth', 'verified'])
+    ->middleware(['auth', 'verified', 'admin'])
     ->name('users.store');
 
 Route::delete('users/{user}', [\App\Http\Controllers\UserController::class, 'destroy'])
-    ->middleware(['auth', 'verified'])
+    ->middleware(['auth', 'verified', 'admin'])
     ->name('users.destroy');
 
 // Package routes
-Route::resource('packages', PackageController::class)->middleware(['auth', 'verified']);
+Route::resource('packages', PackageController::class)->middleware(['auth', 'verified', 'admin']);
 
 // Invoices Routes
 Route::get('invoices', [InvoiceController::class, 'index'])
-    ->middleware(['auth', 'verified'])
+    ->middleware(['auth', 'verified', 'admin'])
     ->name('invoices.index');
 
 Route::get('invoices/{invoice}', [InvoiceController::class, 'show'])
-    ->middleware(['auth', 'verified'])
+    ->middleware(['auth', 'verified', 'admin'])
     ->name('invoices.show');
 
 Route::get('invoices/{invoice}/pdf', [InvoiceController::class, 'generatePdf'])
-    ->middleware(['auth', 'verified'])
+    ->middleware(['auth', 'verified', 'admin'])
     ->name('invoices.pdf');
 
 Route::patch('invoices/{invoice}/status', [InvoiceController::class, 'updateStatus'])
-    ->middleware(['auth', 'verified'])
+    ->middleware(['auth', 'verified', 'admin'])
     ->name('invoices.update-status');
 
 Route::get('invoices/export/csv', [InvoiceController::class, 'export'])
-    ->middleware(['auth', 'verified'])
+    ->middleware(['auth', 'verified', 'admin'])
     ->name('invoices.export');
 
 Route::patch('invoices/update-overdue', [InvoiceController::class, 'updateOverdueInvoices'])
-    ->middleware(['auth', 'verified'])
+    ->middleware(['auth', 'verified', 'admin'])
     ->name('invoices.update-overdue');
 
 // Quotations Routes
-Route::resource('quotations', QuotationController::class)->middleware(['auth', 'verified']);
+Route::resource('quotations', QuotationController::class)->middleware(['auth', 'verified', 'admin']);
 
 Route::get('quotations/{quotation}/pdf', [QuotationController::class, 'generatePdf'])
-    ->middleware(['auth', 'verified'])
+    ->middleware(['auth', 'verified', 'admin'])
     ->name('quotations.pdf');
 
 Route::patch('quotations/{quotation}/status', [QuotationController::class, 'updateStatus'])
-    ->middleware(['auth', 'verified'])
+    ->middleware(['auth', 'verified', 'admin'])
     ->name('quotations.update-status');
 
 // Orders Routes
 Route::get('orders', [OrderController::class, 'index'])
-    ->middleware(['auth', 'verified'])
+    ->middleware(['auth', 'verified', 'admin'])
     ->name('orders.index');
 
 Route::get('orders/{order}', [OrderController::class, 'show'])
-    ->middleware(['auth', 'verified'])
+    ->middleware(['auth', 'verified', 'admin'])
     ->name('orders.show');
 
 Route::delete('orders/{order}', [OrderController::class, 'destroy'])
-    ->middleware(['auth', 'verified'])
+    ->middleware(['auth', 'verified', 'admin'])
     ->name('orders.destroy');
+
+Route::get('worker-orders', [\App\Http\Controllers\WorkerOrderController::class, 'index'])
+    ->middleware(['auth', 'verified', 'staff'])
+    ->name('worker-orders.index');
+
+Route::post('worker-orders/{workerOrder}/complete', [\App\Http\Controllers\WorkerOrderController::class, 'complete'])
+    ->middleware(['auth', 'verified', 'staff'])
+    ->name('worker-orders.complete');
 
 // Public store (no auth)
 Route::get('store', [\App\Http\Controllers\StoreController::class, 'index'])->name('store.index');

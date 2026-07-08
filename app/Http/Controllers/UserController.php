@@ -11,7 +11,10 @@ class UserController extends Controller
 {
     public function index()
     {
-        $users = User::orderBy('created_at', 'desc')->get();
+        $users = User::query()
+            ->whereIn('role', [User::ROLE_ADMIN, User::ROLE_WORKER])
+            ->orderBy('created_at', 'desc')
+            ->get();
 
         return Inertia::render('Users/Index', [
             'users' => $users,
@@ -30,6 +33,7 @@ class UserController extends Controller
             'phone'         => 'nullable|string|max:20|unique:users,phone',
             'country'       => 'nullable|string|max:100',
             'password'      => 'required|string|min:6|confirmed',
+            'role'          => 'required|in:'.User::ROLE_ADMIN.','.User::ROLE_WORKER,
         ]);
 
         User::create([
@@ -38,6 +42,7 @@ class UserController extends Controller
             'phone'         => $request->phone,
             'country'       => $request->country,
             'password'      => $request->password,
+            'role'          => $request->role,
         ]);
 
         return redirect()->route('users')->with('success', 'تم إنشاء المستخدم بنجاح');

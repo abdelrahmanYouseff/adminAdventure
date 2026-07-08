@@ -14,6 +14,7 @@ class AdminUserSeeder extends Seeder
             [
                 'customer_name' => 'Admin',
                 'password' => 'password123',
+                'role' => User::ROLE_ADMIN,
             ]
         );
     }

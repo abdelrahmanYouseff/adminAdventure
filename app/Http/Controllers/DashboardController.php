@@ -12,6 +12,10 @@ class DashboardController extends Controller
 {
     public function index()
     {
+        if (auth()->user()?->isWorker()) {
+            return redirect()->route('worker-orders.index');
+        }
+
         $totalProducts = Product::count();
         $totalInvoices = Invoice::count();
         $totalPackages = Package::count();

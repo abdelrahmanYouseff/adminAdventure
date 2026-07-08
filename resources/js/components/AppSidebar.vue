@@ -2,12 +2,16 @@
 import NavMain from '@/components/NavMain.vue';
 import NavUser from '@/components/NavUser.vue';
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar';
-import { type NavItem } from '@/types';
-import { Link, router } from '@inertiajs/vue3';
-import { LayoutGrid, ShoppingBag, Users, Package, FileText, FileSpreadsheet, ShoppingCart, Tags, MessageCircle } from 'lucide-vue-next';
+import { type Auth, type NavItem } from '@/types';
+import { Link, usePage } from '@inertiajs/vue3';
+import { LayoutGrid, ShoppingBag, Users, Package, FileText, FileSpreadsheet, ShoppingCart, Tags, MessageCircle, HardHat } from 'lucide-vue-next';
 import AppLogo from './AppLogo.vue';
+import { computed } from 'vue';
 
-const mainNavItems: NavItem[] = [
+const page = usePage();
+const userRole = computed(() => (page.props.auth as Auth | undefined)?.user?.role);
+
+const adminNavItems: NavItem[] = [
     {
         title: 'لوحة التحكم',
         href: '/dashboard',
@@ -32,6 +36,11 @@ const mainNavItems: NavItem[] = [
         title: 'الطلبات',
         href: '/orders',
         icon: ShoppingCart,
+    },
+    {
+        title: 'طلبات العمال',
+        href: '/worker-orders',
+        icon: HardHat,
     },
     {
         title: 'العملاء',
@@ -59,6 +68,18 @@ const mainNavItems: NavItem[] = [
         icon: MessageCircle,
     },
 ];
+
+const workerNavItems: NavItem[] = [
+    {
+        title: 'طلبات العمال',
+        href: '/worker-orders',
+        icon: HardHat,
+    },
+];
+
+const mainNavItems = computed(() => (userRole.value === 'worker' ? workerNavItems : adminNavItems));
+
+const homeHref = computed(() => (userRole.value === 'worker' ? route('worker-orders.index') : route('dashboard')));
 </script>
 
 <template>
@@ -72,7 +93,7 @@ const mainNavItems: NavItem[] = [
             <SidebarMenu>
                 <SidebarMenuItem>
                     <SidebarMenuButton size="lg" as-child class="rounded-xl p-0 hover:bg-transparent min-h-0">
-                        <Link :href="route('dashboard')" class="flex items-center gap-3 py-1">
+                        <Link :href="homeHref" class="flex items-center gap-3 py-1">
                             <AppLogo />
                         </Link>
                     </SidebarMenuButton>

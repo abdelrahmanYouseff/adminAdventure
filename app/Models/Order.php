@@ -73,6 +73,11 @@ class Order extends Model
                     ->withTimestamps();
     }
 
+    public function workerOrders()
+    {
+        return $this->hasMany(WorkerOrder::class);
+    }
+
     /**
      * Generate a unique order number.
      */

@@ -4,26 +4,35 @@ namespace App\Observers;
 
 use App\Jobs\SendOrderWhatsAppNotification;
 use App\Models\Order;
+use App\Services\WorkerOrderSyncService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 class OrderObserver
 {
+    public function __construct(private WorkerOrderSyncService $workerOrderSyncService) {}
+
     public function created(Order $order): void
     {
         if ($this->shouldNotify($order)) {
             $this->dispatchNotification($order);
         }
+
+        if ($this->isPaid($order)) {
+            $this->syncWorkerOrders($order);
+        }
     }
 
     public function updated(Order $order): void
     {
-        if (! $order->wasChanged('payment_status') && ! $order->wasChanged('status')) {
-            return;
-        }
+        if ($order->wasChanged('payment_status') || $order->wasChanged('status')) {
+            if ($this->shouldNotify($order)) {
+                $this->dispatchNotification($order);
+            }
 
-        if ($this->shouldNotify($order)) {
-            $this->dispatchNotification($order);
+            if ($this->isPaid($order)) {
+                $this->syncWorkerOrders($order);
+            }
         }
     }
 
@@ -67,6 +76,39 @@ class OrderObserver
             return false;
         }
 
+        return $this->isPaid($order);
+    }
+
+    private function isPaid(Order $order): bool
+    {
         return $order->payment_status === 'paid' || $order->status === 'paid';
+    }
+
+    private function syncWorkerOrders(Order $order): void
+    {
+        $orderId = $order->id;
+
+        $run = function () use ($orderId) {
+            $freshOrder = Order::with('products')->find($orderId);
+
+            if (! $freshOrder) {
+                return;
+            }
+
+            try {
+                $this->workerOrderSyncService->syncFromOrder($freshOrder);
+            } catch (\Throwable $e) {
+                Log::error('Worker order sync failed', [
+                    'order_id' => $orderId,
+                    'message' => $e->getMessage(),
+                ]);
+            }
+        };
+
+        if (DB::transactionLevel() > 0) {
+            DB::afterCommit($run);
+        } else {
+            $run();
+        }
     }
 }

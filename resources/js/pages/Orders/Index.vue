@@ -164,89 +164,95 @@ function locationMapsUrl(address: string | null): string | null {
 
 <template>
     <Head title="إدارة الطلبات" />
-    <div class="space-y-6 py-6">
+    <div class="flex min-w-0 flex-1 flex-col gap-4 overflow-x-hidden p-3 pb-[max(1rem,env(safe-area-inset-bottom))] sm:gap-6 sm:p-6 sm:py-6">
         <!-- Header -->
-        <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div class="flex flex-col gap-1 sm:gap-4">
             <div>
-                <h1 class="text-3xl font-bold tracking-tight">إدارة الطلبات</h1>
-                <p class="text-muted-foreground">
+                <h1 class="text-xl font-bold tracking-tight sm:text-3xl">إدارة الطلبات</h1>
+                <p class="mt-1 text-sm text-muted-foreground sm:text-base">
                     عرض وبحث وفلترة الطلبات
                 </p>
             </div>
         </div>
 
         <!-- Stats -->
-        <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            <Card>
-                <CardHeader class="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle class="text-sm font-medium">إجمالي الطلبات</CardTitle>
-                    <ShoppingCart class="h-4 w-4 text-muted-foreground" />
+        <div class="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+            <Card class="min-w-0 shadow-sm">
+                <CardHeader class="flex flex-row items-center justify-between space-y-0 p-4 pb-2 sm:p-6">
+                    <CardTitle class="text-xs font-medium leading-snug sm:text-sm">إجمالي الطلبات</CardTitle>
+                    <ShoppingCart class="h-4 w-4 shrink-0 text-muted-foreground" />
                 </CardHeader>
-                <CardContent>
-                    <div class="text-2xl font-bold tabular-nums">{{ formatInteger(orders.total) }}</div>
+                <CardContent class="p-4 pt-0 sm:p-6 sm:pt-0">
+                    <div class="text-xl font-bold tabular-nums sm:text-2xl">{{ formatInteger(orders.total) }}</div>
                 </CardContent>
             </Card>
-            <Card>
-                <CardHeader class="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle class="text-sm font-medium">قيد الانتظار (هذه الصفحة)</CardTitle>
+            <Card class="min-w-0 shadow-sm">
+                <CardHeader class="flex flex-row items-center justify-between space-y-0 p-4 pb-2 sm:p-6">
+                    <CardTitle class="text-xs font-medium leading-snug sm:text-sm">قيد الانتظار</CardTitle>
                 </CardHeader>
-                <CardContent>
-                    <div class="text-2xl font-bold tabular-nums">{{ formatInteger(pendingCount()) }}</div>
+                <CardContent class="p-4 pt-0 sm:p-6 sm:pt-0">
+                    <div class="text-xl font-bold tabular-nums sm:text-2xl">{{ formatInteger(pendingCount()) }}</div>
+                    <p class="mt-0.5 text-[10px] text-muted-foreground sm:text-xs">في هذه الصفحة</p>
                 </CardContent>
             </Card>
-            <Card>
-                <CardHeader class="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle class="text-sm font-medium">مدفوع (هذه الصفحة)</CardTitle>
+            <Card class="min-w-0 shadow-sm">
+                <CardHeader class="flex flex-row items-center justify-between space-y-0 p-4 pb-2 sm:p-6">
+                    <CardTitle class="text-xs font-medium leading-snug sm:text-sm">مدفوع</CardTitle>
                 </CardHeader>
-                <CardContent>
-                    <div class="text-2xl font-bold tabular-nums">{{ formatInteger(paidCount()) }}</div>
+                <CardContent class="p-4 pt-0 sm:p-6 sm:pt-0">
+                    <div class="text-xl font-bold tabular-nums sm:text-2xl">{{ formatInteger(paidCount()) }}</div>
+                    <p class="mt-0.5 text-[10px] text-muted-foreground sm:text-xs">في هذه الصفحة</p>
                 </CardContent>
             </Card>
-            <Card>
-                <CardHeader class="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle class="text-sm font-medium">في هذه الصفحة</CardTitle>
+            <Card class="min-w-0 col-span-2 shadow-sm lg:col-span-1">
+                <CardHeader class="flex flex-row items-center justify-between space-y-0 p-4 pb-2 sm:p-6">
+                    <CardTitle class="text-xs font-medium leading-snug sm:text-sm">معروض الآن</CardTitle>
                 </CardHeader>
-                <CardContent>
-                    <div class="text-2xl font-bold tabular-nums">{{ formatInteger(orders.data.length) }}</div>
+                <CardContent class="p-4 pt-0 sm:p-6 sm:pt-0">
+                    <div class="text-xl font-bold tabular-nums sm:text-2xl">{{ formatInteger(orders.data.length) }}</div>
+                    <p class="mt-0.5 text-[10px] text-muted-foreground sm:text-xs">في الصفحة الحالية</p>
                 </CardContent>
             </Card>
         </div>
 
-        <!-- Filters & Table -->
-        <Card>
-            <CardHeader>
-                <CardTitle>قائمة الطلبات</CardTitle>
-                <CardDescription>
+        <!-- Filters & List -->
+        <Card class="min-w-0 shadow-sm">
+            <CardHeader class="p-4 sm:p-6">
+                <CardTitle class="text-lg sm:text-xl">قائمة الطلبات</CardTitle>
+                <CardDescription class="text-sm">
                     استخدم البحث والفلترة لتضييق النتائج
                 </CardDescription>
             </CardHeader>
-            <CardContent class="space-y-4">
+            <CardContent class="space-y-4 p-4 pt-0 sm:p-6 sm:pt-0">
                 <!-- Filters -->
-                <div class="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end">
-                    <div class="flex-1 min-w-[200px]">
-                        <Label for="search" class="sr-only">بحث</Label>
-                        <div class="relative">
-                            <Search class="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                            <Input
-                                id="search"
-                                v-model="searchInput"
-                                type="search"
-                                placeholder="رقم الطلب، اسم العميل، البريد..."
-                                class="pr-10"
-                                @keydown.enter.prevent="onSearchSubmit"
-                            />
+                <div class="space-y-3 rounded-2xl border border-border/60 bg-muted/20 p-3 sm:space-y-4 sm:p-4">
+                    <div class="flex flex-col gap-3 sm:flex-row sm:items-end">
+                        <div class="min-w-0 flex-1">
+                            <Label for="search" class="mb-1.5 block text-xs text-muted-foreground">بحث</Label>
+                            <div class="relative">
+                                <Search class="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                                <Input
+                                    id="search"
+                                    v-model="searchInput"
+                                    type="search"
+                                    placeholder="رقم الطلب، اسم العميل، البريد..."
+                                    class="h-11 pr-10"
+                                    @keydown.enter.prevent="onSearchSubmit"
+                                />
+                            </div>
                         </div>
+                        <Button class="h-11 w-full touch-manipulation sm:w-auto" @click="onSearchSubmit" type="button">
+                            بحث
+                        </Button>
                     </div>
-                    <Button @click="onSearchSubmit" type="button">
-                        بحث
-                    </Button>
-                    <div class="flex flex-wrap gap-2">
-                        <div class="flex flex-col gap-1">
+
+                    <div class="grid grid-cols-1 gap-3 min-[480px]:grid-cols-2 sm:grid-cols-3">
+                        <div class="flex min-w-0 flex-col gap-1.5">
                             <Label for="status" class="text-xs text-muted-foreground">الحالة</Label>
                             <select
                                 id="status"
                                 v-model="statusFilter"
-                                class="flex h-9 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-xs"
+                                class="flex h-11 w-full min-w-0 rounded-md border border-input bg-background px-3 py-2 text-sm shadow-xs"
                             >
                                 <option value="all">الكل</option>
                                 <option value="pending">قيد الانتظار</option>
@@ -256,12 +262,12 @@ function locationMapsUrl(address: string | null): string | null {
                                 <option value="refunded">مسترد</option>
                             </select>
                         </div>
-                        <div class="flex flex-col gap-1">
+                        <div class="flex min-w-0 flex-col gap-1.5">
                             <Label for="payment" class="text-xs text-muted-foreground">طريقة الدفع</Label>
                             <select
                                 id="payment"
                                 v-model="paymentFilter"
-                                class="flex h-9 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-xs"
+                                class="flex h-11 w-full min-w-0 rounded-md border border-input bg-background px-3 py-2 text-sm shadow-xs"
                             >
                                 <option value="all">الكل</option>
                                 <option value="credit_card">بطاقة ائتمان</option>
@@ -271,12 +277,12 @@ function locationMapsUrl(address: string | null): string | null {
                                 <option value="noon">Noon</option>
                             </select>
                         </div>
-                        <div class="flex flex-col gap-1">
+                        <div class="flex min-w-0 flex-col gap-1.5 min-[480px]:col-span-2 sm:col-span-1">
                             <Label for="currency" class="text-xs text-muted-foreground">العملة</Label>
                             <select
                                 id="currency"
                                 v-model="currencyFilter"
-                                class="flex h-9 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-xs"
+                                class="flex h-11 w-full min-w-0 rounded-md border border-input bg-background px-3 py-2 text-sm shadow-xs"
                             >
                                 <option value="all">الكل</option>
                                 <option value="SAR">SAR</option>
@@ -287,8 +293,118 @@ function locationMapsUrl(address: string | null): string | null {
                     </div>
                 </div>
 
-                <!-- Table -->
-                <div class="rounded-md border">
+                <!-- Mobile cards -->
+                <div class="space-y-3 md:hidden">
+                    <div
+                        v-if="orders.data.length === 0"
+                        class="rounded-2xl border border-dashed px-4 py-10 text-center text-sm text-muted-foreground"
+                    >
+                        لا توجد طلبات
+                    </div>
+
+                    <article
+                        v-for="order in orders.data"
+                        :key="`mobile-${order.id}`"
+                        class="overflow-hidden rounded-2xl border border-border/70 bg-card shadow-sm"
+                    >
+                        <div class="border-b border-border/60 bg-muted/20 px-4 py-3">
+                            <div class="flex items-start justify-between gap-3">
+                                <div class="min-w-0">
+                                    <p class="truncate font-mono text-sm font-bold">{{ order.order_number }}</p>
+                                    <p class="mt-0.5 text-xs text-muted-foreground">{{ formatDate(order.created_at) }}</p>
+                                </div>
+                                <Badge :variant="getStatusBadgeVariant(order.status)" class="shrink-0">
+                                    {{ getStatusText(order.status) }}
+                                </Badge>
+                            </div>
+                        </div>
+
+                        <div class="space-y-3 px-4 py-3">
+                            <div>
+                                <p class="text-xs text-muted-foreground">العميل</p>
+                                <p class="mt-0.5 font-semibold">{{ order.customer_name }}</p>
+                            </div>
+
+                            <div class="flex items-center justify-between gap-3 rounded-xl bg-muted/30 px-3 py-2.5">
+                                <div>
+                                    <p class="text-xs text-muted-foreground">المبلغ</p>
+                                    <p class="mt-0.5 text-lg font-bold text-green-600 dark:text-green-400">
+                                        {{ formatCurrency(Number(order.total_amount), order.currency) }}
+                                    </p>
+                                </div>
+                                <div class="text-end">
+                                    <p class="text-xs text-muted-foreground">طريقة الدفع</p>
+                                    <p class="mt-0.5 text-sm font-medium">{{ getPaymentMethodText(order.payment_method) }}</p>
+                                </div>
+                            </div>
+
+                            <div v-if="order.customer_email || order.customer_phone" class="space-y-1.5 text-sm">
+                                <p class="text-xs text-muted-foreground">التواصل</p>
+                                <a
+                                    v-if="order.customer_phone"
+                                    :href="`tel:${order.customer_phone}`"
+                                    class="flex min-h-10 items-center gap-2 rounded-lg border border-border/60 px-3 py-2 text-foreground transition hover:bg-muted/40"
+                                >
+                                    <Phone class="h-4 w-4 shrink-0 text-muted-foreground" />
+                                    <span dir="ltr" class="truncate">{{ order.customer_phone }}</span>
+                                </a>
+                                <a
+                                    v-if="order.customer_email"
+                                    :href="`mailto:${order.customer_email}`"
+                                    class="flex min-h-10 items-center gap-2 rounded-lg border border-border/60 px-3 py-2 text-foreground transition hover:bg-muted/40"
+                                >
+                                    <Mail class="h-4 w-4 shrink-0 text-muted-foreground" />
+                                    <span class="truncate">{{ order.customer_email }}</span>
+                                </a>
+                            </div>
+
+                            <div class="grid grid-cols-2 gap-2 text-sm">
+                                <div class="rounded-lg border border-border/60 px-3 py-2">
+                                    <p class="text-xs text-muted-foreground">تاريخ الفعالية</p>
+                                    <p class="mt-0.5 font-medium">{{ formatActivityDate(order.activity_date) }}</p>
+                                </div>
+                                <div class="rounded-lg border border-border/60 px-3 py-2">
+                                    <p class="text-xs text-muted-foreground">العملة</p>
+                                    <p class="mt-0.5 font-medium" dir="ltr">{{ order.currency }}</p>
+                                </div>
+                            </div>
+
+                            <div v-if="order.address && locationMapsUrl(order.address)">
+                                <p class="mb-1.5 text-xs text-muted-foreground">الموقع</p>
+                                <a
+                                    :href="locationMapsUrl(order.address)!"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    class="flex min-h-10 items-start gap-2 rounded-lg border border-border/60 px-3 py-2 text-sm text-primary transition hover:bg-muted/40"
+                                >
+                                    <MapPin class="mt-0.5 h-4 w-4 shrink-0" />
+                                    <span class="line-clamp-2 min-w-0 flex-1">{{ order.address }}</span>
+                                    <ExternalLink class="mt-0.5 h-3.5 w-3.5 shrink-0 opacity-60" />
+                                </a>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-2 border-t border-border/60 bg-muted/10 p-3">
+                            <Button as-child variant="outline" class="h-11 touch-manipulation">
+                                <Link :href="route('orders.show', order.id)">
+                                    <Eye class="ms-2 h-4 w-4" />
+                                    عرض التفاصيل
+                                </Link>
+                            </Button>
+                            <Button
+                                variant="destructive"
+                                class="h-11 touch-manipulation"
+                                @click="deleteOrder(order)"
+                            >
+                                <Trash2 class="ms-2 h-4 w-4" />
+                                حذف
+                            </Button>
+                        </div>
+                    </article>
+                </div>
+
+                <!-- Desktop table -->
+                <div class="hidden rounded-md border md:block">
                     <Table>
                         <TableHeader>
                             <TableRow>
@@ -401,9 +517,9 @@ function locationMapsUrl(address: string | null): string | null {
                 <!-- Pagination -->
                 <div
                     v-if="orders.last_page > 1"
-                    class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"
+                    class="flex flex-col gap-3 rounded-2xl border border-border/60 bg-muted/10 p-3 sm:flex-row sm:items-center sm:justify-between sm:p-4"
                 >
-                    <p class="text-sm text-muted-foreground">
+                    <p class="text-center text-sm text-muted-foreground sm:text-start">
                         عرض
                         <span class="font-medium tabular-nums">{{ formatInteger(orders.from ?? 0) }}</span>
                         إلى
@@ -412,22 +528,22 @@ function locationMapsUrl(address: string | null): string | null {
                         <span class="font-medium tabular-nums">{{ formatInteger(orders.total) }}</span>
                         طلب
                     </p>
-                    <div class="flex items-center gap-2">
+                    <div class="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
                         <Button
                             variant="outline"
-                            size="sm"
+                            class="h-11 touch-manipulation"
                             :disabled="orders.current_page <= 1"
                             @click="goToPage(orders.current_page - 1)"
                         >
                             <ChevronRight class="h-4 w-4" />
                             السابق
                         </Button>
-                        <span class="text-sm text-muted-foreground">
+                        <span class="px-1 text-center text-sm font-medium tabular-nums text-muted-foreground">
                             {{ formatInteger(orders.current_page) }} / {{ formatInteger(orders.last_page) }}
                         </span>
                         <Button
                             variant="outline"
-                            size="sm"
+                            class="h-11 touch-manipulation"
                             :disabled="orders.current_page >= orders.last_page"
                             @click="goToPage(orders.current_page + 1)"
                         >

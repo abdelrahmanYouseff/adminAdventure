@@ -50,6 +50,16 @@ class LoginRequest extends FormRequest
             ]);
         }
 
+        $user = Auth::user();
+
+        if (! $user?->canAccessDashboard()) {
+            Auth::logout();
+
+            throw ValidationException::withMessages([
+                'email' => 'هذا الحساب غير مصرح له بالدخول إلى لوحة التحكم.',
+            ]);
+        }
+
         RateLimiter::clear($this->throttleKey());
     }
 

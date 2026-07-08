@@ -9,6 +9,10 @@ use Illuminate\Notifications\Notifiable;
 
 class User extends Authenticatable
 {
+    public const ROLE_ADMIN = 'admin';
+
+    public const ROLE_WORKER = 'worker';
+
     /** @use HasFactory<\Database\Factories\UserFactory> */
     use HasFactory, Notifiable;
 
@@ -21,6 +25,7 @@ class User extends Authenticatable
         'customer_name',
         'email',
         'password',
+        'role',
         'phone',
         'country',
         'profile_completed',
@@ -100,5 +105,29 @@ class User extends Authenticatable
     public function invoices()
     {
         return $this->hasMany(Invoice::class);
+    }
+
+    public function isAdmin(): bool
+    {
+        return $this->role === self::ROLE_ADMIN;
+    }
+
+    public function isWorker(): bool
+    {
+        return $this->role === self::ROLE_WORKER;
+    }
+
+    public function canAccessDashboard(): bool
+    {
+        return $this->isAdmin() || $this->isWorker();
+    }
+
+    public function roleLabel(): string
+    {
+        return match ($this->role) {
+            self::ROLE_ADMIN => 'مسؤول',
+            self::ROLE_WORKER => 'عامل',
+            default => 'عميل',
+        };
     }
 }

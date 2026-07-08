@@ -28,6 +28,7 @@ class DatabaseSeeder extends Seeder
             [
                 'customer_name' => 'Super Admin',
                 'password' => 'password123',
+                'role' => User::ROLE_ADMIN,
             ]
         );
 
