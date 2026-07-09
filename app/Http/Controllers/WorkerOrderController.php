@@ -13,37 +13,9 @@ class WorkerOrderController extends Controller
     {
         $status = $request->string('status')->toString() ?: 'pending';
 
-        $query = WorkerOrder::query()
-            ->with([
-                'order:id,order_number,location_slug,address',
-                'completedByUser:id,customer_name',
-            ]);
-
-        if ($status === 'completed') {
-            $query->orderByDesc('completed_at');
-        } else {
-            $query->orderByRaw('installation_date IS NULL')
-                ->orderBy('installation_date')
-                ->orderByDesc('created_at');
-        }
-
-        if (in_array($status, ['pending', 'completed'], true)) {
-            $query->where('status', $status);
-        }
-
-        $workerOrders = $query->paginate(12)->withQueryString()->through(
-            fn (WorkerOrder $workerOrder) => $this->formatWorkerOrder($workerOrder)
-        );
-
-        $stats = [
-            'pending' => WorkerOrder::where('status', 'pending')->count(),
-            'completed' => WorkerOrder::where('status', 'completed')->count(),
-            'total' => WorkerOrder::count(),
-        ];
-
         return Inertia::render('WorkerOrders/Index', [
-            'workerOrders' => $workerOrders,
-            'stats' => $stats,
+            'workerOrders' => Inertia::defer(fn () => $this->paginatedWorkerOrders($request, $status)),
+            'stats' => Inertia::defer(fn () => $this->workerOrderStats()),
             'filters' => [
                 'status' => $status,
             ],
@@ -80,6 +52,48 @@ class WorkerOrderController extends Controller
         ]);
 
         return back()->with('success', 'تم تسجيل التركيب بنجاح.');
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function paginatedWorkerOrders(Request $request, string $status): array
+    {
+        $query = WorkerOrder::query()
+            ->with([
+                'order:id,order_number,location_slug,address',
+                'completedByUser:id,customer_name',
+            ]);
+
+        if ($status === 'completed') {
+            $query->orderByDesc('completed_at');
+        } else {
+            $query->orderByRaw('installation_date IS NULL')
+                ->orderBy('installation_date')
+                ->orderByDesc('created_at');
+        }
+
+        if (in_array($status, ['pending', 'completed'], true)) {
+            $query->where('status', $status);
+        }
+
+        return $query
+            ->paginate(12)
+            ->withQueryString()
+            ->through(fn (WorkerOrder $workerOrder) => $this->formatWorkerOrder($workerOrder))
+            ->toArray();
+    }
+
+    /**
+     * @return array{pending: int, completed: int, total: int}
+     */
+    private function workerOrderStats(): array
+    {
+        return [
+            'pending' => WorkerOrder::where('status', 'pending')->count(),
+            'completed' => WorkerOrder::where('status', 'completed')->count(),
+            'total' => WorkerOrder::count(),
+        ];
     }
 
     /**

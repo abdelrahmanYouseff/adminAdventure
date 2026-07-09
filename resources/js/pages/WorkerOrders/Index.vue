@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
-import { Head, router, useForm, usePage } from '@inertiajs/vue3';
+import { Head, router, useForm, usePage, Deferred } from '@inertiajs/vue3';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -49,7 +49,7 @@ interface WorkerOrderItem {
 }
 
 interface Props {
-    workerOrders: {
+    workerOrders?: {
         data: WorkerOrderItem[];
         current_page: number;
         last_page: number;
@@ -57,7 +57,7 @@ interface Props {
         from: number | null;
         to: number | null;
     };
-    stats: {
+    stats?: {
         pending: number;
         completed: number;
         total: number;
@@ -68,6 +68,21 @@ interface Props {
 }
 
 const props = defineProps<Props>();
+
+const workerOrders = computed(() => props.workerOrders ?? {
+    data: [],
+    current_page: 1,
+    last_page: 1,
+    total: 0,
+    from: null,
+    to: null,
+});
+
+const stats = computed(() => props.stats ?? {
+    pending: 0,
+    completed: 0,
+    total: 0,
+});
 
 defineOptions({ layout: AppLayout });
 
@@ -136,7 +151,7 @@ function closeMobileList() {
 }
 
 function goToPage(pageNumber: number) {
-    if (pageNumber >= 1 && pageNumber <= props.workerOrders.last_page) {
+    if (pageNumber >= 1 && pageNumber <= workerOrders.value.last_page) {
         applyFilters(pageNumber);
     }
 }
@@ -275,6 +290,13 @@ watch(dialogOpen, (isOpen) => {
 
 <template>
     <Head title="طلبات العمال" />
+
+    <Deferred :data="['workerOrders', 'stats']">
+        <template #fallback>
+            <div class="flex min-h-[50vh] items-center justify-center p-6 text-sm text-muted-foreground">
+                جاري تحميل طلبات العمال...
+            </div>
+        </template>
 
     <div class="flex min-w-0 flex-1 flex-col gap-4 overflow-x-hidden p-3 pb-[max(1rem,env(safe-area-inset-bottom))] sm:gap-6 sm:p-6">
         <p
@@ -616,6 +638,8 @@ watch(dialogOpen, (isOpen) => {
             </CardContent>
         </Card>
     </div>
+
+    </Deferred>
 
     <Teleport to="body">
         <div

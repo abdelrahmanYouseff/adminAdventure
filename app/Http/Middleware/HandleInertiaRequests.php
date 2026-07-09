@@ -3,7 +3,6 @@
 namespace App\Http\Middleware;
 
 use Closure;
-use Illuminate\Foundation\Inspiring;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 use Symfony\Component\HttpFoundation\Response;
@@ -35,6 +34,10 @@ class HandleInertiaRequests extends Middleware
             return $next($request);
         }
 
+        if ($request->user()?->canAccessDashboard()) {
+            $request->session()->forget(['payment_success', 'open_pdf']);
+        }
+
         return parent::handle($request, $next);
     }
 
@@ -50,7 +53,6 @@ class HandleInertiaRequests extends Middleware
         return [
             ...parent::share($request),
             'name' => config('app.name'),
-            'quote' => fn () => $this->inspiringQuote(),
             'auth' => fn () => [
                 'user' => $request->user() ? [
                     'id' => $request->user()->id,
@@ -72,19 +74,6 @@ class HandleInertiaRequests extends Middleware
                 'open_pdf' => $request->session()->get('open_pdf'),
             ],
             'csrf_token' => fn () => $request->session()->token(),
-        ];
-    }
-
-    /**
-     * @return array{message: string, author: string}
-     */
-    private function inspiringQuote(): array
-    {
-        [$message, $author] = str(Inspiring::quotes()->random())->explode('-');
-
-        return [
-            'message' => trim($message),
-            'author' => trim($author),
         ];
     }
 }
