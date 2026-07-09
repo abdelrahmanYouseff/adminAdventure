@@ -7,7 +7,6 @@ use Illuminate\Foundation\Inspiring;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 use Symfony\Component\HttpFoundation\Response;
-use Tighten\Ziggy\Ziggy;
 
 class HandleInertiaRequests extends Middleware
 {
@@ -53,17 +52,23 @@ class HandleInertiaRequests extends Middleware
             'name' => config('app.name'),
             'quote' => fn () => $this->inspiringQuote(),
             'auth' => fn () => [
-                'user' => $request->user(),
+                'user' => $request->user() ? [
+                    'id' => $request->user()->id,
+                    'name' => $request->user()->name,
+                    'email' => $request->user()->email,
+                    'role' => $request->user()->role,
+                ] : null,
             ],
             'ziggy' => fn () => [
-                ...(new Ziggy)->toArray(),
                 'location' => $request->url(),
             ],
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
             'flash' => fn () => [
                 'success' => $request->session()->get('success'),
                 'error' => $request->session()->get('error'),
-                'payment_success' => $request->session()->get('payment_success'),
+                'payment_success' => $request->routeIs('home', 'store.*')
+                    ? $request->session()->get('payment_success')
+                    : null,
                 'open_pdf' => $request->session()->get('open_pdf'),
             ],
             'csrf_token' => fn () => $request->session()->token(),

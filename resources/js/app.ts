@@ -7,6 +7,13 @@ import { Fragment, createApp, h } from 'vue';
 import FloatingWhatsApp from './components/FloatingWhatsApp.vue';
 import { ZiggyVue } from 'ziggy-js';
 import type { Config } from 'ziggy-js';
+
+declare global {
+    interface Window {
+        Ziggy?: Config & { url?: string };
+    }
+}
+
 import { initializeTheme } from './composables/useAppearance';
 
 const _envName = import.meta.env.VITE_APP_NAME || 'منصة عالم المغامرة';
@@ -16,7 +23,7 @@ createInertiaApp({
     title: (title) => (title && title !== appName ? `${title} - ${appName}` : (title || appName)),
     resolve: (name) => resolvePageComponent(`./pages/${name}.vue`, import.meta.glob<DefineComponent>('./pages/**/*.vue')),
     setup({ el, App, props, plugin }) {
-        const ziggy = props.initialPage.props.ziggy as Config & { location: string };
+        const ziggyLocation = (props.initialPage.props.ziggy as { location: string }).location;
 
         createApp({
             render: () =>
@@ -27,8 +34,8 @@ createInertiaApp({
         })
             .use(plugin)
             .use(ZiggyVue, {
-                ...ziggy,
-                location: new URL(ziggy.location),
+                ...(window.Ziggy ?? {}),
+                location: new URL(ziggyLocation),
             })
             .mount(el);
     },
