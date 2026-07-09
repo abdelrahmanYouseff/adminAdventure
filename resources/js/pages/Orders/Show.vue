@@ -12,6 +12,8 @@ interface OrderItem {
     name: string;
     quantity: number;
     price: number;
+    duration?: number;
+    amount?: number;
 }
 
 interface ProductPivot {
@@ -100,16 +102,25 @@ const getPaymentMethodText = (method: string) => {
 const orderItems = () => {
     const rows: { name: string; quantity: number; price: number; total: number }[] = [];
     const items = props.order.items || [];
-    items.forEach((item: OrderItem) => {
-        const q = Number(item.quantity) || 0;
-        const p = Number(item.price) || 0;
-        rows.push({
-            name: item.name || '—',
-            quantity: q,
-            price: p,
-            total: q * p,
+
+    if (items.length > 0) {
+        items.forEach((item: OrderItem) => {
+            const q = Number(item.quantity) || 0;
+            const p = Number(item.price) || 0;
+            const duration = Number(item.duration) || 1;
+            const total = item.amount != null ? Number(item.amount) : q * p * duration;
+
+            rows.push({
+                name: item.name || '—',
+                quantity: q,
+                price: p,
+                total,
+            });
         });
-    });
+
+        return rows;
+    }
+
     (props.order.products || []).forEach((product: Product) => {
         const q = Number(product.pivot?.quantity) || 0;
         const p = Number(product.pivot?.price) || 0;
@@ -120,6 +131,7 @@ const orderItems = () => {
             total: q * p,
         });
     });
+
     return rows;
 };
 </script>
