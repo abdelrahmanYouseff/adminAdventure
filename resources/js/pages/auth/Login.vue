@@ -24,7 +24,7 @@ const form = useForm({
 const showPassword = ref(false);
 
 const submit = () => {
-    form.post(route('login'), {
+    form.post('/login', {
         onFinish: () => form.reset('password'),
     });
 };
