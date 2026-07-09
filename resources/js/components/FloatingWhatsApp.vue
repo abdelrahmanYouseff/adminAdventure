@@ -8,7 +8,11 @@ import { usePage } from '@inertiajs/vue3';
  */
 const page = usePage();
 const hidden = computed(
-    () => page.component === 'Store/Cart' || page.url.startsWith('/store/cart'),
+    () =>
+        page.component === 'Store/Cart'
+        || page.url.startsWith('/store/cart')
+        || page.url.startsWith('/login')
+        || page.component.startsWith('auth/'),
 );
 
 const raw =

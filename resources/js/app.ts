@@ -6,14 +6,7 @@ import type { DefineComponent } from 'vue';
 import { Fragment, createApp, h } from 'vue';
 import FloatingWhatsApp from './components/FloatingWhatsApp.vue';
 import { ZiggyVue } from 'ziggy-js';
-import type { Config } from 'ziggy-js';
-
-declare global {
-    interface Window {
-        Ziggy?: Config & { url?: string };
-    }
-}
-
+import { Ziggy } from './ziggy';
 import { initializeTheme } from './composables/useAppearance';
 
 const _envName = import.meta.env.VITE_APP_NAME || 'منصة عالم المغامرة';
@@ -34,7 +27,7 @@ createInertiaApp({
         })
             .use(plugin)
             .use(ZiggyVue, {
-                ...(window.Ziggy ?? {}),
+                ...Ziggy,
                 location: new URL(ziggyLocation),
             })
             .mount(el);
@@ -44,5 +37,4 @@ createInertiaApp({
     },
 });
 
-// This will set light / dark mode on page load...
 initializeTheme();
