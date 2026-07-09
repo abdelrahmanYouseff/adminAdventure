@@ -48,27 +48,38 @@ class HandleInertiaRequests extends Middleware
      */
     public function share(Request $request): array
     {
-        [$message, $author] = str(Inspiring::quotes()->random())->explode('-');
-
         return [
             ...parent::share($request),
             'name' => config('app.name'),
-            'quote' => ['message' => trim($message), 'author' => trim($author)],
-            'auth' => [
+            'quote' => fn () => $this->inspiringQuote(),
+            'auth' => fn () => [
                 'user' => $request->user(),
             ],
-            'ziggy' => [
+            'ziggy' => fn () => [
                 ...(new Ziggy)->toArray(),
                 'location' => $request->url(),
             ],
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
-            'flash' => [
+            'flash' => fn () => [
                 'success' => $request->session()->get('success'),
                 'error' => $request->session()->get('error'),
                 'payment_success' => $request->session()->get('payment_success'),
                 'open_pdf' => $request->session()->get('open_pdf'),
             ],
-            'csrf_token' => $request->session()->token(),
+            'csrf_token' => fn () => $request->session()->token(),
+        ];
+    }
+
+    /**
+     * @return array{message: string, author: string}
+     */
+    private function inspiringQuote(): array
+    {
+        [$message, $author] = str(Inspiring::quotes()->random())->explode('-');
+
+        return [
+            'message' => trim($message),
+            'author' => trim($author),
         ];
     }
 }

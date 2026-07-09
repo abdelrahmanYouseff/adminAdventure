@@ -31,7 +31,9 @@ class WorkerOrderController extends Controller
             $query->where('status', $status);
         }
 
-        $workerOrders = $query->paginate(12)->withQueryString();
+        $workerOrders = $query->paginate(12)->withQueryString()->through(
+            fn (WorkerOrder $workerOrder) => $this->formatWorkerOrder($workerOrder)
+        );
 
         $stats = [
             'pending' => WorkerOrder::where('status', 'pending')->count(),
@@ -78,5 +80,33 @@ class WorkerOrderController extends Controller
         ]);
 
         return back()->with('success', 'تم تسجيل التركيب بنجاح.');
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function formatWorkerOrder(WorkerOrder $workerOrder): array
+    {
+        return [
+            'id' => $workerOrder->id,
+            'product_name' => $workerOrder->product_name,
+            'product_image_url' => $workerOrder->product_image_url,
+            'customer_name' => $workerOrder->customer_name,
+            'customer_address' => $workerOrder->customer_address,
+            'installation_date' => $workerOrder->installation_date?->format('Y-m-d'),
+            'status' => $workerOrder->status,
+            'installation_photo_url' => $workerOrder->installation_photo_url,
+            'completed_at' => $workerOrder->completed_at?->toIso8601String(),
+            'completed_by_user' => $workerOrder->completedByUser ? [
+                'id' => $workerOrder->completedByUser->id,
+                'name' => $workerOrder->completedByUser->name,
+            ] : null,
+            'order' => $workerOrder->order ? [
+                'id' => $workerOrder->order->id,
+                'order_number' => $workerOrder->order->order_number,
+                'location_slug' => $workerOrder->order->location_slug,
+                'address' => $workerOrder->order->address,
+            ] : null,
+        ];
     }
 }
