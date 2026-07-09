@@ -5,7 +5,7 @@ import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
 import type { DefineComponent } from 'vue';
 import { Fragment, createApp, h } from 'vue';
 import FloatingWhatsApp from './components/FloatingWhatsApp.vue';
-import { ZiggyVue } from 'ziggy-js';
+import { route as ziggyRoute, ZiggyVue } from 'ziggy-js';
 import type { Config } from 'ziggy-js';
 import { Ziggy as fallbackZiggy } from './ziggy';
 import { initializeTheme } from './composables/useAppearance';
@@ -13,6 +13,7 @@ import { initializeTheme } from './composables/useAppearance';
 declare global {
     interface Window {
         Ziggy?: Config;
+        route: typeof ziggyRoute;
     }
 }
 
@@ -20,7 +21,7 @@ const _envName = import.meta.env.VITE_APP_NAME || 'منصة عالم المغا�
 const appName = _envName === 'Laravel' || _envName.includes('Laravel') ? 'منصة عالم المغامرة' : _envName;
 
 function buildZiggyConfig(location: string): Config & { location: URL } {
-    const routes = window.Ziggy ?? fallbackZiggy;
+    const routes = (window.Ziggy ?? fallbackZiggy) as Config;
 
     return {
         ...routes,
@@ -34,6 +35,13 @@ createInertiaApp({
     resolve: (name) => resolvePageComponent(`./pages/${name}.vue`, import.meta.glob<DefineComponent>('./pages/**/*.vue')),
     setup({ el, App, props, plugin }) {
         const ziggyLocation = (props.initialPage.props.ziggy as { location: string }).location;
+        const ziggyConfig = buildZiggyConfig(ziggyLocation);
+
+        // `@routes` used to inject a global `route()` helper alongside the Ziggy config.
+        // Since we now load routes from a static file, we must expose `route()` globally
+        // ourselves — many components call it directly in <script setup> (outside templates).
+        window.route = ((name?: string, params?: unknown, absolute?: boolean) =>
+            ziggyRoute(name as never, params as never, absolute, ziggyConfig)) as typeof ziggyRoute;
 
         createApp({
             render: () =>
@@ -43,7 +51,7 @@ createInertiaApp({
                 ]),
         })
             .use(plugin)
-            .use(ZiggyVue, buildZiggyConfig(ziggyLocation))
+            .use(ZiggyVue, ziggyConfig)
             .mount(el);
     },
     progress: {
