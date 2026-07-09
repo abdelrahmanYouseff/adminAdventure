@@ -10,9 +10,16 @@ class CustomerController extends Controller
 {
     public function index()
     {
-        $users = User::orderBy('created_at', 'desc')->get();
+        $customers = User::query()
+            ->where(function ($query) {
+                $query->whereNull('role')
+                    ->orWhereNotIn('role', [User::ROLE_ADMIN, User::ROLE_WORKER]);
+            })
+            ->orderByDesc('created_at')
+            ->get();
+
         return Inertia::render('Customers/Index', [
-            'users' => $users,
+            'customers' => $customers,
         ]);
     }
 

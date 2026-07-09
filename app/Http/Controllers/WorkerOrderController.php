@@ -14,10 +14,18 @@ class WorkerOrderController extends Controller
         $status = $request->string('status')->toString() ?: 'pending';
 
         $query = WorkerOrder::query()
-            ->with(['order:id,order_number,location_slug,address'])
-            ->orderByRaw('installation_date IS NULL')
-            ->orderBy('installation_date')
-            ->orderByDesc('created_at');
+            ->with([
+                'order:id,order_number,location_slug,address',
+                'completedByUser:id,customer_name',
+            ]);
+
+        if ($status === 'completed') {
+            $query->orderByDesc('completed_at');
+        } else {
+            $query->orderByRaw('installation_date IS NULL')
+                ->orderBy('installation_date')
+                ->orderByDesc('created_at');
+        }
 
         if (in_array($status, ['pending', 'completed'], true)) {
             $query->where('status', $status);

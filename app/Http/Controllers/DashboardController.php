@@ -6,11 +6,12 @@ use App\Models\Product;
 use App\Models\Invoice;
 use App\Models\Package;
 use App\Models\Quotation;
+use App\Services\SiteVisitService;
 use Inertia\Inertia;
 
 class DashboardController extends Controller
 {
-    public function index()
+    public function index(SiteVisitService $siteVisitService)
     {
         if (auth()->user()?->isWorker()) {
             return redirect()->route('worker-orders.index');
@@ -26,6 +27,8 @@ class DashboardController extends Controller
             'totalInvoices' => $totalInvoices,
             'totalPackages' => $totalPackages,
             'totalQuotations' => $totalQuotations,
+            'visitorStats' => $siteVisitService->summaryStats(),
+            'visitorsByCountry' => $siteVisitService->visitorsByCountry(),
         ]);
     }
 }

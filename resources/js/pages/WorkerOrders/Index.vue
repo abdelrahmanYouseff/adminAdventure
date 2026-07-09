@@ -4,7 +4,7 @@ import { Head, router, useForm, usePage } from '@inertiajs/vue3';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Label } from '@/components/ui/label';
 import {
     HardHat,
@@ -21,7 +21,13 @@ import {
     X,
     ArrowRight,
 } from 'lucide-vue-next';
-import { formatDate, formatInteger } from '@/lib/formatNumber';
+import { formatDate, formatDateTime, formatInteger } from '@/lib/formatNumber';
+
+interface CompletedByUser {
+    id: number;
+    name: string;
+    customer_name?: string;
+}
 
 interface WorkerOrderItem {
     id: number;
@@ -33,6 +39,7 @@ interface WorkerOrderItem {
     status: 'pending' | 'completed';
     installation_photo_url: string | null;
     completed_at: string | null;
+    completed_by_user?: CompletedByUser | null;
     order?: {
         id: number;
         order_number: string;
@@ -85,6 +92,8 @@ const mobileListTitle = computed(() => {
 
     return 'قيد التركيب';
 });
+
+const showCompletedTable = computed(() => statusFilter.value === 'completed');
 
 const completeForm = useForm({
     installation_photo: null as File | null,
@@ -198,8 +207,22 @@ function formatInstallationDate(date: string | null): string {
     return formatDate(date);
 }
 
-function statusLabel(status: string): string {
-    return status === 'completed' ? 'تم التركيب' : 'قيد التركيب';
+function formatCompletedAt(date: string | null): string {
+    if (!date) {
+        return '—';
+    }
+
+    return formatDateTime(date);
+}
+
+function completedByName(item: WorkerOrderItem): string {
+    const user = item.completed_by_user;
+
+    if (!user) {
+        return '—';
+    }
+
+    return user.name || user.customer_name || '—';
 }
 
 function customerAddress(item: WorkerOrderItem): string | null {
@@ -379,7 +402,86 @@ watch(dialogOpen, (isOpen) => {
                     لا توجد طلبات تركيب
                 </div>
 
-                <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                <div v-else-if="showCompletedTable" class="overflow-x-auto rounded-xl border border-border/70">
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead class="text-right">المنتج</TableHead>
+                                <TableHead class="text-right">رقم الطلب</TableHead>
+                                <TableHead class="text-right">العميل</TableHead>
+                                <TableHead class="text-right">تاريخ التركيب</TableHead>
+                                <TableHead class="text-right">موقع العميل</TableHead>
+                                <TableHead class="text-right">العامل</TableHead>
+                                <TableHead class="text-right">وقت التركيب</TableHead>
+                                <TableHead class="text-right">صورة التركيب</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            <TableRow v-for="item in workerOrders.data" :key="item.id">
+                                <TableCell>
+                                    <div class="flex items-center gap-3">
+                                        <div class="h-12 w-12 shrink-0 overflow-hidden rounded-lg bg-muted/30">
+                                            <img
+                                                v-if="item.product_image_url"
+                                                :src="item.product_image_url"
+                                                :alt="item.product_name"
+                                                class="h-full w-full object-cover"
+                                            />
+                                            <div
+                                                v-else
+                                                class="flex h-full w-full items-center justify-center text-muted-foreground"
+                                            >
+                                                <ImageIcon class="h-5 w-5 opacity-40" />
+                                            </div>
+                                        </div>
+                                        <span class="min-w-[8rem] font-medium">{{ item.product_name }}</span>
+                                    </div>
+                                </TableCell>
+                                <TableCell class="font-mono text-sm text-muted-foreground">
+                                    {{ item.order?.order_number || '—' }}
+                                </TableCell>
+                                <TableCell class="font-medium">{{ item.customer_name }}</TableCell>
+                                <TableCell class="tabular-nums">{{ formatInstallationDate(item.installation_date) }}</TableCell>
+                                <TableCell>
+                                    <template v-if="customerAddress(item)">
+                                        <p class="max-w-[14rem] truncate text-sm">{{ customerAddress(item) }}</p>
+                                        <a
+                                            v-if="locationLink(item)"
+                                            :href="locationLink(item)!"
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            class="mt-1 inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+                                        >
+                                            <Navigation class="h-3 w-3" />
+                                            فتح الخريطة
+                                        </a>
+                                    </template>
+                                    <span v-else class="text-sm text-muted-foreground">—</span>
+                                </TableCell>
+                                <TableCell class="font-medium">{{ completedByName(item) }}</TableCell>
+                                <TableCell class="whitespace-nowrap tabular-nums" dir="ltr">{{ formatCompletedAt(item.completed_at) }}</TableCell>
+                                <TableCell>
+                                    <a
+                                        v-if="item.installation_photo_url"
+                                        :href="item.installation_photo_url"
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        class="inline-block"
+                                    >
+                                        <img
+                                            :src="item.installation_photo_url"
+                                            alt="صورة التركيب"
+                                            class="h-12 w-12 rounded-lg object-cover ring-1 ring-border/60 transition hover:opacity-90"
+                                        />
+                                    </a>
+                                    <span v-else class="text-sm text-muted-foreground">—</span>
+                                </TableCell>
+                            </TableRow>
+                        </TableBody>
+                    </Table>
+                </div>
+
+                <div v-else class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
                     <article
                         v-for="item in workerOrders.data"
                         :key="item.id"
@@ -399,12 +501,6 @@ watch(dialogOpen, (isOpen) => {
                                 <ImageIcon class="h-10 w-10 opacity-40" />
                                 <span class="text-xs">لا توجد صورة</span>
                             </div>
-                            <Badge
-                                class="absolute left-3 top-3"
-                                :variant="item.status === 'completed' ? 'default' : 'secondary'"
-                            >
-                                {{ statusLabel(item.status) }}
-                            </Badge>
                         </div>
 
                         <div class="space-y-3 p-4">
