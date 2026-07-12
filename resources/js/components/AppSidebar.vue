@@ -38,7 +38,7 @@ const adminNavItems: NavItem[] = [
         icon: ShoppingCart,
     },
     {
-        title: 'طلبات العمال',
+        title: 'أوامر العمل',
         href: '/worker-orders',
         icon: HardHat,
     },
@@ -71,7 +71,7 @@ const adminNavItems: NavItem[] = [
 
 const workerNavItems: NavItem[] = [
     {
-        title: 'طلبات العمال',
+        title: 'أوامر العمل',
         href: '/worker-orders',
         icon: HardHat,
     },

@@ -2,10 +2,14 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Order;
 use App\Models\WorkerOrder;
+use App\Services\DeliveryNotePdfService;
+use App\Support\DeliveryNotePdfData;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
+use Symfony\Component\HttpFoundation\Response;
 
 class WorkerOrderController extends Controller
 {
@@ -14,11 +18,42 @@ class WorkerOrderController extends Controller
         $status = $request->string('status')->toString() ?: 'pending';
 
         return Inertia::render('WorkerOrders/Index', [
-            'workerOrders' => Inertia::defer(fn () => $this->paginatedWorkerOrders($request, $status)),
-            'stats' => Inertia::defer(fn () => $this->workerOrderStats()),
+            'workOrders' => Inertia::defer(fn () => $this->paginatedWorkOrders($request, $status)),
+            'stats' => Inertia::defer(fn () => $this->workOrderStats()),
             'filters' => [
                 'status' => $status,
             ],
+        ]);
+    }
+
+    public function show(Order $order)
+    {
+        abort_unless($order->workerOrders()->exists(), 404);
+
+        $order->load([
+            'invoice:id,invoice_number',
+            'workerOrders' => fn ($query) => $query->orderBy('line_index'),
+            'workerOrders.completedByUser:id,name,customer_name',
+        ]);
+
+        return Inertia::render('WorkerOrders/Show', [
+            'workOrder' => $this->formatWorkOrderDetail($order),
+        ]);
+    }
+
+    public function deliveryNote(Order $order, DeliveryNotePdfService $pdfService): Response
+    {
+        abort_unless($order->workerOrders()->exists(), 404);
+
+        $data = DeliveryNotePdfData::fromOrder($order);
+        $pdf = $pdfService->render($data);
+        $filename = 'delivery-note-'.$data->referenceNumber().'.pdf';
+
+        return response($pdf, 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="'.$filename.'"',
+            'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
+            'Pragma' => 'no-cache',
         ]);
     }
 
@@ -26,7 +61,7 @@ class WorkerOrderController extends Controller
     {
         if ($workerOrder->status === 'completed') {
             return back()->withErrors([
-                'installation_photo' => 'تم رفع صورة التركيب مسبقاً لهذا الطلب.',
+                'installation_photo' => 'تم رفع صورة التركيب مسبقاً لهذا المنتج.',
             ]);
         }
 
@@ -51,6 +86,14 @@ class WorkerOrderController extends Controller
             'completed_by' => $request->user()->id,
         ]);
 
+        $redirectToShow = $request->boolean('redirect_to_show', true);
+
+        if ($redirectToShow) {
+            return redirect()
+                ->route('worker-orders.show', $workerOrder->order_id)
+                ->with('success', 'تم رفع صورة التركيب وإرسال المنتج للمراجعة.');
+        }
+
         return redirect()
             ->route('worker-orders.index', ['status' => 'completed'])
             ->with('success', 'تم رفع صورة التركيب وإرسال الطلب للمراجعة. يمكن للمسؤول مراجعته في قسم «مرفوعة للمراجعة».');
@@ -59,69 +102,122 @@ class WorkerOrderController extends Controller
     /**
      * @return array<string, mixed>
      */
-    private function paginatedWorkerOrders(Request $request, string $status): array
+    private function paginatedWorkOrders(Request $request, string $status): array
     {
-        $query = WorkerOrder::query()
+        $query = Order::query()
+            ->whereHas('workerOrders')
             ->with([
-                'order:id,order_number,location_slug,address',
-                'completedByUser:id,customer_name',
+                'invoice:id,invoice_number',
+                'workerOrders' => fn ($q) => $q->orderBy('line_index'),
+            ])
+            ->withCount([
+                'workerOrders as total_lines',
+                'workerOrders as pending_lines' => fn ($q) => $q->where('status', 'pending'),
+                'workerOrders as completed_lines' => fn ($q) => $q->where('status', 'completed'),
             ]);
 
-        if ($status === 'completed') {
-            $query->orderByDesc('completed_at');
-        } else {
-            $query->orderByRaw('installation_date IS NULL')
-                ->orderBy('installation_date')
-                ->orderByDesc('created_at');
+        if ($status === 'pending') {
+            $query->whereHas('workerOrders', fn ($q) => $q->where('status', 'pending'));
+        } elseif ($status === 'completed') {
+            $query->whereDoesntHave('workerOrders', fn ($q) => $q->where('status', 'pending'))
+                ->whereHas('workerOrders', fn ($q) => $q->where('status', 'completed'));
         }
 
-        if (in_array($status, ['pending', 'completed'], true)) {
-            $query->where('status', $status);
+        if ($status === 'completed') {
+            $query->orderByDesc(
+                WorkerOrder::query()
+                    ->select('completed_at')
+                    ->whereColumn('order_id', 'orders.id')
+                    ->orderByDesc('completed_at')
+                    ->limit(1)
+            );
+        } else {
+            $query->orderByRaw('activity_date IS NULL')
+                ->orderBy('activity_date')
+                ->orderByDesc('created_at');
         }
 
         return $query
             ->paginate(12)
             ->withQueryString()
-            ->through(fn (WorkerOrder $workerOrder) => $this->formatWorkerOrder($workerOrder))
+            ->through(fn (Order $order) => $this->formatWorkOrderSummary($order))
             ->toArray();
     }
 
     /**
      * @return array{pending: int, completed: int, total: int}
      */
-    private function workerOrderStats(): array
+    private function workOrderStats(): array
     {
         return [
-            'pending' => WorkerOrder::where('status', 'pending')->count(),
-            'completed' => WorkerOrder::where('status', 'completed')->count(),
-            'total' => WorkerOrder::count(),
+            'pending' => Order::whereHas('workerOrders', fn ($q) => $q->where('status', 'pending'))->count(),
+            'completed' => Order::whereHas('workerOrders')
+                ->whereDoesntHave('workerOrders', fn ($q) => $q->where('status', 'pending'))
+                ->count(),
+            'total' => Order::whereHas('workerOrders')->count(),
         ];
     }
 
     /**
      * @return array<string, mixed>
      */
-    private function formatWorkerOrder(WorkerOrder $workerOrder): array
+    private function formatWorkOrderSummary(Order $order): array
+    {
+        $firstLine = $order->workerOrders->first();
+        $pendingLines = (int) ($order->pending_lines ?? 0);
+        $totalLines = (int) ($order->total_lines ?? $order->workerOrders->count());
+
+        return [
+            'id' => $order->id,
+            'reference_number' => $order->invoice?->invoice_number ?? $order->order_number,
+            'order_number' => $order->order_number,
+            'invoice_number' => $order->invoice?->invoice_number,
+            'customer_name' => $firstLine?->customer_name ?? $order->customer_name,
+            'customer_address' => $firstLine?->customer_address ?? $order->address,
+            'installation_date' => ($firstLine?->installation_date ?? $order->activity_date)?->format('Y-m-d'),
+            'status' => $pendingLines > 0 ? 'pending' : 'completed',
+            'products_count' => $totalLines,
+            'pending_count' => $pendingLines,
+            'completed_count' => (int) ($order->completed_lines ?? 0),
+            'location_slug' => $order->location_slug,
+            'preview_products' => $order->workerOrders->take(3)->map(fn (WorkerOrder $line) => [
+                'name' => $line->product_name,
+                'image_url' => $line->product_image_url,
+            ])->values()->all(),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function formatWorkOrderDetail(Order $order): array
+    {
+        $summary = $this->formatWorkOrderSummary($order);
+
+        return array_merge($summary, [
+            'customer_phone' => $order->customer_phone,
+            'customer_email' => $order->customer_email,
+            'address' => $order->address ?: $summary['customer_address'],
+            'lines' => $order->workerOrders->map(fn (WorkerOrder $line) => $this->formatWorkerOrderLine($line))->values()->all(),
+            'delivery_note_url' => route('worker-orders.delivery-note', $order),
+        ]);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function formatWorkerOrderLine(WorkerOrder $workerOrder): array
     {
         return [
             'id' => $workerOrder->id,
             'product_name' => $workerOrder->product_name,
             'product_image_url' => $workerOrder->product_image_url,
-            'customer_name' => $workerOrder->customer_name,
-            'customer_address' => $workerOrder->customer_address,
-            'installation_date' => $workerOrder->installation_date?->format('Y-m-d'),
             'status' => $workerOrder->status,
             'installation_photo_url' => $workerOrder->installation_photo_url,
             'completed_at' => $workerOrder->completed_at?->toIso8601String(),
             'completed_by_user' => $workerOrder->completedByUser ? [
                 'id' => $workerOrder->completedByUser->id,
                 'name' => $workerOrder->completedByUser->name,
-            ] : null,
-            'order' => $workerOrder->order ? [
-                'id' => $workerOrder->order->id,
-                'order_number' => $workerOrder->order->order_number,
-                'location_slug' => $workerOrder->order->location_slug,
-                'address' => $workerOrder->order->address,
             ] : null,
         ];
     }
