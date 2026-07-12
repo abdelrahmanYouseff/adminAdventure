@@ -16,6 +16,7 @@ import {
     ChevronRight,
     ExternalLink,
     Navigation,
+    ImageIcon,
     X,
     ArrowRight,
 } from 'lucide-vue-next';
@@ -113,10 +114,10 @@ const completeForm = useForm({
 });
 
 function applyFilters(pageNumber = 1) {
-    router.get(route('worker-orders.index'), {
+    router.get('/worker-orders', {
         status: statusFilter.value !== 'all' ? statusFilter.value : undefined,
         page: pageNumber > 1 ? pageNumber : undefined,
-    }, { preserveState: true });
+    }, { preserveState: false, preserveScroll: true });
 }
 
 function setStatusFilter(status: string) {
@@ -137,11 +138,12 @@ function openMobileList(status: 'pending' | 'completed' | 'all') {
 }
 
 function handleStatCardClick(status: 'pending' | 'completed' | 'all') {
-    if (!isMobileView()) {
+    if (isMobileView()) {
+        openMobileList(status);
         return;
     }
 
-    openMobileList(status);
+    setStatusFilter(status);
 }
 
 function closeMobileList() {
@@ -205,10 +207,13 @@ function submitCompletion() {
         return;
     }
 
-    completeForm.post(route('worker-orders.complete', selectedOrder.value.id), {
+    completeForm.post(`/worker-orders/${selectedOrder.value.id}/complete`, {
         forceFormData: true,
         preserveScroll: true,
-        onSuccess: () => closeCompleteDialog(),
+        onSuccess: () => {
+            closeCompleteDialog();
+            statusFilter.value = 'completed';
+        },
     });
 }
 
@@ -284,6 +289,13 @@ watch(dialogOpen, (isOpen) => {
         }
     }
 });
+
+watch(
+    () => props.filters.status,
+    (status) => {
+        statusFilter.value = status || 'pending';
+    },
+);
 </script>
 
 <template>
@@ -327,6 +339,7 @@ watch(dialogOpen, (isOpen) => {
                     <CardContent class="p-4 pt-0 sm:p-6 sm:pt-0">
                         <div class="text-xl font-bold tabular-nums sm:text-2xl">{{ formatInteger(stats.pending) }}</div>
                         <p class="mt-1 text-[10px] text-muted-foreground md:hidden">اضغط للعرض</p>
+                        <p class="mt-1 hidden text-[10px] text-muted-foreground md:block">اضغط للتصفية</p>
                     </CardContent>
                 </Card>
             </button>
@@ -345,6 +358,7 @@ watch(dialogOpen, (isOpen) => {
                     <CardContent class="p-4 pt-0 sm:p-6 sm:pt-0">
                         <div class="text-xl font-bold tabular-nums sm:text-2xl">{{ formatInteger(stats.completed) }}</div>
                         <p class="mt-1 text-[10px] text-muted-foreground md:hidden">اضغط للعرض</p>
+                        <p class="mt-1 hidden text-[10px] text-muted-foreground md:block">اضغط للتصفية</p>
                     </CardContent>
                 </Card>
             </button>
@@ -363,6 +377,7 @@ watch(dialogOpen, (isOpen) => {
                     <CardContent class="p-4 pt-0 sm:p-6 sm:pt-0">
                         <div class="text-xl font-bold tabular-nums sm:text-2xl">{{ formatInteger(stats.total) }}</div>
                         <p class="mt-1 text-[10px] text-muted-foreground md:hidden">اضغط للعرض</p>
+                        <p class="mt-1 hidden text-[10px] text-muted-foreground md:block">اضغط للتصفية</p>
                     </CardContent>
                 </Card>
             </button>
@@ -428,6 +443,7 @@ watch(dialogOpen, (isOpen) => {
                             <TableHeader>
                                 <TableRow class="bg-muted/40 hover:bg-muted/40">
                                     <TableHead class="w-12 text-center font-semibold">#</TableHead>
+                                    <TableHead class="min-w-[11rem] text-right font-semibold">المنتج</TableHead>
                                     <TableHead class="min-w-[7rem] text-right font-semibold">يوم الفعالية</TableHead>
                                     <TableHead class="min-w-[9rem] text-right font-semibold">اسم العميل</TableHead>
                                     <TableHead class="min-w-[14rem] text-right font-semibold">الموقع</TableHead>
@@ -451,9 +467,9 @@ watch(dialogOpen, (isOpen) => {
                                     </TableHead>
                                     <TableHead
                                         v-if="isCompletedView || statusFilter === 'all'"
-                                        class="w-24 text-center font-semibold"
+                                        class="w-28 text-center font-semibold"
                                     >
-                                        صورة
+                                        صورة التركيب
                                     </TableHead>
                                     <TableHead
                                         v-if="!isCompletedView"
@@ -471,6 +487,27 @@ watch(dialogOpen, (isOpen) => {
                                 >
                                     <TableCell class="text-center tabular-nums text-muted-foreground">
                                         {{ formatInteger((workerOrders.from ?? 1) + index) }}
+                                    </TableCell>
+                                    <TableCell>
+                                        <div class="flex items-center gap-3">
+                                            <div class="h-12 w-12 shrink-0 overflow-hidden rounded-lg bg-muted/40 ring-1 ring-border/60">
+                                                <img
+                                                    v-if="item.product_image_url"
+                                                    :src="item.product_image_url"
+                                                    :alt="item.product_name"
+                                                    class="h-full w-full object-cover"
+                                                />
+                                                <div
+                                                    v-else
+                                                    class="flex h-full w-full items-center justify-center text-muted-foreground"
+                                                >
+                                                    <ImageIcon class="h-5 w-5 opacity-40" />
+                                                </div>
+                                            </div>
+                                            <span class="min-w-[7rem] text-sm font-semibold leading-snug">
+                                                {{ item.product_name }}
+                                            </span>
+                                        </div>
                                     </TableCell>
                                     <TableCell>
                                         <div class="flex items-center gap-2">
@@ -534,13 +571,15 @@ watch(dialogOpen, (isOpen) => {
                                             :href="item.installation_photo_url"
                                             target="_blank"
                                             rel="noopener noreferrer"
-                                            class="inline-block"
+                                            class="inline-flex flex-col items-center gap-1"
+                                            title="عرض صورة التركيب"
                                         >
                                             <img
                                                 :src="item.installation_photo_url"
                                                 alt="صورة التركيب"
-                                                class="mx-auto h-11 w-11 rounded-lg object-cover ring-1 ring-border/60 transition hover:opacity-90"
+                                                class="mx-auto h-14 w-14 rounded-lg object-cover ring-1 ring-border/60 transition hover:opacity-90"
                                             />
+                                            <span class="text-[10px] font-medium text-primary">مراجعة</span>
                                         </a>
                                         <span v-else class="text-sm text-muted-foreground">—</span>
                                     </TableCell>

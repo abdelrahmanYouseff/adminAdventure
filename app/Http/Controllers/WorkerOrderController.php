@@ -51,7 +51,9 @@ class WorkerOrderController extends Controller
             'completed_by' => $request->user()->id,
         ]);
 
-        return back()->with('success', 'تم تسجيل التركيب بنجاح.');
+        return redirect()
+            ->route('worker-orders.index', ['status' => 'completed'])
+            ->with('success', 'تم تسجيل التركيب بنجاح. يمكن للمسؤول مراجعة صورة التركيب في قسم «تم التركيب».');
     }
 
     /**
