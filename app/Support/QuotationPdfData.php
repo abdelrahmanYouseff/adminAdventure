@@ -7,6 +7,8 @@ use Carbon\Carbon;
 
 class QuotationPdfData
 {
+    private const VAT_RATE = 0.15;
+
     public function __construct(public Quotation $quotation) {}
 
     public static function fromQuotation(Quotation $quotation): self
@@ -21,6 +23,11 @@ class QuotationPdfData
         return public_path('assets/logo.png');
     }
 
+    public function hasLogo(): bool
+    {
+        return file_exists($this->logoPath());
+    }
+
     public function quotationNumber(): string
     {
         return $this->quotation->quotation_number;
@@ -31,33 +38,19 @@ class QuotationPdfData
         return $this->formatDate($this->quotation->created_at);
     }
 
+    public function issueDateLong(): string
+    {
+        return $this->formatDateLong($this->quotation->created_at);
+    }
+
     public function validUntilDate(): string
     {
         return $this->formatDate($this->quotation->valid_until);
     }
 
-    public function statusLabel(): string
+    public function validUntilLong(): string
     {
-        return match ($this->quotation->status) {
-            'draft' => 'مسودة',
-            'sent' => 'مرسل',
-            'accepted' => 'مقبول',
-            'rejected' => 'مرفوض',
-            'expired' => 'منتهي الصلاحية',
-            default => $this->quotation->status,
-        };
-    }
-
-    public function statusClass(): string
-    {
-        return match ($this->quotation->status) {
-            'draft' => 'status-draft',
-            'sent' => 'status-sent',
-            'accepted' => 'status-accepted',
-            'rejected' => 'status-rejected',
-            'expired' => 'status-expired',
-            default => 'status-draft',
-        };
+        return $this->formatDateLong($this->quotation->valid_until);
     }
 
     public function customerName(): string
@@ -88,17 +81,37 @@ class QuotationPdfData
     }
 
     /**
-     * @return array<int, array{name: string, description: ?string, quantity: int, unit_price: float, total: float}>
+     * @return array<int, array{
+     *     name: string,
+     *     description: ?string,
+     *     quantity: int,
+     *     unit_price: float,
+     *     unit_price_incl_vat: float,
+     *     taxable_value: float,
+     *     vat_percent: string,
+     *     vat_amount: float,
+     *     total: float
+     * }>
      */
-    public function lineItems(): array
+    public function lineItemRows(): array
     {
-        return $this->quotation->items->map(fn ($item) => [
-            'name' => $item->product_name,
-            'description' => $item->description && trim($item->description) !== '' ? trim($item->description) : null,
-            'quantity' => (int) $item->quantity,
-            'unit_price' => (float) $item->unit_price,
-            'total' => (float) $item->total_price,
-        ])->all();
+        return $this->quotation->items->map(function ($item) {
+            $taxable = round((float) $item->total_price, 2);
+            $vat = round($taxable * self::VAT_RATE, 2);
+            $unitEx = (float) $item->unit_price;
+
+            return [
+                'name' => $item->product_name,
+                'description' => $item->description && trim($item->description) !== '' ? trim($item->description) : null,
+                'quantity' => (int) $item->quantity,
+                'unit_price' => $unitEx,
+                'unit_price_incl_vat' => round($unitEx * (1 + self::VAT_RATE), 4),
+                'taxable_value' => $taxable,
+                'vat_percent' => '15%',
+                'vat_amount' => $vat,
+                'total' => round($taxable + $vat, 2),
+            ];
+        })->all();
     }
 
     public function subtotal(): float
@@ -123,24 +136,49 @@ class QuotationPdfData
         return $notes && trim($notes) !== '' ? trim($notes) : null;
     }
 
-    public function generatedAt(): string
+    public function formatMoney(float $amount, int $decimals = 2): string
     {
-        return now()->format('Y-m-d H:i');
+        return number_format($amount, $decimals);
     }
 
-    public function formatMoney(float $amount): string
+    public function formatSar(float $amount, int $decimals = 2): string
     {
-        return number_format($amount, 2).' ر.س';
+        return 'SAR '.number_format($amount, $decimals);
     }
 
-    public function companyLegalName(): string
+    public function companyLegalNameAr(): string
     {
         return 'شركة عالم المغامرة للترفيه';
     }
 
+    public function companyLegalNameEn(): string
+    {
+        return 'Adventure World Entertainment Company';
+    }
+
+    public function companyAddress(): string
+    {
+        return 'Al Muruj - Riyadh - Saudi Arabia';
+    }
+
+    public function companyPhone(): string
+    {
+        return '0114101840 - 0559668015';
+    }
+
+    public function companyEmail(): string
+    {
+        return 'info@adventureksa.com';
+    }
+
+    public function companyWebsite(): string
+    {
+        return 'www.adventureksa.com';
+    }
+
     public function bankName(): string
     {
-        return 'بنك الرياض';
+        return 'Riyad Bank / بنك الرياض';
     }
 
     public function bankAccountNumber(): string
@@ -151,6 +189,11 @@ class QuotationPdfData
     public function bankIban(): string
     {
         return 'SA7820000002022273529940';
+    }
+
+    public function bankAccountName(): string
+    {
+        return $this->companyLegalNameEn();
     }
 
     public function vatNumber(): string
@@ -166,14 +209,21 @@ class QuotationPdfData
     /**
      * @return array<int, string>
      */
-    public function paymentMethods(): array
+    public function termsAndConditions(): array
     {
-        return [
-            'تحويل بنكي',
-            'تابي (Tabby)',
-            'تمارا (Tamara)',
-            'رابط دفع إلكتروني',
+        $terms = [
+            'You may request to cancel your booking for a full refund, up to 48 hours before the date of the event.',
+            'Payment terms: 100% payment in advance to confirm the booking.',
+            'The final Tax Invoice will be provided upon completion of the event.',
+            'Kindly provide your confirmation within 48 hours of receiving this proposal.',
+            'Non-advance payment: please note that in case of a last-minute cancellation, charges will apply according to the terms outlined in this proposal.',
         ];
+
+        if ($this->notes()) {
+            $terms[] = $this->notes();
+        }
+
+        return $terms;
     }
 
     private function formatDate(mixed $date): string
@@ -181,5 +231,12 @@ class QuotationPdfData
         $carbon = $date instanceof Carbon ? $date : Carbon::parse($date);
 
         return $carbon->format('Y-m-d');
+    }
+
+    private function formatDateLong(mixed $date): string
+    {
+        $carbon = $date instanceof Carbon ? $date : Carbon::parse($date);
+
+        return $carbon->format('d/F/Y');
     }
 }

@@ -19,21 +19,21 @@ class QuotationPdfService
         $mpdf = new Mpdf([
             'mode' => 'utf-8',
             'format' => 'A4',
-            'margin_left' => 12,
-            'margin_right' => 12,
-            'margin_top' => 12,
-            'margin_bottom' => 14,
+            'margin_left' => 10,
+            'margin_right' => 10,
+            'margin_top' => 10,
+            'margin_bottom' => 12,
             'margin_header' => 4,
             'margin_footer' => 4,
-            'default_font' => 'xbriyaz',
-            'directionality' => 'rtl',
+            'default_font' => 'dejavusans',
+            'directionality' => 'ltr',
             'tempDir' => $tempDir,
             'autoScriptToLang' => true,
             'autoLangToFont' => true,
             'useSubstitutions' => true,
         ]);
 
-        $mpdf->SetTitle('عرض سعر '.$data->quotationNumber());
+        $mpdf->SetTitle('Proposal '.$data->quotationNumber());
 
         $html = View::make('quotation-pdf', ['data' => $data])->render();
         $mpdf->WriteHTML($html);

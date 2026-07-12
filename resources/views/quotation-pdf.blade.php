@@ -1,312 +1,309 @@
 @php
     /** @var \App\Support\QuotationPdfData $data */
-    $cell = 'border: 1px solid #000; padding: 4px; font-size: 8.5pt;';
-    $labelCell = $cell.' background-color: #f5f5f5; font-weight: bold;';
+    $border = 'border: 1px solid #333;';
+    $th = $border.' padding: 6px 5px; background-color: #f0f0f0; font-weight: bold; font-size: 8pt;';
+    $td = $border.' padding: 6px 5px; font-size: 8pt; vertical-align: top;';
+    $sectionTitle = 'font-size: 11pt; font-weight: bold; color: #1a1a1a; margin: 0 0 6px 0; text-transform: uppercase;';
 @endphp
 <!DOCTYPE html>
-<html lang="ar" dir="rtl">
+<html lang="en" dir="ltr">
 <head>
     <meta charset="UTF-8">
-    <title>عرض سعر {{ $data->quotationNumber() }}</title>
+    <title>Proposal {{ $data->quotationNumber() }}</title>
     <style>
         body {
-            font-family: xbriyaz, sans-serif;
-            font-size: 8.5pt;
-            color: #000;
-            margin: 0;
-            padding: 0;
-            line-height: 1.45;
-        }
-        .muted { color: #333; }
-        .bold { font-weight: bold; }
-        .section-head {
+            font-family: dejavusans, sans-serif;
             font-size: 9pt;
-            font-weight: bold;
-            color: #000;
-            border-bottom: 1px solid #000;
-            padding-bottom: 4px;
-            margin: 0;
-        }
-        table.section-gap-table {
-            width: 100%;
-            border: 0;
+            color: #1a1a1a;
             margin: 0;
             padding: 0;
+            line-height: 1.4;
         }
-        table.bordered {
+        .company-name {
+            font-size: 14pt;
+            font-weight: bold;
+            letter-spacing: 0.5px;
+        }
+        .proposal-title {
+            font-size: 22pt;
+            font-weight: bold;
+            text-align: center;
+            margin: 10px 0 14px 0;
+            letter-spacing: 1px;
+        }
+        .meta-label {
+            font-weight: bold;
+            color: #333;
+        }
+        .items-table {
             border-collapse: collapse;
             width: 100%;
-            font-size: 8.5pt;
+            font-size: 8pt;
         }
-        table.bordered th,
-        table.bordered td {
-            border: 1px solid #000;
-            padding: 4px;
+        .items-table th,
+        .items-table td {
+            border: 1px solid #333;
+            padding: 5px 4px;
         }
-        table.bordered th {
+        .items-table th {
             background-color: #e8e8e8;
             font-weight: bold;
+            text-align: center;
+        }
+        .totals-table {
+            border-collapse: collapse;
+            width: 100%;
+            font-size: 9pt;
+        }
+        .totals-table td {
+            padding: 5px 8px;
+            border: 1px solid #333;
+        }
+        .totals-table .label {
+            font-weight: bold;
+            background-color: #f5f5f5;
+            text-align: right;
+            width: 65%;
+        }
+        .totals-table .value {
+            text-align: right;
+            font-weight: bold;
+            width: 35%;
+        }
+        .totals-table .total-row td {
+            background-color: #333;
+            color: #fff;
+            font-size: 10pt;
+        }
+        .footer-bar {
+            background-color: #333;
+            color: #fff;
+            font-size: 7.5pt;
+            padding: 8px 10px;
+            text-align: center;
+            margin-top: 12px;
+        }
+        .terms-list {
+            margin: 0;
+            padding-left: 16px;
+            font-size: 8pt;
+            line-height: 1.55;
+        }
+        .terms-list li {
+            margin-bottom: 4px;
+        }
+        .ack-box {
+            border: 1px solid #333;
+            padding: 10px 12px;
+            margin-top: 10px;
+            font-size: 8.5pt;
+        }
+        .ack-line {
+            border-bottom: 1px solid #999;
+            height: 22px;
+            margin-top: 6px;
         }
     </style>
 </head>
 <body>
 
-<table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom: 16px; border-bottom: 2px solid #000; padding-bottom: 12px;">
+{{-- Top header: company + logo --}}
+<table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom: 4px;">
     <tr>
-        <td width="72" align="right" valign="middle">
-            @if(file_exists($data->logoPath()))
-                <img src="{{ $data->logoPath() }}" width="56" height="56" alt="عالم المغامرة">
-            @endif
-        </td>
-        <td align="right" valign="middle" style="padding-right: 12px;">
-            <div style="font-size: 14pt; font-weight: bold; color: #000;">عالم المغامرة للترفيه</div>
-            <div class="muted" style="font-size: 7.5pt; line-height: 1.5; margin-top: 3px;">
-                تأجير ألعاب ترفيهية للأطفال في المملكة العربية السعودية
+        <td width="65%" valign="top">
+            <div class="company-name">{{ $data->companyLegalNameEn() }}</div>
+            <div style="font-size: 8.5pt; margin-top: 3px;">
+                C.R No. {{ $data->commercialRegister() }}
+                &nbsp;&nbsp;|&nbsp;&nbsp;
+                <span dir="rtl" style="font-family: xbriyaz, dejavusans, sans-serif;">{{ $data->commercialRegister() }} السجل التجاري</span>
             </div>
         </td>
-        <td width="180" align="left" valign="middle">
-            <div style="font-size: 15pt; font-weight: bold; color: #000;">عرض سعر</div>
-            <div style="font-size: 8.5pt; margin-top: 3px; color: #000;" dir="ltr" align="left">#{{ $data->quotationNumber() }}</div>
+        <td width="35%" align="right" valign="top">
+            @if($data->hasLogo())
+                <img src="{{ $data->logoPath() }}" alt="Adventure World" height="52" style="max-width: 120px;">
+            @endif
         </td>
     </tr>
 </table>
 
-<table width="100%" cellpadding="8" cellspacing="0" class="bordered" style="margin-bottom: 16px;">
+<div class="proposal-title">Proposal</div>
+
+{{-- Company info + date / proposal no --}}
+<table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom: 14px;">
     <tr>
-        <td align="right" style="{{ $cell }}">
-            <span class="bold">صلاحية العرض:</span>
-            <span dir="ltr">حتى {{ $data->validUntilDate() }}</span>
+        <td width="58%" valign="top" style="font-size: 8.5pt; line-height: 1.55;">
+            <div style="font-weight: bold; font-size: 10pt; margin-bottom: 4px;">{{ $data->companyLegalNameEn() }}</div>
+            <div dir="rtl" style="font-family: xbriyaz, dejavusans, sans-serif; font-size: 8.5pt; margin-bottom: 4px;">{{ $data->companyLegalNameAr() }}</div>
+            <div>{{ $data->companyAddress() }}</div>
+            <div>Tel: {{ $data->companyPhone() }}</div>
+            <div>Email: {{ $data->companyEmail() }}</div>
+            <div>Website: {{ $data->companyWebsite() }}</div>
+            <div>VAT Number: {{ $data->vatNumber() }}</div>
+        </td>
+        <td width="4%"></td>
+        <td width="38%" valign="top" align="right" style="font-size: 9pt; line-height: 1.7;">
+            <div><span class="meta-label">Date:</span> {{ $data->issueDateLong() }}</div>
+            <div><span class="meta-label">Proposal No:</span> {{ $data->quotationNumber() }}</div>
+            <div><span class="meta-label">Valid Until:</span> {{ $data->validUntilLong() }}</div>
         </td>
     </tr>
 </table>
 
-<table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom: 18px;">
+{{-- BILL TO --}}
+<table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom: 12px;">
     <tr>
-        <td width="49%" valign="top">
-            <div class="section-head">بيانات العرض</div>
-            <table class="section-gap-table" cellpadding="0" cellspacing="0"><tr><td height="14"></td></tr></table>
-            <table class="bordered">
-                <tr>
-                    <td width="42%" align="right" style="{{ $labelCell }}">رقم العرض</td>
-                    <td width="58%" align="right" class="bold" dir="ltr" style="{{ $cell }}">{{ $data->quotationNumber() }}</td>
-                </tr>
-                <tr>
-                    <td align="right" style="{{ $labelCell }}">تاريخ الإصدار</td>
-                    <td align="right" class="bold" dir="ltr" style="{{ $cell }}">{{ $data->issueDate() }}</td>
-                </tr>
-                <tr>
-                    <td align="right" style="{{ $labelCell }}">صالح حتى</td>
-                    <td align="right" class="bold" dir="ltr" style="{{ $cell }}">{{ $data->validUntilDate() }}</td>
-                </tr>
-                <tr>
-                    <td align="right" style="{{ $labelCell }}">الحالة</td>
-                    <td align="right" class="bold" style="{{ $cell }}">{{ $data->statusLabel() }}</td>
-                </tr>
-                <tr>
-                    <td align="right" style="{{ $labelCell }}">أُعد بواسطة</td>
-                    <td align="right" class="bold" style="{{ $cell }}">{{ $data->preparedBy() }}</td>
-                </tr>
-            </table>
+        <td style="{{ $border }} padding: 10px 12px;">
+            <div style="{{ $sectionTitle }}">Bill To</div>
+            <div style="font-weight: bold; font-size: 10pt;">{{ $data->customerName() }}</div>
+            @if($data->customerAddress())
+                <div style="margin-top: 4px;">{{ $data->customerAddress() }}</div>
+            @endif
+            <div style="margin-top: 4px; font-size: 8.5pt;">
+                Email / Contact No: {{ $data->customerEmail() }} / {{ $data->customerPhone() }}
+            </div>
         </td>
+    </tr>
+</table>
 
-        <td width="2%"></td>
-
-        <td width="49%" valign="top">
-            <div class="section-head">بيانات العميل</div>
-            <table class="section-gap-table" cellpadding="0" cellspacing="0"><tr><td height="14"></td></tr></table>
-            <table class="bordered">
+{{-- QUOTATION DETAILS --}}
+<table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom: 12px;">
+    <tr>
+        <td style="{{ $border }} padding: 10px 12px;">
+            <div style="{{ $sectionTitle }}">Quotation Details</div>
+            <table width="100%" cellpadding="0" cellspacing="0" style="font-size: 8.5pt;">
                 <tr>
-                    <td width="42%" align="right" style="{{ $labelCell }}">اسم العميل</td>
-                    <td width="58%" align="right" class="bold" style="{{ $cell }}">{{ $data->customerName() }}</td>
-                </tr>
-                <tr>
-                    <td align="right" style="{{ $labelCell }}">البريد الإلكتروني</td>
-                    <td align="right" class="bold" dir="ltr" style="{{ $cell }}">{{ $data->customerEmail() }}</td>
-                </tr>
-                <tr>
-                    <td align="right" style="{{ $labelCell }}">رقم الجوال</td>
-                    <td align="right" class="bold" dir="ltr" style="{{ $cell }}">{{ $data->customerPhone() }}</td>
-                </tr>
-                <tr>
-                    <td align="right" valign="top" style="{{ $labelCell }}">العنوان</td>
-                    <td align="right" class="bold" style="{{ $cell }}">{{ $data->customerAddress() ?? '—' }}</td>
+                    <td width="50%" valign="top">
+                        <div><span class="meta-label">Prepared By:</span> {{ $data->preparedBy() }}</div>
+                        <div style="margin-top: 3px;"><span class="meta-label">Valid Until:</span> {{ $data->validUntilLong() }}</div>
+                    </td>
+                    <td width="50%" valign="top">
+                        @if($data->customerAddress())
+                            <div><span class="meta-label">Location:</span> {{ $data->customerAddress() }}</div>
+                        @endif
+                    </td>
                 </tr>
             </table>
         </td>
     </tr>
 </table>
 
-<div class="section-head">تفاصيل البنود</div>
-<table class="section-gap-table" cellpadding="0" cellspacing="0"><tr><td height="14"></td></tr></table>
-
-<table class="bordered" style="margin-bottom: 16px;">
+{{-- Line items table --}}
+<table class="items-table" style="margin-bottom: 12px;">
     <thead>
         <tr>
-            <th width="6%" align="center">#</th>
-            <th width="34%" align="right">المنتج / الخدمة</th>
-            <th width="24%" align="right">الوصف</th>
-            <th width="10%" align="center">الكمية</th>
-            <th width="13%" align="right">سعر الوحدة</th>
-            <th width="13%" align="right">الإجمالي</th>
+            <th width="28%" align="left">Description</th>
+            <th width="7%">Qty</th>
+            <th width="11%">Price</th>
+            <th width="12%">Price<br>(Incl. VAT)</th>
+            <th width="12%">Taxable<br>Value</th>
+            <th width="6%">VAT%</th>
+            <th width="11%">VAT<br>Amount</th>
+            <th width="13%">Total</th>
         </tr>
     </thead>
     <tbody>
-        @foreach($data->lineItems() as $index => $item)
+        @foreach($data->lineItemRows() as $item)
             <tr>
-                <td align="center" valign="middle">{{ $index + 1 }}</td>
-                <td align="right" valign="top" class="bold">{{ $item['name'] }}</td>
-                <td align="right" valign="top" style="font-size: 8pt;">{{ $item['description'] ?? '—' }}</td>
-                <td align="center" valign="middle">{{ $item['quantity'] }}</td>
-                <td align="right" valign="middle" dir="ltr" class="bold">{{ $data->formatMoney($item['unit_price']) }}</td>
-                <td align="right" valign="middle" dir="ltr" class="bold">{{ $data->formatMoney($item['total']) }}</td>
+                <td align="left">
+                    <strong>{{ $item['name'] }}</strong>
+                    @if($item['description'])
+                        <br><span style="font-size: 7.5pt; color: #444;">{{ $item['description'] }}</span>
+                    @endif
+                </td>
+                <td align="center">{{ $item['quantity'] }}</td>
+                <td align="right">{{ $data->formatMoney($item['unit_price'], 4) }}</td>
+                <td align="right">{{ $data->formatMoney($item['unit_price_incl_vat'], 4) }} SAR</td>
+                <td align="right">{{ $data->formatMoney($item['taxable_value'], 0) }}</td>
+                <td align="center">{{ $item['vat_percent'] }}</td>
+                <td align="right">SAR {{ $data->formatMoney($item['vat_amount'], 0) }}</td>
+                <td align="right">SAR {{ $data->formatMoney($item['total'], 0) }}</td>
             </tr>
         @endforeach
     </tbody>
 </table>
 
-<table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom: 16px;">
+{{-- Terms + Bank + Totals --}}
+<table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom: 10px;">
     <tr>
         <td width="58%" valign="top">
-            <div class="section-head">شروط العرض</div>
-            <table class="section-gap-table" cellpadding="0" cellspacing="0"><tr><td height="14"></td></tr></table>
-            <table class="bordered">
-                <tr>
-                    <td align="right" style="{{ $cell }} font-size: 8pt; line-height: 1.6;">
-                        • الأسعار بالريال السعودي وتشمل ضريبة القيمة المضافة حيث ينطبق ذلك.<br>
-                        • يُعتمد العرض خلال فترة الصلاحية المحددة أعلاه.
-                    </td>
-                </tr>
-            </table>
-        </td>
-        <td width="4%"></td>
-        <td width="38%" valign="top">
-            <div class="section-head">الملخص المالي</div>
-            <table class="section-gap-table" cellpadding="0" cellspacing="0"><tr><td height="14"></td></tr></table>
-            <table class="bordered">
-                <tr>
-                    <td align="right" style="{{ $labelCell }}">المجموع الفرعي</td>
-                    <td width="42%" align="right" dir="ltr" class="bold" style="{{ $cell }}">{{ $data->formatMoney($data->subtotal()) }}</td>
-                </tr>
-                <tr>
-                    <td align="right" style="{{ $labelCell }}">ضريبة القيمة المضافة (15%)</td>
-                    <td align="right" dir="ltr" class="bold" style="{{ $cell }}">{{ $data->formatMoney($data->vatAmount()) }}</td>
-                </tr>
-                <tr>
-                    <td align="right" style="{{ $labelCell }} font-size: 9pt;">الإجمالي</td>
-                    <td align="right" dir="ltr" style="{{ $cell }} font-size: 9pt; font-weight: bold;">{{ $data->formatMoney($data->total()) }}</td>
-                </tr>
-            </table>
-        </td>
-    </tr>
-</table>
-
-@if($data->notes())
-<table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom: 16px;">
-    <tr>
-        <td>
-            <div class="section-head">ملاحظات</div>
-            <table class="section-gap-table" cellpadding="0" cellspacing="0"><tr><td height="14"></td></tr></table>
-            <table class="bordered">
-                <tr>
-                    <td align="right" style="{{ $cell }} font-size: 8pt; line-height: 1.55;">{{ $data->notes() }}</td>
-                </tr>
-            </table>
-        </td>
-    </tr>
-</table>
-@endif
-
-<div class="section-head">طرق الدفع</div>
-<table class="section-gap-table" cellpadding="0" cellspacing="0"><tr><td height="14"></td></tr></table>
-
-<table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom: 12px;">
-    <tr>
-        <td width="58%" valign="top">
-            <div class="section-head" style="font-size: 8pt;">الحساب البنكي</div>
-            <table class="section-gap-table" cellpadding="0" cellspacing="0"><tr><td height="10"></td></tr></table>
-            <table class="bordered">
-                <tr>
-                    <td width="34%" align="right" style="{{ $labelCell }}">البنك</td>
-                    <td align="right" style="{{ $cell }}">{{ $data->bankName() }}</td>
-                </tr>
-                <tr>
-                    <td align="right" style="{{ $labelCell }}">اسم الحساب</td>
-                    <td align="right" style="{{ $cell }}">{{ $data->companyLegalName() }}</td>
-                </tr>
-                <tr>
-                    <td align="right" style="{{ $labelCell }}">رقم الحساب</td>
-                    <td align="right" dir="ltr" style="{{ $cell }}">{{ $data->bankAccountNumber() }}</td>
-                </tr>
-                <tr>
-                    <td align="right" style="{{ $labelCell }}">رقم الآيبان (IBAN)</td>
-                    <td align="right" dir="ltr" style="{{ $cell }}">{{ $data->bankIban() }}</td>
-                </tr>
-            </table>
-        </td>
-        <td width="4%"></td>
-        <td width="38%" valign="top">
-            <div class="section-head" style="font-size: 8pt;">الدفع عن طريق</div>
-            <table class="section-gap-table" cellpadding="0" cellspacing="0"><tr><td height="10"></td></tr></table>
-            <table class="bordered">
-                @foreach($data->paymentMethods() as $method)
-                    <tr>
-                        <td align="right" style="{{ $cell }}">• {{ $method }}</td>
-                    </tr>
+            <div style="{{ $sectionTitle }}">Terms &amp; Conditions</div>
+            <ul class="terms-list">
+                @foreach($data->termsAndConditions() as $term)
+                    <li>-: {{ $term }}</li>
                 @endforeach
+            </ul>
+
+            <div style="{{ $sectionTitle }} margin-top: 12px;">Bank details:-</div>
+            <div style="font-size: 8.5pt; line-height: 1.6;">
+                <strong>{{ $data->bankName() }}</strong><br>
+                IBAN: {{ $data->bankIban() }}<br>
+                ACCT NUMBER: {{ $data->bankAccountNumber() }}<br>
+                Account Name: {{ $data->bankAccountName() }}
+            </div>
+        </td>
+        <td width="4%"></td>
+        <td width="38%" valign="top">
+            <table class="totals-table">
+                <tr>
+                    <td class="label">SUBTOTAL</td>
+                    <td class="value">{{ $data->formatSar($data->subtotal(), 0) }}</td>
+                </tr>
+                <tr>
+                    <td class="label">DISCOUNT</td>
+                    <td class="value">SAR -</td>
+                </tr>
+                <tr>
+                    <td class="label">SUBTOTAL BEFORE VAT</td>
+                    <td class="value">{{ $data->formatSar($data->subtotal(), 0) }}</td>
+                </tr>
+                <tr>
+                    <td class="label">VAT</td>
+                    <td class="value">{{ $data->formatSar($data->vatAmount(), 0) }}</td>
+                </tr>
+                <tr class="total-row">
+                    <td class="label" style="background-color: #333; color: #fff;">TOTAL</td>
+                    <td class="value" style="background-color: #333; color: #fff;">{{ $data->formatSar($data->total(), 2) }}</td>
+                </tr>
             </table>
         </td>
     </tr>
 </table>
 
-<table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom: 16px;">
-    <tr>
-        <td width="49%" valign="top">
-            <div class="section-head" style="font-size: 8pt;">الرقم الضريبي</div>
-            <table class="section-gap-table" cellpadding="0" cellspacing="0"><tr><td height="10"></td></tr></table>
-            <table class="bordered">
-                <tr>
-                    <td width="42%" align="right" style="{{ $labelCell }}">الرقم الضريبي</td>
-                    <td align="right" dir="ltr" style="{{ $cell }}">{{ $data->vatNumber() }}</td>
-                </tr>
-                <tr>
-                    <td align="right" style="{{ $labelCell }}">السجل التجاري</td>
-                    <td align="right" dir="ltr" style="{{ $cell }}">{{ $data->commercialRegister() }}</td>
-                </tr>
-            </table>
-        </td>
-        <td width="2%"></td>
-        <td width="49%" valign="top">
-            <div class="section-head" style="font-size: 8pt;">بيانات التواصل</div>
-            <table class="section-gap-table" cellpadding="0" cellspacing="0"><tr><td height="10"></td></tr></table>
-            <table class="bordered">
-                <tr>
-                    <td width="42%" align="right" style="{{ $labelCell }}">الهاتف</td>
-                    <td align="right" dir="ltr" style="{{ $cell }}">0114101840 - 0559668015</td>
-                </tr>
-                <tr>
-                    <td align="right" style="{{ $labelCell }}">البريد الإلكتروني</td>
-                    <td align="right" dir="ltr" style="{{ $cell }}">info@adventureksa.com</td>
-                </tr>
-            </table>
-        </td>
-    </tr>
-</table>
+{{-- Client Acknowledgment --}}
+<div class="ack-box">
+    <div style="font-weight: bold; font-size: 10pt; margin-bottom: 8px;">Client Acknowledgment</div>
+    <table width="100%" cellpadding="0" cellspacing="0" style="font-size: 8.5pt;">
+        <tr>
+            <td width="50%" valign="bottom">
+                Company &amp; Client Name:
+                <div class="ack-line"></div>
+            </td>
+            <td width="50%" valign="bottom" style="padding-left: 16px;">
+                Contact:
+                <div class="ack-line"></div>
+            </td>
+        </tr>
+        <tr>
+            <td colspan="2" valign="bottom" style="padding-top: 10px;">
+                Signature:
+                <div class="ack-line" style="width: 60%;"></div>
+            </td>
+        </tr>
+    </table>
+</div>
 
-<table width="100%" cellpadding="12" cellspacing="0" style="border-top: 1px solid #000; margin-top: 8px;">
-    <tr>
-        <td align="center">
-            <div style="font-size: 9pt; font-weight: bold; color: #000; margin-bottom: 3px;">شكراً لاهتمامكم بعالم المغامرة!</div>
-            <div class="muted" style="font-size: 7.5pt; margin-bottom: 5px;">يسعدنا تواصلكم لأي استفسار أو تعديل على هذا العرض.</div>
-            <div style="font-size: 7.5pt; line-height: 1.6; color: #000;">
-                <strong>عالم المغامرة للترفيه</strong><br>
-                البريد: info@adventureksa.com
-            </div>
-            <div style="font-size: 7pt; color: #555; margin-top: 6px;">
-                تم إنشاء عرض السعر آلياً بتاريخ <span dir="ltr">{{ $data->generatedAt() }}</span>
-            </div>
-        </td>
-    </tr>
-</table>
+{{-- Footer --}}
+<div class="footer-bar">
+    CR: {{ $data->commercialRegister() }}
+    &nbsp;|&nbsp;
+    Address: {{ $data->companyAddress() }}
+    &nbsp;|&nbsp;
+    Phone: {{ $data->companyPhone() }}
+    &nbsp;|&nbsp;
+    Email: {{ $data->companyEmail() }}
+    <br>
+    Thank you for your Business...!
+</div>
 
 </body>
 </html>

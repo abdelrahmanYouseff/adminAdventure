@@ -42,7 +42,7 @@ const successMessage = computed(() => page.props.flash?.success as string | unde
 onMounted(() => {
     const pdfId = page.props.flash?.open_pdf as number | undefined;
     if (pdfId) {
-        window.open(route('quotations.pdf', pdfId), '_blank');
+        window.open(quotationPdfUrl(pdfId), '_blank');
     }
 });
 
@@ -85,6 +85,10 @@ const deleteQuotation = (id: number) => {
         router.delete(route('quotations.destroy', id));
     }
 };
+
+function quotationPdfUrl(id: number): string {
+    return `/quotations/${id}/pdf?v=${Date.now()}`;
+}
 </script>
 
 <template>
@@ -217,7 +221,7 @@ const deleteQuotation = (id: number) => {
                                         <DropdownMenuContent align="end">
                                             <DropdownMenuItem as-child>
                                                 <a
-                                                    :href="route('quotations.pdf', quotation.id)"
+                                                    :href="quotationPdfUrl(quotation.id)"
                                                     target="_blank"
                                                     rel="noopener noreferrer"
                                                     class="relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none transition-colors hover:bg-accent hover:text-accent-foreground"
@@ -234,7 +238,7 @@ const deleteQuotation = (id: number) => {
                                             </DropdownMenuItem>
                                             <DropdownMenuItem as-child>
                                                 <a
-                                                    :href="route('quotations.pdf', quotation.id)"
+                                                    :href="quotationPdfUrl(quotation.id)"
                                                     target="_blank"
                                                     rel="noopener noreferrer"
                                                     class="relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none transition-colors hover:bg-accent hover:text-accent-foreground"

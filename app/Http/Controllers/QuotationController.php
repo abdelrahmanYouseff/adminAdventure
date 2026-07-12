@@ -134,7 +134,7 @@ class QuotationController extends Controller
     public function show(Request $request, Quotation $quotation)
     {
         try {
-            $pdfUrl = route('quotations.pdf', $quotation);
+            $pdfUrl = '/quotations/'.$quotation->id.'/pdf';
 
             if ($request->header('X-Inertia')) {
                 return Inertia::location($pdfUrl);
@@ -256,9 +256,11 @@ class QuotationController extends Controller
 
         return response($content, 200, [
             'Content-Type' => 'application/pdf',
-            'Content-Disposition' => 'attachment; filename="'.$filename.'"',
+            'Content-Disposition' => 'inline; filename="'.$filename.'"',
             'Content-Length' => (string) strlen($content),
-            'Cache-Control' => 'private, max-age=0, must-revalidate',
+            'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
+            'Pragma' => 'no-cache',
+            'Expires' => '0',
         ]);
     }
 

@@ -10,14 +10,12 @@ import {
     HardHat,
     Calendar,
     User,
-    Package,
     Camera,
     CheckCircle2,
     ChevronLeft,
     ChevronRight,
     ExternalLink,
     Navigation,
-    ImageIcon,
     X,
     ArrowRight,
 } from 'lucide-vue-next';
@@ -108,7 +106,7 @@ const mobileListTitle = computed(() => {
     return 'قيد التركيب';
 });
 
-const showCompletedTable = computed(() => statusFilter.value === 'completed');
+const isCompletedView = computed(() => statusFilter.value === 'completed');
 
 const completeForm = useForm({
     installation_photo: null as File | null,
@@ -214,7 +212,7 @@ function submitCompletion() {
     });
 }
 
-function formatInstallationDate(date: string | null): string {
+function formatEventDate(date: string | null): string {
     if (!date) {
         return 'غير محدد';
     }
@@ -424,179 +422,144 @@ watch(dialogOpen, (isOpen) => {
                     لا توجد طلبات تركيب
                 </div>
 
-                <div v-else-if="showCompletedTable" class="overflow-x-auto rounded-xl border border-border/70">
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead class="text-right">المنتج</TableHead>
-                                <TableHead class="text-right">رقم الطلب</TableHead>
-                                <TableHead class="text-right">العميل</TableHead>
-                                <TableHead class="text-right">تاريخ التركيب</TableHead>
-                                <TableHead class="text-right">موقع العميل</TableHead>
-                                <TableHead class="text-right">العامل</TableHead>
-                                <TableHead class="text-right">وقت التركيب</TableHead>
-                                <TableHead class="text-right">صورة التركيب</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            <TableRow v-for="item in workerOrders.data" :key="item.id">
-                                <TableCell>
-                                    <div class="flex items-center gap-3">
-                                        <div class="h-12 w-12 shrink-0 overflow-hidden rounded-lg bg-muted/30">
-                                            <img
-                                                v-if="item.product_image_url"
-                                                :src="item.product_image_url"
-                                                :alt="item.product_name"
-                                                class="h-full w-full object-cover"
-                                            />
-                                            <div
-                                                v-else
-                                                class="flex h-full w-full items-center justify-center text-muted-foreground"
-                                            >
-                                                <ImageIcon class="h-5 w-5 opacity-40" />
-                                            </div>
+                <div v-else class="overflow-hidden rounded-xl border border-border/70 bg-card shadow-sm">
+                    <div class="overflow-x-auto">
+                        <Table>
+                            <TableHeader>
+                                <TableRow class="bg-muted/40 hover:bg-muted/40">
+                                    <TableHead class="w-12 text-center font-semibold">#</TableHead>
+                                    <TableHead class="min-w-[7rem] text-right font-semibold">يوم الفعالية</TableHead>
+                                    <TableHead class="min-w-[9rem] text-right font-semibold">اسم العميل</TableHead>
+                                    <TableHead class="min-w-[14rem] text-right font-semibold">الموقع</TableHead>
+                                    <TableHead
+                                        v-if="statusFilter === 'all'"
+                                        class="min-w-[6rem] text-center font-semibold"
+                                    >
+                                        الحالة
+                                    </TableHead>
+                                    <TableHead
+                                        v-if="isCompletedView || statusFilter === 'all'"
+                                        class="min-w-[7rem] text-right font-semibold"
+                                    >
+                                        العامل
+                                    </TableHead>
+                                    <TableHead
+                                        v-if="isCompletedView || statusFilter === 'all'"
+                                        class="min-w-[9rem] text-right font-semibold"
+                                    >
+                                        وقت التركيب
+                                    </TableHead>
+                                    <TableHead
+                                        v-if="isCompletedView || statusFilter === 'all'"
+                                        class="w-24 text-center font-semibold"
+                                    >
+                                        صورة
+                                    </TableHead>
+                                    <TableHead
+                                        v-if="!isCompletedView"
+                                        class="min-w-[8rem] text-center font-semibold"
+                                    >
+                                        إجراء
+                                    </TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                <TableRow
+                                    v-for="(item, index) in workerOrders.data"
+                                    :key="item.id"
+                                    class="transition-colors hover:bg-muted/20"
+                                >
+                                    <TableCell class="text-center tabular-nums text-muted-foreground">
+                                        {{ formatInteger((workerOrders.from ?? 1) + index) }}
+                                    </TableCell>
+                                    <TableCell>
+                                        <div class="flex items-center gap-2">
+                                            <Calendar class="h-4 w-4 shrink-0 text-primary/70" />
+                                            <span class="whitespace-nowrap font-medium tabular-nums">
+                                                {{ formatEventDate(item.installation_date) }}
+                                            </span>
                                         </div>
-                                        <span class="min-w-[8rem] font-medium">{{ item.product_name }}</span>
-                                    </div>
-                                </TableCell>
-                                <TableCell class="font-mono text-sm text-muted-foreground">
-                                    {{ item.order?.order_number || '—' }}
-                                </TableCell>
-                                <TableCell class="font-medium">{{ item.customer_name }}</TableCell>
-                                <TableCell class="tabular-nums">{{ formatInstallationDate(item.installation_date) }}</TableCell>
-                                <TableCell>
-                                    <template v-if="customerAddress(item)">
-                                        <p class="max-w-[14rem] truncate text-sm">{{ customerAddress(item) }}</p>
+                                    </TableCell>
+                                    <TableCell>
+                                        <div class="flex items-center gap-2">
+                                            <User class="h-4 w-4 shrink-0 text-muted-foreground" />
+                                            <span class="font-semibold">{{ item.customer_name }}</span>
+                                        </div>
+                                    </TableCell>
+                                    <TableCell>
+                                        <template v-if="customerAddress(item)">
+                                            <p class="max-w-[18rem] text-sm leading-relaxed">
+                                                {{ customerAddress(item) }}
+                                            </p>
+                                            <a
+                                                v-if="locationLink(item)"
+                                                :href="locationLink(item)!"
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                class="mt-1.5 inline-flex items-center gap-1.5 text-xs font-semibold text-primary hover:underline"
+                                            >
+                                                <Navigation class="h-3.5 w-3.5" />
+                                                فتح على الخريطة
+                                                <ExternalLink class="h-3 w-3 opacity-60" />
+                                            </a>
+                                        </template>
+                                        <span v-else class="text-sm text-muted-foreground">—</span>
+                                    </TableCell>
+                                    <TableCell v-if="statusFilter === 'all'" class="text-center">
+                                        <span
+                                            class="inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold"
+                                            :class="item.status === 'completed'
+                                                ? 'bg-green-100 text-green-800 dark:bg-green-950/40 dark:text-green-300'
+                                                : 'bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300'"
+                                        >
+                                            {{ item.status === 'completed' ? 'تم التركيب' : 'قيد التركيب' }}
+                                        </span>
+                                    </TableCell>
+                                    <TableCell
+                                        v-if="isCompletedView || statusFilter === 'all'"
+                                        class="font-medium"
+                                    >
+                                        {{ item.status === 'completed' ? completedByName(item) : '—' }}
+                                    </TableCell>
+                                    <TableCell
+                                        v-if="isCompletedView || statusFilter === 'all'"
+                                        class="whitespace-nowrap tabular-nums text-sm"
+                                        dir="ltr"
+                                    >
+                                        {{ item.status === 'completed' ? formatCompletedAt(item.completed_at) : '—' }}
+                                    </TableCell>
+                                    <TableCell v-if="isCompletedView || statusFilter === 'all'" class="text-center">
                                         <a
-                                            v-if="locationLink(item)"
-                                            :href="locationLink(item)!"
+                                            v-if="item.installation_photo_url"
+                                            :href="item.installation_photo_url"
                                             target="_blank"
                                             rel="noopener noreferrer"
-                                            class="mt-1 inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+                                            class="inline-block"
                                         >
-                                            <Navigation class="h-3 w-3" />
-                                            فتح الخريطة
+                                            <img
+                                                :src="item.installation_photo_url"
+                                                alt="صورة التركيب"
+                                                class="mx-auto h-11 w-11 rounded-lg object-cover ring-1 ring-border/60 transition hover:opacity-90"
+                                            />
                                         </a>
-                                    </template>
-                                    <span v-else class="text-sm text-muted-foreground">—</span>
-                                </TableCell>
-                                <TableCell class="font-medium">{{ completedByName(item) }}</TableCell>
-                                <TableCell class="whitespace-nowrap tabular-nums" dir="ltr">{{ formatCompletedAt(item.completed_at) }}</TableCell>
-                                <TableCell>
-                                    <a
-                                        v-if="item.installation_photo_url"
-                                        :href="item.installation_photo_url"
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        class="inline-block"
-                                    >
-                                        <img
-                                            :src="item.installation_photo_url"
-                                            alt="صورة التركيب"
-                                            class="h-12 w-12 rounded-lg object-cover ring-1 ring-border/60 transition hover:opacity-90"
-                                        />
-                                    </a>
-                                    <span v-else class="text-sm text-muted-foreground">—</span>
-                                </TableCell>
-                            </TableRow>
-                        </TableBody>
-                    </Table>
-                </div>
-
-                <div v-else class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                    <article
-                        v-for="item in workerOrders.data"
-                        :key="item.id"
-                        class="overflow-hidden rounded-2xl border border-border/70 bg-card shadow-sm"
-                    >
-                        <div class="relative aspect-[4/3] bg-muted/30">
-                            <img
-                                v-if="item.product_image_url"
-                                :src="item.product_image_url"
-                                :alt="item.product_name"
-                                class="h-full w-full object-cover"
-                            />
-                            <div
-                                v-else
-                                class="flex h-full w-full flex-col items-center justify-center gap-2 text-muted-foreground"
-                            >
-                                <ImageIcon class="h-10 w-10 opacity-40" />
-                                <span class="text-xs">لا توجد صورة</span>
-                            </div>
-                        </div>
-
-                        <div class="space-y-3 p-4">
-                            <div>
-                                <div class="mb-1 flex items-center gap-1.5 text-xs text-muted-foreground">
-                                    <Package class="h-3.5 w-3.5" />
-                                    المنتج
-                                </div>
-                                <h3 class="text-base font-bold leading-snug">{{ item.product_name }}</h3>
-                                <p v-if="item.order?.order_number" class="mt-1 font-mono text-xs text-muted-foreground">
-                                    {{ item.order.order_number }}
-                                </p>
-                            </div>
-
-                            <div class="grid grid-cols-1 gap-2 text-sm">
-                                <div class="flex items-start gap-2 rounded-xl border border-border/60 px-3 py-2.5">
-                                    <User class="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
-                                    <div class="min-w-0">
-                                        <p class="text-xs text-muted-foreground">اسم العميل</p>
-                                        <p class="mt-0.5 font-semibold">{{ item.customer_name }}</p>
-                                    </div>
-                                </div>
-                                <div class="flex items-start gap-2 rounded-xl border border-border/60 px-3 py-2.5">
-                                    <Calendar class="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
-                                    <div>
-                                        <p class="text-xs text-muted-foreground">تاريخ التركيب</p>
-                                        <p class="mt-0.5 font-semibold">{{ formatInstallationDate(item.installation_date) }}</p>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div v-if="customerAddress(item)" class="space-y-2">
-                                <p class="text-xs text-muted-foreground">موقع العميل</p>
-                                <p class="rounded-xl border border-border/60 px-3 py-2.5 text-sm leading-relaxed">
-                                    {{ customerAddress(item) }}
-                                </p>
-                                <a
-                                    v-if="locationLink(item)"
-                                    :href="locationLink(item)!"
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    class="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-primary/30 bg-primary/5 px-4 py-3 text-sm font-semibold text-primary transition hover:border-primary/50 hover:bg-primary/10"
-                                >
-                                    <Navigation class="h-4 w-4" />
-                                    فتح الموقع على الخريطة
-                                    <ExternalLink class="h-3.5 w-3.5 opacity-70" />
-                                </a>
-                            </div>
-                            <div
-                                v-else
-                                class="rounded-xl border border-dashed border-border/60 px-3 py-2.5 text-sm text-muted-foreground"
-                            >
-                                لا يوجد موقع مسجّل للعميل
-                            </div>
-
-                            <div v-if="item.installation_photo_url" class="rounded-xl border border-border/60 p-2">
-                                <p class="mb-2 text-xs text-muted-foreground">صورة التركيب</p>
-                                <img
-                                    :src="item.installation_photo_url"
-                                    alt="صورة التركيب"
-                                    class="max-h-40 w-full rounded-lg object-cover"
-                                />
-                            </div>
-
-                            <Button
-                                v-if="item.status === 'pending'"
-                                class="h-11 w-full touch-manipulation"
-                                @click="openCompleteDialog(item)"
-                            >
-                                <CheckCircle2 class="ms-2 h-4 w-4" />
-                                تم التركيب
-                            </Button>
-                        </div>
-                    </article>
+                                        <span v-else class="text-sm text-muted-foreground">—</span>
+                                    </TableCell>
+                                    <TableCell v-if="!isCompletedView" class="text-center">
+                                        <Button
+                                            v-if="item.status === 'pending'"
+                                            size="sm"
+                                            class="h-9 min-w-[7.5rem] touch-manipulation"
+                                            @click="openCompleteDialog(item)"
+                                        >
+                                            <CheckCircle2 class="ms-1.5 h-4 w-4" />
+                                            تم التركيب
+                                        </Button>
+                                        <span v-else class="text-xs text-muted-foreground">—</span>
+                                    </TableCell>
+                                </TableRow>
+                            </TableBody>
+                        </Table>
+                    </div>
                 </div>
 
                 <div
@@ -682,7 +645,7 @@ watch(dialogOpen, (isOpen) => {
                         <p class="font-semibold">{{ selectedOrder.product_name }}</p>
                         <p class="mt-1 text-muted-foreground">العميل: {{ selectedOrder.customer_name }}</p>
                         <p class="mt-1 text-muted-foreground">
-                            تاريخ التركيب: {{ formatInstallationDate(selectedOrder.installation_date) }}
+                            يوم الفعالية: {{ formatEventDate(selectedOrder.installation_date) }}
                         </p>
                     </div>
 

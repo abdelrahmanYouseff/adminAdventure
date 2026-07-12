@@ -83,6 +83,10 @@ const updateStatus = (status: string) => {
         status: status
     });
 };
+
+function quotationPdfUrl(id: number): string {
+    return `/quotations/${id}/pdf?v=${Date.now()}`;
+}
 </script>
 
 <template>
@@ -111,7 +115,7 @@ const updateStatus = (status: string) => {
                 <div class="flex items-center space-x-2">
                     <Button as-child variant="default">
                         <a
-                            :href="route('quotations.pdf', quotation.id)"
+                            :href="quotationPdfUrl(quotation.id)"
                             target="_blank"
                             rel="noopener noreferrer"
                         >
@@ -138,7 +142,7 @@ const updateStatus = (status: string) => {
                             </DropdownMenuItem>
                             <DropdownMenuItem as-child>
                                 <a
-                                    :href="route('quotations.pdf', quotation.id)"
+                                    :href="quotationPdfUrl(quotation.id)"
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     class="relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none transition-colors hover:bg-accent hover:text-accent-foreground"
