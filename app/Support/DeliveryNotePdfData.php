@@ -83,6 +83,19 @@ class DeliveryNotePdfData
         return $this->formatDate(now());
     }
 
+    public function issueDateLong(): string
+    {
+        return $this->formatDateLong(now());
+    }
+
+    public function eventDateLong(): ?string
+    {
+        $date = $this->order->activity_date
+            ?: $this->order->workerOrders->first()?->installation_date;
+
+        return $date ? $this->formatDateLong($date) : null;
+    }
+
     public function generatedAt(): string
     {
         return now()->format('Y-m-d H:i');
@@ -113,9 +126,39 @@ class DeliveryNotePdfData
         return count($this->productLines());
     }
 
-    public function companyName(): string
+    public function companyLegalNameEn(): string
+    {
+        return 'Adventure World Entertainment Company';
+    }
+
+    public function companyLegalNameAr(): string
     {
         return 'شركة عالم المغامرة للترفيه';
+    }
+
+    public function companyAddress(): string
+    {
+        return 'Al Muruj - Riyadh - Saudi Arabia';
+    }
+
+    public function companyWebsite(): string
+    {
+        return 'www.adventureksa.com';
+    }
+
+    public function vatNumber(): string
+    {
+        return '311691903100003';
+    }
+
+    public function commercialRegister(): string
+    {
+        return '1010792791';
+    }
+
+    public function companyName(): string
+    {
+        return $this->companyLegalNameAr();
     }
 
     public function companyPhone(): string
@@ -158,5 +201,12 @@ class DeliveryNotePdfData
         $carbon = $date instanceof Carbon ? $date : Carbon::parse($date);
 
         return $carbon->format('Y-m-d');
+    }
+
+    private function formatDateLong(mixed $date): string
+    {
+        $carbon = $date instanceof Carbon ? $date : Carbon::parse($date);
+
+        return $carbon->format('d/F/Y');
     }
 }

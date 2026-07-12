@@ -1,177 +1,244 @@
 @php
     /** @var \App\Support\DeliveryNotePdfData $data */
+    $border = 'border: 1px solid #333;';
+    $sectionTitle = 'font-size: 8pt; font-weight: bold; color: #1a1a1a; margin: 0 0 8px 0; text-transform: uppercase; letter-spacing: 0.3px;';
 @endphp
 <!DOCTYPE html>
-<html lang="ar" dir="rtl">
+<html lang="en" dir="ltr">
 <head>
     <meta charset="UTF-8">
-    <title>إذن تسليم {{ $data->referenceNumber() }}</title>
+    <title>Delivery Note {{ $data->referenceNumber() }}</title>
     <style>
         body {
-            font-family: xbriyaz, sans-serif;
-            font-size: 9pt;
-            color: #1f2937;
+            font-family: dejavusans, sans-serif;
+            font-size: 7.5pt;
+            color: #1a1a1a;
             margin: 0;
             padding: 0;
             line-height: 1.55;
         }
-        .muted { color: #6b7280; }
-        .bold { font-weight: bold; }
-        .section-head {
-            font-size: 10pt;
+        .company-name {
+            font-size: 11pt;
             font-weight: bold;
-            color: #1e3a5f;
-            border-bottom: 2px solid #3b89d2;
-            padding-bottom: 5px;
-            margin-bottom: 8px;
+            letter-spacing: 0.3px;
+        }
+        .doc-title {
+            font-size: 16pt;
+            font-weight: bold;
+            text-align: center;
+            margin: 16px 0 20px 0;
+            letter-spacing: 0.8px;
+        }
+        .meta-label {
+            font-weight: bold;
+            color: #333;
         }
         .items-table {
             border-collapse: collapse;
             width: 100%;
-            font-size: 8.5pt;
+            font-size: 6.5pt;
         }
         .items-table th,
         .items-table td {
-            border: 1px solid #cbd5e1;
-            padding: 8px 10px;
+            border: 1px solid #333;
+            padding: 7px 6px;
+            line-height: 1.45;
         }
         .items-table th {
-            background-color: #f1f5f9;
+            background-color: #e8e8e8;
             font-weight: bold;
+            text-align: center;
         }
-        .sig-line {
-            border-bottom: 1px solid #94a3b8;
-            height: 24px;
+        .footer-bar {
+            background-color: #333;
+            color: #fff;
+            font-size: 6.5pt;
+            padding: 10px 12px;
+            text-align: center;
+            margin-top: 16px;
+            line-height: 1.6;
+        }
+        .ack-box {
+            border: 1px solid #333;
+            padding: 12px 14px;
+            margin-top: 14px;
+            font-size: 7.5pt;
+        }
+        .ack-line {
+            border-bottom: 1px solid #999;
+            height: 20px;
             margin-top: 8px;
+        }
+        .section-box {
+            {{ $border }}
+            padding: 12px 14px;
+            margin-bottom: 16px;
+        }
+        .company-block {
+            font-size: 7.5pt;
+            line-height: 1.65;
+        }
+        .company-block .name {
+            font-weight: bold;
+            font-size: 8.5pt;
+            margin-bottom: 6px;
+        }
+        .meta-block {
+            font-size: 7.5pt;
+            line-height: 1.75;
+        }
+        .meta-block div {
+            margin-bottom: 3px;
+        }
+        .location-box {
+            {{ $border }}
+            padding: 10px 12px;
+            margin-bottom: 16px;
+            font-size: 7.5pt;
+            line-height: 1.65;
+            background-color: #fafafa;
         }
     </style>
 </head>
 <body>
 
-<table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom: 14px;">
+<table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom: 8px;">
     <tr>
-        <td height="5" bgcolor="#3b89d2"></td>
-        <td width="8" height="5" bgcolor="#ff6b35"></td>
-    </tr>
-</table>
-
-<table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom: 18px; border-bottom: 1px solid #e5e7eb; padding-bottom: 12px;">
-    <tr>
-        <td width="72" align="right" valign="middle">
-            @if($data->hasLogo())
-                <img src="{{ $data->logoPath() }}" width="58" height="58" alt="عالم المغامرة">
-            @endif
-        </td>
-        <td align="right" valign="middle" style="padding-right: 10px;">
-            <div style="font-size: 14pt; font-weight: bold; color: #1e3a5f;">{{ $data->companyName() }}</div>
-            <div class="muted" style="font-size: 8pt; margin-top: 4px;">
-                {{ $data->companyPhone() }} — {{ $data->companyEmail() }}
+        <td width="65%" valign="top">
+            <div class="company-name">{{ $data->companyLegalNameEn() }}</div>
+            <div style="font-size: 7pt; margin-top: 5px; line-height: 1.5;">
+                C.R No. {{ $data->commercialRegister() }}
+                &nbsp;&nbsp;|&nbsp;&nbsp;
+                <span dir="rtl" style="font-family: xbriyaz, dejavusans, sans-serif;">{{ $data->commercialRegister() }} السجل التجاري</span>
             </div>
         </td>
-        <td width="170" align="left" valign="middle">
-            <div style="font-size: 16pt; font-weight: bold; color: #3b89d2;">إذن تسليم</div>
-            <div class="muted" style="font-size: 8.5pt; margin-top: 4px;" dir="ltr" align="left">Delivery Note</div>
+        <td width="35%" align="right" valign="top">
+            @if($data->hasLogo())
+                <img src="{{ $data->logoPath() }}" alt="Adventure World" height="46" style="max-width: 110px;">
+            @endif
         </td>
     </tr>
 </table>
 
-<table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom: 16px;">
+<div class="doc-title">Delivery Note</div>
+
+<table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom: 18px;">
     <tr>
-        <td width="49%" valign="top" bgcolor="#f8fafc" style="border: 1px solid #e5e7eb; padding: 12px;">
-            <div class="section-head">بيانات أمر العمل</div>
-            <table width="100%" cellpadding="4" cellspacing="0">
-                <tr>
-                    <td width="40%" align="right" class="muted">الرقم المرجعي</td>
-                    <td width="60%" align="right" class="bold" dir="ltr">{{ $data->referenceNumber() }}</td>
-                </tr>
-                @if($data->invoiceNumber())
-                    <tr>
-                        <td align="right" class="muted">رقم الفاتورة</td>
-                        <td align="right" class="bold" dir="ltr">{{ $data->invoiceNumber() }}</td>
-                    </tr>
-                @endif
-                <tr>
-                    <td align="right" class="muted">رقم الطلب</td>
-                    <td align="right" dir="ltr">{{ $data->orderNumber() }}</td>
-                </tr>
-                <tr>
-                    <td align="right" class="muted">تاريخ الإصدار</td>
-                    <td align="right" dir="ltr">{{ $data->issueDate() }}</td>
-                </tr>
-            </table>
+        <td width="58%" valign="top" class="company-block">
+            <div class="name">{{ $data->companyLegalNameEn() }}</div>
+            <div dir="rtl" style="font-family: xbriyaz, dejavusans, sans-serif; margin-bottom: 6px;">{{ $data->companyLegalNameAr() }}</div>
+            <div>{{ $data->companyAddress() }}</div>
+            <div>Tel: {{ $data->companyPhone() }}</div>
+            <div>Email: {{ $data->companyEmail() }}</div>
+            <div>Website: {{ $data->companyWebsite() }}</div>
+            <div>VAT Number: {{ $data->vatNumber() }}</div>
         </td>
-        <td width="2%"></td>
-        <td width="49%" valign="top" bgcolor="#f8fafc" style="border: 1px solid #e5e7eb; padding: 12px;">
-            <div class="section-head">بيانات العميل</div>
-            <table width="100%" cellpadding="4" cellspacing="0">
+        <td width="4%"></td>
+        <td width="38%" valign="top" align="right" class="meta-block">
+            <div><span class="meta-label">Date:</span> {{ $data->issueDateLong() }}</div>
+            <div><span class="meta-label">Reference No:</span> {{ $data->referenceNumber() }}</div>
+            @if($data->invoiceNumber())
+                <div><span class="meta-label">Invoice No:</span> {{ $data->invoiceNumber() }}</div>
+            @endif
+            <div><span class="meta-label">Order No:</span> {{ $data->orderNumber() }}</div>
+        </td>
+    </tr>
+</table>
+
+<table width="100%" cellpadding="0" cellspacing="0">
+    <tr>
+        <td class="section-box">
+            <div style="{{ $sectionTitle }}">Deliver To</div>
+            <div style="font-weight: bold; font-size: 8.5pt; margin-bottom: 4px;">{{ $data->customerName() }}</div>
+            <div style="margin-top: 6px; font-size: 7pt;">
+                Email / Contact No: {{ $data->customerEmail() }} / {{ $data->customerPhone() }}
+            </div>
+        </td>
+    </tr>
+</table>
+
+<table width="100%" cellpadding="0" cellspacing="0">
+    <tr>
+        <td class="section-box">
+            <div style="{{ $sectionTitle }}">Event Details</div>
+            <table width="100%" cellpadding="0" cellspacing="0" style="font-size: 7.5pt; line-height: 1.65;">
                 <tr>
-                    <td width="40%" align="right" class="muted">اسم العميل</td>
-                    <td width="60%" align="right" class="bold">{{ $data->customerName() }}</td>
+                    <td width="50%" valign="top">
+                        @if($data->eventDateLong())
+                            <div><span class="meta-label">Event Date:</span> {{ $data->eventDateLong() }}</div>
+                        @endif
+                        <div style="margin-top: 5px;"><span class="meta-label">Products:</span> {{ $data->productsCount() }}</div>
+                    </td>
+                    <td width="50%" valign="top">
+                        @if($data->address())
+                            <div><span class="meta-label">Location:</span> {{ $data->address() }}</div>
+                        @endif
+                    </td>
                 </tr>
-                <tr>
-                    <td align="right" class="muted">الجوال</td>
-                    <td align="right" dir="ltr">{{ $data->customerPhone() }}</td>
-                </tr>
-                @if($data->eventDate())
-                    <tr>
-                        <td align="right" class="muted">تاريخ الفعالية</td>
-                        <td align="right" dir="ltr">{{ $data->eventDate() }}</td>
-                    </tr>
-                @endif
             </table>
         </td>
     </tr>
 </table>
 
 @if($data->address())
-    <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom: 16px;">
-        <tr>
-            <td bgcolor="#fffbeb" style="border: 1px solid #fde68a; padding: 10px 12px;">
-                <span class="bold">موقع التركيب:</span>
-                {{ $data->address() }}
-            </td>
-        </tr>
-    </table>
+    <div class="location-box">
+        <strong>Installation / Delivery Location:</strong><br>
+        {{ $data->address() }}
+    </div>
 @endif
 
-<div class="section-head">المنتجات المطلوب تركيبها</div>
-<table class="items-table" style="margin-bottom: 18px;">
+<div style="{{ $sectionTitle }} margin-bottom: 8px;">Items To Install</div>
+<table class="items-table" style="margin-bottom: 16px;">
     <thead>
         <tr>
-            <th width="8%" align="center">#</th>
-            <th width="72%" align="right">المنتج</th>
-            <th width="20%" align="center">الكمية</th>
+            <th width="8%">#</th>
+            <th width="72%" align="left">Description</th>
+            <th width="20%">Qty</th>
         </tr>
     </thead>
     <tbody>
         @foreach($data->productLines() as $index => $line)
             <tr>
                 <td align="center">{{ $index + 1 }}</td>
-                <td align="right">{{ $line['name'] }}</td>
+                <td align="left"><strong>{{ $line['name'] }}</strong></td>
                 <td align="center">{{ $line['quantity'] }}</td>
             </tr>
         @endforeach
     </tbody>
 </table>
 
-<table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom: 10px;">
-    <tr>
-        <td width="49%" valign="top" style="border: 1px solid #e5e7eb; padding: 12px;">
-            <div class="bold">توقيع مندوب التسليم</div>
-            <div class="sig-line"></div>
-            <div class="muted" style="font-size: 8pt; margin-top: 6px;">الاسم / التاريخ</div>
-        </td>
-        <td width="2%"></td>
-        <td width="49%" valign="top" style="border: 1px solid #e5e7eb; padding: 12px;">
-            <div class="bold">توقيع المستلم</div>
-            <div class="sig-line"></div>
-            <div class="muted" style="font-size: 8pt; margin-top: 6px;">الاسم / التاريخ</div>
-        </td>
-    </tr>
-</table>
+<div class="ack-box">
+    <div style="font-weight: bold; font-size: 8.5pt; margin-bottom: 10px;">Delivery Acknowledgment</div>
+    <table width="100%" cellpadding="0" cellspacing="0" style="font-size: 7.5pt;">
+        <tr>
+            <td width="50%" valign="bottom">
+                Delivered By (Company Representative):
+                <div class="ack-line"></div>
+            </td>
+            <td width="50%" valign="bottom" style="padding-left: 16px;">
+                Received By (Client):
+                <div class="ack-line"></div>
+            </td>
+        </tr>
+        <tr>
+            <td colspan="2" valign="bottom" style="padding-top: 12px;">
+                Signature &amp; Date:
+                <div class="ack-line" style="width: 60%;"></div>
+            </td>
+        </tr>
+    </table>
+</div>
 
-<div class="muted" style="font-size: 7.5pt; margin-top: 14px; text-align: center;">
-    تم إنشاء المستند في {{ $data->generatedAt() }} — {{ $data->companyName() }}
+<div class="footer-bar">
+    CR: {{ $data->commercialRegister() }}
+    &nbsp;|&nbsp;
+    Address: {{ $data->companyAddress() }}
+    &nbsp;|&nbsp;
+    Phone: {{ $data->companyPhone() }}
+    &nbsp;|&nbsp;
+    Email: {{ $data->companyEmail() }}
+    <br>
+    Adventure World Entertainment Company — Delivery Note
 </div>
 
 </body>

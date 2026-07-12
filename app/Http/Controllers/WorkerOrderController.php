@@ -199,7 +199,7 @@ class WorkerOrderController extends Controller
             'customer_email' => $order->customer_email,
             'address' => $order->address ?: $summary['customer_address'],
             'lines' => $order->workerOrders->map(fn (WorkerOrder $line) => $this->formatWorkerOrderLine($line))->values()->all(),
-            'delivery_note_url' => route('worker-orders.delivery-note', $order),
+            'delivery_note_url' => '/worker-orders/'.$order->id.'/delivery-note',
         ]);
     }
 

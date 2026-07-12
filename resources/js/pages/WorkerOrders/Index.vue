@@ -170,6 +170,14 @@ function locationLink(item: WorkOrderItem): string | null {
     return locationMapsUrl(item.customer_address);
 }
 
+function workOrderUrl(id: number): string {
+    return `/worker-orders/${id}`;
+}
+
+function openWorkOrder(item: WorkOrderItem) {
+    router.visit(workOrderUrl(item.id));
+}
+
 function statusLabel(item: WorkOrderItem): string {
     if (item.status === 'completed') {
         return 'مرفوعة للمراجعة';
@@ -345,7 +353,8 @@ watch(
                                     <TableRow
                                         v-for="(item, index) in workOrders.data"
                                         :key="item.id"
-                                        class="transition-colors hover:bg-muted/20"
+                                        class="cursor-pointer transition-colors hover:bg-muted/30"
+                                        @click="openWorkOrder(item)"
                                     >
                                         <TableCell class="text-center tabular-nums text-muted-foreground">
                                             {{ formatInteger((workOrders.from ?? 1) + index) }}
@@ -433,17 +442,14 @@ watch(
                                                 {{ statusLabel(item) }}
                                             </span>
                                         </TableCell>
-                                        <TableCell class="text-center">
-                                            <Button
-                                                as-child
-                                                size="sm"
-                                                class="h-9 min-w-[7rem] touch-manipulation"
+                                        <TableCell class="text-center" @click.stop>
+                                            <Link
+                                                :href="workOrderUrl(item.id)"
+                                                class="inline-flex h-9 min-w-[7rem] items-center justify-center rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground transition hover:bg-primary/90"
                                             >
-                                                <Link :href="route('worker-orders.show', item.id)">
-                                                    <Eye class="ms-1.5 h-4 w-4" />
-                                                    التفاصيل
-                                                </Link>
-                                            </Button>
+                                                <Eye class="ms-1.5 h-4 w-4" />
+                                                التفاصيل
+                                            </Link>
                                         </TableCell>
                                     </TableRow>
                                 </TableBody>

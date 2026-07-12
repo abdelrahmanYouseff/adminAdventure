@@ -177,7 +177,7 @@ function submitCompletion() {
         return;
     }
 
-    completeForm.post(route('worker-orders.complete', selectedLine.value.id), {
+    completeForm.post(`/worker-orders/lines/${selectedLine.value.id}/complete`, {
         forceFormData: true,
         preserveScroll: true,
         onSuccess: () => {
@@ -187,7 +187,7 @@ function submitCompletion() {
 }
 
 function printDeliveryNote() {
-    window.open(props.workOrder.delivery_note_url, '_blank');
+    window.open(`${props.workOrder.delivery_note_url}?v=${Date.now()}`, '_blank');
 }
 
 watch(dialogOpen, (isOpen) => {
@@ -210,12 +210,13 @@ watch(dialogOpen, (isOpen) => {
 
         <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div>
-                <Button variant="outline" size="sm" as-child class="mb-3 h-9">
-                    <Link :href="route('worker-orders.index')">
-                        <ArrowRight class="ms-1.5 h-4 w-4" />
-                        رجوع لأوامر العمل
-                    </Link>
-                </Button>
+                <Link
+                    href="/worker-orders"
+                    class="mb-3 inline-flex h-9 items-center rounded-md border border-input bg-background px-3 text-sm font-medium transition hover:bg-accent"
+                >
+                    <ArrowRight class="ms-1.5 h-4 w-4" />
+                    رجوع لأوامر العمل
+                </Link>
                 <h1 class="text-xl font-bold tracking-tight sm:text-3xl">تفاصيل أمر العمل</h1>
                 <p class="mt-1 text-sm text-muted-foreground sm:text-base">
                     الرقم المرجعي:
