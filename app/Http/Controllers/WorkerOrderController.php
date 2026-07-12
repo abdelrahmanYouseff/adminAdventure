@@ -26,7 +26,7 @@ class WorkerOrderController extends Controller
     {
         if ($workerOrder->status === 'completed') {
             return back()->withErrors([
-                'installation_photo' => 'تم تسجيل التركيب مسبقاً لهذا الطلب.',
+                'installation_photo' => 'تم رفع صورة التركيب مسبقاً لهذا الطلب.',
             ]);
         }
 
@@ -53,7 +53,7 @@ class WorkerOrderController extends Controller
 
         return redirect()
             ->route('worker-orders.index', ['status' => 'completed'])
-            ->with('success', 'تم تسجيل التركيب بنجاح. يمكن للمسؤول مراجعة صورة التركيب في قسم «تم التركيب».');
+            ->with('success', 'تم رفع صورة التركيب وإرسال الطلب للمراجعة. يمكن للمسؤول مراجعته في قسم «مرفوعة للمراجعة».');
     }
 
     /**

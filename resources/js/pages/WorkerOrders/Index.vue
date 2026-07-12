@@ -97,7 +97,7 @@ const mobileListVisible = ref(false);
 
 const mobileListTitle = computed(() => {
     if (statusFilter.value === 'completed') {
-        return 'تم التركيب';
+        return 'مرفوعة للمراجعة';
     }
 
     if (statusFilter.value === 'all') {
@@ -203,7 +203,7 @@ function submitCompletion() {
     }
 
     if (!completeForm.installation_photo) {
-        photoError.value = 'يجب إرفاق صورة للتركيب من أرض الواقع قبل التأكيد.';
+        photoError.value = 'يجب إرفاق صورة للتركيب من أرض الواقع قبل الإرسال.';
         return;
     }
 
@@ -353,7 +353,7 @@ watch(
                     :class="mobileListVisible && statusFilter === 'completed' ? 'max-md:border-primary max-md:ring-1 max-md:ring-primary/20' : ''"
                 >
                     <CardHeader class="p-4 pb-2 sm:p-6">
-                        <CardTitle class="text-xs sm:text-sm">تم التركيب</CardTitle>
+                        <CardTitle class="text-xs sm:text-sm">مرفوعة للمراجعة</CardTitle>
                     </CardHeader>
                     <CardContent class="p-4 pt-0 sm:p-6 sm:pt-0">
                         <div class="text-xl font-bold tabular-nums sm:text-2xl">{{ formatInteger(stats.completed) }}</div>
@@ -418,7 +418,7 @@ watch(
                         :class="statusFilter === 'completed' ? 'border-primary bg-primary/5' : ''"
                         @click="setStatusFilter('completed')"
                     >
-                        تم التركيب
+                        مرفوعة للمراجعة
                     </Button>
                     <Button
                         variant="outline"
@@ -549,7 +549,7 @@ watch(
                                                 ? 'bg-green-100 text-green-800 dark:bg-green-950/40 dark:text-green-300'
                                                 : 'bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300'"
                                         >
-                                            {{ item.status === 'completed' ? 'تم التركيب' : 'قيد التركيب' }}
+                                            {{ item.status === 'completed' ? 'مرفوعة للمراجعة' : 'قيد التركيب' }}
                                         </span>
                                     </TableCell>
                                     <TableCell
@@ -591,7 +591,7 @@ watch(
                                             @click="openCompleteDialog(item)"
                                         >
                                             <CheckCircle2 class="ms-1.5 h-4 w-4" />
-                                            تم التركيب
+                                            رفع صورة التركيب
                                         </Button>
                                         <span v-else class="text-xs text-muted-foreground">—</span>
                                     </TableCell>
@@ -664,9 +664,9 @@ watch(
             >
                 <div class="flex items-start justify-between gap-3 border-b px-4 py-4 sm:px-6">
                     <div class="min-w-0 text-start">
-                        <h2 id="worker-complete-title" class="text-lg font-bold">تأكيد التركيب</h2>
+                        <h2 id="worker-complete-title" class="text-lg font-bold">رفع صورة التركيب</h2>
                         <p class="mt-1 text-sm text-muted-foreground">
-                            ارفق صورة من أرض الواقع للمنتج بعد التركيب، ثم اضغط تأكيد التركيب.
+                            ارفع صورة من أرض الواقع بعد التركيب. سيتم إرسال الطلب للمسؤول للمراجعة وليس اعتماده نهائياً.
                         </p>
                     </div>
                     <button
@@ -743,7 +743,7 @@ watch(
                         :disabled="completeForm.processing"
                         @click="submitCompletion"
                     >
-                        {{ completeForm.processing ? 'جاري الحفظ...' : 'تأكيد التركيب' }}
+                        {{ completeForm.processing ? 'جاري الإرسال...' : 'إرسال للمراجعة' }}
                     </Button>
                 </div>
             </div>
