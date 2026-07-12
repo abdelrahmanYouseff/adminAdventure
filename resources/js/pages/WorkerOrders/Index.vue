@@ -175,7 +175,7 @@ function workOrderUrl(item: WorkOrderItem): string {
 }
 
 function openWorkOrder(item: WorkOrderItem) {
-    router.visit(workOrderUrl(item.id));
+    router.visit(workOrderUrl(item));
 }
 
 function statusLabel(item: WorkOrderItem): string {
