@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Order;
 use App\Models\WorkerOrder;
 use App\Services\DeliveryNotePdfService;
+use App\Services\WorkerOrderSyncService;
 use App\Support\DeliveryNotePdfData;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -26,9 +27,9 @@ class WorkerOrderController extends Controller
         ]);
     }
 
-    public function show(Order $order)
+    public function show(string $workOrderKey, WorkerOrderSyncService $syncService)
     {
-        abort_unless($order->workerOrders()->exists(), 404);
+        $order = $this->resolveWorkOrder($workOrderKey, $syncService);
 
         $order->load([
             'invoice:id,invoice_number',
@@ -41,9 +42,9 @@ class WorkerOrderController extends Controller
         ]);
     }
 
-    public function deliveryNote(Order $order, DeliveryNotePdfService $pdfService): Response
+    public function deliveryNote(string $workOrderKey, DeliveryNotePdfService $pdfService, WorkerOrderSyncService $syncService): Response
     {
-        abort_unless($order->workerOrders()->exists(), 404);
+        $order = $this->resolveWorkOrder($workOrderKey, $syncService);
 
         $data = DeliveryNotePdfData::fromOrder($order);
         $pdf = $pdfService->render($data);
@@ -79,6 +80,8 @@ class WorkerOrderController extends Controller
             Storage::disk('public')->delete($workerOrder->installation_photo);
         }
 
+        $workerOrder->loadMissing('order.invoice');
+
         $workerOrder->update([
             'installation_photo' => $path,
             'status' => 'completed',
@@ -89,8 +92,11 @@ class WorkerOrderController extends Controller
         $redirectToShow = $request->boolean('redirect_to_show', true);
 
         if ($redirectToShow) {
+            $reference = $workerOrder->order->invoice?->invoice_number
+                ?? $workerOrder->order->order_number;
+
             return redirect()
-                ->route('worker-orders.show', $workerOrder->order_id)
+                ->route('worker-orders.show', $reference)
                 ->with('success', 'تم رفع صورة التركيب وإرسال المنتج للمراجعة.');
         }
 
@@ -199,8 +205,33 @@ class WorkerOrderController extends Controller
             'customer_email' => $order->customer_email,
             'address' => $order->address ?: $summary['customer_address'],
             'lines' => $order->workerOrders->map(fn (WorkerOrder $line) => $this->formatWorkerOrderLine($line))->values()->all(),
-            'delivery_note_url' => '/worker-orders/'.$order->id.'/delivery-note',
+            'delivery_note_url' => '/worker-orders/'.rawurlencode($summary['reference_number']).'/delivery-note',
         ]);
+    }
+
+    private function resolveWorkOrder(string $workOrderKey, WorkerOrderSyncService $syncService): Order
+    {
+        $order = Order::query()
+            ->whereKey($workOrderKey)
+            ->orWhere('order_number', $workOrderKey)
+            ->orWhereHas('invoice', fn ($query) => $query->where('invoice_number', $workOrderKey))
+            ->first();
+
+        if (! $order && ctype_digit($workOrderKey)) {
+            $workerOrder = WorkerOrder::query()->find((int) $workOrderKey);
+            $order = $workerOrder?->order;
+        }
+
+        abort_unless($order, 404);
+
+        if (! $order->workerOrders()->exists()) {
+            $syncService->syncFromOrder($order->fresh());
+            $order->unsetRelation('workerOrders');
+        }
+
+        abort_unless($order->workerOrders()->exists(), 404);
+
+        return $order;
     }
 
     /**

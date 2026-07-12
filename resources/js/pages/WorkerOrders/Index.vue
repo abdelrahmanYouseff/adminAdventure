@@ -170,8 +170,8 @@ function locationLink(item: WorkOrderItem): string | null {
     return locationMapsUrl(item.customer_address);
 }
 
-function workOrderUrl(id: number): string {
-    return `/worker-orders/${id}`;
+function workOrderUrl(item: WorkOrderItem): string {
+    return `/worker-orders/${encodeURIComponent(item.reference_number)}`;
 }
 
 function openWorkOrder(item: WorkOrderItem) {
@@ -444,7 +444,7 @@ watch(
                                         </TableCell>
                                         <TableCell class="text-center" @click.stop>
                                             <Link
-                                                :href="workOrderUrl(item.id)"
+                                                :href="workOrderUrl(item)"
                                                 class="inline-flex h-9 min-w-[7rem] items-center justify-center rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground transition hover:bg-primary/90"
                                             >
                                                 <Eye class="ms-1.5 h-4 w-4" />

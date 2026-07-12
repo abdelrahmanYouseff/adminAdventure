@@ -205,13 +205,15 @@ Route::get('worker-orders', [\App\Http\Controllers\WorkerOrderController::class,
     ->middleware(['auth', 'verified', 'staff'])
     ->name('worker-orders.index');
 
-Route::get('worker-orders/{order}', [\App\Http\Controllers\WorkerOrderController::class, 'show'])
+Route::get('worker-orders/{workOrderKey}/delivery-note', [\App\Http\Controllers\WorkerOrderController::class, 'deliveryNote'])
     ->middleware(['auth', 'verified', 'staff'])
-    ->name('worker-orders.show');
-
-Route::get('worker-orders/{order}/delivery-note', [\App\Http\Controllers\WorkerOrderController::class, 'deliveryNote'])
-    ->middleware(['auth', 'verified', 'staff'])
+    ->where('workOrderKey', '[A-Za-z0-9\-_/]+')
     ->name('worker-orders.delivery-note');
+
+Route::get('worker-orders/{workOrderKey}', [\App\Http\Controllers\WorkerOrderController::class, 'show'])
+    ->middleware(['auth', 'verified', 'staff'])
+    ->where('workOrderKey', '[A-Za-z0-9\-_/]+')
+    ->name('worker-orders.show');
 
 Route::post('worker-orders/lines/{workerOrder}/complete', [\App\Http\Controllers\WorkerOrderController::class, 'complete'])
     ->middleware(['auth', 'verified', 'staff'])
