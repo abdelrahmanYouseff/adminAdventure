@@ -77,15 +77,6 @@
             color: #fff;
             font-size: 8pt;
         }
-        .footer-bar {
-            background-color: #333;
-            color: #fff;
-            font-size: 6.5pt;
-            padding: 10px 12px;
-            text-align: center;
-            margin-top: 16px;
-            line-height: 1.6;
-        }
         .terms-list {
             margin: 0;
             padding-left: 14px;
@@ -137,9 +128,8 @@
         <td width="65%" valign="top">
             <div class="company-name">{{ $data->companyLegalNameEn() }}</div>
             <div style="font-size: 7pt; margin-top: 5px; line-height: 1.5;">
-                C.R No. {{ $data->commercialRegister() }}
-                &nbsp;&nbsp;|&nbsp;&nbsp;
-                <span dir="rtl" style="font-family: xbriyaz, dejavusans, sans-serif;">{{ $data->commercialRegister() }} السجل التجاري</span>
+                CR. No. {{ $data->commercialRegister() }}
+                <span dir="rtl" style="font-family: xbriyaz, dejavusans, sans-serif;"> سجل تجاري</span>
             </div>
         </td>
         <td width="35%" align="right" valign="top">
@@ -314,19 +304,6 @@
             </td>
         </tr>
     </table>
-</div>
-
-{{-- Footer --}}
-<div class="footer-bar">
-    CR: {{ $data->commercialRegister() }}
-    &nbsp;|&nbsp;
-    Address: {{ $data->companyAddress() }}
-    &nbsp;|&nbsp;
-    Phone: {{ $data->companyPhone() }}
-    &nbsp;|&nbsp;
-    Email: {{ $data->companyEmail() }}
-    <br>
-    Thank you for your Business...!
 </div>
 
 </body>

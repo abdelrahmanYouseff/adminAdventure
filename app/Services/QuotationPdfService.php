@@ -22,9 +22,9 @@ class QuotationPdfService
             'margin_left' => 14,
             'margin_right' => 14,
             'margin_top' => 14,
-            'margin_bottom' => 14,
+            'margin_bottom' => 22,
             'margin_header' => 4,
-            'margin_footer' => 4,
+            'margin_footer' => 8,
             'default_font' => 'dejavusans',
             'directionality' => 'ltr',
             'tempDir' => $tempDir,
@@ -34,6 +34,9 @@ class QuotationPdfService
         ]);
 
         $mpdf->SetTitle('Proposal '.$data->quotationNumber());
+
+        $footerHtml = View::make('quotation-pdf-footer', ['data' => $data])->render();
+        $mpdf->SetHTMLFooter($footerHtml);
 
         $html = View::make('quotation-pdf', ['data' => $data])->render();
         $mpdf->WriteHTML($html);
