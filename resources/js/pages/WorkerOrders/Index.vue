@@ -11,8 +11,6 @@ import {
     User,
     ChevronLeft,
     ChevronRight,
-    ExternalLink,
-    Navigation,
     ImageIcon,
     ArrowRight,
     FileText,
@@ -147,29 +145,6 @@ function formatEventDate(date: string | null): string {
     return formatDate(date);
 }
 
-function locationMapsUrl(address: string | null): string | null {
-    if (!address?.trim()) {
-        return null;
-    }
-
-    const trimmed = address.trim();
-    const coordMatch = trimmed.match(/^(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)$/);
-
-    if (coordMatch) {
-        return `https://www.google.com/maps?q=${coordMatch[1]},${coordMatch[2]}`;
-    }
-
-    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(trimmed)}`;
-}
-
-function locationLink(item: WorkOrderItem): string | null {
-    if (item.location_slug) {
-        return route('store.order.location', item.location_slug);
-    }
-
-    return locationMapsUrl(item.customer_address);
-}
-
 function workOrderUrl(item: WorkOrderItem): string {
     return `/worker-orders/${encodeURIComponent(item.reference_number)}`;
 }
@@ -223,7 +198,7 @@ watch(
                 </p>
             </div>
 
-            <div class="grid grid-cols-3 gap-3 sm:gap-4">
+            <div class="grid grid-cols-3 gap-2 sm:gap-3">
                 <button
                     type="button"
                     class="min-w-0 text-start transition active:scale-[0.98] max-md:touch-manipulation md:cursor-default"
@@ -233,12 +208,9 @@ watch(
                         class="h-full shadow-sm transition max-md:hover:border-primary/40 max-md:active:border-primary"
                         :class="mobileListVisible && statusFilter === 'pending' ? 'max-md:border-primary max-md:ring-1 max-md:ring-primary/20' : ''"
                     >
-                        <CardHeader class="p-4 pb-2 sm:p-6">
-                            <CardTitle class="text-xs sm:text-sm">قيد التركيب</CardTitle>
-                        </CardHeader>
-                        <CardContent class="p-4 pt-0 sm:p-6 sm:pt-0">
-                            <div class="text-xl font-bold tabular-nums sm:text-2xl">{{ formatInteger(stats.pending) }}</div>
-                            <p class="mt-1 text-[10px] text-muted-foreground md:hidden">اضغط للعرض</p>
+                        <CardContent class="p-3">
+                            <p class="text-[11px] text-muted-foreground">قيد التركيب</p>
+                            <p class="mt-0.5 text-base font-bold tabular-nums sm:text-lg">{{ formatInteger(stats.pending) }}</p>
                         </CardContent>
                     </Card>
                 </button>
@@ -251,12 +223,9 @@ watch(
                         class="h-full shadow-sm transition max-md:hover:border-primary/40 max-md:active:border-primary"
                         :class="mobileListVisible && statusFilter === 'completed' ? 'max-md:border-primary max-md:ring-1 max-md:ring-primary/20' : ''"
                     >
-                        <CardHeader class="p-4 pb-2 sm:p-6">
-                            <CardTitle class="text-xs sm:text-sm">مرفوعة للمراجعة</CardTitle>
-                        </CardHeader>
-                        <CardContent class="p-4 pt-0 sm:p-6 sm:pt-0">
-                            <div class="text-xl font-bold tabular-nums sm:text-2xl">{{ formatInteger(stats.completed) }}</div>
-                            <p class="mt-1 text-[10px] text-muted-foreground md:hidden">اضغط للعرض</p>
+                        <CardContent class="p-3">
+                            <p class="text-[11px] leading-tight text-muted-foreground">مرفوعة للمراجعة</p>
+                            <p class="mt-0.5 text-base font-bold tabular-nums sm:text-lg">{{ formatInteger(stats.completed) }}</p>
                         </CardContent>
                     </Card>
                 </button>
@@ -269,12 +238,9 @@ watch(
                         class="h-full shadow-sm transition max-md:hover:border-primary/40 max-md:active:border-primary"
                         :class="mobileListVisible && statusFilter === 'all' ? 'max-md:border-primary max-md:ring-1 max-md:ring-primary/20' : ''"
                     >
-                        <CardHeader class="p-4 pb-2 sm:p-6">
-                            <CardTitle class="text-xs sm:text-sm">الإجمالي</CardTitle>
-                        </CardHeader>
-                        <CardContent class="p-4 pt-0 sm:p-6 sm:pt-0">
-                            <div class="text-xl font-bold tabular-nums sm:text-2xl">{{ formatInteger(stats.total) }}</div>
-                            <p class="mt-1 text-[10px] text-muted-foreground md:hidden">اضغط للعرض</p>
+                        <CardContent class="p-3">
+                            <p class="text-[11px] text-muted-foreground">الإجمالي</p>
+                            <p class="mt-0.5 text-base font-bold tabular-nums sm:text-lg">{{ formatInteger(stats.total) }}</p>
                         </CardContent>
                     </Card>
                 </button>
@@ -343,7 +309,6 @@ watch(
                                         <TableHead class="min-w-[9rem] text-right font-semibold">الرقم المرجعي</TableHead>
                                         <TableHead class="min-w-[9rem] text-right font-semibold">اسم العميل</TableHead>
                                         <TableHead class="min-w-[7rem] text-right font-semibold">يوم الفعالية</TableHead>
-                                        <TableHead class="min-w-[12rem] text-right font-semibold">الموقع</TableHead>
                                         <TableHead class="min-w-[8rem] text-right font-semibold">المنتجات</TableHead>
                                         <TableHead class="min-w-[7rem] text-center font-semibold">الحالة</TableHead>
                                         <TableHead class="min-w-[7rem] text-center font-semibold">إجراء</TableHead>
@@ -383,26 +348,6 @@ watch(
                                                     {{ formatEventDate(item.installation_date) }}
                                                 </span>
                                             </div>
-                                        </TableCell>
-                                        <TableCell>
-                                            <template v-if="item.customer_address">
-                                                <p class="max-w-[16rem] text-sm leading-relaxed">
-                                                    {{ item.customer_address }}
-                                                </p>
-                                                <a
-                                                    v-if="locationLink(item)"
-                                                    :href="locationLink(item)!"
-                                                    target="_blank"
-                                                    rel="noopener noreferrer"
-                                                    class="mt-1.5 inline-flex items-center gap-1.5 text-xs font-semibold text-primary hover:underline"
-                                                    @click.stop
-                                                >
-                                                    <Navigation class="h-3.5 w-3.5" />
-                                                    فتح على الخريطة
-                                                    <ExternalLink class="h-3 w-3 opacity-60" />
-                                                </a>
-                                            </template>
-                                            <span v-else class="text-sm text-muted-foreground">—</span>
                                         </TableCell>
                                         <TableCell>
                                             <div class="flex items-center gap-2">

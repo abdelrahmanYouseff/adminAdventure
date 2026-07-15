@@ -184,41 +184,32 @@ function locationMapsUrl(address: string | null): string | null {
         </div>
 
         <!-- Stats -->
-        <div class="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+        <div class="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3">
             <Card class="min-w-0 shadow-sm">
-                <CardHeader class="flex flex-row items-center justify-between space-y-0 p-4 pb-2 sm:p-6">
-                    <CardTitle class="text-xs font-medium leading-snug sm:text-sm">إجمالي الطلبات</CardTitle>
-                    <ShoppingCart class="h-4 w-4 shrink-0 text-muted-foreground" />
-                </CardHeader>
-                <CardContent class="p-4 pt-0 sm:p-6 sm:pt-0">
-                    <div class="text-xl font-bold tabular-nums sm:text-2xl">{{ formatInteger(orders.total) }}</div>
+                <CardContent class="flex items-center justify-between gap-2 p-3">
+                    <div class="min-w-0">
+                        <p class="text-[11px] text-muted-foreground">إجمالي الطلبات</p>
+                        <p class="mt-0.5 text-base font-bold tabular-nums sm:text-lg">{{ formatInteger(orders.total) }}</p>
+                    </div>
+                    <ShoppingCart class="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                 </CardContent>
             </Card>
             <Card class="min-w-0 shadow-sm">
-                <CardHeader class="flex flex-row items-center justify-between space-y-0 p-4 pb-2 sm:p-6">
-                    <CardTitle class="text-xs font-medium leading-snug sm:text-sm">قيد الانتظار</CardTitle>
-                </CardHeader>
-                <CardContent class="p-4 pt-0 sm:p-6 sm:pt-0">
-                    <div class="text-xl font-bold tabular-nums sm:text-2xl">{{ formatInteger(pendingCount()) }}</div>
-                    <p class="mt-0.5 text-[10px] text-muted-foreground sm:text-xs">في هذه الصفحة</p>
+                <CardContent class="p-3">
+                    <p class="text-[11px] text-muted-foreground">قيد الانتظار</p>
+                    <p class="mt-0.5 text-base font-bold tabular-nums sm:text-lg">{{ formatInteger(pendingCount()) }}</p>
                 </CardContent>
             </Card>
             <Card class="min-w-0 shadow-sm">
-                <CardHeader class="flex flex-row items-center justify-between space-y-0 p-4 pb-2 sm:p-6">
-                    <CardTitle class="text-xs font-medium leading-snug sm:text-sm">مدفوع</CardTitle>
-                </CardHeader>
-                <CardContent class="p-4 pt-0 sm:p-6 sm:pt-0">
-                    <div class="text-xl font-bold tabular-nums sm:text-2xl">{{ formatInteger(paidCount()) }}</div>
-                    <p class="mt-0.5 text-[10px] text-muted-foreground sm:text-xs">في هذه الصفحة</p>
+                <CardContent class="p-3">
+                    <p class="text-[11px] text-muted-foreground">مدفوع</p>
+                    <p class="mt-0.5 text-base font-bold tabular-nums sm:text-lg">{{ formatInteger(paidCount()) }}</p>
                 </CardContent>
             </Card>
-            <Card class="min-w-0 col-span-2 shadow-sm lg:col-span-1">
-                <CardHeader class="flex flex-row items-center justify-between space-y-0 p-4 pb-2 sm:p-6">
-                    <CardTitle class="text-xs font-medium leading-snug sm:text-sm">معروض الآن</CardTitle>
-                </CardHeader>
-                <CardContent class="p-4 pt-0 sm:p-6 sm:pt-0">
-                    <div class="text-xl font-bold tabular-nums sm:text-2xl">{{ formatInteger(orders.data.length) }}</div>
-                    <p class="mt-0.5 text-[10px] text-muted-foreground sm:text-xs">في الصفحة الحالية</p>
+            <Card class="min-w-0 shadow-sm">
+                <CardContent class="p-3">
+                    <p class="text-[11px] text-muted-foreground">معروض الآن</p>
+                    <p class="mt-0.5 text-base font-bold tabular-nums sm:text-lg">{{ formatInteger(orders.data.length) }}</p>
                 </CardContent>
             </Card>
         </div>
