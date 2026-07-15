@@ -193,6 +193,14 @@ Route::get('orders', [OrderController::class, 'index'])
     ->middleware(['auth', 'verified', 'admin'])
     ->name('orders.index');
 
+Route::get('orders/create', [OrderController::class, 'create'])
+    ->middleware(['auth', 'verified', 'admin'])
+    ->name('orders.create');
+
+Route::post('orders', [OrderController::class, 'store'])
+    ->middleware(['auth', 'verified', 'admin'])
+    ->name('orders.store');
+
 Route::get('orders/{order}', [OrderController::class, 'show'])
     ->middleware(['auth', 'verified', 'admin'])
     ->name('orders.show');
@@ -218,6 +226,30 @@ Route::get('worker-orders/{workOrderKey}', [\App\Http\Controllers\WorkerOrderCon
 Route::post('worker-orders/lines/{workerOrder}/complete', [\App\Http\Controllers\WorkerOrderController::class, 'complete'])
     ->middleware(['auth', 'verified', 'staff'])
     ->name('worker-orders.complete');
+
+Route::post('worker-orders/lines/{workerOrder}/pickup', [\App\Http\Controllers\WorkerOrderController::class, 'completePickup'])
+    ->middleware(['auth', 'verified', 'staff'])
+    ->name('worker-orders.pickup');
+
+Route::post('worker-orders/{workOrderKey}/assemblers', [\App\Http\Controllers\WorkerOrderController::class, 'storeAssembler'])
+    ->middleware(['auth', 'verified', 'staff'])
+    ->where('workOrderKey', '[A-Za-z0-9\-_/]+')
+    ->name('worker-orders.assemblers.store');
+
+Route::delete('worker-orders/{workOrderKey}/assemblers/{assembler}', [\App\Http\Controllers\WorkerOrderController::class, 'destroyAssembler'])
+    ->middleware(['auth', 'verified', 'staff'])
+    ->where('workOrderKey', '[A-Za-z0-9\-_/]+')
+    ->name('worker-orders.assemblers.destroy');
+
+Route::post('worker-orders/{workOrderKey}/notes', [\App\Http\Controllers\WorkerOrderController::class, 'storeNote'])
+    ->middleware(['auth', 'verified', 'staff'])
+    ->where('workOrderKey', '[A-Za-z0-9\-_/]+')
+    ->name('worker-orders.notes.store');
+
+Route::delete('worker-orders/{workOrderKey}/notes/{note}', [\App\Http\Controllers\WorkerOrderController::class, 'destroyNote'])
+    ->middleware(['auth', 'verified', 'staff'])
+    ->where('workOrderKey', '[A-Za-z0-9\-_/]+')
+    ->name('worker-orders.notes.destroy');
 
 // Public store (no auth)
 Route::get('store', [\App\Http\Controllers\StoreController::class, 'index'])->name('store.index');

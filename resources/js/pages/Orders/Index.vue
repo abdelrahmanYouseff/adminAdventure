@@ -26,6 +26,7 @@ import {
     Eye,
     MapPin,
     ExternalLink,
+    Plus,
 } from 'lucide-vue-next';
 import { formatCurrency, formatDate, formatInteger } from '@/lib/formatNumber';
 
@@ -166,13 +167,20 @@ function locationMapsUrl(address: string | null): string | null {
     <Head title="إدارة الطلبات" />
     <div class="flex min-w-0 flex-1 flex-col gap-4 overflow-x-hidden p-3 pb-[max(1rem,env(safe-area-inset-bottom))] sm:gap-6 sm:p-6 sm:py-6">
         <!-- Header -->
-        <div class="flex flex-col gap-1 sm:gap-4">
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
             <div>
                 <h1 class="text-xl font-bold tracking-tight sm:text-3xl">إدارة الطلبات</h1>
                 <p class="mt-1 text-sm text-muted-foreground sm:text-base">
-                    عرض وبحث وفلترة الطلبات
+                    عرض وبحث وفلترة الطلبات، أو إضافة طلب جديد من النظام
                 </p>
             </div>
+            <Link
+                href="/orders/create"
+                class="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow transition hover:bg-primary/90 sm:h-11"
+            >
+                <Plus class="h-4 w-4" />
+                إضافة طلب
+            </Link>
         </div>
 
         <!-- Stats -->

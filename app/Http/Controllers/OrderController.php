@@ -65,77 +65,104 @@ class OrderController extends Controller
         ]);
     }
 
+    public function create()
+    {
+        $products = Product::query()
+            ->active()
+            ->orderBy('product_name')
+            ->get(['id', 'product_name', 'description', 'price', 'image']);
+
+        return Inertia::render('Orders/Create', [
+            'products' => $products,
+        ]);
+    }
+
     public function store(Request $request)
     {
-        $request->validate([
-            'customer_name' => 'required|string|max:255',
-            'customer_email' => 'nullable|email|max:255',
-            'customer_phone' => 'nullable|string|max:20',
-            'total_amount' => 'required|numeric|min:0',
-            'currency' => 'required|string|in:SAR,USD,EUR',
-            'payment_method' => 'required|string|in:credit_card,cash,bank_transfer,paypal,noon',
-            'payment_id' => 'nullable|string|max:255',
-            'status' => 'sometimes|string|in:pending,processing,paid,cancelled,refunded',
-            'items' => 'required|array|min:1',
-            'items.*.name' => 'required|string|max:255',
-            'items.*.quantity' => 'required|integer|min:1',
-            'items.*.price' => 'required|numeric|min:0',
-            'notes' => 'nullable|string|max:1000',
-            'user_id' => 'nullable|exists:users,id',
+        $validated = $request->validate([
+            'customer_name' => ['required', 'string', 'max:255'],
+            'customer_email' => ['nullable', 'email', 'max:255'],
+            'customer_phone' => ['nullable', 'string', 'max:20'],
+            'address' => ['nullable', 'string', 'max:1000'],
+            'activity_date' => ['nullable', 'date'],
+            'currency' => ['required', 'string', 'in:SAR,USD,EUR'],
+            'payment_method' => ['required', 'string', 'in:credit_card,cash,bank_transfer,paypal,noon'],
+            'status' => ['required', 'string', 'in:pending,processing,paid,cancelled'],
+            'notes' => ['nullable', 'string', 'max:1000'],
+            'items' => ['required', 'array', 'min:1'],
+            'items.*.product_id' => ['required', 'exists:products,id'],
+            'items.*.quantity' => ['required', 'integer', 'min:1'],
+            'items.*.unit_price' => ['required', 'numeric', 'min:0'],
+        ], [
+            'customer_name.required' => 'اسم العميل مطلوب.',
+            'items.required' => 'يجب إضافة منتج واحد على الأقل.',
+            'items.min' => 'يجب إضافة منتج واحد على الأقل.',
+            'items.*.product_id.exists' => 'أحد المنتجات المحددة غير موجود.',
+            'payment_method.required' => 'طريقة الدفع مطلوبة.',
+            'status.required' => 'حالة الطلب مطلوبة.',
         ]);
 
-        // Create invoice first
-        $invoiceData = [
+        $productIds = collect($validated['items'])->pluck('product_id')->all();
+        $products = Product::whereIn('id', $productIds)->pluck('product_name', 'id');
+
+        $itemsForOrder = [];
+        $totalAmount = 0;
+
+        foreach ($validated['items'] as $item) {
+            $qty = (int) $item['quantity'];
+            $price = (float) $item['unit_price'];
+            $lineTotal = $qty * $price;
+            $totalAmount += $lineTotal;
+
+            $itemsForOrder[] = [
+                'name' => $products[$item['product_id']] ?? 'Product #'.$item['product_id'],
+                'quantity' => $qty,
+                'price' => $price,
+                'amount' => $lineTotal,
+            ];
+        }
+
+        $isPaid = $validated['status'] === 'paid';
+        $userId = $request->user()?->id ?? 1;
+
+        $invoice = Invoice::create([
             'invoice_number' => Invoice::generateInvoiceNumber(),
-            'amount' => $request->total_amount,
-            'status' => $request->status === 'paid' ? 'paid' : 'pending',
-            'payment_method' => $request->payment_method,
+            'amount' => $totalAmount,
+            'status' => $isPaid ? 'paid' : 'pending',
+            'payment_method' => $validated['payment_method'],
             'issued_at' => now(),
             'due_date' => now()->addDays(30),
-        ];
+            'user_id' => $userId,
+        ]);
 
-        // Add user_id only if provided (since it might be required in invoices table)
-        if ($request->user_id) {
-            $invoiceData['user_id'] = $request->user_id;
-        } else {
-            // If no user_id, we need to provide a default or skip invoice creation
-            // For now, let's use user_id = 1 as default (admin) or skip if not available
-            $invoiceData['user_id'] = 1; // Default to admin user
-        }
-
-        $invoice = Invoice::create($invoiceData);
-
-        // Create order with invoice_id
-        $orderData = [
-            'customer_name' => $request->customer_name,
-            'customer_email' => $request->customer_email,
-            'customer_phone' => $request->customer_phone,
+        $order = Order::create([
+            'customer_name' => $validated['customer_name'],
+            'customer_email' => $validated['customer_email'] ?? null,
+            'customer_phone' => $validated['customer_phone'] ?? null,
+            'address' => $validated['address'] ?? null,
+            'activity_date' => $validated['activity_date'] ?? null,
             'invoice_id' => $invoice->id,
             'order_number' => Order::generateOrderNumber(),
-            'total_amount' => $request->total_amount,
-            'currency' => $request->currency,
-            'payment_method' => $request->payment_method,
-            'payment_id' => $request->payment_id,
-            'status' => $request->status ?? 'pending',
-            'items' => $request->items,
-            'notes' => $request->notes,
-        ];
+            'total_amount' => $totalAmount,
+            'currency' => $validated['currency'],
+            'payment_method' => $validated['payment_method'],
+            'status' => $validated['status'],
+            'payment_status' => $isPaid ? 'paid' : 'pending',
+            'items' => $itemsForOrder,
+            'notes' => $validated['notes'] ?? null,
+            'user_id' => $userId,
+        ]);
 
-        // Add user_id only if provided
-        if ($request->user_id) {
-            $orderData['user_id'] = $request->user_id;
+        foreach ($validated['items'] as $item) {
+            $order->products()->attach($item['product_id'], [
+                'quantity' => (int) $item['quantity'],
+                'price' => (float) $item['unit_price'],
+            ]);
         }
 
-        $order = Order::create($orderData);
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Order and invoice created successfully',
-            'data' => [
-                'order' => $order->load(['user', 'invoice']),
-                'invoice' => $invoice,
-            ],
-        ], 201);
+        return redirect()
+            ->route('orders.show', $order)
+            ->with('success', 'تم إنشاء الطلب بنجاح.');
     }
 
     /**

@@ -78,6 +78,16 @@ class Order extends Model
         return $this->hasMany(WorkerOrder::class);
     }
 
+    public function workerAssemblers()
+    {
+        return $this->hasMany(WorkerOrderAssembler::class);
+    }
+
+    public function workerNotes()
+    {
+        return $this->hasMany(WorkerOrderNote::class);
+    }
+
     /**
      * Generate a unique order number.
      */
