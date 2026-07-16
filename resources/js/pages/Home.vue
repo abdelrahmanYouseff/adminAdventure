@@ -529,7 +529,9 @@ const features = [
                             </a>
 
                             <a
-                                href="#"
+                                href="https://play.google.com/store/apps/details?id=com.adventure.adventureWorldApp"
+                                target="_blank"
+                                rel="noopener noreferrer"
                                 class="flex min-h-11 items-center justify-center gap-3 rounded-lg border border-neutral-600 bg-neutral-800/80 px-4 py-3 transition hover:border-neutral-500 hover:bg-neutral-800 sm:min-h-0 sm:flex-1 sm:justify-start sm:px-5"
                             >
                                 <svg class="h-7 w-7" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
