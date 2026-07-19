@@ -17,6 +17,8 @@ export interface NavItem {
     isActive?: boolean;
 }
 
+export type StaffRole = 'admin' | 'manager' | 'accounts' | 'worker';
+
 export type AppPageProps<T extends Record<string, unknown> = Record<string, unknown>> = T & {
     name: string;
     quote: { message: string; author: string };
@@ -30,7 +32,7 @@ export interface User {
     name: string;
     email: string;
     avatar?: string;
-    role?: 'admin' | 'worker' | null;
+    role?: StaffRole | null;
     email_verified_at: string | null;
     created_at: string;
     updated_at: string;

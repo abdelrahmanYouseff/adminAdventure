@@ -13,7 +13,7 @@ class CustomerController extends Controller
         $customers = User::query()
             ->where(function ($query) {
                 $query->whereNull('role')
-                    ->orWhereNotIn('role', [User::ROLE_ADMIN, User::ROLE_WORKER]);
+                    ->orWhereNotIn('role', User::STAFF_ROLES);
             })
             ->orderByDesc('created_at')
             ->get();

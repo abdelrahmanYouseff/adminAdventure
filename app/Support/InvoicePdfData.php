@@ -8,6 +8,8 @@ use Carbon\Carbon;
 
 class InvoicePdfData
 {
+    private const VAT_RATE = 0.15;
+
     public function __construct(
         public Invoice $invoice,
         public ?Order $order = null,
@@ -25,6 +27,11 @@ class InvoicePdfData
         return public_path('assets/logo.png');
     }
 
+    public function hasLogo(): bool
+    {
+        return file_exists($this->logoPath());
+    }
+
     public function invoiceNumber(): string
     {
         return $this->invoice->invoice_number;
@@ -35,10 +42,22 @@ class InvoicePdfData
         return $this->formatDate($this->invoice->issued_at ?? $this->invoice->created_at);
     }
 
+    public function issueDateLong(): string
+    {
+        return $this->formatDateLong($this->invoice->issued_at ?? $this->invoice->created_at);
+    }
+
     public function dueDate(): ?string
     {
         return $this->invoice->due_date
             ? $this->formatDate($this->invoice->due_date)
+            : null;
+    }
+
+    public function dueDateLong(): ?string
+    {
+        return $this->invoice->due_date
+            ? $this->formatDateLong($this->invoice->due_date)
             : null;
     }
 
@@ -50,6 +69,17 @@ class InvoicePdfData
             'cancelled' => 'ملغاة',
             'overdue' => 'متأخرة',
             default => $this->invoice->status,
+        };
+    }
+
+    public function statusLabelEn(): string
+    {
+        return match ($this->invoice->status) {
+            'paid' => 'Paid',
+            'pending' => 'Pending',
+            'cancelled' => 'Cancelled',
+            'overdue' => 'Overdue',
+            default => ucfirst((string) $this->invoice->status),
         };
     }
 
@@ -71,6 +101,17 @@ class InvoicePdfData
             'mock' => 'دفع تجريبي',
             'cash' => 'نقداً',
             'bank_transfer' => 'تحويل بنكي',
+            default => $this->invoice->payment_method ?: '—',
+        };
+    }
+
+    public function paymentMethodLabelEn(): string
+    {
+        return match ($this->invoice->payment_method) {
+            'noon' => 'Noon Pay',
+            'mock' => 'Test Payment',
+            'cash' => 'Cash',
+            'bank_transfer' => 'Bank Transfer',
             default => $this->invoice->payment_method ?: '—',
         };
     }
@@ -111,6 +152,15 @@ class InvoicePdfData
         return $this->formatDate($this->order->activity_date);
     }
 
+    public function activityDateLong(): ?string
+    {
+        if (! $this->order?->activity_date) {
+            return null;
+        }
+
+        return $this->formatDateLong($this->order->activity_date);
+    }
+
     public function address(): ?string
     {
         $address = $this->order?->address;
@@ -131,7 +181,7 @@ class InvoicePdfData
                 $total = (float) ($item['amount'] ?? ($unitPrice * $quantity * max(1, $duration ?? 1)));
 
                 return [
-                    'name' => $item['name'] ?? $item['product_name'] ?? 'منتج',
+                    'name' => $item['name'] ?? $item['product_name'] ?? 'Product',
                     'quantity' => $quantity,
                     'duration' => $duration,
                     'unit_price' => $unitPrice,
@@ -142,7 +192,7 @@ class InvoicePdfData
 
         if ($this->invoice->rental?->product) {
             $product = $this->invoice->rental->product;
-            $amount = (float) $this->invoice->amount;
+            $amount = round((float) $this->invoice->amount / 1.15, 2);
 
             return [[
                 'name' => $product->product_name,
@@ -153,15 +203,54 @@ class InvoicePdfData
             ]];
         }
 
-        $amount = (float) $this->invoice->amount;
+        $amount = round((float) $this->invoice->amount / 1.15, 2);
 
         return [[
-            'name' => 'خدمة عالم المغامرة',
+            'name' => 'Adventure World Service',
             'quantity' => 1,
             'duration' => null,
             'unit_price' => $amount,
             'total' => $amount,
         ]];
+    }
+
+    /**
+     * @return array<int, array{
+     *     name: string,
+     *     description: ?string,
+     *     quantity: int,
+     *     unit_price: float,
+     *     unit_price_incl_vat: float,
+     *     taxable_value: float,
+     *     vat_percent: string,
+     *     vat_amount: float,
+     *     total: float
+     * }>
+     */
+    public function lineItemRows(): array
+    {
+        return collect($this->lineItems())->map(function (array $item) {
+            $taxable = round((float) $item['total'], 2);
+            $vat = round($taxable * self::VAT_RATE, 2);
+            $unitEx = (float) $item['unit_price'];
+            $description = null;
+
+            if (! empty($item['duration']) && $item['duration'] > 1) {
+                $description = 'Rental duration: '.$item['duration'].' day(s)';
+            }
+
+            return [
+                'name' => $item['name'],
+                'description' => $description,
+                'quantity' => (int) $item['quantity'],
+                'unit_price' => $unitEx,
+                'unit_price_incl_vat' => round($unitEx * (1 + self::VAT_RATE), 4),
+                'taxable_value' => $taxable,
+                'vat_percent' => '15%',
+                'vat_amount' => $vat,
+                'total' => round($taxable + $vat, 2),
+            ];
+        })->all();
     }
 
     public function subtotal(): float
@@ -202,6 +291,100 @@ class InvoicePdfData
         return now()->format('Y-m-d H:i');
     }
 
+    public function formatMoney(float $amount, int $decimals = 2): string
+    {
+        return number_format($amount, $decimals);
+    }
+
+    public function formatSar(float $amount, int $decimals = 2): string
+    {
+        return 'SAR '.number_format($amount, $decimals);
+    }
+
+    public function companyLegalNameAr(): string
+    {
+        return 'شركة عالم المغامرة للترفيه';
+    }
+
+    public function companyLegalNameEn(): string
+    {
+        return 'Adventure World Entertainment Company';
+    }
+
+    public function companyAddress(): string
+    {
+        return 'Al Muruj - Riyadh - Saudi Arabia';
+    }
+
+    public function companyPhone(): string
+    {
+        return '0114101840 - 0559668015';
+    }
+
+    public function companyEmail(): string
+    {
+        return 'info@adventureksa.com';
+    }
+
+    public function companyWebsite(): string
+    {
+        return 'www.adventureksa.com';
+    }
+
+    public function bankName(): string
+    {
+        return 'Riyad Bank / بنك الرياض';
+    }
+
+    public function bankAccountNumber(): string
+    {
+        return '2022273529940';
+    }
+
+    public function bankIban(): string
+    {
+        return 'SA7820000002022273529940';
+    }
+
+    public function bankAccountName(): string
+    {
+        return $this->companyLegalNameEn();
+    }
+
+    public function vatNumber(): string
+    {
+        return '311691903100003';
+    }
+
+    public function commercialRegister(): string
+    {
+        return '10101292911191';
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    public function termsAndConditions(): array
+    {
+        $terms = [
+            'This is a Tax Invoice issued in accordance with ZATCA regulations.',
+            'VAT is calculated at 15% on the taxable value of the services.',
+            'Payment is due according to the due date stated on this invoice.',
+            'Please include the invoice number as a reference for bank transfers.',
+            'For any inquiries regarding this invoice, contact '.$this->companyEmail().'.',
+        ];
+
+        if ($this->invoice->status === 'paid') {
+            array_unshift($terms, 'Payment for this invoice has been received in full. Thank you.');
+        }
+
+        if ($this->notes()) {
+            $terms[] = $this->notes();
+        }
+
+        return $terms;
+    }
+
     private function formatDate(mixed $date): string
     {
         $carbon = $date instanceof Carbon ? $date : Carbon::parse($date);
@@ -209,8 +392,10 @@ class InvoicePdfData
         return $carbon->format('Y-m-d');
     }
 
-    public function formatMoney(float $amount): string
+    private function formatDateLong(mixed $date): string
     {
-        return number_format($amount, 2).' ر.س';
+        $carbon = $date instanceof Carbon ? $date : Carbon::parse($date);
+
+        return $carbon->format('d/F/Y');
     }
 }

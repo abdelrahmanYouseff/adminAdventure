@@ -2,9 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\CompanyClient;
+use App\Models\Order;
 use App\Models\Quotation;
 use App\Models\QuotationItem;
 use App\Models\Product;
+use App\Models\User;
 use App\Services\QuotationPdfService;
 use App\Support\QuotationPdfData;
 use Illuminate\Http\Request;
@@ -43,6 +46,207 @@ class QuotationController extends Controller
         return Inertia::render('Quotations/Create', [
             'products' => $products,
         ]);
+    }
+
+    /**
+     * Lookup customer details by phone for quotation autofill.
+     */
+    public function lookupCustomer(Request $request)
+    {
+        $validated = $request->validate([
+            'phone' => ['required', 'string', 'min:8', 'max:20'],
+        ]);
+
+        $variants = $this->phoneLookupVariants($validated['phone']);
+
+        if ($variants === []) {
+            return response()->json([
+                'success' => false,
+                'message' => 'رقم الجوال غير مكتمل.',
+                'customer' => null,
+            ]);
+        }
+
+        $companyClient = CompanyClient::query()
+            ->where(function ($query) use ($variants) {
+                foreach ($variants as $variant) {
+                    $query->orWhere('phone', $variant);
+                }
+            })
+            ->orderByDesc('updated_at')
+            ->first();
+
+        if ($companyClient) {
+            $displayName = $companyClient->company_name;
+            if ($companyClient->contact_name) {
+                $displayName = $companyClient->company_name.' — '.$companyClient->contact_name;
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'تم العثور على عميل شركة.',
+                'customer' => [
+                    'customer_name' => $displayName,
+                    'customer_email' => $companyClient->email,
+                    'customer_phone' => $this->normalizePhoneForForm($companyClient->phone ?: $validated['phone']),
+                    'customer_address' => $companyClient->address,
+                    'source' => 'company_client',
+                ],
+            ]);
+        }
+
+        $user = User::query()
+            ->where(function ($query) use ($variants) {
+                foreach ($variants as $variant) {
+                    $query->orWhere('phone', $variant);
+                }
+            })
+            ->orderByDesc('updated_at')
+            ->first();
+
+        if ($user) {
+            $latestQuotation = Quotation::query()
+                ->where(function ($query) use ($variants) {
+                    foreach ($variants as $variant) {
+                        $query->orWhere('customer_phone', $variant);
+                    }
+                })
+                ->whereNotNull('customer_address')
+                ->where('customer_address', '!=', '')
+                ->latest()
+                ->first();
+
+            $latestOrder = Order::query()
+                ->where(function ($query) use ($variants) {
+                    foreach ($variants as $variant) {
+                        $query->orWhere('customer_phone', $variant);
+                    }
+                })
+                ->whereNotNull('address')
+                ->where('address', '!=', '')
+                ->latest()
+                ->first();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'تم العثور على العميل.',
+                'customer' => [
+                    'customer_name' => $user->customer_name ?: ($latestQuotation?->customer_name ?? $latestOrder?->customer_name),
+                    'customer_email' => $user->email ?: ($latestQuotation?->customer_email ?? $latestOrder?->customer_email),
+                    'customer_phone' => $this->normalizePhoneForForm($user->phone ?: $validated['phone']),
+                    'customer_address' => $latestQuotation?->customer_address
+                        ?: $latestOrder?->address
+                        ?: null,
+                    'source' => 'user',
+                ],
+            ]);
+        }
+
+        $quotation = Quotation::query()
+            ->where(function ($query) use ($variants) {
+                foreach ($variants as $variant) {
+                    $query->orWhere('customer_phone', $variant);
+                }
+            })
+            ->latest()
+            ->first();
+
+        if ($quotation) {
+            return response()->json([
+                'success' => true,
+                'message' => 'تم العثور على بيانات من عرض سعر سابق.',
+                'customer' => [
+                    'customer_name' => $quotation->customer_name,
+                    'customer_email' => $quotation->customer_email,
+                    'customer_phone' => $this->normalizePhoneForForm($quotation->customer_phone),
+                    'customer_address' => $quotation->customer_address,
+                    'source' => 'quotation',
+                ],
+            ]);
+        }
+
+        $order = Order::query()
+            ->where(function ($query) use ($variants) {
+                foreach ($variants as $variant) {
+                    $query->orWhere('customer_phone', $variant);
+                }
+            })
+            ->latest()
+            ->first();
+
+        if ($order) {
+            return response()->json([
+                'success' => true,
+                'message' => 'تم العثور على بيانات من طلب سابق.',
+                'customer' => [
+                    'customer_name' => $order->customer_name,
+                    'customer_email' => $order->customer_email,
+                    'customer_phone' => $this->normalizePhoneForForm($order->customer_phone),
+                    'customer_address' => $order->address,
+                    'source' => 'order',
+                ],
+            ]);
+        }
+
+        return response()->json([
+            'success' => false,
+            'message' => 'لا يوجد عميل بهذا الرقم.',
+            'customer' => null,
+        ]);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function phoneLookupVariants(string $phone): array
+    {
+        $digits = preg_replace('/\D+/', '', $phone) ?? '';
+
+        if ($digits === '') {
+            return [];
+        }
+
+        if (str_starts_with($digits, '966')) {
+            $digits = substr($digits, 3);
+        }
+
+        if (str_starts_with($digits, '0')) {
+            $local = substr($digits, 1);
+        } else {
+            $local = $digits;
+        }
+
+        if ($local === '') {
+            return [];
+        }
+
+        $variants = [
+            $local,
+            '0'.$local,
+            '966'.$local,
+            '+966'.$local,
+        ];
+
+        return array_values(array_unique(array_filter($variants)));
+    }
+
+    private function normalizePhoneForForm(?string $phone): string
+    {
+        if (! $phone) {
+            return '';
+        }
+
+        $digits = preg_replace('/\D+/', '', $phone) ?? '';
+
+        if (str_starts_with($digits, '966')) {
+            $digits = substr($digits, 3);
+        }
+
+        if (str_starts_with($digits, '0')) {
+            $digits = substr($digits, 1);
+        }
+
+        return $digits;
     }
 
     /**
@@ -275,6 +479,6 @@ class QuotationController extends Controller
 
         $quotation->update(['status' => $request->status]);
 
-        return back()->with('success', 'Quotation status updated successfully.');
+        return back()->with('success', 'تم تحديث حالة عرض السعر بنجاح.');
     }
 }

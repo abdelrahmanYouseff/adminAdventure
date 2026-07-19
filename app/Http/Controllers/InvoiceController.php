@@ -47,7 +47,7 @@ class InvoiceController extends Controller
 
         return response($content, 200, [
             'Content-Type' => 'application/pdf',
-            'Content-Disposition' => 'attachment; filename="'.$filename.'"',
+            'Content-Disposition' => 'inline; filename="'.$filename.'"',
             'Content-Length' => (string) strlen($content),
             'Cache-Control' => 'private, max-age=0, must-revalidate',
         ]);

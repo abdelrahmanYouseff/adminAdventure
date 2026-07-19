@@ -12,7 +12,7 @@ class UserController extends Controller
     public function index()
     {
         $users = User::query()
-            ->whereIn('role', [User::ROLE_ADMIN, User::ROLE_WORKER])
+            ->whereIn('role', User::STAFF_ROLES)
             ->orderBy('created_at', 'desc')
             ->get();
 
@@ -33,7 +33,7 @@ class UserController extends Controller
             'phone'         => 'nullable|string|max:20|unique:users,phone',
             'country'       => 'nullable|string|max:100',
             'password'      => 'required|string|min:6|confirmed',
-            'role'          => 'required|in:'.User::ROLE_ADMIN.','.User::ROLE_WORKER,
+            'role'          => 'required|in:'.implode(',', User::STAFF_ROLES),
         ]);
 
         User::create([

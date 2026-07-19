@@ -19,21 +19,24 @@ class InvoicePdfService
         $mpdf = new Mpdf([
             'mode' => 'utf-8',
             'format' => 'A4',
-            'margin_left' => 12,
-            'margin_right' => 12,
-            'margin_top' => 12,
-            'margin_bottom' => 14,
+            'margin_left' => 14,
+            'margin_right' => 14,
+            'margin_top' => 14,
+            'margin_bottom' => 22,
             'margin_header' => 4,
-            'margin_footer' => 4,
-            'default_font' => 'xbriyaz',
-            'directionality' => 'rtl',
+            'margin_footer' => 8,
+            'default_font' => 'dejavusans',
+            'directionality' => 'ltr',
             'tempDir' => $tempDir,
             'autoScriptToLang' => true,
             'autoLangToFont' => true,
             'useSubstitutions' => true,
         ]);
 
-        $mpdf->SetTitle('فاتورة '.$data->invoiceNumber());
+        $mpdf->SetTitle('Tax Invoice '.$data->invoiceNumber());
+
+        $footerHtml = View::make('invoice-pdf-footer', ['data' => $data])->render();
+        $mpdf->SetHTMLFooter($footerHtml);
 
         $html = View::make('invoice-pdf', ['data' => $data])->render();
         $mpdf->WriteHTML($html);

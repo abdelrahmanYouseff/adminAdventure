@@ -38,11 +38,9 @@ class AuthenticatedSessionController extends Controller
             return redirect($redirect);
         }
 
-        if ($request->user()?->isWorker()) {
-            return redirect()->intended(route('worker-orders.index', absolute: false));
-        }
+        $user = $request->user();
 
-        return redirect()->intended(route('dashboard', absolute: false));
+        return redirect()->intended(route($user?->homeRouteName() ?? 'dashboard', absolute: false));
     }
 
     /**

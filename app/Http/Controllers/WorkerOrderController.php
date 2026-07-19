@@ -36,8 +36,8 @@ class WorkerOrderController extends Controller
         $order->load([
             'invoice:id,invoice_number',
             'workerOrders' => fn ($query) => $query->orderBy('line_index'),
-            'workerOrders.completedByUser:id,name,customer_name',
-            'workerOrders.pickupByUser:id,name,customer_name',
+            'workerOrders.completedByUser:id,customer_name',
+            'workerOrders.pickupByUser:id,customer_name',
             'workerAssemblers' => fn ($query) => $query->latest(),
             'workerNotes' => fn ($query) => $query->latest(),
             'workerNotes.user:id,customer_name,role',
@@ -380,7 +380,7 @@ class WorkerOrderController extends Controller
                     'id' => $note->id,
                     'body' => $note->body,
                     'user_name' => $note->user?->name ?: 'مستخدم',
-                    'user_role' => $note->user?->role === 'admin' ? 'مسؤول' : ($note->user?->role === 'worker' ? 'عامل' : 'مستخدم'),
+                    'user_role' => $note->user?->roleLabel() ?? 'مستخدم',
                     'created_at' => $note->created_at?->toIso8601String(),
                 ])
                 ->values()

@@ -42,12 +42,18 @@ class InvoicePdfDataTest extends TestCase
         $data = new InvoicePdfData($invoice, $order);
 
         $this->assertSame('مدفوعة', $data->statusLabel());
+        $this->assertSame('Paid', $data->statusLabelEn());
         $this->assertSame('نون باي', $data->paymentMethodLabel());
+        $this->assertSame('Noon Pay', $data->paymentMethodLabelEn());
         $this->assertSame('أحمد محمد', $data->customerName());
         $this->assertCount(1, $data->lineItems());
         $this->assertSame('لعبة مسار البولينج', $data->lineItems()[0]['name']);
         $this->assertSame(1000.0, $data->subtotal());
         $this->assertSame(150.0, $data->vatAmount());
         $this->assertSame(1150.0, $data->total());
+        $this->assertCount(1, $data->lineItemRows());
+        $this->assertSame(150.0, $data->lineItemRows()[0]['vat_amount']);
+        $this->assertSame(1150.0, $data->lineItemRows()[0]['total']);
+        $this->assertSame('SAR 1,150.00', $data->formatSar($data->total()));
     }
 }

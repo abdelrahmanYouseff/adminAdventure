@@ -4,8 +4,9 @@ import AppLayout from '@/layouts/AppLayout.vue';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Users, Mail, Phone, MapPin, Globe, Trash2, Plus, X, Eye, EyeOff } from 'lucide-vue-next';
+import { Users, Mail, Phone, Globe, Trash2, Plus, X, Eye, EyeOff } from 'lucide-vue-next';
 import { formatDate, formatInteger } from '@/lib/formatNumber';
+import type { StaffRole } from '@/types';
 import { ref } from 'vue';
 
 interface User {
@@ -15,13 +16,22 @@ interface User {
     phone: string | null;
     country: string | null;
     address: string | null;
-    role: 'admin' | 'worker';
+    role: StaffRole;
     created_at: string;
 }
 
-const roleLabels: Record<User['role'], string> = {
-    admin: 'مسؤول',
+const roleLabels: Record<StaffRole, string> = {
+    admin: 'ادمن',
+    manager: 'مسئول',
+    accounts: 'حسابات',
     worker: 'عامل',
+};
+
+const roleBadgeClass: Record<StaffRole, string> = {
+    admin: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
+    manager: 'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300',
+    accounts: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300',
+    worker: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',
 };
 
 interface Props {
@@ -41,7 +51,7 @@ const form = useForm({
     email:                  '',
     phone:                  '',
     country:                '',
-    role:                   'worker' as 'admin' | 'worker',
+    role:                   'worker' as StaffRole,
     password:               '',
     password_confirmation:  '',
 });
@@ -137,9 +147,7 @@ const deleteUser = (user: User) => {
                                     <td class="border border-neutral-200 dark:border-neutral-600 px-4 py-3">
                                         <span
                                             class="inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium"
-                                            :class="user.role === 'admin'
-                                                ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
-                                                : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'"
+                                            :class="roleBadgeClass[user.role]"
                                         >
                                             {{ roleLabels[user.role] }}
                                         </span>
@@ -259,8 +267,10 @@ const deleteUser = (user: User) => {
                             class="flex h-10 w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm ring-offset-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-950 focus-visible:ring-offset-2 dark:border-neutral-700 dark:bg-neutral-900 dark:ring-offset-neutral-950 dark:focus-visible:ring-neutral-300"
                             :class="{ 'border-red-500': form.errors.role }"
                         >
+                            <option value="admin">ادمن</option>
+                            <option value="manager">مسئول</option>
+                            <option value="accounts">حسابات</option>
                             <option value="worker">عامل</option>
-                            <option value="admin">مسؤول</option>
                         </select>
                         <p v-if="form.errors.role" class="text-xs text-red-500">{{ form.errors.role }}</p>
                     </div>

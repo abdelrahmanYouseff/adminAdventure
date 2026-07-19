@@ -58,7 +58,11 @@ const form = useForm({
     customer_email: '',
     customer_phone: '',
     customer_address: '',
-    valid_until: '',
+    valid_until: (() => {
+        const date = new Date();
+        date.setDate(date.getDate() + 7);
+        return date.toISOString().slice(0, 10);
+    })(),
     notes: '',
     items: [] as QuotationItem[],
 });
@@ -66,6 +70,10 @@ const form = useForm({
 const selectedProductId = ref<number | null>(null);
 const selectedQuantity = ref(1);
 const selectedUnitPrice = ref(0);
+const customerLookupStatus = ref<'idle' | 'loading' | 'found' | 'not_found'>('idle');
+const customerLookupMessage = ref('');
+let phoneLookupTimer: ReturnType<typeof setTimeout> | null = null;
+let phoneLookupRequestId = 0;
 
 const subtotal = computed(() => {
     return form.items.reduce((sum, item) => sum + (parseFloat(String(item.total_price)) || 0), 0);
@@ -112,6 +120,70 @@ const submit = () => {
     form.post(route('quotations.store'));
 };
 
+function digitsOnly(value: string): string {
+    return value.replace(/\D+/g, '');
+}
+
+function isLookupReady(phone: string): boolean {
+    const digits = digitsOnly(phone);
+    // 5XXXXXXXX (9) or 05XXXXXXXX (10)
+    return digits.length >= 9;
+}
+
+async function lookupCustomerByPhone(phone: string) {
+    const requestId = ++phoneLookupRequestId;
+    customerLookupStatus.value = 'loading';
+    customerLookupMessage.value = 'جاري البحث عن العميل...';
+
+    try {
+        const response = await fetch(
+            `${route('quotations.lookup-customer')}?phone=${encodeURIComponent(phone)}`,
+            {
+                headers: {
+                    Accept: 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                credentials: 'same-origin',
+            },
+        );
+
+        if (requestId !== phoneLookupRequestId) {
+            return;
+        }
+
+        const data = await response.json();
+
+        if (!data?.success || !data.customer) {
+            customerLookupStatus.value = 'not_found';
+            customerLookupMessage.value = data?.message || 'لا يوجد عميل بهذا الرقم.';
+            return;
+        }
+
+        const customer = data.customer;
+        if (customer.customer_name) {
+            form.customer_name = customer.customer_name;
+        }
+        if (customer.customer_email) {
+            form.customer_email = customer.customer_email;
+        }
+        if (customer.customer_phone) {
+            form.customer_phone = customer.customer_phone;
+        }
+        if (customer.customer_address) {
+            form.customer_address = customer.customer_address;
+        }
+
+        customerLookupStatus.value = 'found';
+        customerLookupMessage.value = data.message || 'تم تعبئة بيانات العميل تلقائياً.';
+    } catch {
+        if (requestId !== phoneLookupRequestId) {
+            return;
+        }
+        customerLookupStatus.value = 'not_found';
+        customerLookupMessage.value = 'تعذر البحث عن العميل الآن.';
+    }
+}
+
 watch(selectedProductId, (newValue) => {
     if (newValue != null) {
         const product = props.products.find(p => p.id === newValue);
@@ -120,6 +192,27 @@ watch(selectedProductId, (newValue) => {
         }
     }
 });
+
+watch(
+    () => form.customer_phone,
+    (phone) => {
+        if (phoneLookupTimer) {
+            clearTimeout(phoneLookupTimer);
+            phoneLookupTimer = null;
+        }
+
+        const trimmed = (phone || '').trim();
+        if (!isLookupReady(trimmed)) {
+            customerLookupStatus.value = 'idle';
+            customerLookupMessage.value = '';
+            return;
+        }
+
+        phoneLookupTimer = setTimeout(() => {
+            lookupCustomerByPhone(trimmed);
+        }, 450);
+    },
+);
 </script>
 
 <template>
@@ -177,6 +270,49 @@ watch(selectedProductId, (newValue) => {
                         <div class="space-y-5 p-5 sm:p-6">
                             <div class="grid gap-4 sm:grid-cols-2">
                                 <div class="space-y-2 sm:col-span-2">
+                                    <Label for="customer_phone" class="flex items-center gap-1.5">
+                                        <Phone class="h-3.5 w-3.5 text-muted-foreground" />
+                                        رقم الجوال
+                                        <span class="text-red-500">*</span>
+                                    </Label>
+                                    <div class="flex h-11 overflow-hidden rounded-xl border border-input bg-background" dir="ltr">
+                                        <span class="flex shrink-0 items-center border-e border-input bg-muted/50 px-3 text-sm font-medium text-muted-foreground">
+                                            +966
+                                        </span>
+                                        <Input
+                                            id="customer_phone"
+                                            v-model="form.customer_phone"
+                                            type="tel"
+                                            inputmode="numeric"
+                                            placeholder="5XXXXXXXX"
+                                            class="h-full border-0 shadow-none focus-visible:ring-0"
+                                            required
+                                        />
+                                    </div>
+                                    <p
+                                        v-if="customerLookupStatus === 'loading'"
+                                        class="text-xs text-muted-foreground"
+                                    >
+                                        {{ customerLookupMessage }}
+                                    </p>
+                                    <p
+                                        v-else-if="customerLookupStatus === 'found'"
+                                        class="text-xs font-medium text-emerald-600 dark:text-emerald-400"
+                                    >
+                                        {{ customerLookupMessage }}
+                                    </p>
+                                    <p
+                                        v-else-if="customerLookupStatus === 'not_found'"
+                                        class="text-xs text-amber-600 dark:text-amber-400"
+                                    >
+                                        {{ customerLookupMessage }} يمكنك إدخال البيانات يدوياً.
+                                    </p>
+                                    <p v-else class="text-xs text-muted-foreground">
+                                        اكتب رقم الجوال وسيتم تعبئة البيانات تلقائياً من عملاء الشركات أو العملاء إن وُجد.
+                                    </p>
+                                </div>
+
+                                <div class="space-y-2 sm:col-span-2">
                                     <Label for="customer_name" class="flex items-center gap-1.5">
                                         <User class="h-3.5 w-3.5 text-muted-foreground" />
                                         اسم العميل
@@ -207,26 +343,6 @@ watch(selectedProductId, (newValue) => {
                                 </div>
 
                                 <div class="space-y-2">
-                                    <Label for="customer_phone" class="flex items-center gap-1.5">
-                                        <Phone class="h-3.5 w-3.5 text-muted-foreground" />
-                                        رقم الجوال
-                                    </Label>
-                                    <div class="flex h-11 overflow-hidden rounded-xl border border-input bg-background" dir="ltr">
-                                        <span class="flex shrink-0 items-center border-e border-input bg-muted/50 px-3 text-sm font-medium text-muted-foreground">
-                                            +966
-                                        </span>
-                                        <Input
-                                            id="customer_phone"
-                                            v-model="form.customer_phone"
-                                            type="tel"
-                                            inputmode="numeric"
-                                            placeholder="5XXXXXXXX"
-                                            class="h-full border-0 shadow-none focus-visible:ring-0"
-                                        />
-                                    </div>
-                                </div>
-
-                                <div class="space-y-2 sm:col-span-2">
                                     <Label for="valid_until" class="flex items-center gap-1.5">
                                         <Calendar class="h-3.5 w-3.5 text-muted-foreground" />
                                         صالح حتى

@@ -11,7 +11,19 @@ class User extends Authenticatable
 {
     public const ROLE_ADMIN = 'admin';
 
+    public const ROLE_MANAGER = 'manager';
+
+    public const ROLE_ACCOUNTS = 'accounts';
+
     public const ROLE_WORKER = 'worker';
+
+    /** @var list<string> */
+    public const STAFF_ROLES = [
+        self::ROLE_ADMIN,
+        self::ROLE_MANAGER,
+        self::ROLE_ACCOUNTS,
+        self::ROLE_WORKER,
+    ];
 
     /** @use HasFactory<\Database\Factories\UserFactory> */
     use HasFactory, Notifiable;
@@ -112,20 +124,58 @@ class User extends Authenticatable
         return $this->role === self::ROLE_ADMIN;
     }
 
+    public function isManager(): bool
+    {
+        return $this->role === self::ROLE_MANAGER;
+    }
+
+    public function isAccounts(): bool
+    {
+        return $this->role === self::ROLE_ACCOUNTS;
+    }
+
     public function isWorker(): bool
     {
         return $this->role === self::ROLE_WORKER;
     }
 
+    public function isStaff(): bool
+    {
+        return in_array($this->role, self::STAFF_ROLES, true);
+    }
+
+    /**
+     * Staff users who may log into the dashboard panel.
+     */
     public function canAccessDashboard(): bool
     {
-        return $this->isAdmin() || $this->isWorker();
+        return $this->isStaff();
+    }
+
+    public function hasAnyRole(string ...$roles): bool
+    {
+        return in_array($this->role, $roles, true);
+    }
+
+    /**
+     * Named route for post-login / unauthorized redirects.
+     */
+    public function homeRouteName(): string
+    {
+        return match ($this->role) {
+            self::ROLE_WORKER => 'worker-orders.index',
+            self::ROLE_ACCOUNTS => 'quotations.index',
+            self::ROLE_MANAGER, self::ROLE_ADMIN => 'dashboard',
+            default => 'home',
+        };
     }
 
     public function roleLabel(): string
     {
         return match ($this->role) {
-            self::ROLE_ADMIN => 'مسؤول',
+            self::ROLE_ADMIN => 'ادمن',
+            self::ROLE_MANAGER => 'مسئول',
+            self::ROLE_ACCOUNTS => 'حسابات',
             self::ROLE_WORKER => 'عامل',
             default => 'عميل',
         };
