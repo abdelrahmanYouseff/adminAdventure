@@ -65,6 +65,43 @@ function goToStore(path: string) {
     });
 }
 
+const APP_STORE_URL = '';
+const GOOGLE_PLAY_URL = 'https://play.google.com/store/apps/details?id=com.adventure.adventureWorldApp';
+
+async function trackAppDownload(platform: 'ios' | 'android', url: string) {
+    try {
+        const csrf = (page.props as { csrf_token?: string }).csrf_token;
+        await fetch(route('track.app-download'), {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                Accept: 'application/json',
+                'X-CSRF-TOKEN': csrf || '',
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+            credentials: 'same-origin',
+            body: JSON.stringify({ platform }),
+            keepalive: true,
+        });
+    } catch {
+        // لا نمنع فتح المتجر إذا فشل التتبع
+    }
+
+    if (url) {
+        window.open(url, '_blank', 'noopener,noreferrer');
+    }
+}
+
+function onIosDownloadClick(event: MouseEvent) {
+    event.preventDefault();
+    void trackAppDownload('ios', APP_STORE_URL);
+}
+
+function onAndroidDownloadClick(event: MouseEvent) {
+    event.preventDefault();
+    void trackAppDownload('android', GOOGLE_PLAY_URL);
+}
+
 onMounted(() => {
     syncFromStorage();
 
@@ -518,6 +555,7 @@ const features = [
                             <a
                                 href="#"
                                 class="flex min-h-11 items-center justify-center gap-3 rounded-lg border border-neutral-600 bg-neutral-800/80 px-4 py-3 transition hover:border-neutral-500 hover:bg-neutral-800 sm:min-h-0 sm:flex-1 sm:justify-start sm:px-5"
+                                @click="onIosDownloadClick"
                             >
                                 <svg class="h-7 w-7 text-white" viewBox="0 0 24 24" fill="currentColor">
                                     <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z" />
@@ -529,10 +567,11 @@ const features = [
                             </a>
 
                             <a
-                                href="https://play.google.com/store/apps/details?id=com.adventure.adventureWorldApp"
+                                :href="GOOGLE_PLAY_URL"
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 class="flex min-h-11 items-center justify-center gap-3 rounded-lg border border-neutral-600 bg-neutral-800/80 px-4 py-3 transition hover:border-neutral-500 hover:bg-neutral-800 sm:min-h-0 sm:flex-1 sm:justify-start sm:px-5"
+                                @click="onAndroidDownloadClick"
                             >
                                 <svg class="h-7 w-7" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                                     <path d="M3.18 23.76a2 2 0 0 0 2.07-.22l11.2-6.48L13 13.6z" fill="#EA4335" />

@@ -19,6 +19,9 @@ Route::get('/', function () {
     return redirect()->route('home');
 });
 
+Route::post('track/app-download', [\App\Http\Controllers\AppDownloadClickController::class, 'store'])
+    ->name('track.app-download');
+
 Route::get('/home', function (Request $request) {
     $products   = \App\Models\Product::with('category')->where('status', 'active')->orderBy('created_at', 'desc')->get();
     $categories = \App\Models\Category::orderBy('category_name')->get();
@@ -156,6 +159,10 @@ Route::get('users', [\App\Http\Controllers\UserController::class, 'index'])
 Route::post('users', [\App\Http\Controllers\UserController::class, 'store'])
     ->middleware(['auth', 'verified', 'admin'])
     ->name('users.store');
+
+Route::put('users/{user}', [\App\Http\Controllers\UserController::class, 'update'])
+    ->middleware(['auth', 'verified', 'admin'])
+    ->name('users.update');
 
 Route::delete('users/{user}', [\App\Http\Controllers\UserController::class, 'destroy'])
     ->middleware(['auth', 'verified', 'admin'])

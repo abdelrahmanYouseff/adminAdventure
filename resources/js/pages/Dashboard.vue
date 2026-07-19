@@ -2,7 +2,7 @@
 import AppLayout from '@/layouts/AppLayout.vue';
 import { type BreadcrumbItem } from '@/types';
 import { Head, Link, usePage } from '@inertiajs/vue3';
-import { Package, FileText, Box, MessageCircle, ArrowLeft, FileSpreadsheet, Globe, Users } from 'lucide-vue-next';
+import { Package, FileText, Box, MessageCircle, ArrowLeft, FileSpreadsheet, Globe, Users, Smartphone } from 'lucide-vue-next';
 import { formatInteger } from '@/lib/formatNumber';
 import { computed } from 'vue';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -12,6 +12,13 @@ interface VisitorStats {
     unique_visitors: number;
     today_visits: number;
     today_unique_visitors: number;
+}
+
+interface AppDownloadStats {
+    ios: number;
+    android: number;
+    ios_today: number;
+    android_today: number;
 }
 
 interface CountryVisitorRow {
@@ -38,6 +45,12 @@ const visitorStats = computed(() => (page.props.visitorStats as VisitorStats | u
     unique_visitors: 0,
     today_visits: 0,
     today_unique_visitors: 0,
+});
+const appDownloadStats = computed(() => (page.props.appDownloadStats as AppDownloadStats | undefined) ?? {
+    ios: 0,
+    android: 0,
+    ios_today: 0,
+    android_today: 0,
 });
 const visitorsByCountry = computed(() => (page.props.visitorsByCountry as CountryVisitorRow[] | undefined) ?? []);
 
@@ -111,6 +124,40 @@ const stats = computed(() => [
                         </div>
                     </div>
                 </Link>
+            </div>
+
+            <div class="min-w-0 rounded-2xl border border-gray-100 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800 sm:p-6 sm:shadow-lg">
+                <div class="mb-4 flex flex-col gap-3 sm:mb-5 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                        <h2 class="flex items-center gap-2 text-lg font-semibold text-gray-900 dark:text-white sm:text-xl">
+                            <Smartphone class="h-5 w-5" />
+                            نقرات تحميل التطبيق
+                        </h2>
+                        <p class="mt-1 text-sm text-gray-600 dark:text-gray-400">
+                            عدد الضغطات على روابط التحميل من الصفحة الرئيسية
+                        </p>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <div class="rounded-xl border border-gray-100 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-900/40">
+                        <p class="text-sm font-medium text-gray-600 dark:text-gray-400">App Store (آيفون)</p>
+                        <p class="mt-2 text-3xl font-bold tabular-nums text-gray-900 dark:text-white">
+                            {{ formatInteger(appDownloadStats.ios) }}
+                        </p>
+                        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                            اليوم: {{ formatInteger(appDownloadStats.ios_today) }}
+                        </p>
+                    </div>
+                    <div class="rounded-xl border border-gray-100 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-900/40">
+                        <p class="text-sm font-medium text-gray-600 dark:text-gray-400">Google Play (أندرويد)</p>
+                        <p class="mt-2 text-3xl font-bold tabular-nums text-gray-900 dark:text-white">
+                            {{ formatInteger(appDownloadStats.android) }}
+                        </p>
+                        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                            اليوم: {{ formatInteger(appDownloadStats.android_today) }}
+                        </p>
+                    </div>
+                </div>
             </div>
 
             <div class="min-w-0 rounded-2xl border border-gray-100 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800 sm:p-6 sm:shadow-lg">

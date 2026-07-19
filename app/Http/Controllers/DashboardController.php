@@ -7,6 +7,7 @@ use App\Models\Invoice;
 use App\Models\Package;
 use App\Models\Quotation;
 use App\Models\User;
+use App\Models\AppDownloadClick;
 use App\Services\SiteVisitService;
 use Inertia\Inertia;
 
@@ -32,6 +33,22 @@ class DashboardController extends Controller
             'totalQuotations' => $totalQuotations,
             'visitorStats' => $siteVisitService->summaryStats(),
             'visitorsByCountry' => $siteVisitService->visitorsByCountry(),
+            'appDownloadStats' => [
+                'ios' => AppDownloadClick::query()
+                    ->where('platform', AppDownloadClick::PLATFORM_IOS)
+                    ->count(),
+                'android' => AppDownloadClick::query()
+                    ->where('platform', AppDownloadClick::PLATFORM_ANDROID)
+                    ->count(),
+                'ios_today' => AppDownloadClick::query()
+                    ->where('platform', AppDownloadClick::PLATFORM_IOS)
+                    ->whereDate('clicked_at', today())
+                    ->count(),
+                'android_today' => AppDownloadClick::query()
+                    ->where('platform', AppDownloadClick::PLATFORM_ANDROID)
+                    ->whereDate('clicked_at', today())
+                    ->count(),
+            ],
         ]);
     }
 }
