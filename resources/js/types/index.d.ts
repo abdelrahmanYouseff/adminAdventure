@@ -17,7 +17,7 @@ export interface NavItem {
     isActive?: boolean;
 }
 
-export type StaffRole = 'admin' | 'manager' | 'accounts' | 'worker';
+export type StaffRole = 'admin' | 'manager' | 'accounts' | 'workers_manager' | 'worker';
 
 export type AppPageProps<T extends Record<string, unknown> = Record<string, unknown>> = T & {
     name: string;

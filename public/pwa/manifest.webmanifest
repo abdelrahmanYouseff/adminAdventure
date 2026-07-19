@@ -1,0 +1,27 @@
+{
+  "name": "عمال عالم المغامرة",
+  "short_name": "عمال المغامرة",
+  "description": "تطبيق أوامر العمل لعمال عالم المغامرة",
+  "start_url": "/worker-app",
+  "scope": "/worker-app",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f5f7fb",
+  "theme_color": "#f5f7fb",
+  "lang": "ar",
+  "dir": "rtl",
+  "icons": [
+    {
+      "src": "/assets/logo.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/assets/logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

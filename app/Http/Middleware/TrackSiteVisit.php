@@ -22,6 +22,7 @@ class TrackSiteVisit
         'orders',
         'worker-orders',
         'settings',
+        'worker-app',
         'login',
         'register',
         'forgot-password',

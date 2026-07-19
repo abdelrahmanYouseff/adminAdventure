@@ -22,6 +22,34 @@ Route::get('/', function () {
 Route::post('track/app-download', [\App\Http\Controllers\AppDownloadClickController::class, 'store'])
     ->name('track.app-download');
 
+/*
+|--------------------------------------------------------------------------
+| Worker PWA
+|--------------------------------------------------------------------------
+*/
+Route::middleware(['pwa'])->prefix('worker-app')->name('pwa.')->group(function () {
+    Route::get('login', [\App\Http\Controllers\Pwa\WorkerAuthController::class, 'create'])
+        ->name('login');
+    Route::post('login', [\App\Http\Controllers\Pwa\WorkerAuthController::class, 'store'])
+        ->middleware('throttle:10,1')
+        ->name('login.store');
+
+    Route::middleware(['auth', 'worker'])->group(function () {
+        Route::get('/', \App\Http\Controllers\Pwa\WorkerDashboardController::class)
+            ->name('dashboard');
+        Route::get('history', \App\Http\Controllers\Pwa\WorkerHistoryController::class)
+            ->name('history');
+        Route::get('installations/{order}', [\App\Http\Controllers\Pwa\WorkerInstallationController::class, 'show'])
+            ->name('installations.show');
+        Route::post('installations/lines/{workerOrder}/complete', [\App\Http\Controllers\Pwa\WorkerInstallationController::class, 'complete'])
+            ->name('installations.complete');
+        Route::post('installations/lines/{workerOrder}/pickup', [\App\Http\Controllers\Pwa\WorkerInstallationController::class, 'pickup'])
+            ->name('installations.pickup');
+        Route::post('logout', [\App\Http\Controllers\Pwa\WorkerAuthController::class, 'destroy'])
+            ->name('logout');
+    });
+});
+
 Route::get('/home', function (Request $request) {
     $products   = \App\Models\Product::with('category')->where('status', 'active')->orderBy('created_at', 'desc')->get();
     $categories = \App\Models\Category::orderBy('category_name')->get();
@@ -233,44 +261,44 @@ Route::delete('orders/{order}', [OrderController::class, 'destroy'])
     ->name('orders.destroy');
 
 Route::get('worker-orders', [\App\Http\Controllers\WorkerOrderController::class, 'index'])
-    ->middleware(['auth', 'verified', 'role:admin,manager,worker'])
+    ->middleware(['auth', 'verified', 'role:admin,manager,workers_manager,worker'])
     ->name('worker-orders.index');
 
 Route::get('worker-orders/{workOrderKey}/delivery-note', [\App\Http\Controllers\WorkerOrderController::class, 'deliveryNote'])
-    ->middleware(['auth', 'verified', 'role:admin,manager,worker'])
+    ->middleware(['auth', 'verified', 'role:admin,manager,workers_manager,worker'])
     ->where('workOrderKey', '[A-Za-z0-9\-_/]+')
     ->name('worker-orders.delivery-note');
 
 Route::get('worker-orders/{workOrderKey}', [\App\Http\Controllers\WorkerOrderController::class, 'show'])
-    ->middleware(['auth', 'verified', 'role:admin,manager,worker'])
+    ->middleware(['auth', 'verified', 'role:admin,manager,workers_manager,worker'])
     ->where('workOrderKey', '[A-Za-z0-9\-_/]+')
     ->name('worker-orders.show');
 
 Route::post('worker-orders/lines/{workerOrder}/complete', [\App\Http\Controllers\WorkerOrderController::class, 'complete'])
-    ->middleware(['auth', 'verified', 'role:admin,manager,worker'])
+    ->middleware(['auth', 'verified', 'role:admin,manager,workers_manager,worker'])
     ->name('worker-orders.complete');
 
 Route::post('worker-orders/lines/{workerOrder}/pickup', [\App\Http\Controllers\WorkerOrderController::class, 'completePickup'])
-    ->middleware(['auth', 'verified', 'role:admin,manager,worker'])
+    ->middleware(['auth', 'verified', 'role:admin,manager,workers_manager,worker'])
     ->name('worker-orders.pickup');
 
 Route::post('worker-orders/{workOrderKey}/assemblers', [\App\Http\Controllers\WorkerOrderController::class, 'storeAssembler'])
-    ->middleware(['auth', 'verified', 'role:admin,manager,worker'])
+    ->middleware(['auth', 'verified', 'role:admin,manager,workers_manager,worker'])
     ->where('workOrderKey', '[A-Za-z0-9\-_/]+')
     ->name('worker-orders.assemblers.store');
 
 Route::delete('worker-orders/{workOrderKey}/assemblers/{assembler}', [\App\Http\Controllers\WorkerOrderController::class, 'destroyAssembler'])
-    ->middleware(['auth', 'verified', 'role:admin,manager,worker'])
+    ->middleware(['auth', 'verified', 'role:admin,manager,workers_manager,worker'])
     ->where('workOrderKey', '[A-Za-z0-9\-_/]+')
     ->name('worker-orders.assemblers.destroy');
 
 Route::post('worker-orders/{workOrderKey}/notes', [\App\Http\Controllers\WorkerOrderController::class, 'storeNote'])
-    ->middleware(['auth', 'verified', 'role:admin,manager,worker'])
+    ->middleware(['auth', 'verified', 'role:admin,manager,workers_manager,worker'])
     ->where('workOrderKey', '[A-Za-z0-9\-_/]+')
     ->name('worker-orders.notes.store');
 
 Route::delete('worker-orders/{workOrderKey}/notes/{note}', [\App\Http\Controllers\WorkerOrderController::class, 'destroyNote'])
-    ->middleware(['auth', 'verified', 'role:admin,manager,worker'])
+    ->middleware(['auth', 'verified', 'role:admin,manager,workers_manager,worker'])
     ->where('workOrderKey', '[A-Za-z0-9\-_/]+')
     ->name('worker-orders.notes.destroy');
 

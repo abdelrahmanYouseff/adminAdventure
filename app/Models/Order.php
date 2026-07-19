@@ -88,6 +88,35 @@ class Order extends Model
         return $this->hasMany(WorkerOrderNote::class);
     }
 
+    public function scopeAssignedToWorker($query, User $user)
+    {
+        $workerId = (int) $user->id;
+        $workerName = (string) $user->name;
+
+        return $query->whereHas('workerAssemblers', function ($q) use ($workerId, $workerName) {
+            $q->where(function ($inner) use ($workerId, $workerName) {
+                $inner->where('user_id', $workerId);
+
+                if ($workerName !== '') {
+                    $inner->orWhere('worker_name', $workerName);
+                }
+            });
+        });
+    }
+
+    public function isAssignedToWorker(User $user): bool
+    {
+        return $this->workerAssemblers()
+            ->where(function ($query) use ($user) {
+                $query->where('user_id', $user->id);
+
+                if ($user->name !== '') {
+                    $query->orWhere('worker_name', $user->name);
+                }
+            })
+            ->exists();
+    }
+
     /**
      * Generate a unique order number.
      */

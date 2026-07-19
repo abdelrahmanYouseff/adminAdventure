@@ -59,7 +59,15 @@ interface WorkOrderLine {
 interface WorkOrderAssembler {
     id: number;
     worker_name: string;
+    user_id?: number | null;
     created_at: string | null;
+}
+
+interface AvailableWorker {
+    id: number;
+    name: string;
+    phone: string | null;
+    email: string | null;
 }
 
 interface WorkOrderNote {
@@ -115,14 +123,21 @@ interface WorkOrder {
 
 interface Props {
     workOrder: WorkOrder;
+    availableWorkers?: AvailableWorker[];
 }
 
-const props = defineProps<Props>();
+const props = withDefaults(defineProps<Props>(), {
+    availableWorkers: () => [],
+});
 
 defineOptions({ layout: AppLayout });
 
 const page = usePage();
 const successMessage = computed(() => page.props.flash?.success as string | undefined);
+const authRole = computed(() => (page.props.auth as { user?: { role?: string } } | undefined)?.user?.role ?? null);
+const canAssignWorkers = computed(() =>
+    ['admin', 'manager', 'workers_manager'].includes(authRole.value || ''),
+);
 
 const activeTab = ref<TabKey>('overview');
 const lightboxUrl = ref<string | null>(null);
@@ -200,7 +215,7 @@ const pickupForm = useForm({
 
 const assemblerFormOpen = ref(false);
 const deletingAssemblerId = ref<number | null>(null);
-const assemblerForm = useForm({ worker_name: '' });
+const assemblerForm = useForm({ user_id: '' as string | number });
 const deletingNoteId = ref<number | null>(null);
 const noteForm = useForm({ body: '' });
 
@@ -210,6 +225,19 @@ const assemblerStoreUrl = computed(
 const noteStoreUrl = computed(
     () => `/worker-orders/${encodeURIComponent(props.workOrder.reference_number)}/notes`,
 );
+
+const selectableWorkers = computed(() => {
+    const assignedIds = new Set(
+        assemblers.value
+            .map((a) => a.user_id)
+            .filter((id): id is number => typeof id === 'number'),
+    );
+    const assignedNames = new Set(assemblers.value.map((a) => a.worker_name));
+
+    return props.availableWorkers.filter(
+        (worker) => !assignedIds.has(worker.id) && !assignedNames.has(worker.name),
+    );
+});
 
 function percent(done: number, total: number): number {
     if (!total) return 0;
@@ -517,6 +545,87 @@ watch(pickupDialogOpen, (isOpen) => { if (!isOpen) closePickupDialog(); });
                         {{ pickupProgress.done }}/{{ pickupProgress.total || installProgress.total }} تم استلامها
                     </p>
                 </article>
+            </section>
+
+            <!-- Assign installation worker (workers_manager / admin / manager) -->
+            <section
+                v-if="canAssignWorkers"
+                class="rounded-2xl bg-white p-5 shadow-[0_8px_30px_rgb(15,23,42,0.05)] sm:p-6"
+            >
+                <div class="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                        <h2 class="text-lg font-bold text-slate-900">تعيين عامل التركيب</h2>
+                        <p class="mt-1 text-sm text-slate-500">اختر العامل المطلوب من قائمة العمال المسجلين</p>
+                    </div>
+                    <Button
+                        v-if="!assemblerFormOpen"
+                        size="sm"
+                        class="h-10 rounded-xl bg-[#2563EB] hover:bg-[#1D4ED8]"
+                        @click="openAssemblerForm"
+                    >
+                        <Plus class="ms-1.5 h-4 w-4" />
+                        تعيين عامل
+                    </Button>
+                </div>
+
+                <div
+                    v-if="assemblerFormOpen"
+                    class="mt-4 flex flex-col gap-3 rounded-xl bg-slate-50 p-4 ring-1 ring-slate-200 sm:flex-row sm:items-end"
+                >
+                    <div class="flex-1 space-y-2">
+                        <Label for="assign-worker">العامل</Label>
+                        <select
+                            id="assign-worker"
+                            v-model="assemblerForm.user_id"
+                            class="flex h-11 w-full rounded-xl border border-input bg-white px-3 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                        >
+                            <option value="">اختر العامل…</option>
+                            <option
+                                v-for="worker in selectableWorkers"
+                                :key="worker.id"
+                                :value="worker.id"
+                            >
+                                {{ worker.name }}{{ worker.phone ? ` — ${worker.phone}` : '' }}
+                            </option>
+                        </select>
+                        <p v-if="assemblerForm.errors.user_id" class="text-sm text-rose-600">
+                            {{ assemblerForm.errors.user_id }}
+                        </p>
+                        <p v-else-if="!selectableWorkers.length" class="text-sm text-amber-600">
+                            لا يوجد عمال متاحون للتعيين (أو تم تعيينهم جميعاً).
+                        </p>
+                    </div>
+                    <div class="flex gap-2">
+                        <Button variant="outline" class="h-11 rounded-xl" @click="closeAssemblerForm">إلغاء</Button>
+                        <Button
+                            class="h-11 rounded-xl bg-[#2563EB]"
+                            :disabled="assemblerForm.processing || !assemblerForm.user_id"
+                            @click="submitAssembler"
+                        >
+                            حفظ التعيين
+                        </Button>
+                    </div>
+                </div>
+
+                <div v-if="assemblers.length" class="mt-4 flex flex-wrap gap-2">
+                    <span
+                        v-for="assembler in assemblers"
+                        :key="assembler.id"
+                        class="inline-flex items-center gap-2 rounded-full bg-violet-50 px-3 py-1.5 text-sm font-medium text-violet-800 ring-1 ring-violet-200"
+                    >
+                        <Users class="h-3.5 w-3.5" />
+                        {{ assembler.worker_name }}
+                        <button
+                            type="button"
+                            class="text-violet-400 hover:text-rose-500"
+                            :disabled="deletingAssemblerId === assembler.id"
+                            @click="deleteAssembler(assembler)"
+                        >
+                            <X class="h-3.5 w-3.5" />
+                        </button>
+                    </span>
+                </div>
+                <p v-else class="mt-4 text-sm text-slate-500">لم يُعيَّن عامل تركيب بعد.</p>
             </section>
 
             <!-- Tabs -->
@@ -861,60 +970,7 @@ watch(pickupDialogOpen, (isOpen) => { if (!isOpen) closePickupDialog(); });
                         <h2 class="text-lg font-bold text-slate-900">الألعاب والمعدات</h2>
                         <p class="text-sm text-slate-500">جميع المنتجات المستأجرة لهذه الفعالية</p>
                     </div>
-                    <Button
-                        v-if="!assemblerFormOpen"
-                        size="sm"
-                        variant="outline"
-                        class="h-10 rounded-xl"
-                        @click="openAssemblerForm"
-                    >
-                        <Plus class="ms-1.5 h-4 w-4" />
-                        إضافة عامل
-                    </Button>
                 </div>
-
-                <article
-                    v-if="assemblerFormOpen"
-                    class="rounded-2xl bg-white p-5 shadow-[0_8px_30px_rgb(15,23,42,0.05)]"
-                >
-                    <div class="flex flex-col gap-3 sm:flex-row sm:items-end">
-                        <div class="flex-1 space-y-2">
-                            <Label for="worker-name">اسم العامل</Label>
-                            <Input
-                                id="worker-name"
-                                v-model="assemblerForm.worker_name"
-                                class="h-11 rounded-xl"
-                                placeholder="اكتب اسم العامل"
-                            />
-                            <p v-if="assemblerForm.errors.worker_name" class="text-sm text-rose-600">
-                                {{ assemblerForm.errors.worker_name }}
-                            </p>
-                        </div>
-                        <div class="flex gap-2">
-                            <Button variant="outline" class="h-11 rounded-xl" @click="closeAssemblerForm">إلغاء</Button>
-                            <Button class="h-11 rounded-xl bg-[#2563EB]" :disabled="assemblerForm.processing" @click="submitAssembler">
-                                حفظ
-                            </Button>
-                        </div>
-                    </div>
-                    <div v-if="assemblers.length" class="mt-4 flex flex-wrap gap-2">
-                        <span
-                            v-for="assembler in assemblers"
-                            :key="assembler.id"
-                            class="inline-flex items-center gap-2 rounded-full bg-slate-50 px-3 py-1.5 text-sm font-medium text-slate-700 ring-1 ring-slate-200"
-                        >
-                            {{ assembler.worker_name }}
-                            <button
-                                type="button"
-                                class="text-slate-400 hover:text-rose-500"
-                                :disabled="deletingAssemblerId === assembler.id"
-                                @click="deleteAssembler(assembler)"
-                            >
-                                <X class="h-3.5 w-3.5" />
-                            </button>
-                        </span>
-                    </div>
-                </article>
 
                 <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
                     <article

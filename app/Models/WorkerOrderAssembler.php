@@ -11,6 +11,7 @@ class WorkerOrderAssembler extends Model
         'order_id',
         'worker_order_id',
         'worker_name',
+        'user_id',
         'created_by',
     ];
 
@@ -22,6 +23,11 @@ class WorkerOrderAssembler extends Model
     public function workerOrder(): BelongsTo
     {
         return $this->belongsTo(WorkerOrder::class);
+    }
+
+    public function workerUser(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'user_id');
     }
 
     public function createdByUser(): BelongsTo

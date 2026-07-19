@@ -24,6 +24,14 @@ return Application::configure(basePath: dirname(__DIR__))
             'payment/cancel',
         ]);
 
+        $middleware->redirectGuestsTo(function ($request) {
+            if ($request->is('worker-app', 'worker-app/*')) {
+                return route('pwa.login');
+            }
+
+            return route('login');
+        });
+
         $middleware->web(append: [
             HandleAppearance::class,
             HandleInertiaRequests::class,
@@ -35,6 +43,8 @@ return Application::configure(basePath: dirname(__DIR__))
             'staff' => \App\Http\Middleware\EnsureUserIsStaff::class,
             'admin' => \App\Http\Middleware\EnsureUserIsAdmin::class,
             'role' => \App\Http\Middleware\EnsureUserHasRole::class,
+            'worker' => \App\Http\Middleware\EnsureUserIsWorker::class,
+            'pwa' => \App\Http\Middleware\UsePwaRootView::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Order;
+use App\Models\User;
 use App\Models\WorkerOrder;
 use App\Models\WorkerOrderAssembler;
 use App\Models\WorkerOrderNote;
@@ -11,6 +12,7 @@ use App\Services\WorkerOrderSyncService;
 use App\Support\DeliveryNotePdfData;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -45,6 +47,18 @@ class WorkerOrderController extends Controller
 
         return Inertia::render('WorkerOrders/Show', [
             'workOrder' => $this->formatWorkOrderDetail($order),
+            'availableWorkers' => User::query()
+                ->where('role', User::ROLE_WORKER)
+                ->orderBy('customer_name')
+                ->get(['id', 'customer_name', 'phone', 'email'])
+                ->map(fn (User $worker) => [
+                    'id' => $worker->id,
+                    'name' => $worker->name,
+                    'phone' => $worker->phone,
+                    'email' => $worker->email,
+                ])
+                ->values()
+                ->all(),
         ]);
     }
 
@@ -157,20 +171,52 @@ class WorkerOrderController extends Controller
 
     public function storeAssembler(Request $request, string $workOrderKey, WorkerOrderSyncService $syncService)
     {
+        $user = $request->user();
+        abort_unless(
+            $user?->hasAnyRole(
+                User::ROLE_ADMIN,
+                User::ROLE_MANAGER,
+                User::ROLE_WORKERS_MANAGER,
+            ),
+            403,
+            'غير مصرح لك بتعيين العمال.',
+        );
+
         $order = $this->resolveWorkOrder($workOrderKey, $syncService);
 
         $validated = $request->validate([
-            'worker_name' => ['required', 'string', 'max:120'],
+            'user_id' => [
+                'required',
+                'integer',
+                Rule::exists('users', 'id')->where(fn ($query) => $query->where('role', User::ROLE_WORKER)),
+            ],
         ], [
-            'worker_name.required' => 'يجب إدخال اسم العامل.',
-            'worker_name.max' => 'اسم العامل يجب ألا يتجاوز 120 حرفاً.',
+            'user_id.required' => 'يجب اختيار العامل.',
+            'user_id.exists' => 'العامل المحدد غير صالح.',
         ]);
+
+        $worker = User::query()->findOrFail($validated['user_id']);
+
+        $alreadyAssigned = WorkerOrderAssembler::query()
+            ->where('order_id', $order->id)
+            ->where(function ($query) use ($worker) {
+                $query->where('user_id', $worker->id)
+                    ->orWhere('worker_name', $worker->name);
+            })
+            ->exists();
+
+        if ($alreadyAssigned) {
+            return back()->withErrors([
+                'user_id' => 'هذا العامل معيّن مسبقاً لهذا الأمر.',
+            ]);
+        }
 
         WorkerOrderAssembler::create([
             'order_id' => $order->id,
             'worker_order_id' => null,
-            'worker_name' => trim($validated['worker_name']),
-            'created_by' => $request->user()->id,
+            'worker_name' => $worker->name,
+            'user_id' => $worker->id,
+            'created_by' => $user->id,
         ]);
 
         $order->loadMissing('invoice:id,invoice_number');
@@ -178,11 +224,22 @@ class WorkerOrderController extends Controller
 
         return redirect()
             ->route('worker-orders.show', $reference)
-            ->with('success', 'تم إضافة العامل بنجاح.');
+            ->with('success', 'تم تعيين العامل للتركيب بنجاح.');
     }
 
     public function destroyAssembler(string $workOrderKey, WorkerOrderAssembler $assembler, WorkerOrderSyncService $syncService)
     {
+        $user = request()->user();
+        abort_unless(
+            $user?->hasAnyRole(
+                User::ROLE_ADMIN,
+                User::ROLE_MANAGER,
+                User::ROLE_WORKERS_MANAGER,
+            ),
+            403,
+            'غير مصرح لك بحذف تعيين العمال.',
+        );
+
         $order = $this->resolveWorkOrder($workOrderKey, $syncService);
 
         abort_unless($assembler->order_id === $order->id, 404);
@@ -371,6 +428,7 @@ class WorkerOrderController extends Controller
                 ->map(fn (WorkerOrderAssembler $assembler) => [
                     'id' => $assembler->id,
                     'worker_name' => $assembler->worker_name,
+                    'user_id' => $assembler->user_id,
                     'created_at' => $assembler->created_at?->toIso8601String(),
                 ])
                 ->values()

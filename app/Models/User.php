@@ -15,6 +15,8 @@ class User extends Authenticatable
 
     public const ROLE_ACCOUNTS = 'accounts';
 
+    public const ROLE_WORKERS_MANAGER = 'workers_manager';
+
     public const ROLE_WORKER = 'worker';
 
     /** @var list<string> */
@@ -22,6 +24,7 @@ class User extends Authenticatable
         self::ROLE_ADMIN,
         self::ROLE_MANAGER,
         self::ROLE_ACCOUNTS,
+        self::ROLE_WORKERS_MANAGER,
         self::ROLE_WORKER,
     ];
 
@@ -134,6 +137,11 @@ class User extends Authenticatable
         return $this->role === self::ROLE_ACCOUNTS;
     }
 
+    public function isWorkersManager(): bool
+    {
+        return $this->role === self::ROLE_WORKERS_MANAGER;
+    }
+
     public function isWorker(): bool
     {
         return $this->role === self::ROLE_WORKER;
@@ -163,7 +171,7 @@ class User extends Authenticatable
     public function homeRouteName(): string
     {
         return match ($this->role) {
-            self::ROLE_WORKER => 'worker-orders.index',
+            self::ROLE_WORKER, self::ROLE_WORKERS_MANAGER => 'worker-orders.index',
             self::ROLE_ACCOUNTS => 'quotations.index',
             self::ROLE_MANAGER, self::ROLE_ADMIN => 'dashboard',
             default => 'home',
@@ -176,6 +184,7 @@ class User extends Authenticatable
             self::ROLE_ADMIN => 'ادمن',
             self::ROLE_MANAGER => 'مسئول',
             self::ROLE_ACCOUNTS => 'حسابات',
+            self::ROLE_WORKERS_MANAGER => 'مدير العمال',
             self::ROLE_WORKER => 'عامل',
             default => 'عميل',
         };

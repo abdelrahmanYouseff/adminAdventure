@@ -48,7 +48,7 @@ const allNavItems: NavItemWithRoles[] = [
         title: 'أوامر العمل',
         href: '/worker-orders',
         icon: HardHat,
-        roles: ['admin', 'manager', 'worker'],
+        roles: ['admin', 'manager', 'workers_manager', 'worker'],
     },
     {
         title: 'العملاء',
@@ -102,6 +102,7 @@ const mainNavItems = computed(() => {
 const homeHref = computed(() => {
     switch (userRole.value) {
         case 'worker':
+        case 'workers_manager':
             return route('worker-orders.index');
         case 'accounts':
             return route('quotations.index');
