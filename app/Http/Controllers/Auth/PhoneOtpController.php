@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Auth;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Services\AuthenticaOtpService;
+use App\Support\AuthPath;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -103,8 +104,17 @@ class PhoneOtpController extends Controller
         }
 
         // منع توجيه عملاء المتجر إلى مسارات لوحة التحكم بعد OTP
-        if ($this->isDashboardPath($redirect) && ! $user->canAccessDashboard()) {
+        if (AuthPath::isDashboardPath($redirect) && ! $user->canAccessDashboard()) {
             $redirect = '/home';
+        }
+
+        // الموظفون القادمون من OTP يبقون على مسار المتجر إن طُلب
+        if ($user->canAccessDashboard() && AuthPath::isDashboardPath($redirect)) {
+            // OK — لوحة
+        } elseif ($user->isWorker()) {
+            $redirect = route('pwa.dashboard', absolute: false);
+        } elseif (! $user->canAccessDashboard()) {
+            $redirect = AuthPath::sanitizeStoreRedirect($redirect);
         }
 
         if (! $user->profile_completed) {
@@ -112,38 +122,6 @@ class PhoneOtpController extends Controller
         }
 
         return redirect()->to($redirect);
-    }
-
-    private function isDashboardPath(string $path): bool
-    {
-        $path = '/'.ltrim(parse_url($path, PHP_URL_PATH) ?: $path, '/');
-
-        $blocked = [
-            'dashboard',
-            'login',
-            'register',
-            'users',
-            'products',
-            'categories',
-            'packages',
-            'orders',
-            'invoices',
-            'quotations',
-            'customers',
-            'company-clients',
-            'worker-orders',
-            'insurance-deposits',
-            'settings',
-            'worker-app',
-        ];
-
-        foreach ($blocked as $prefix) {
-            if ($path === '/'.$prefix || str_starts_with($path, '/'.$prefix.'/')) {
-                return true;
-            }
-        }
-
-        return false;
     }
 
     private function createUserFromPhone(string $phone): User

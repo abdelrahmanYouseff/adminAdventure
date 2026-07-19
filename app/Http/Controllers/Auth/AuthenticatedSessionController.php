@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\LoginRequest;
+use App\Support\AuthPath;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -14,7 +15,7 @@ use Inertia\Response;
 class AuthenticatedSessionController extends Controller
 {
     /**
-     * Show the login page.
+     * Show the staff panel login page.
      */
     public function create(Request $request): Response
     {
@@ -34,10 +35,25 @@ class AuthenticatedSessionController extends Controller
         $request->session()->regenerate();
 
         $user = $request->user();
+        $redirect = $request->input('redirect');
+        $storeLogin = AuthPath::isSafeStoreRedirect(is_string($redirect) ? $redirect : null);
 
-        // حماية إضافية: العملاء والعمال لا يدخلون لوحة التحكم من /login
-        if ($user?->isWorker() || ! $user?->canAccessDashboard()) {
-            $isWorker = (bool) $user?->isWorker();
+        // العمال لا يدخلون من /login مطلقاً
+        if ($user?->isWorker()) {
+            Auth::logout();
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+
+            return redirect()
+                ->route('login')
+                ->withErrors(['email' => 'حساب العامل يدخل فقط من تطبيق العمال (/worker-app).']);
+        }
+
+        // العملاء: متجر فقط — ممنوع لوحة التحكم
+        if (! $user?->canAccessDashboard()) {
+            if ($storeLogin) {
+                return redirect()->to(AuthPath::sanitizeStoreRedirect(is_string($redirect) ? $redirect : null));
+            }
 
             Auth::logout();
             $request->session()->invalidate();
@@ -45,14 +61,10 @@ class AuthenticatedSessionController extends Controller
 
             return redirect()
                 ->route('login')
-                ->withErrors([
-                    'email' => $isWorker
-                        ? 'حساب العامل يدخل فقط من تطبيق العمال (/worker-app).'
-                        : 'حساب العملاء غير مصرح له بالدخول إلى لوحة التحكم.',
-                ]);
+                ->withErrors(['email' => 'حساب العملاء غير مصرح له بالدخول إلى لوحة التحكم.']);
         }
 
-        $redirect = $request->input('redirect');
+        // موظفون: لوحة التحكم
         if (is_string($redirect) && str_starts_with($redirect, '/') && ! str_starts_with($redirect, '//')) {
             return redirect($redirect);
         }
