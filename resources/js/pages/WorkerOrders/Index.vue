@@ -15,8 +15,10 @@ import {
     ArrowRight,
     FileText,
     Eye,
+    ShieldCheck,
 } from 'lucide-vue-next';
 import { formatDate, formatInteger } from '@/lib/formatNumber';
+import Swal from 'sweetalert2';
 
 interface PreviewProduct {
     name: string;
@@ -36,6 +38,10 @@ interface WorkOrderItem {
     pending_count: number;
     completed_count: number;
     location_slug: string | null;
+    photos_ready?: boolean;
+    is_approved?: boolean;
+    can_approve?: boolean;
+    approved_at?: string | null;
     preview_products: PreviewProduct[];
 }
 
@@ -78,9 +84,43 @@ const stats = computed(() => props.stats ?? {
 defineOptions({ layout: AppLayout });
 
 const page = usePage();
-const successMessage = computed(() => page.props.flash?.success as string | undefined);
+const flash = computed(() => (page.props.flash as { success?: string; error?: string } | undefined) ?? {});
+const authRole = computed(() => (page.props.auth as { user?: { role?: string } } | undefined)?.user?.role ?? null);
+const canApproveOrders = computed(() =>
+    ['admin', 'workers_manager'].includes(authRole.value || ''),
+);
+
+watch(
+    () => [flash.value.success, flash.value.error] as const,
+    ([success, error]) => {
+        if (success) {
+            Swal.fire({
+                icon: 'success',
+                title: 'تم بنجاح',
+                text: success,
+                confirmButtonText: 'حسناً',
+                confirmButtonColor: '#2563EB',
+                timer: 3200,
+                timerProgressBar: true,
+            });
+            return;
+        }
+
+        if (error) {
+            Swal.fire({
+                icon: 'error',
+                title: 'تعذر الإجراء',
+                text: error,
+                confirmButtonText: 'حسناً',
+                confirmButtonColor: '#2563EB',
+            });
+        }
+    },
+    { immediate: true },
+);
 const statusFilter = ref(props.filters.status || 'pending');
 const mobileListVisible = ref(false);
+const approvingId = ref<number | null>(null);
 
 const mobileListTitle = computed(() => {
     if (statusFilter.value === 'completed') {
@@ -153,6 +193,49 @@ function openWorkOrder(item: WorkOrderItem) {
     router.visit(workOrderUrl(item));
 }
 
+async function approveWorkOrder(item: WorkOrderItem) {
+    if (item.is_approved) {
+        return;
+    }
+
+    if (!item.can_approve) {
+        await Swal.fire({
+            icon: 'info',
+            title: 'لا يمكن التعميد الآن',
+            text: item.photos_ready
+                ? 'تعميد أمر العمل مخصص لمدير العمال فقط.'
+                : 'يجب أن يرفع العامل صور التركيب وصور الاستلام لجميع المنتجات أولاً.',
+            confirmButtonText: 'حسناً',
+            confirmButtonColor: '#2563EB',
+        });
+        return;
+    }
+
+    const result = await Swal.fire({
+        icon: 'question',
+        title: 'تعميد مدير العمال',
+        text: `تأكيد تعميد الطلب ${item.reference_number}؟ سيظهر التأمين في صفحة الاسترداد وبانتظار تعميد المسئول ثم المدير العام ثم المحاسب.`,
+        showCancelButton: true,
+        confirmButtonText: 'تعميد',
+        cancelButtonText: 'إلغاء',
+        confirmButtonColor: '#059669',
+        cancelButtonColor: '#64748B',
+        reverseButtons: true,
+    });
+
+    if (!result.isConfirmed) {
+        return;
+    }
+
+    approvingId.value = item.id;
+    router.post(`/worker-orders/${encodeURIComponent(item.reference_number)}/approve`, {}, {
+        preserveScroll: true,
+        onFinish: () => {
+            approvingId.value = null;
+        },
+    });
+}
+
 function statusLabel(item: WorkOrderItem): string {
     if (item.status === 'completed') {
         return 'مرفوعة للمراجعة';
@@ -184,12 +267,6 @@ watch(
         </template>
 
         <div class="flex min-w-0 flex-1 flex-col gap-4 overflow-x-hidden p-3 pb-[max(1rem,env(safe-area-inset-bottom))] sm:gap-6 sm:p-6">
-            <p
-                v-if="successMessage"
-                class="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm font-medium text-green-800 dark:border-green-900/50 dark:bg-green-950/30 dark:text-green-300"
-            >
-                {{ successMessage }}
-            </p>
 
             <div>
                 <h1 class="text-xl font-bold tracking-tight sm:text-3xl">أوامر العمل</h1>
@@ -311,7 +388,7 @@ watch(
                                         <TableHead class="min-w-[7rem] text-right font-semibold">يوم الفعالية</TableHead>
                                         <TableHead class="min-w-[8rem] text-right font-semibold">المنتجات</TableHead>
                                         <TableHead class="min-w-[7rem] text-center font-semibold">الحالة</TableHead>
-                                        <TableHead class="min-w-[7rem] text-center font-semibold">إجراء</TableHead>
+                                        <TableHead class="min-w-[10rem] text-center font-semibold">إجراء</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
@@ -378,23 +455,54 @@ watch(
                                             </div>
                                         </TableCell>
                                         <TableCell class="text-center">
-                                            <span
-                                                class="inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold"
-                                                :class="item.status === 'completed'
-                                                    ? 'bg-green-100 text-green-800 dark:bg-green-950/40 dark:text-green-300'
-                                                    : 'bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300'"
-                                            >
-                                                {{ statusLabel(item) }}
-                                            </span>
+                                            <div class="flex flex-col items-center gap-1">
+                                                <span
+                                                    class="inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold"
+                                                    :class="item.status === 'completed'
+                                                        ? 'bg-green-100 text-green-800 dark:bg-green-950/40 dark:text-green-300'
+                                                        : 'bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300'"
+                                                >
+                                                    {{ statusLabel(item) }}
+                                                </span>
+                                                <span
+                                                    v-if="item.is_approved"
+                                                    class="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700"
+                                                >
+                                                    <ShieldCheck class="h-3 w-3" />
+                                                    معتمد
+                                                </span>
+                                            </div>
                                         </TableCell>
                                         <TableCell class="text-center" @click.stop>
-                                            <Link
-                                                :href="workOrderUrl(item)"
-                                                class="inline-flex h-9 min-w-[7rem] items-center justify-center rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground transition hover:bg-primary/90"
-                                            >
-                                                <Eye class="ms-1.5 h-4 w-4" />
-                                                التفاصيل
-                                            </Link>
+                                            <div class="flex flex-wrap items-center justify-center gap-2">
+                                                <Link
+                                                    :href="workOrderUrl(item)"
+                                                    class="inline-flex h-9 min-w-[6.5rem] items-center justify-center rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground transition hover:bg-primary/90"
+                                                >
+                                                    <Eye class="ms-1.5 h-4 w-4" />
+                                                    التفاصيل
+                                                </Link>
+                                                <button
+                                                    v-if="canApproveOrders"
+                                                    type="button"
+                                                    class="inline-flex h-9 min-w-[6.5rem] items-center justify-center rounded-md px-3 text-sm font-medium transition"
+                                                    :class="item.is_approved
+                                                        ? 'cursor-default bg-emerald-50 text-emerald-700'
+                                                        : item.can_approve
+                                                            ? 'bg-emerald-600 text-white hover:bg-emerald-700'
+                                                            : 'bg-slate-100 text-slate-500 hover:bg-slate-200'"
+                                                    :disabled="Boolean(item.is_approved) || approvingId === item.id"
+                                                    :title="item.is_approved
+                                                        ? 'تم التعميد'
+                                                        : item.can_approve
+                                                            ? 'تعميد أمر العمل'
+                                                            : 'يلزم رفع صور التركيب والاستلام أولاً'"
+                                                    @click="approveWorkOrder(item)"
+                                                >
+                                                    <ShieldCheck class="ms-1.5 h-4 w-4" />
+                                                    {{ item.is_approved ? 'معتمد' : approvingId === item.id ? '...' : 'تعميد' }}
+                                                </button>
+                                            </div>
                                         </TableCell>
                                     </TableRow>
                                 </TableBody>

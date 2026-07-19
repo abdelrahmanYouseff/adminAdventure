@@ -32,6 +32,20 @@ return Application::configure(basePath: dirname(__DIR__))
             return route('login');
         });
 
+        $middleware->redirectUsersTo(function ($request) {
+            $user = $request->user();
+
+            if ($user?->isWorker()) {
+                return route('pwa.dashboard');
+            }
+
+            if ($user?->canAccessDashboard()) {
+                return route($user->homeRouteName());
+            }
+
+            return route('home');
+        });
+
         $middleware->web(append: [
             HandleAppearance::class,
             HandleInertiaRequests::class,

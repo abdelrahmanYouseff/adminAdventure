@@ -7,12 +7,14 @@ use App\Models\Invoice;
 use App\Models\Order;
 use App\Models\Product;
 use App\Models\User;
+use App\Support\OrderInsuranceCalculator;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
+use App\Support\CheckoutRedirect;
 
 class StoreController extends Controller
 {
@@ -171,7 +173,9 @@ class StoreController extends Controller
         }
 
         $vatAmount = round($totalAmount * 0.15, 2);
-        $grandTotal = round($totalAmount + $vatAmount, 2);
+        $insurance = OrderInsuranceCalculator::fromLines($items);
+        $insuranceTotal = $insurance['total'];
+        $grandTotal = round($totalAmount + $vatAmount + $insuranceTotal, 2);
 
         try {
             $customerUser = $request->user();
@@ -210,6 +214,8 @@ class StoreController extends Controller
                 'activity_date' => $validated['activity_date'],
                 'order_number' => $orderNumber,
                 'total_amount' => $grandTotal,
+                'insurance_amount' => $insuranceTotal,
+                'insurance_status' => $insuranceTotal > 0 ? 'pending' : 'none',
                 'currency' => 'SAR',
                 'status' => 'pending',
                 'payment_status' => 'pending',
@@ -219,9 +225,11 @@ class StoreController extends Controller
             ]);
 
             foreach ($items as $item) {
-                $order->products()->attach($item['product_id'], [
+                $productId = (int) $item['product_id'];
+                $order->products()->attach($productId, [
                     'quantity' => (int) $item['quantity'],
                     'price' => (float) $item['price'],
+                    'insurance_amount' => (float) ($insurance['unit_by_product'][$productId] ?? 0),
                 ]);
             }
 
@@ -314,16 +322,16 @@ class StoreController extends Controller
      */
     private function completeMockStoreCheckout(Order $order, bool $expectsJson)
     {
-        $invoice = Invoice::create([
-            'user_id' => $order->user_id,
-            'rental_id' => null,
-            'invoice_number' => $order->order_number,
-            'amount' => $order->total_amount,
-            'status' => 'paid',
-            'payment_method' => 'mock',
-            'issued_at' => now(),
-            'due_date' => now()->addDays(7),
-        ]);
+            $invoice = Invoice::create([
+                'user_id' => $order->user_id,
+                'rental_id' => null,
+                'invoice_number' => Invoice::generateInvoiceNumber(),
+                'amount' => $order->total_amount,
+                'status' => 'paid',
+                'payment_method' => 'mock',
+                'issued_at' => now(),
+                'due_date' => now()->addDays(7),
+            ]);
 
         $order->update([
             'invoice_id' => $invoice->id,
@@ -333,7 +341,7 @@ class StoreController extends Controller
             'payment_id' => 'MOCK-' . Str::upper(Str::random(8)),
         ]);
 
-        $redirectUrl = route('home', ['paid_order' => $order->order_number]);
+        $redirectUrl = CheckoutRedirect::homeAfterPayment($order->order_number);
 
         Log::info('Store mock payment completed', [
             'order_number' => $order->order_number,

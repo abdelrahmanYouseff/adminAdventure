@@ -7,6 +7,7 @@ import {
     CheckCircle2,
     ExternalLink,
     MapPin,
+    MessageSquareText,
     Package,
     Phone,
     Truck,
@@ -29,6 +30,14 @@ interface ProductLine {
     pickup_condition: PickupCondition | null;
 }
 
+interface WorkNote {
+    id: number;
+    body: string;
+    user_name: string;
+    is_mine: boolean;
+    created_at: string | null;
+}
+
 interface Installation {
     id: number;
     customer_name: string;
@@ -41,6 +50,7 @@ interface Installation {
     pending_pickup_count: number;
     status: 'pending' | 'completed';
     products: ProductLine[];
+    notes: WorkNote[];
 }
 
 interface Props {
@@ -81,6 +91,10 @@ const pickupForm = useForm({
     pickup_condition: 'good' as PickupCondition,
 });
 
+const noteForm = useForm({
+    body: '',
+});
+
 const pendingProducts = computed(() =>
     props.installation.products.filter((p) => p.status === 'pending'),
 );
@@ -93,11 +107,30 @@ const finishedProducts = computed(() =>
     props.installation.products.filter((p) => p.status === 'completed' && !!p.pickup_photo_url),
 );
 
+const notes = computed(() => props.installation.notes ?? []);
+
 const activeForm = computed(() => (captureMode.value === 'install' ? installForm : pickupForm));
 
 function formatInstallDate(date: string | null): string {
     if (!date) return 'موعد غير محدد';
     return formatDate(date);
+}
+
+function submitNote() {
+    const body = noteForm.body.trim();
+    if (!body) {
+        noteForm.setError('body', 'يجب كتابة الملاحظة.');
+        return;
+    }
+
+    noteForm.body = body;
+    noteForm.post(`/worker-app/installations/${props.installation.id}/notes`, {
+        preserveScroll: true,
+        onSuccess: () => {
+            noteForm.reset();
+            noteForm.clearErrors();
+        },
+    });
 }
 
 function clearPreview() {
@@ -256,6 +289,52 @@ onBeforeUnmount(() => {
                         <ExternalLink class="h-3.5 w-3.5 opacity-70" />
                     </a>
                 </div>
+            </section>
+
+            <section class="space-y-3">
+                <h2 class="flex items-center gap-2 px-1 text-sm font-semibold text-slate-700">
+                    <MessageSquareText class="h-4 w-4 text-slate-400" />
+                    ملاحظات
+                </h2>
+
+                <div class="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+                    <label for="worker-note" class="sr-only">اكتب ملاحظة</label>
+                    <textarea
+                        id="worker-note"
+                        v-model="noteForm.body"
+                        rows="3"
+                        maxlength="2000"
+                        placeholder="اكتب أي ملاحظة عن التركيب أو الموقع..."
+                        class="w-full resize-none rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none ring-sky-400/30 placeholder:text-slate-400 focus:border-sky-400 focus:bg-white focus:ring-2"
+                        :disabled="noteForm.processing"
+                    />
+                    <p v-if="noteForm.errors.body" class="mt-2 text-sm text-rose-600">
+                        {{ noteForm.errors.body }}
+                    </p>
+                    <button
+                        type="button"
+                        class="mt-3 inline-flex h-11 w-full items-center justify-center rounded-2xl bg-slate-900 text-sm font-semibold text-white transition active:scale-[0.99] hover:bg-slate-800 disabled:opacity-60"
+                        :disabled="noteForm.processing || !noteForm.body.trim()"
+                        @click="submitNote"
+                    >
+                        {{ noteForm.processing ? 'جاري الحفظ...' : 'حفظ الملاحظة' }}
+                    </button>
+                </div>
+
+                <div v-if="notes.length" class="space-y-2">
+                    <article
+                        v-for="note in notes"
+                        :key="note.id"
+                        class="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm"
+                    >
+                        <p class="whitespace-pre-wrap text-sm leading-relaxed text-slate-800">{{ note.body }}</p>
+                        <p class="mt-2 text-[11px] text-slate-400">
+                            {{ note.is_mine ? 'أنت' : note.user_name }}
+                            <span v-if="note.created_at"> · {{ formatDateTime(note.created_at) }}</span>
+                        </p>
+                    </article>
+                </div>
+                <p v-else class="px-1 text-xs text-slate-400">لا توجد ملاحظات بعد.</p>
             </section>
 
             <section class="space-y-3">

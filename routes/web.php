@@ -45,6 +45,8 @@ Route::middleware(['pwa'])->prefix('worker-app')->name('pwa.')->group(function (
             ->name('installations.complete');
         Route::post('installations/lines/{workerOrder}/pickup', [\App\Http\Controllers\Pwa\WorkerInstallationController::class, 'pickup'])
             ->name('installations.pickup');
+        Route::post('installations/{order}/notes', [\App\Http\Controllers\Pwa\WorkerInstallationController::class, 'storeNote'])
+            ->name('installations.notes.store');
         Route::post('logout', [\App\Http\Controllers\Pwa\WorkerAuthController::class, 'destroy'])
             ->name('logout');
     });
@@ -83,7 +85,7 @@ Route::get('/privacy', function () {
 })->name('privacy');
 
 Route::get('dashboard', [DashboardController::class, 'index'])
-    ->middleware(['auth', 'verified', 'role:admin,manager'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager'])
     ->name('dashboard');
 
 Route::middleware(['auth', 'verified', 'admin'])->prefix('settings')->name('settings.')->group(function () {
@@ -98,83 +100,83 @@ Route::middleware(['auth', 'verified', 'admin'])->prefix('settings')->name('sett
 });
 
 Route::get('products', [ProductController::class, 'index'])
-    ->middleware(['auth', 'verified', 'role:admin,manager'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager'])
     ->name('products');
 
 Route::get('products/create', [ProductController::class, 'create'])
-    ->middleware(['auth', 'verified', 'role:admin,manager'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager'])
     ->name('products.create');
 
 Route::post('products', [ProductController::class, 'store'])
-    ->middleware(['auth', 'verified', 'role:admin,manager'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager'])
     ->name('products.store');
 
 Route::post('products/import', [ProductController::class, 'import'])
-    ->middleware(['auth', 'verified', 'role:admin,manager'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager'])
     ->name('products.import');
 
 Route::get('products/{product}/edit', [ProductController::class, 'edit'])
-    ->middleware(['auth', 'verified', 'role:admin,manager'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager'])
     ->name('products.edit');
 
 Route::put('products/{product}', [ProductController::class, 'update'])
-    ->middleware(['auth', 'verified', 'role:admin,manager'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager'])
     ->name('products.update');
 
 Route::patch('products/{product}', [ProductController::class, 'update'])
-    ->middleware(['auth', 'verified', 'role:admin,manager'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager'])
     ->name('products.patch');
 
 Route::patch('products/{product}/toggle-status', [ProductController::class, 'toggleStatus'])
-    ->middleware(['auth', 'verified', 'role:admin,manager'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager'])
     ->name('products.toggle-status');
 
 Route::delete('products/{product}', [ProductController::class, 'destroy'])
-    ->middleware(['auth', 'verified', 'role:admin,manager'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager'])
     ->name('products.destroy');
 
 Route::get('categories', [CategoryController::class, 'index'])
-    ->middleware(['auth', 'verified', 'role:admin,manager'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager'])
     ->name('categories.index');
 
 Route::get('categories/create', [CategoryController::class, 'create'])
-    ->middleware(['auth', 'verified', 'role:admin,manager'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager'])
     ->name('categories.create');
 
 Route::post('categories', [CategoryController::class, 'store'])
-    ->middleware(['auth', 'verified', 'role:admin,manager'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager'])
     ->name('categories.store');
 
 Route::get('categories/{category}', [CategoryController::class, 'show'])
-    ->middleware(['auth', 'verified', 'role:admin,manager'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager'])
     ->name('categories.show');
 
 Route::get('categories/{category}/edit', [CategoryController::class, 'edit'])
-    ->middleware(['auth', 'verified', 'role:admin,manager'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager'])
     ->name('categories.edit');
 
 Route::put('categories/{category}', [CategoryController::class, 'update'])
-    ->middleware(['auth', 'verified', 'role:admin,manager'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager'])
     ->name('categories.update');
 
 Route::delete('categories/{category}', [CategoryController::class, 'destroy'])
-    ->middleware(['auth', 'verified', 'role:admin,manager'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager'])
     ->name('categories.destroy');
 
 Route::get('customers', [\App\Http\Controllers\CustomerController::class, 'index'])
-    ->middleware(['auth', 'verified', 'admin'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager'])
     ->name('customers');
 
 Route::get('company-clients', [\App\Http\Controllers\CompanyClientController::class, 'index'])
-    ->middleware(['auth', 'verified', 'role:admin,manager'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager'])
     ->name('company-clients.index');
 
 Route::post('company-clients', [\App\Http\Controllers\CompanyClientController::class, 'store'])
-    ->middleware(['auth', 'verified', 'role:admin,manager'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager'])
     ->name('company-clients.store');
 
 Route::delete('company-clients/{companyClient}', [\App\Http\Controllers\CompanyClientController::class, 'destroy'])
-    ->middleware(['auth', 'verified', 'role:admin,manager'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager'])
     ->name('company-clients.destroy');
 
 
@@ -201,42 +203,66 @@ Route::resource('packages', PackageController::class)->middleware(['auth', 'veri
 
 // Invoices Routes
 Route::get('invoices', [InvoiceController::class, 'index'])
-    ->middleware(['auth', 'verified', 'role:admin,manager,accounts'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,accounts'])
     ->name('invoices.index');
 
 Route::get('invoices/{invoice}', [InvoiceController::class, 'show'])
-    ->middleware(['auth', 'verified', 'role:admin,manager,accounts'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,accounts'])
     ->name('invoices.show');
 
 Route::get('invoices/{invoice}/pdf', [InvoiceController::class, 'generatePdf'])
-    ->middleware(['auth', 'verified', 'role:admin,manager,accounts'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,accounts'])
     ->name('invoices.pdf');
 
 Route::patch('invoices/{invoice}/status', [InvoiceController::class, 'updateStatus'])
-    ->middleware(['auth', 'verified', 'role:admin,manager,accounts'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,accounts'])
     ->name('invoices.update-status');
 
 Route::get('invoices/export/csv', [InvoiceController::class, 'export'])
-    ->middleware(['auth', 'verified', 'role:admin,manager,accounts'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,accounts'])
     ->name('invoices.export');
 
 Route::patch('invoices/update-overdue', [InvoiceController::class, 'updateOverdueInvoices'])
-    ->middleware(['auth', 'verified', 'role:admin,manager,accounts'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,accounts'])
     ->name('invoices.update-overdue');
 
+Route::get('insurance-deposits', [\App\Http\Controllers\InsuranceDepositController::class, 'index'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,accounts'])
+    ->name('insurance-deposits.index');
+
+Route::get('insurance-deposits/{order}', [\App\Http\Controllers\InsuranceDepositController::class, 'show'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,accounts'])
+    ->name('insurance-deposits.show');
+
+Route::post('insurance-deposits/{order}/approve', [\App\Http\Controllers\InsuranceDepositController::class, 'approve'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,accounts'])
+    ->name('insurance-deposits.approve');
+
+Route::patch('insurance-deposits/{order}/amount', [\App\Http\Controllers\InsuranceDepositController::class, 'updateAmount'])
+    ->middleware(['auth', 'verified', 'role:admin,accounts'])
+    ->name('insurance-deposits.update-amount');
+
+Route::post('insurance-deposits/{order}/refund', [\App\Http\Controllers\InsuranceDepositController::class, 'markRefunded'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,accounts'])
+    ->name('insurance-deposits.refund');
+
+Route::post('insurance-deposits/{order}/withhold', [\App\Http\Controllers\InsuranceDepositController::class, 'markWithheld'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,accounts'])
+    ->name('insurance-deposits.withhold');
+
 // Quotations Routes
-Route::resource('quotations', QuotationController::class)->middleware(['auth', 'verified', 'role:admin,manager,accounts']);
+Route::resource('quotations', QuotationController::class)->middleware(['auth', 'verified', 'role:admin,general_manager,manager,accounts']);
 
 Route::get('quotations-lookup-customer', [QuotationController::class, 'lookupCustomer'])
-    ->middleware(['auth', 'verified', 'role:admin,manager,accounts'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,accounts'])
     ->name('quotations.lookup-customer');
 
 Route::get('quotations/{quotation}/pdf', [QuotationController::class, 'generatePdf'])
-    ->middleware(['auth', 'verified', 'role:admin,manager,accounts'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,accounts'])
     ->name('quotations.pdf');
 
 Route::patch('quotations/{quotation}/status', [QuotationController::class, 'updateStatus'])
-    ->middleware(['auth', 'verified', 'role:admin,manager,accounts'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,accounts'])
     ->name('quotations.update-status');
 
 // Orders Routes
@@ -261,44 +287,49 @@ Route::delete('orders/{order}', [OrderController::class, 'destroy'])
     ->name('orders.destroy');
 
 Route::get('worker-orders', [\App\Http\Controllers\WorkerOrderController::class, 'index'])
-    ->middleware(['auth', 'verified', 'role:admin,manager,workers_manager,worker'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,workers_manager'])
     ->name('worker-orders.index');
 
 Route::get('worker-orders/{workOrderKey}/delivery-note', [\App\Http\Controllers\WorkerOrderController::class, 'deliveryNote'])
-    ->middleware(['auth', 'verified', 'role:admin,manager,workers_manager,worker'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,workers_manager'])
     ->where('workOrderKey', '[A-Za-z0-9\-_/]+')
     ->name('worker-orders.delivery-note');
 
 Route::get('worker-orders/{workOrderKey}', [\App\Http\Controllers\WorkerOrderController::class, 'show'])
-    ->middleware(['auth', 'verified', 'role:admin,manager,workers_manager,worker'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,workers_manager'])
     ->where('workOrderKey', '[A-Za-z0-9\-_/]+')
     ->name('worker-orders.show');
 
 Route::post('worker-orders/lines/{workerOrder}/complete', [\App\Http\Controllers\WorkerOrderController::class, 'complete'])
-    ->middleware(['auth', 'verified', 'role:admin,manager,workers_manager,worker'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,workers_manager'])
     ->name('worker-orders.complete');
 
 Route::post('worker-orders/lines/{workerOrder}/pickup', [\App\Http\Controllers\WorkerOrderController::class, 'completePickup'])
-    ->middleware(['auth', 'verified', 'role:admin,manager,workers_manager,worker'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,workers_manager'])
     ->name('worker-orders.pickup');
 
+Route::post('worker-orders/{workOrderKey}/approve', [\App\Http\Controllers\WorkerOrderController::class, 'approve'])
+    ->middleware(['auth', 'verified', 'role:admin,workers_manager'])
+    ->where('workOrderKey', '[A-Za-z0-9\-_/]+')
+    ->name('worker-orders.approve');
+
 Route::post('worker-orders/{workOrderKey}/assemblers', [\App\Http\Controllers\WorkerOrderController::class, 'storeAssembler'])
-    ->middleware(['auth', 'verified', 'role:admin,manager,workers_manager,worker'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,workers_manager'])
     ->where('workOrderKey', '[A-Za-z0-9\-_/]+')
     ->name('worker-orders.assemblers.store');
 
 Route::delete('worker-orders/{workOrderKey}/assemblers/{assembler}', [\App\Http\Controllers\WorkerOrderController::class, 'destroyAssembler'])
-    ->middleware(['auth', 'verified', 'role:admin,manager,workers_manager,worker'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,workers_manager'])
     ->where('workOrderKey', '[A-Za-z0-9\-_/]+')
     ->name('worker-orders.assemblers.destroy');
 
 Route::post('worker-orders/{workOrderKey}/notes', [\App\Http\Controllers\WorkerOrderController::class, 'storeNote'])
-    ->middleware(['auth', 'verified', 'role:admin,manager,workers_manager,worker'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,workers_manager'])
     ->where('workOrderKey', '[A-Za-z0-9\-_/]+')
     ->name('worker-orders.notes.store');
 
 Route::delete('worker-orders/{workOrderKey}/notes/{note}', [\App\Http\Controllers\WorkerOrderController::class, 'destroyNote'])
-    ->middleware(['auth', 'verified', 'role:admin,manager,workers_manager,worker'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager'])
     ->where('workOrderKey', '[A-Za-z0-9\-_/]+')
     ->name('worker-orders.notes.destroy');
 

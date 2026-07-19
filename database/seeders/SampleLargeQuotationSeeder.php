@@ -45,12 +45,7 @@ class SampleLargeQuotationSeeder extends Seeder
 
         DB::transaction(function () use ($user, $products) {
             $quotation = Quotation::create([
-                'quotation_number' => 'QT-'.date('Y').'-'.str_pad(
-                    (string) (Quotation::whereYear('created_at', date('Y'))->count() + 1),
-                    4,
-                    '0',
-                    STR_PAD_LEFT
-                ),
+                'quotation_number' => Quotation::generateQuotationNumber(),
                 'customer_name' => 'Adventure World — Template Review Client',
                 'customer_email' => 'review@adventureksa.com',
                 'customer_phone' => '0559668015',

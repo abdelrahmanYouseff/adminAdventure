@@ -18,6 +18,10 @@ class Order extends Model
         'order_number',
         'location_slug',
         'total_amount',
+        'insurance_amount',
+        'insurance_original_amount',
+        'insurance_status',
+        'insurance_refunded_at',
         'currency',
         'status',
         'payment_method',
@@ -27,13 +31,28 @@ class Order extends Model
         'whatsapp_notified_at',
         'notes',
         'items',
+        'work_order_approved_at',
+        'work_order_approved_by',
+        'insurance_manager_approved_at',
+        'insurance_manager_approved_by',
+        'insurance_gm_approved_at',
+        'insurance_gm_approved_by',
+        'insurance_accounts_approved_at',
+        'insurance_accounts_approved_by',
     ];
 
     protected $casts = [
         'total_amount' => 'decimal:2',
+        'insurance_amount' => 'decimal:2',
+        'insurance_original_amount' => 'decimal:2',
         'items' => 'array',
         'activity_date' => 'date',
         'whatsapp_notified_at' => 'datetime',
+        'insurance_refunded_at' => 'datetime',
+        'work_order_approved_at' => 'datetime',
+        'insurance_manager_approved_at' => 'datetime',
+        'insurance_gm_approved_at' => 'datetime',
+        'insurance_accounts_approved_at' => 'datetime',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];
@@ -69,7 +88,7 @@ class Order extends Model
     public function products()
     {
         return $this->belongsToMany(Product::class, 'order_product')
-                    ->withPivot('quantity', 'price')
+                    ->withPivot('quantity', 'price', 'insurance_amount')
                     ->withTimestamps();
     }
 
@@ -86,6 +105,43 @@ class Order extends Model
     public function workerNotes()
     {
         return $this->hasMany(WorkerOrderNote::class);
+    }
+
+    public function workOrderApprovedBy()
+    {
+        return $this->belongsTo(User::class, 'work_order_approved_by');
+    }
+
+    public function insuranceManagerApprovedBy()
+    {
+        return $this->belongsTo(User::class, 'insurance_manager_approved_by');
+    }
+
+    public function insuranceGmApprovedBy()
+    {
+        return $this->belongsTo(User::class, 'insurance_gm_approved_by');
+    }
+
+    public function insuranceAccountsApprovedBy()
+    {
+        return $this->belongsTo(User::class, 'insurance_accounts_approved_by');
+    }
+
+    public function hasAllWorkerPhotos(): bool
+    {
+        $lines = $this->relationLoaded('workerOrders')
+            ? $this->workerOrders
+            : $this->workerOrders()->get();
+
+        if ($lines->isEmpty()) {
+            return false;
+        }
+
+        return $lines->every(
+            fn (WorkerOrder $line) => $line->status === 'completed'
+                && filled($line->installation_photo)
+                && filled($line->pickup_photo)
+        );
     }
 
     public function scopeAssignedToWorker($query, User $user)

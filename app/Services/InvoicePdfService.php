@@ -33,7 +33,7 @@ class InvoicePdfService
             'useSubstitutions' => true,
         ]);
 
-        $mpdf->SetTitle('Tax Invoice '.$data->invoiceNumber());
+        $mpdf->SetTitle('Invoice '.$data->invoiceNumber());
 
         $footerHtml = View::make('invoice-pdf-footer', ['data' => $data])->render();
         $mpdf->SetHTMLFooter($footerHtml);

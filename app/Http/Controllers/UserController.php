@@ -284,6 +284,8 @@ class UserController extends Controller
                 'password' => $request->password,
                 'phone' => $request->phone,
                 'country' => $request->country,
+                'role' => null,
+                'profile_completed' => true,
             ]);
 
             return response()->json([

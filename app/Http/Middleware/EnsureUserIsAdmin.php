@@ -13,11 +13,19 @@ class EnsureUserIsAdmin
         $user = $request->user();
 
         if (! $user?->isAdmin()) {
+            if ($user?->isWorker()) {
+                return redirect()->route('pwa.dashboard');
+            }
+
             if ($user?->canAccessDashboard()) {
                 return redirect()->route($user->homeRouteName());
             }
 
-            abort(403, 'غير مصرح لك بالوصول إلى هذه الصفحة.');
+            if ($user) {
+                return redirect()->route('home');
+            }
+
+            return redirect()->route('login');
         }
 
         return $next($request);

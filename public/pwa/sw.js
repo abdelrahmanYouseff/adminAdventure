@@ -1,4 +1,4 @@
-const CACHE = 'worker-pwa-v2';
+const CACHE = 'worker-pwa-v3';
 const PRECACHE = [
   '/worker-app/login',
   '/assets/logo.png',

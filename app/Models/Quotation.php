@@ -44,10 +44,23 @@ class Quotation extends Model
     {
         parent::boot();
 
-        static::creating(function ($quotation) {
+        static::creating(function (Quotation $quotation) {
             if (empty($quotation->quotation_number)) {
-                $quotation->quotation_number = 'QT-' . date('Y') . '-' . str_pad(static::whereYear('created_at', date('Y'))->count() + 1, 4, '0', STR_PAD_LEFT);
+                $quotation->quotation_number = self::generateQuotationNumber();
             }
         });
+    }
+
+    /**
+     * Generate a unique quotation number: QA-YYYYMM{counter from 100}.
+     * Example: QA-202607100
+     */
+    public static function generateQuotationNumber(): string
+    {
+        return \App\Support\MonthlyDocumentNumber::next(
+            'QA',
+            self::query(),
+            'quotation_number'
+        );
     }
 }

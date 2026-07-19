@@ -7,7 +7,7 @@
 <html lang="en" dir="ltr">
 <head>
     <meta charset="UTF-8">
-    <title>Tax Invoice {{ $data->invoiceNumber() }}</title>
+    <title>Invoice {{ $data->invoiceNumber() }}</title>
     <style>
         body {
             font-family: dejavusans, sans-serif;
@@ -132,14 +132,14 @@
 {{-- Top header: company + logo --}}
 <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom: 8px;">
     <tr>
-        <td width="65%" valign="top">
+        <td width="70%" valign="top">
             <div class="company-name">{{ $data->companyLegalNameEn() }}</div>
             <div style="font-size: 7pt; margin-top: 5px; line-height: 1.5;">
                 CR. No. {{ $data->commercialRegister() }}
                 <span dir="rtl" style="font-family: xbriyaz, dejavusans, sans-serif;"> سجل تجاري</span>
             </div>
         </td>
-        <td width="35%" align="right" valign="top">
+        <td width="30%" align="right" valign="top">
             @if($data->hasLogo())
                 <img src="{{ $data->logoPath() }}" alt="Adventure World" height="46" style="max-width: 110px;">
             @endif
@@ -147,9 +147,12 @@
     </tr>
 </table>
 
-<div class="invoice-title">Tax Invoice</div>
-<div style="text-align: center; font-size: 9pt; font-weight: bold; margin: -12px 0 18px 0; letter-spacing: 0.3px;">
-    {{ $data->invoiceNumber() }}
+{{-- Title --}}
+<div style="text-align: center; margin: 10px 0 18px 0;">
+    <div class="invoice-title" style="margin: 0 0 6px 0;">Invoice</div>
+    <div style="font-size: 9pt; font-weight: bold; letter-spacing: 0.3px;">
+        {{ $data->invoiceNumber() }}
+    </div>
 </div>
 
 {{-- Company info + date / invoice no --}}
@@ -279,11 +282,29 @@
                     <td class="label">VAT</td>
                     <td class="value">{{ $data->formatSar($data->vatAmount(), 0) }}</td>
                 </tr>
+                @if($data->hasInsurance())
+                    <tr>
+                        <td class="label" style="background-color: #fff8e6;">
+                            INSURANCE DEPOSIT
+                            <div style="font-size: 6pt; font-weight: normal; color: #664d00; margin-top: 2px;">
+                                Refundable upon pickup / مسترد عند الاستلام
+                            </div>
+                        </td>
+                        <td class="value" style="background-color: #fff8e6;">{{ $data->formatSar($data->insuranceAmount(), 2) }}</td>
+                    </tr>
+                @endif
                 <tr class="total-row">
                     <td class="label" style="background-color: #333; color: #fff;">TOTAL</td>
                     <td class="value" style="background-color: #333; color: #fff;">{{ $data->formatSar($data->total(), 2) }}</td>
                 </tr>
             </table>
+            @if($data->hasInsurance())
+                <div style="margin-top: 8px; font-size: 6.5pt; color: #555; line-height: 1.5;">
+                    {{ $data->insuranceNoteEn() }}
+                    <br>
+                    <span dir="rtl" style="font-family: xbriyaz, dejavusans, sans-serif;">{{ $data->insuranceNoteAr() }}</span>
+                </div>
+            @endif
         </td>
     </tr>
 </table>

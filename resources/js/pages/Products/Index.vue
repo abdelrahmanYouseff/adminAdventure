@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, watch } from 'vue';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Plus, Trash2, ImageIcon, Edit, Upload, FileSpreadsheet } from 'lucide-vue-next';
 import { formatPrice } from '@/lib/formatNumber';
+import Swal from 'sweetalert2';
 
 interface Category {
     id: number;
@@ -40,6 +41,38 @@ defineOptions({
 const page = usePage();
 const flash = computed(() => (page.props.flash as { success?: string; error?: string } | undefined) ?? {});
 
+watch(
+    () => flash.value.success,
+    (message) => {
+        if (!message) return;
+        Swal.fire({
+            icon: 'success',
+            title: 'تم بنجاح',
+            text: message,
+            confirmButtonText: 'حسناً',
+            confirmButtonColor: '#2563EB',
+            timer: 2800,
+            timerProgressBar: true,
+        });
+    },
+    { immediate: true },
+);
+
+watch(
+    () => flash.value.error,
+    (message) => {
+        if (!message) return;
+        Swal.fire({
+            icon: 'error',
+            title: 'حدث خطأ',
+            text: message,
+            confirmButtonText: 'حسناً',
+            confirmButtonColor: '#DC2626',
+        });
+    },
+    { immediate: true },
+);
+
 const importForm = useForm<{ file: File | null }>({ file: null });
 const deleteForm = useForm({});
 const fileInput = ref<HTMLInputElement | null>(null);
@@ -61,8 +94,20 @@ const onFileSelected = (e: Event) => {
     });
 };
 
-const deleteProduct = (productId: number) => {
-    if (confirm('هل أنت متأكد من حذف هذا المنتج؟')) {
+const deleteProduct = async (productId: number) => {
+    const result = await Swal.fire({
+        icon: 'warning',
+        title: 'تأكيد الحذف',
+        text: 'هل أنت متأكد من حذف هذا المنتج؟',
+        showCancelButton: true,
+        confirmButtonText: 'نعم، احذف',
+        cancelButtonText: 'إلغاء',
+        confirmButtonColor: '#DC2626',
+        cancelButtonColor: '#64748B',
+        reverseButtons: true,
+    });
+
+    if (result.isConfirmed) {
         deleteForm.delete(`/products/${productId}`);
     }
 };
@@ -96,13 +141,6 @@ function toggleStatus(product: Product) {
 
     <div class="py-8 sm:py-12" dir="rtl">
         <div class="mx-auto max-w-7xl sm:px-6 lg:px-8">
-            <div v-if="flash.success" class="mb-4 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700 dark:border-green-800 dark:bg-green-900/20 dark:text-green-300">
-                {{ flash.success }}
-            </div>
-            <div v-if="flash.error" class="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-300">
-                {{ flash.error }}
-            </div>
-
             <div class="overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-sm dark:border-neutral-700 dark:bg-neutral-900">
                 <div class="border-b border-neutral-200 px-5 py-5 dark:border-neutral-700 sm:px-6">
                     <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -203,9 +241,14 @@ function toggleStatus(product: Product) {
                                         </div>
                                     </TableCell>
                                     <TableCell class="align-middle text-start">
-                                        <span class="font-semibold text-neutral-900 dark:text-neutral-100">
-                                            {{ product.product_name }}
-                                        </span>
+                                        <div class="min-w-0">
+                                            <p class="font-semibold text-neutral-900 dark:text-neutral-100">
+                                                {{ product.product_name }}
+                                            </p>
+                                            <p class="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">
+                                                {{ product.category?.category_name || 'بدون صنف' }}
+                                            </p>
+                                        </div>
                                     </TableCell>
                                     <TableCell class="align-middle text-center">
                                         <span class="font-bold tabular-nums text-[#3b89d2]">

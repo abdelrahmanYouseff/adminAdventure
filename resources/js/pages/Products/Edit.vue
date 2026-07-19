@@ -22,6 +22,7 @@ interface Product {
     product_name: string;
     description: string | null;
     price: number;
+    insurance_amount?: number | null;
     image: string | null;
     image_url?: string | null;
     status: string;
@@ -40,6 +41,7 @@ const form = useForm({
     _method: 'PUT',
     product_name: props.product.product_name,
     price: props.product.price,
+    insurance_amount: props.product.insurance_amount ?? 0,
     description: props.product.description || '',
     status: props.product.status,
     image: null as File | null,
@@ -118,6 +120,25 @@ const submit = () => {
                                             </div>
                                         </div>
                                     </div>
+                                </div>
+
+                                <div class="space-y-2">
+                                    <Label for="insurance_amount">مبلغ التأمين</Label>
+                                    <div class="relative">
+                                        <Input
+                                            id="insurance_amount"
+                                            v-model.number="form.insurance_amount"
+                                            type="number"
+                                            step="0.01"
+                                            min="0"
+                                            placeholder="0.00"
+                                            class="pl-12"
+                                        />
+                                        <div class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                                            <span class="text-neutral-500 sm:text-sm">ر.س</span>
+                                        </div>
+                                    </div>
+                                    <p v-if="form.errors.insurance_amount" class="text-sm text-rose-600">{{ form.errors.insurance_amount }}</p>
                                 </div>
 
                                 <div class="space-y-2">

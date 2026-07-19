@@ -52,11 +52,33 @@ class LoginRequest extends FormRequest
 
         $user = Auth::user();
 
+        if ($user?->isWorker()) {
+            Auth::logout();
+
+            if ($this->hasSession()) {
+                $this->session()->invalidate();
+                $this->session()->regenerateToken();
+            }
+
+            RateLimiter::hit($this->throttleKey());
+
+            throw ValidationException::withMessages([
+                'email' => 'حساب العامل يدخل فقط من تطبيق العمال (/worker-app).',
+            ]);
+        }
+
         if (! $user?->canAccessDashboard()) {
             Auth::logout();
 
+            if ($this->hasSession()) {
+                $this->session()->invalidate();
+                $this->session()->regenerateToken();
+            }
+
+            RateLimiter::hit($this->throttleKey());
+
             throw ValidationException::withMessages([
-                'email' => 'هذا الحساب غير مصرح له بالدخول إلى لوحة التحكم.',
+                'email' => 'حساب العملاء غير مصرح له بالدخول إلى لوحة التحكم. استخدم تسجيل الدخول من الموقع للمتابعة كعميل.',
             ]);
         }
 

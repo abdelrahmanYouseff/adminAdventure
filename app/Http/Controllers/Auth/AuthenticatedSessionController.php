@@ -33,14 +33,31 @@ class AuthenticatedSessionController extends Controller
 
         $request->session()->regenerate();
 
+        $user = $request->user();
+
+        // حماية إضافية: العملاء والعمال لا يدخلون لوحة التحكم من /login
+        if ($user?->isWorker() || ! $user?->canAccessDashboard()) {
+            $isWorker = (bool) $user?->isWorker();
+
+            Auth::logout();
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+
+            return redirect()
+                ->route('login')
+                ->withErrors([
+                    'email' => $isWorker
+                        ? 'حساب العامل يدخل فقط من تطبيق العمال (/worker-app).'
+                        : 'حساب العملاء غير مصرح له بالدخول إلى لوحة التحكم.',
+                ]);
+        }
+
         $redirect = $request->input('redirect');
         if (is_string($redirect) && str_starts_with($redirect, '/') && ! str_starts_with($redirect, '//')) {
             return redirect($redirect);
         }
 
-        $user = $request->user();
-
-        return redirect()->intended(route($user?->homeRouteName() ?? 'dashboard', absolute: false));
+        return redirect()->intended(route($user->homeRouteName(), absolute: false));
     }
 
     /**

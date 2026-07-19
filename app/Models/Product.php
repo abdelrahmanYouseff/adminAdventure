@@ -15,6 +15,7 @@ class Product extends Model
         'product_name',
         'description',
         'price',
+        'insurance_amount',
         'status',
         'image',
         'category_id',
@@ -22,6 +23,7 @@ class Product extends Model
 
     protected $casts = [
         'price' => 'decimal:2',
+        'insurance_amount' => 'decimal:2',
     ];
 
     protected $appends = ['image_url'];

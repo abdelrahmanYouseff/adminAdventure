@@ -4,7 +4,7 @@ import NavUser from '@/components/NavUser.vue';
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar';
 import { type Auth, type NavItem, type StaffRole } from '@/types';
 import { Link, usePage } from '@inertiajs/vue3';
-import { LayoutGrid, ShoppingBag, Users, Package, FileText, FileSpreadsheet, ShoppingCart, Tags, MessageCircle, HardHat, Building2 } from 'lucide-vue-next';
+import { LayoutGrid, ShoppingBag, Users, Package, FileText, FileSpreadsheet, ShoppingCart, Tags, MessageCircle, HardHat, ShieldCheck } from 'lucide-vue-next';
 import AppLogo from './AppLogo.vue';
 import { computed } from 'vue';
 
@@ -18,19 +18,19 @@ const allNavItems: NavItemWithRoles[] = [
         title: 'لوحة التحكم',
         href: '/dashboard',
         icon: LayoutGrid,
-        roles: ['admin', 'manager'],
+        roles: ['admin', 'general_manager', 'manager'],
     },
     {
         title: 'المنتجات',
         href: route('products'),
         icon: ShoppingBag,
-        roles: ['admin', 'manager'],
+        roles: ['admin', 'general_manager', 'manager'],
     },
     {
         title: 'الأصناف',
         href: route('categories.index'),
         icon: Tags,
-        roles: ['admin', 'manager'],
+        roles: ['admin', 'general_manager', 'manager'],
     },
     {
         title: 'الباقات',
@@ -48,19 +48,13 @@ const allNavItems: NavItemWithRoles[] = [
         title: 'أوامر العمل',
         href: '/worker-orders',
         icon: HardHat,
-        roles: ['admin', 'manager', 'workers_manager', 'worker'],
+        roles: ['admin', 'general_manager', 'manager', 'workers_manager'],
     },
     {
         title: 'العملاء',
         href: '/customers',
         icon: Users,
-        roles: ['admin'],
-    },
-    {
-        title: 'عملاء الشركات',
-        href: '/company-clients',
-        icon: Building2,
-        roles: ['admin', 'manager'],
+        roles: ['admin', 'general_manager', 'manager'],
     },
     {
         title: 'المستخدمين',
@@ -72,13 +66,19 @@ const allNavItems: NavItemWithRoles[] = [
         title: 'الفواتير',
         href: '/invoices',
         icon: FileText,
-        roles: ['admin', 'manager', 'accounts'],
+        roles: ['admin', 'general_manager', 'manager', 'accounts'],
+    },
+    {
+        title: 'استرداد التأمين',
+        href: '/insurance-deposits',
+        icon: ShieldCheck,
+        roles: ['admin', 'general_manager', 'manager', 'accounts'],
     },
     {
         title: 'عروض الأسعار',
         href: '/quotations',
         icon: FileSpreadsheet,
-        roles: ['admin', 'manager', 'accounts'],
+        roles: ['admin', 'general_manager', 'manager', 'accounts'],
     },
     {
         title: 'إعدادات واتساب',
@@ -101,7 +101,6 @@ const mainNavItems = computed(() => {
 
 const homeHref = computed(() => {
     switch (userRole.value) {
-        case 'worker':
         case 'workers_manager':
             return route('worker-orders.index');
         case 'accounts':

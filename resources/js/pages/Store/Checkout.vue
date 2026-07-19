@@ -30,7 +30,7 @@ const props = defineProps<{
 }>();
 
 const page = usePage();
-const { cartItems, count, total, syncFromStorage } = useStoreCart();
+const { cartItems, count, total, insuranceTotal, syncFromStorage } = useStoreCart();
 
 const form = ref({
     customer_name: props.customer?.customer_name ?? '',
@@ -47,7 +47,7 @@ const DELIVERY = 0;
 
 const subtotal = total;
 const vat = computed(() => subtotal.value * VAT_RATE);
-const grandTotal = computed(() => subtotal.value + vat.value + DELIVERY);
+const grandTotal = computed(() => subtotal.value + vat.value + insuranceTotal.value + DELIVERY);
 
 const fmt = formatPrice;
 const lineTotal = (price: number, qty: number, dur: number) => price * qty * dur;
@@ -365,6 +365,16 @@ const submit = async () => {
                                 <div class="flex justify-between gap-3">
                                     <span class="leading-snug text-neutral-500">ضريبة القيمة المضافة (15%)</span>
                                     <span class="shrink-0 font-semibold tabular-nums text-neutral-900">{{ fmt(vat) }} ريال</span>
+                                </div>
+                                <div
+                                    v-if="insuranceTotal > 0"
+                                    class="flex justify-between gap-3"
+                                >
+                                    <span class="leading-snug text-neutral-500">
+                                        مبلغ التأمين
+                                        <span class="block text-[11px] text-neutral-400">مسترد بعد انتهاء الفعالية · بدون ضريبة</span>
+                                    </span>
+                                    <span class="shrink-0 font-semibold tabular-nums text-amber-700">{{ fmt(insuranceTotal) }} ريال</span>
                                 </div>
                             </div>
 

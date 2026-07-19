@@ -24,7 +24,7 @@ class RegisteredUserController extends Controller
     }
 
     /**
-     * Handle an incoming registration request.
+     * تسجيل عميل فردي من الواجهة العامة — بدون صلاحية لوحة التحكم.
      *
      * @throws \Illuminate\Validation\ValidationException
      */
@@ -37,15 +37,19 @@ class RegisteredUserController extends Controller
         ]);
 
         $user = User::create([
-            'name' => $request->name,
+            'customer_name' => $request->name,
             'email' => $request->email,
             'password' => Hash::make($request->password),
+            'role' => null,
+            'profile_completed' => true,
         ]);
 
         event(new Registered($user));
 
         Auth::login($user);
+        $request->session()->regenerate();
 
-        return to_route('dashboard');
+        // العملاء يبقون على المتجر فقط — لا يدخلون لوحة التحكم
+        return redirect()->route('home');
     }
 }

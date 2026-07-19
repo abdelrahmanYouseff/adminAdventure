@@ -13,7 +13,15 @@ class EnsureUserIsStaff
         $user = $request->user();
 
         if (! $user || ! $user->canAccessDashboard()) {
-            abort(403, 'غير مصرح لك بالوصول إلى لوحة التحكم.');
+            if ($user?->isWorker()) {
+                return redirect()->route('pwa.dashboard');
+            }
+
+            if ($user) {
+                return redirect()->route('home');
+            }
+
+            return redirect()->route('login');
         }
 
         return $next($request);

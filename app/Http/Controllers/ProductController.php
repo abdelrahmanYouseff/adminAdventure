@@ -43,11 +43,14 @@ class ProductController extends Controller
         $data = $request->validate([
             'product_name' => 'required|string|max:255',
             'price' => 'required|numeric',
+            'insurance_amount' => 'nullable|numeric|min:0',
             'description' => 'nullable|string',
             'status' => 'required|in:active,inactive',
             'category_id' => 'required|exists:categories,id',
             'image' => 'nullable|image|max:2048',
         ]);
+
+        $data['insurance_amount'] = $data['insurance_amount'] ?? 0;
 
         if ($request->hasFile('image')) {
             $data['image'] = $request->file('image')->store('products', 'public');
@@ -55,7 +58,7 @@ class ProductController extends Controller
 
         Product::create($data);
 
-        return redirect()->route('products')->with('success', 'Product created successfully!');
+        return redirect()->route('products')->with('success', 'تم إضافة المنتج بنجاح');
     }
 
     /**
@@ -92,6 +95,7 @@ class ProductController extends Controller
         $rules = [
             'product_name' => 'sometimes|required|string|max:255',
             'price' => 'sometimes|required|numeric',
+            'insurance_amount' => 'sometimes|nullable|numeric|min:0',
             'description' => 'sometimes|nullable|string',
             'status' => 'sometimes|required|in:active,inactive',
             'category_id' => 'sometimes|required|exists:categories,id',
@@ -99,6 +103,10 @@ class ProductController extends Controller
         ];
 
         $data = $request->validate($rules);
+
+        if (array_key_exists('insurance_amount', $data) && $data['insurance_amount'] === null) {
+            $data['insurance_amount'] = 0;
+        }
 
         if ($request->hasFile('image')) {
             $data['image'] = $request->file('image')->store('products', 'public');
@@ -109,7 +117,7 @@ class ProductController extends Controller
 
         $product->update($data);
 
-        return response()->json(['success' => true]);
+        return redirect()->route('products')->with('success', 'تم تعديل المنتج بنجاح');
     }
 
     /**
@@ -119,7 +127,7 @@ class ProductController extends Controller
     {
         $product->delete();
 
-        return redirect()->route('products')->with('success', 'Product deleted successfully!');
+        return redirect()->route('products')->with('success', 'تم حذف المنتج بنجاح');
     }
 
     /**

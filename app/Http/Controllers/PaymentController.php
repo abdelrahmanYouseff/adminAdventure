@@ -7,6 +7,8 @@ use App\Models\Order;
 use App\Models\PaymentSession;
 use App\Models\Product;
 use App\Models\User;
+use App\Support\CheckoutRedirect;
+use App\Support\OrderInsuranceCalculator;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -53,21 +55,30 @@ class PaymentController extends Controller
             return response()->json(['success' => false, 'message' => 'المبلغ الإجمالي غير صحيح'], 422);
         }
 
+        $insurance = OrderInsuranceCalculator::fromLines($items);
+        $insuranceTotal = $insurance['total'];
+        $chargeAmount = round($totalAmount + $insuranceTotal, 2);
+
         // Build items for Order.items JSON, also collect product IDs for pivot
         $orderItems = [];
         $pivotProducts = [];
         foreach ($items as $item) {
+            $productId = isset($item['product_id']) ? (int) $item['product_id'] : null;
             $orderItems[] = [
-                'product_id'   => $item['product_id'] ?? null,
+                'product_id'   => $productId,
                 'product_name' => $item['product_name'],
                 'quantity'     => $item['quantity'],
                 'price'        => $item['price'],
                 'subtotal'     => $item['price'] * $item['quantity'],
+                'insurance_amount' => $productId
+                    ? (float) ($insurance['unit_by_product'][$productId] ?? 0)
+                    : 0,
             ];
-            if (! empty($item['product_id'])) {
-                $pivotProducts[$item['product_id']] = [
+            if ($productId) {
+                $pivotProducts[$productId] = [
                     'quantity' => $item['quantity'],
                     'price'    => $item['price'],
+                    'insurance_amount' => (float) ($insurance['unit_by_product'][$productId] ?? 0),
                 ];
             }
         }
@@ -86,7 +97,9 @@ class PaymentController extends Controller
                 'address'        => $validated['address'] ?? null,
                 'activity_date'  => $validated['activity_date'] ?? null,
                 'order_number'   => $orderNumber,
-                'total_amount'   => $totalAmount,
+                'total_amount'   => $chargeAmount,
+                'insurance_amount' => $insuranceTotal,
+                'insurance_status' => $insuranceTotal > 0 ? 'pending' : 'none',
                 'currency'       => $currency,
                 'status'         => 'pending',
                 'payment_status' => 'pending',
@@ -108,7 +121,7 @@ class PaymentController extends Controller
         // Create Noon session — if it fails, delete the orphaned order
         $sessionResponse = $this->createNoonSession([
             'user_id'        => $validated['user_id'],
-            'amount'         => $totalAmount,
+            'amount'         => $chargeAmount,
             'currency'       => $currency,
             'order_id'       => $order->order_number,
             'description'    => 'طلب رقم ' . $order->order_number,
@@ -368,10 +381,10 @@ class PaymentController extends Controller
             if (! $cacheExists) {
                 Log::info('processPaymentSuccess cache_miss', ['order_id' => $orderId]);
             }
-            $existingInvoice = Invoice::where('invoice_number', $orderId)->where('status', 'paid')->first();
-            if ($existingInvoice) {
+            $existingInvoice = $this->findInvoiceForOrderReference($orderId);
+            if ($existingInvoice && $existingInvoice->status === 'paid') {
                 $order = Order::where('order_number', $orderId)
-                    ->orWhereHas('invoice', fn ($q) => $q->where('invoice_number', $orderId))
+                    ->orWhere('invoice_id', $existingInvoice->id)
                     ->first();
                 return [
                     'processed' => true,
@@ -386,7 +399,7 @@ class PaymentController extends Controller
             $invoice = Invoice::create([
                 'user_id' => $paymentSessionData['user_id'],
                 'rental_id' => null,
-                'invoice_number' => $orderId,
+                'invoice_number' => Invoice::generateInvoiceNumber(),
                 'amount' => $paymentSessionData['amount'],
                 'status' => 'paid',
                 'payment_method' => 'noon',
@@ -497,19 +510,11 @@ class PaymentController extends Controller
             if ($noonOrderId && $this->verifyNoonOrderStatus($noonOrderId, 'CAPTURED')) {
                 DB::transaction(function () use ($order, $orderId, $noonOrderId) {
                     if ($order && $order->payment_status !== 'paid') {
-                        // Upsert invoice
-                        $invoice = Invoice::firstOrCreate(
-                            ['invoice_number' => $orderId],
-                            [
-                                'user_id'        => $order->user_id,
-                                'rental_id'      => null,
-                                'amount'         => $order->total_amount,
-                                'status'         => 'paid',
-                                'payment_method' => 'noon',
-                                'issued_at'      => now(),
-                                'due_date'       => now()->addDays(7),
-                            ]
-                        );
+                        $invoice = $this->resolveOrCreateInvoiceForOrder($order, [
+                            'amount' => $order->total_amount,
+                            'status' => 'paid',
+                            'payment_method' => 'noon',
+                        ]);
                         if ($invoice->status !== 'paid') {
                             $invoice->update(['status' => 'paid']);
                         }
@@ -584,7 +589,7 @@ class PaymentController extends Controller
         if ($orderModel && ($orderModel->payment_status === 'paid' || $orderModel->status === 'paid')) {
             return response()->json([
                 'success' => true,
-                'redirect_url' => route('home', ['paid_order' => $order]),
+                'redirect_url' => CheckoutRedirect::homeAfterPayment($order),
             ]);
         }
 
@@ -595,7 +600,7 @@ class PaymentController extends Controller
         if ($orderModel && ($orderModel->payment_status === 'paid' || $orderModel->status === 'paid')) {
             return response()->json([
                 'success' => true,
-                'redirect_url' => route('home', ['paid_order' => $order]),
+                'redirect_url' => CheckoutRedirect::homeAfterPayment($order),
             ]);
         }
 
@@ -621,7 +626,7 @@ class PaymentController extends Controller
 
         // Already confirmed — redirect immediately (avoids repeated Noon API calls on refresh).
         if ($orderId && $this->isPaymentProcessed($orderId) && ! $fromApp && ! $this->isAppWebView($request)) {
-            return redirect()->route('home', ['paid_order' => $orderId]);
+            return redirect()->to(CheckoutRedirect::homeAfterPayment($orderId));
         }
 
         $noonOrderId = $input['orderId'] ?? null;
@@ -648,13 +653,15 @@ class PaymentController extends Controller
         $success = $this->isPaymentProcessed($orderId);
 
         if ($success && $orderId && ! $fromApp && ! $this->isAppWebView($request)) {
-            return redirect()->route('home', ['paid_order' => $orderId]);
+            return redirect()->to(CheckoutRedirect::homeAfterPayment($orderId));
         }
 
         $orderIdSafe    = $orderId !== null && $orderId !== '' ? e((string) $orderId) : '—';
         $orderIdJson    = json_encode((string) ($orderId ?? ''));
         $processedJson  = $success ? 'true' : 'false';
-        $homeUrl        = e(route('home'));
+        $homeUrl        = e($orderId
+            ? CheckoutRedirect::homeAfterPayment($orderId)
+            : CheckoutRedirect::home());
         $statusUrlJson  = $orderId ? json_encode(route('payment.return.status', ['order' => $orderId])) : 'null';
 
         $title   = $success ? 'تم الدفع بنجاح' : 'جاري تأكيد الدفع';
@@ -768,6 +775,10 @@ HTML;
             return true;
         }
 
+        if ($order?->invoice?->status === 'paid') {
+            return true;
+        }
+
         return Invoice::where('invoice_number', $orderId)->where('status', 'paid')->exists();
     }
 
@@ -845,8 +856,8 @@ HTML;
         $orderId = $request->get('order_id');
 
         if ($orderId) {
-            $invoice = Invoice::where('invoice_number', $orderId)->first();
-            if ($invoice) {
+            $invoice = $this->findInvoiceForOrderReference($orderId);
+            if ($invoice && $invoice->status !== 'paid') {
                 $invoice->update(['status' => 'cancelled']);
             }
         }
@@ -869,8 +880,8 @@ HTML;
         $orderId = $request->get('order_id');
 
         if ($orderId) {
-            $invoice = Invoice::where('invoice_number', $orderId)->first();
-            if ($invoice) {
+            $invoice = $this->findInvoiceForOrderReference($orderId);
+            if ($invoice && $invoice->status !== 'paid') {
                 $invoice->update(['status' => 'cancelled']);
             }
         }
@@ -890,8 +901,8 @@ HTML;
         $orderId = $request->get('order_id');
 
         if ($orderId) {
-            $invoice = Invoice::where('invoice_number', $orderId)->first();
-            if ($invoice) {
+            $invoice = $this->findInvoiceForOrderReference($orderId);
+            if ($invoice && $invoice->status !== 'paid') {
                 $invoice->update(['status' => 'cancelled']);
             }
         }
@@ -979,26 +990,32 @@ HTML;
                     }
 
                     DB::transaction(function () use ($orderId, $paymentId, $paymentSessionData) {
-                        // Upsert Invoice for backward compatibility
-                        $invoice = Invoice::firstOrCreate(
-                            ['invoice_number' => $orderId],
-                            [
-                                'user_id'         => $paymentSessionData['user_id'],
-                                'rental_id'       => null,
-                                'amount'          => $paymentSessionData['amount'],
-                                'status'          => 'paid',
-                                'payment_method'  => 'noon',
-                                'issued_at'       => now(),
-                                'due_date'        => now()->addDays(7),
-                            ]
-                        );
-                        // Always mark the invoice paid (handles case where it was created earlier)
+                        $existingOrder = Order::where('order_number', $orderId)->lockForUpdate()->first();
+
+                        if ($existingOrder) {
+                            $invoice = $this->resolveOrCreateInvoiceForOrder($existingOrder, [
+                                'amount' => $paymentSessionData['amount'],
+                                'status' => 'paid',
+                                'payment_method' => 'noon',
+                                'user_id' => $paymentSessionData['user_id'],
+                            ]);
+                        } else {
+                            $invoice = Invoice::create([
+                                'user_id' => $paymentSessionData['user_id'],
+                                'rental_id' => null,
+                                'invoice_number' => Invoice::generateInvoiceNumber(),
+                                'amount' => $paymentSessionData['amount'],
+                                'status' => 'paid',
+                                'payment_method' => 'noon',
+                                'issued_at' => now(),
+                                'due_date' => now()->addDays(7),
+                            ]);
+                        }
+
                         if ($invoice->status !== 'paid') {
                             $invoice->update(['status' => 'paid']);
                         }
 
-                        // Update the existing Order — orders always pre-exist in the new flow
-                        $existingOrder = Order::where('order_number', $orderId)->lockForUpdate()->first();
                         if ($existingOrder) {
                             $existingOrder->update([
                                 'invoice_id'              => $invoice->id,
@@ -1023,26 +1040,36 @@ HTML;
                 case 'CANCELLED':
                 case 'DECLINED':
                     DB::transaction(function () use ($orderId, $paymentSessionData) {
-                        // Upsert a cancelled Invoice
-                        Invoice::firstOrCreate(
-                            ['invoice_number' => $orderId],
-                            [
-                                'user_id'        => $paymentSessionData['user_id'],
-                                'rental_id'      => null,
-                                'amount'         => $paymentSessionData['amount'],
-                                'status'         => 'cancelled',
-                                'payment_method' => 'noon',
-                                'issued_at'      => now(),
-                                'due_date'       => now()->addDays(7),
-                            ]
-                        );
-
-                        // Mark the existing Order as failed (keep it for records)
                         $existingOrder = Order::where('order_number', $orderId)->lockForUpdate()->first();
-                        if ($existingOrder && $existingOrder->payment_status !== 'paid') {
-                            $existingOrder->update([
-                                'payment_status' => 'failed',
-                                'status'         => 'cancelled',
+
+                        if ($existingOrder) {
+                            if (! $existingOrder->invoice_id) {
+                                $this->resolveOrCreateInvoiceForOrder($existingOrder, [
+                                    'amount' => $paymentSessionData['amount'],
+                                    'status' => 'cancelled',
+                                    'payment_method' => 'noon',
+                                    'user_id' => $paymentSessionData['user_id'],
+                                ]);
+                            } elseif ($existingOrder->invoice && $existingOrder->invoice->status !== 'paid') {
+                                $existingOrder->invoice->update(['status' => 'cancelled']);
+                            }
+
+                            if ($existingOrder->payment_status !== 'paid') {
+                                $existingOrder->update([
+                                    'payment_status' => 'failed',
+                                    'status'         => 'cancelled',
+                                ]);
+                            }
+                        } else {
+                            Invoice::create([
+                                'user_id' => $paymentSessionData['user_id'],
+                                'rental_id' => null,
+                                'invoice_number' => Invoice::generateInvoiceNumber(),
+                                'amount' => $paymentSessionData['amount'],
+                                'status' => 'cancelled',
+                                'payment_method' => 'noon',
+                                'issued_at' => now(),
+                                'due_date' => now()->addDays(7),
                             ]);
                         }
 
@@ -1207,7 +1234,7 @@ HTML;
         }
 
         // 2. Invoice fallback — covers the legacy web-store flow (no pre-existing Order row)
-        $invoice = Invoice::where('invoice_number', $orderId)->first();
+        $invoice = $this->findInvoiceForOrderReference($orderId);
 
         if ($invoice) {
             if ($invoice->status === 'paid') {
@@ -1468,6 +1495,65 @@ HTML;
         return $authHeader !== ''
             ? preg_replace('/^Key_/', 'Key ', $authHeader)
             : '';
+    }
+
+    /**
+     * Find invoice by its number or via the related order number (legacy/payment refs).
+     */
+    protected function findInvoiceForOrderReference(?string $reference): ?Invoice
+    {
+        if (! $reference) {
+            return null;
+        }
+
+        $invoice = Invoice::where('invoice_number', $reference)->first();
+        if ($invoice) {
+            return $invoice;
+        }
+
+        return Order::query()
+            ->where('order_number', $reference)
+            ->with('invoice')
+            ->first()
+            ?->invoice;
+    }
+
+    /**
+     * Reuse an existing invoice for the order, or create one with S-YYYYMM### format.
+     *
+     * @param  array<string, mixed>  $attributes
+     */
+    protected function resolveOrCreateInvoiceForOrder(Order $order, array $attributes = []): Invoice
+    {
+        $order->loadMissing('invoice');
+
+        if ($order->invoice) {
+            return $order->invoice;
+        }
+
+        $legacy = Invoice::where('invoice_number', $order->order_number)->first();
+        if ($legacy) {
+            if (! $order->invoice_id) {
+                $order->update(['invoice_id' => $legacy->id]);
+            }
+
+            return $legacy;
+        }
+
+        $invoice = Invoice::create([
+            'user_id' => $attributes['user_id'] ?? $order->user_id,
+            'rental_id' => null,
+            'invoice_number' => Invoice::generateInvoiceNumber(),
+            'amount' => $attributes['amount'] ?? $order->total_amount,
+            'status' => $attributes['status'] ?? 'paid',
+            'payment_method' => $attributes['payment_method'] ?? 'noon',
+            'issued_at' => now(),
+            'due_date' => now()->addDays(7),
+        ]);
+
+        $order->update(['invoice_id' => $invoice->id]);
+
+        return $invoice;
     }
 
     /**

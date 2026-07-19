@@ -11,6 +11,8 @@ class User extends Authenticatable
 {
     public const ROLE_ADMIN = 'admin';
 
+    public const ROLE_GENERAL_MANAGER = 'general_manager';
+
     public const ROLE_MANAGER = 'manager';
 
     public const ROLE_ACCOUNTS = 'accounts';
@@ -22,6 +24,7 @@ class User extends Authenticatable
     /** @var list<string> */
     public const STAFF_ROLES = [
         self::ROLE_ADMIN,
+        self::ROLE_GENERAL_MANAGER,
         self::ROLE_MANAGER,
         self::ROLE_ACCOUNTS,
         self::ROLE_WORKERS_MANAGER,
@@ -127,6 +130,11 @@ class User extends Authenticatable
         return $this->role === self::ROLE_ADMIN;
     }
 
+    public function isGeneralManager(): bool
+    {
+        return $this->role === self::ROLE_GENERAL_MANAGER;
+    }
+
     public function isManager(): bool
     {
         return $this->role === self::ROLE_MANAGER;
@@ -154,10 +162,11 @@ class User extends Authenticatable
 
     /**
      * Staff users who may log into the dashboard panel.
+     * Workers use /worker-app only.
      */
     public function canAccessDashboard(): bool
     {
-        return $this->isStaff();
+        return $this->isStaff() && ! $this->isWorker();
     }
 
     public function hasAnyRole(string ...$roles): bool
@@ -171,9 +180,10 @@ class User extends Authenticatable
     public function homeRouteName(): string
     {
         return match ($this->role) {
-            self::ROLE_WORKER, self::ROLE_WORKERS_MANAGER => 'worker-orders.index',
+            self::ROLE_WORKER => 'pwa.dashboard',
+            self::ROLE_WORKERS_MANAGER => 'worker-orders.index',
             self::ROLE_ACCOUNTS => 'quotations.index',
-            self::ROLE_MANAGER, self::ROLE_ADMIN => 'dashboard',
+            self::ROLE_MANAGER, self::ROLE_GENERAL_MANAGER, self::ROLE_ADMIN => 'dashboard',
             default => 'home',
         };
     }
@@ -182,6 +192,7 @@ class User extends Authenticatable
     {
         return match ($this->role) {
             self::ROLE_ADMIN => 'ادمن',
+            self::ROLE_GENERAL_MANAGER => 'مدير عام',
             self::ROLE_MANAGER => 'مسئول',
             self::ROLE_ACCOUNTS => 'حسابات',
             self::ROLE_WORKERS_MANAGER => 'مدير العمال',

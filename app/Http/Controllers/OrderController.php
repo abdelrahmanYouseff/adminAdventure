@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Order;
 use App\Models\Invoice;
 use App\Models\Product;
+use App\Support\OrderInsuranceCalculator;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
@@ -104,6 +105,8 @@ class OrderController extends Controller
 
         $productIds = collect($validated['items'])->pluck('product_id')->all();
         $products = Product::whereIn('id', $productIds)->pluck('product_name', 'id');
+        $insurance = OrderInsuranceCalculator::fromLines($validated['items']);
+        $insuranceTotal = $insurance['total'];
 
         $itemsForOrder = [];
         $totalAmount = 0;
@@ -119,15 +122,17 @@ class OrderController extends Controller
                 'quantity' => $qty,
                 'price' => $price,
                 'amount' => $lineTotal,
+                'insurance_amount' => (float) ($insurance['unit_by_product'][(int) $item['product_id']] ?? 0),
             ];
         }
 
+        $chargeAmount = round($totalAmount + $insuranceTotal, 2);
         $isPaid = $validated['status'] === 'paid';
         $userId = $request->user()?->id ?? 1;
 
         $invoice = Invoice::create([
             'invoice_number' => Invoice::generateInvoiceNumber(),
-            'amount' => $totalAmount,
+            'amount' => $chargeAmount,
             'status' => $isPaid ? 'paid' : 'pending',
             'payment_method' => $validated['payment_method'],
             'issued_at' => now(),
@@ -143,7 +148,9 @@ class OrderController extends Controller
             'activity_date' => $validated['activity_date'] ?? null,
             'invoice_id' => $invoice->id,
             'order_number' => Order::generateOrderNumber(),
-            'total_amount' => $totalAmount,
+            'total_amount' => $chargeAmount,
+            'insurance_amount' => $insuranceTotal,
+            'insurance_status' => $insuranceTotal > 0 ? 'pending' : 'none',
             'currency' => $validated['currency'],
             'payment_method' => $validated['payment_method'],
             'status' => $validated['status'],
@@ -154,9 +161,11 @@ class OrderController extends Controller
         ]);
 
         foreach ($validated['items'] as $item) {
-            $order->products()->attach($item['product_id'], [
+            $productId = (int) $item['product_id'];
+            $order->products()->attach($productId, [
                 'quantity' => (int) $item['quantity'],
                 'price' => (float) $item['unit_price'],
+                'insurance_amount' => (float) ($insurance['unit_by_product'][$productId] ?? 0),
             ]);
         }
 
@@ -197,9 +206,15 @@ class OrderController extends Controller
             ]);
 
             $itemsForOrder = $request->items;
+            $insuranceTotal = 0.0;
+            $insuranceUnits = [];
+
             if ($request->has('product_items') && is_array($request->product_items)) {
                 $productIds = array_column($request->product_items, 'product_id');
                 $products = Product::whereIn('id', $productIds)->pluck('product_name', 'id');
+                $insurance = OrderInsuranceCalculator::fromLines($request->product_items);
+                $insuranceTotal = $insurance['total'];
+                $insuranceUnits = $insurance['unit_by_product'];
                 $itemsForOrder = [];
                 foreach ($request->product_items as $productItem) {
                     $name = $products[$productItem['product_id']] ?? 'Product #' . $productItem['product_id'];
@@ -210,13 +225,16 @@ class OrderController extends Controller
                         'quantity' => $qty,
                         'price' => $price,
                         'amount' => $price * $qty,
+                        'insurance_amount' => (float) ($insuranceUnits[(int) $productItem['product_id']] ?? 0),
                     ];
                 }
             }
 
+            $chargeAmount = round((float) $request->total_amount + $insuranceTotal, 2);
+
             $invoiceData = [
                 'invoice_number' => Invoice::generateInvoiceNumber(),
-                'amount' => $request->total_amount,
+                'amount' => $chargeAmount,
                 'status' => $request->status === 'paid' ? 'paid' : 'pending',
                 'payment_method' => $request->payment_method,
                 'issued_at' => now(),
@@ -234,7 +252,9 @@ class OrderController extends Controller
                 'activity_date' => $request->activity_date,
                 'invoice_id' => $invoice->id,
                 'order_number' => Order::generateOrderNumber(),
-                'total_amount' => $request->total_amount,
+                'total_amount' => $chargeAmount,
+                'insurance_amount' => $insuranceTotal,
+                'insurance_status' => $insuranceTotal > 0 ? 'pending' : 'none',
                 'currency' => $request->currency,
                 'payment_method' => $request->payment_method,
                 'payment_id' => $request->payment_id,
@@ -248,9 +268,11 @@ class OrderController extends Controller
 
             if ($request->has('product_items') && is_array($request->product_items)) {
                 foreach ($request->product_items as $productItem) {
-                    $order->products()->attach($productItem['product_id'], [
+                    $productId = (int) $productItem['product_id'];
+                    $order->products()->attach($productId, [
                         'quantity' => (int) $productItem['quantity'],
                         'price' => (float) $productItem['price'],
+                        'insurance_amount' => (float) ($insuranceUnits[$productId] ?? 0),
                     ]);
                 }
             }

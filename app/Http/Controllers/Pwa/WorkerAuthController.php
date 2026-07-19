@@ -18,9 +18,10 @@ class WorkerAuthController extends Controller
     public function create(Request $request): Response|RedirectResponse
     {
         if ($request->user()?->isWorker()) {
-            return redirect()->route('pwa.dashboard');
+            return redirect('/worker-app');
         }
 
+        // أي جلسة غير عامل تُصفَّر حتى لا تمنع الدخول
         if ($request->user()) {
             Auth::logout();
             $request->session()->invalidate();
@@ -30,7 +31,7 @@ class WorkerAuthController extends Controller
         return Inertia::render('Login');
     }
 
-    public function store(Request $request): RedirectResponse
+    public function store(Request $request): RedirectResponse|\Symfony\Component\HttpFoundation\Response
     {
         $credentials = $request->validate([
             'email' => ['required', 'string', 'email'],
@@ -77,7 +78,8 @@ class WorkerAuthController extends Controller
         RateLimiter::clear($throttleKey);
         $request->session()->regenerate();
 
-        return redirect()->intended(route('pwa.dashboard', absolute: false));
+        // Full visit يتجنب مشاكل إصدار أصول Inertia بعد تسجيل الدخول
+        return Inertia::location('/worker-app');
     }
 
     public function destroy(Request $request): RedirectResponse

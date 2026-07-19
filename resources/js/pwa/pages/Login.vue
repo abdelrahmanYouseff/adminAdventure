@@ -4,6 +4,7 @@ import { Eye, EyeOff } from 'lucide-vue-next';
 import { ref } from 'vue';
 
 const showPassword = ref(false);
+const formError = ref<string | null>(null);
 
 const form = useForm({
     email: '',
@@ -11,8 +12,19 @@ const form = useForm({
 });
 
 function submit() {
-    form.post(route('pwa.login.store'), {
+    formError.value = null;
+
+    form.post('/worker-app/login', {
         preserveScroll: true,
+        onError: (errors) => {
+            formError.value =
+                errors.email ||
+                errors.password ||
+                'تعذر تسجيل الدخول. تحقق من البيانات وحاول مرة أخرى.';
+        },
+        onFinish: () => {
+            form.processing = false;
+        },
     });
 }
 </script>
@@ -34,6 +46,13 @@ function submit() {
             </div>
 
             <form class="space-y-4 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6" @submit.prevent="submit">
+                <div
+                    v-if="formError || form.errors.email || form.errors.password"
+                    class="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700"
+                >
+                    {{ formError || form.errors.email || form.errors.password }}
+                </div>
+
                 <div class="space-y-2">
                     <label for="email" class="block text-sm font-medium text-slate-700">البريد الإلكتروني</label>
                     <input
@@ -46,7 +65,6 @@ function submit() {
                         class="h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-base text-slate-900 outline-none ring-sky-400/40 placeholder:text-slate-400 focus:border-sky-400 focus:ring-2"
                         placeholder="worker@example.com"
                     />
-                    <p v-if="form.errors.email" class="text-sm text-red-600">{{ form.errors.email }}</p>
                 </div>
 
                 <div class="space-y-2">
@@ -71,7 +89,6 @@ function submit() {
                             <EyeOff v-else class="h-5 w-5" />
                         </button>
                     </div>
-                    <p v-if="form.errors.password" class="text-sm text-red-600">{{ form.errors.password }}</p>
                 </div>
 
                 <button

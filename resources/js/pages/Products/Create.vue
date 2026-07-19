@@ -26,6 +26,7 @@ const props = defineProps<Props>();
 const form = useForm({
     product_name: '',
     price: null as number | null,
+    insurance_amount: null as number | null,
     description: '',
     status: 'active',
     image: null as File | null,
@@ -99,6 +100,25 @@ const submit = () => {
                                             </div>
                                         </div>
                                     </div>
+                                </div>
+
+                                <div class="space-y-2">
+                                    <Label for="insurance_amount">مبلغ التأمين</Label>
+                                    <div class="relative">
+                                        <Input
+                                            id="insurance_amount"
+                                            v-model.number="form.insurance_amount"
+                                            type="number"
+                                            step="0.01"
+                                            min="0"
+                                            placeholder="0.00"
+                                            class="pl-12"
+                                        />
+                                        <div class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                                            <span class="text-neutral-500 sm:text-sm">ر.س</span>
+                                        </div>
+                                    </div>
+                                    <p v-if="form.errors.insurance_amount" class="text-sm text-rose-600">{{ form.errors.insurance_amount }}</p>
                                 </div>
 
                                 <div class="space-y-2">

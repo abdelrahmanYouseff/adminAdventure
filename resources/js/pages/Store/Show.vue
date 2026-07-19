@@ -18,6 +18,7 @@ interface Product {
     product_name: string;
     description: string | null;
     price: number;
+    insurance_amount?: number | string | null;
     status: string;
     image: string | null;
     image_url?: string | null;
@@ -67,6 +68,8 @@ function addToCart() {
             Number(props.product.price),
             duration.value,
             mainImage.value,
+            1,
+            Number(props.product.insurance_amount ?? 0),
         );
         added.value = true;
         setTimeout(() => (added.value = false), 2000);

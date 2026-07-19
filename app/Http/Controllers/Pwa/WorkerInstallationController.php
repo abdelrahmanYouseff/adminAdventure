@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Pwa;
 use App\Http\Controllers\Controller;
 use App\Models\Order;
 use App\Models\WorkerOrder;
+use App\Models\WorkerOrderNote;
 use App\Support\OrderWhatsAppMessage;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -21,6 +22,8 @@ class WorkerInstallationController extends Controller
 
         $order->load([
             'workerOrders' => fn ($q) => $q->orderBy('line_index'),
+            'workerNotes' => fn ($q) => $q->latest(),
+            'workerNotes.user:id,customer_name,role',
         ]);
 
         $lines = $order->workerOrders;
@@ -56,8 +59,41 @@ class WorkerInstallationController extends Controller
                     'pickup_at' => $line->pickup_at?->toIso8601String(),
                     'pickup_condition' => $line->pickup_condition,
                 ])->values()->all(),
+                'notes' => $order->workerNotes
+                    ->map(fn (WorkerOrderNote $note) => [
+                        'id' => $note->id,
+                        'body' => $note->body,
+                        'user_name' => $note->user?->name ?: 'مستخدم',
+                        'is_mine' => (int) $note->user_id === (int) $user->id,
+                        'created_at' => $note->created_at?->toIso8601String(),
+                    ])
+                    ->values()
+                    ->all(),
             ],
         ]);
+    }
+
+    public function storeNote(Request $request, Order $order): RedirectResponse
+    {
+        $user = $request->user();
+        abort_unless($order->isAssignedToWorker($user), 403, 'هذا التركيب غير معيّن لك.');
+
+        $validated = $request->validate([
+            'body' => ['required', 'string', 'max:2000'],
+        ], [
+            'body.required' => 'يجب كتابة الملاحظة.',
+            'body.max' => 'الملاحظة يجب ألا تتجاوز 2000 حرف.',
+        ]);
+
+        WorkerOrderNote::create([
+            'order_id' => $order->id,
+            'user_id' => $user->id,
+            'body' => trim($validated['body']),
+        ]);
+
+        return redirect()
+            ->route('pwa.installations.show', $order)
+            ->with('success', 'تم حفظ الملاحظة.');
     }
 
     public function complete(Request $request, WorkerOrder $workerOrder): RedirectResponse

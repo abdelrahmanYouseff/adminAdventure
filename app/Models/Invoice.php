@@ -74,25 +74,15 @@ class Invoice extends Model
     }
 
     /**
-     * Generate a unique invoice number.
+     * Generate a unique invoice number: S-YYYYMM{counter from 100}.
+     * Example: S-202607100
      */
-    public static function generateInvoiceNumber()
+    public static function generateInvoiceNumber(): string
     {
-        $prefix = 'INV';
-        $year = date('Y');
-        $month = date('m');
-
-        $lastInvoice = self::where('invoice_number', 'like', "{$prefix}-{$year}{$month}-%")
-            ->orderBy('invoice_number', 'desc')
-            ->first();
-
-        if ($lastInvoice) {
-            $lastNumber = (int) substr($lastInvoice->invoice_number, -4);
-            $newNumber = $lastNumber + 1;
-        } else {
-            $newNumber = 1;
-        }
-
-        return sprintf('%s-%s%s-%04d', $prefix, $year, $month, $newNumber);
+        return \App\Support\MonthlyDocumentNumber::next(
+            'S',
+            self::query(),
+            'invoice_number'
+        );
     }
 }

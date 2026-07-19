@@ -20,6 +20,7 @@ interface Product {
     product_name: string;
     description: string | null;
     price: number;
+    insurance_amount?: number | string | null;
     image: string | null;
     image_url?: string | null;
     category_id: number | null;
@@ -122,7 +123,7 @@ function clearFilters() {
 const addedIds = ref<Set<number>>(new Set());
 function addToCart(product: Product) {
     guardAction(() => {
-        addItem(product.id, product.product_name, Number(product.price), 1, imageUrl(product));
+        addItem(product.id, product.product_name, Number(product.price), 1, imageUrl(product), 1, Number(product.insurance_amount ?? 0));
         addedIds.value = new Set([...addedIds.value, product.id]);
         setTimeout(() => {
             addedIds.value.delete(product.id);

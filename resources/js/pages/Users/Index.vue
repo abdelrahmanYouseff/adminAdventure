@@ -22,6 +22,7 @@ interface User {
 
 const roleLabels: Record<StaffRole, string> = {
     admin: 'ادمن',
+    general_manager: 'مدير عام',
     manager: 'مسئول',
     accounts: 'حسابات',
     workers_manager: 'مدير العمال',
@@ -30,6 +31,7 @@ const roleLabels: Record<StaffRole, string> = {
 
 const roleBadgeClass: Record<StaffRole, string> = {
     admin: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
+    general_manager: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300',
     manager: 'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300',
     accounts: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300',
     workers_manager: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-300',
@@ -332,6 +334,7 @@ function deleteUser(user: User) {
                             :class="{ 'border-red-500': form.errors.role }"
                         >
                             <option value="admin">ادمن</option>
+                            <option value="general_manager">مدير عام</option>
                             <option value="manager">مسئول</option>
                             <option value="accounts">حسابات</option>
                             <option value="workers_manager">مدير العمال</option>

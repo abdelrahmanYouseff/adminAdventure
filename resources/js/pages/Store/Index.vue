@@ -19,6 +19,7 @@ interface Product {
     id: number;
     product_name: string;
     price: number;
+    insurance_amount?: number | string | null;
     image: string | null;
     image_url?: string | null;
     category_id: number | null;
@@ -61,7 +62,7 @@ const imageUrl = (product: Product): string | null => {
 
 const addToCart = (product: Product) => {
     guardAction(() => {
-        addItem(product.id, product.product_name, Number(product.price), 1, imageUrl(product));
+        addItem(product.id, product.product_name, Number(product.price), 1, imageUrl(product), 1, Number(product.insurance_amount ?? 0));
     });
 };
 </script>

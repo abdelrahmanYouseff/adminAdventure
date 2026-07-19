@@ -7,7 +7,7 @@ import AppFooter from '@/components/AppFooter.vue';
 import { useStoreCart } from '@/composables/useStoreCart';
 import { formatPrice } from '@/lib/formatNumber';
 
-const { cartItems, count, total, setQuantity, setDuration, removeItem, clearCart, syncFromStorage } =
+const { cartItems, count, total, insuranceTotal, setQuantity, setDuration, removeItem, clearCart, syncFromStorage } =
     useStoreCart();
 
 onMounted(() => syncFromStorage());
@@ -17,7 +17,7 @@ const DELIVERY = 0;
 
 const subtotal = total;
 const vat = computed(() => subtotal.value * VAT_RATE);
-const grandTotal = computed(() => subtotal.value + vat.value + DELIVERY);
+const grandTotal = computed(() => subtotal.value + vat.value + insuranceTotal.value + DELIVERY);
 
 const fmt = formatPrice;
 
@@ -158,6 +158,13 @@ const summaryBenefits = [
                                             <p class="mt-1 text-xs text-neutral-500 sm:text-sm">
                                                 {{ fmt(item.price) }} ريال / يوم
                                             </p>
+                                            <p
+                                                v-if="(item.insurance_amount || 0) > 0"
+                                                class="mt-0.5 text-xs font-medium text-amber-700"
+                                            >
+                                                تأمين: {{ fmt((item.insurance_amount || 0) * item.quantity) }} ريال
+                                                <span class="font-normal text-neutral-400">(بدون ضريبة)</span>
+                                            </p>
                                         </div>
                                         <button
                                             type="button"
@@ -277,6 +284,16 @@ const summaryBenefits = [
                                 <div class="flex justify-between gap-3">
                                     <span class="leading-snug text-neutral-500">ضريبة القيمة المضافة (15%)</span>
                                     <span class="shrink-0 font-semibold tabular-nums text-neutral-900">{{ fmt(vat) }} ريال</span>
+                                </div>
+                                <div
+                                    v-if="insuranceTotal > 0"
+                                    class="flex justify-between gap-3"
+                                >
+                                    <span class="leading-snug text-neutral-500">
+                                        مبلغ التأمين
+                                        <span class="block text-[11px] text-neutral-400">مسترد بعد انتهاء الفعالية · بدون ضريبة</span>
+                                    </span>
+                                    <span class="shrink-0 font-semibold tabular-nums text-amber-700">{{ fmt(insuranceTotal) }} ريال</span>
                                 </div>
                             </div>
 

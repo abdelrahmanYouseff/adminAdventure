@@ -49,7 +49,7 @@ const submit = () => {
                     <img src="/logo.svg" alt="عالم المغامرة" class="h-20 w-auto object-contain" />
                 </div>
                 <h1 class="text-3xl font-bold text-gray-900 dark:text-white mb-2">منصة عالم المغامرة</h1>
-                <p class="text-gray-600 dark:text-gray-400">سجّل الدخول إلى حسابك للمتابعة</p>
+                <p class="text-gray-600 dark:text-gray-400">تسجيل دخول الموظفين إلى لوحة التحكم</p>
             </div>
 
             <!-- Login Form Card -->

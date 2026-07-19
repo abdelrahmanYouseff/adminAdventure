@@ -102,11 +102,48 @@ class PhoneOtpController extends Controller
             $redirect = '/home';
         }
 
+        // منع توجيه عملاء المتجر إلى مسارات لوحة التحكم بعد OTP
+        if ($this->isDashboardPath($redirect) && ! $user->canAccessDashboard()) {
+            $redirect = '/home';
+        }
+
         if (! $user->profile_completed) {
             return redirect()->route('store.complete-registration', ['redirect' => $redirect]);
         }
 
         return redirect()->to($redirect);
+    }
+
+    private function isDashboardPath(string $path): bool
+    {
+        $path = '/'.ltrim(parse_url($path, PHP_URL_PATH) ?: $path, '/');
+
+        $blocked = [
+            'dashboard',
+            'login',
+            'register',
+            'users',
+            'products',
+            'categories',
+            'packages',
+            'orders',
+            'invoices',
+            'quotations',
+            'customers',
+            'company-clients',
+            'worker-orders',
+            'insurance-deposits',
+            'settings',
+            'worker-app',
+        ];
+
+        foreach ($blocked as $prefix) {
+            if ($path === '/'.$prefix || str_starts_with($path, '/'.$prefix.'/')) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function createUserFromPhone(string $phone): User
@@ -118,6 +155,7 @@ class PhoneOtpController extends Controller
             'email' => $digits.'@phone.adventureksa.com',
             'password' => Hash::make(Str::random(32)),
             'phone' => $digits,
+            'role' => null,
             'profile_completed' => false,
         ]);
     }

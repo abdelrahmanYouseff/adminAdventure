@@ -261,12 +261,49 @@ class InvoicePdfData
             return round(collect($items)->sum('total'), 2);
         }
 
-        return round((float) $this->invoice->amount / 1.15, 2);
+        $insurance = $this->insuranceAmount();
+        $gross = round((float) $this->invoice->amount - $insurance, 2);
+
+        return round(max(0, $gross) / (1 + self::VAT_RATE), 2);
+    }
+
+    /**
+     * مبلغ التأمين (بدون ضريبة) — مسترد عند الاستلام.
+     */
+    public function insuranceAmount(): float
+    {
+        if ($this->order && (float) $this->order->insurance_amount > 0) {
+            return round((float) $this->order->insurance_amount, 2);
+        }
+
+        if ($this->order && ! empty($this->order->items)) {
+            $fromItems = collect($this->order->items)->sum(function (array $item) {
+                $unit = (float) ($item['insurance_amount'] ?? 0);
+                $qty = max(1, (int) ($item['quantity'] ?? 1));
+
+                return $unit * $qty;
+            });
+
+            return round((float) $fromItems, 2);
+        }
+
+        return 0.0;
+    }
+
+    public function hasInsurance(): bool
+    {
+        return $this->insuranceAmount() > 0;
     }
 
     public function vatAmount(): float
     {
-        return round((float) $this->invoice->amount - $this->subtotal(), 2);
+        $derived = round((float) $this->invoice->amount - $this->subtotal() - $this->insuranceAmount(), 2);
+
+        if ($derived >= -0.05) {
+            return max(0.0, $derived);
+        }
+
+        return round($this->subtotal() * self::VAT_RATE, 2);
     }
 
     public function total(): float
@@ -284,6 +321,16 @@ class InvoicePdfData
         $notes = $this->order?->notes ?? null;
 
         return $notes && trim($notes) !== '' ? trim($notes) : null;
+    }
+
+    public function insuranceNoteEn(): string
+    {
+        return 'Insurance deposit is refundable upon product pickup/collection after the event.';
+    }
+
+    public function insuranceNoteAr(): string
+    {
+        return 'مبلغ التأمين مسترد عند استلام المنتجات بعد انتهاء الفعالية.';
     }
 
     public function generatedAt(): string
@@ -367,12 +414,16 @@ class InvoicePdfData
     public function termsAndConditions(): array
     {
         $terms = [
-            'This is a Tax Invoice issued in accordance with ZATCA regulations.',
+            'This is an Invoice issued in accordance with ZATCA regulations.',
             'VAT is calculated at 15% on the taxable value of the services.',
             'Payment is due according to the due date stated on this invoice.',
             'Please include the invoice number as a reference for bank transfers.',
             'For any inquiries regarding this invoice, contact '.$this->companyEmail().'.',
         ];
+
+        if ($this->hasInsurance()) {
+            $terms[] = $this->insuranceNoteEn().' / '.$this->insuranceNoteAr();
+        }
 
         if ($this->invoice->status === 'paid') {
             array_unshift($terms, 'Payment for this invoice has been received in full. Thank you.');

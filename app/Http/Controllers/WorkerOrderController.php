@@ -10,6 +10,8 @@ use App\Models\WorkerOrderNote;
 use App\Services\DeliveryNotePdfService;
 use App\Services\WorkerOrderSyncService;
 use App\Support\DeliveryNotePdfData;
+use App\Support\InsuranceApprovalChain;
+use App\Support\OrderInsuranceCalculator;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
@@ -43,6 +45,7 @@ class WorkerOrderController extends Controller
             'workerAssemblers' => fn ($query) => $query->latest(),
             'workerNotes' => fn ($query) => $query->latest(),
             'workerNotes.user:id,customer_name,role',
+            'workOrderApprovedBy:id,customer_name',
         ]);
 
         return Inertia::render('WorkerOrders/Show', [
@@ -80,6 +83,8 @@ class WorkerOrderController extends Controller
 
     public function complete(Request $request, WorkerOrder $workerOrder)
     {
+        $this->assertCanUploadWorkerPhotos($request);
+
         if ($workerOrder->status === 'completed') {
             return back()->withErrors([
                 'installation_photo' => 'تم رفع صورة التركيب مسبقاً لهذا المنتج.',
@@ -127,6 +132,8 @@ class WorkerOrderController extends Controller
 
     public function completePickup(Request $request, WorkerOrder $workerOrder)
     {
+        $this->assertCanUploadWorkerPhotos($request);
+
         if ($workerOrder->status !== 'completed') {
             return back()->withErrors([
                 'pickup_photo' => 'يجب رفع صورة التركيب أولاً قبل صورة الاستلام والفك.',
@@ -169,12 +176,66 @@ class WorkerOrderController extends Controller
             ->with('success', 'تم رفع صورة الاستلام والفك بنجاح.');
     }
 
+    public function approve(Request $request, string $workOrderKey, WorkerOrderSyncService $syncService)
+    {
+        $user = $request->user();
+        abort_unless(
+            $user?->hasAnyRole(User::ROLE_ADMIN, User::ROLE_WORKERS_MANAGER),
+            403,
+            'تعميد أمر العمل مخصص لمدير العمال فقط.',
+        );
+
+        $order = $this->resolveWorkOrder($workOrderKey, $syncService);
+        $order->load(['workerOrders', 'products', 'invoice:id,invoice_number']);
+
+        if ($order->work_order_approved_at) {
+            return back()->with('error', 'تم تعميد أمر العمل مسبقاً من مدير العمال.');
+        }
+
+        if (! $order->hasAllWorkerPhotos()) {
+            return back()->with('error', 'لا يمكن التعميد قبل رفع العامل لصور التركيب وصور الاستلام لجميع المنتجات.');
+        }
+
+        $updates = [
+            'work_order_approved_at' => now(),
+            'work_order_approved_by' => $user->id,
+        ];
+
+        $insuranceAmount = $this->resolveInsuranceAmountForApproval($order);
+
+        if ($insuranceAmount > 0) {
+            $updates['insurance_amount'] = $insuranceAmount;
+
+            if (! $order->insurance_original_amount) {
+                $updates['insurance_original_amount'] = $insuranceAmount;
+            }
+
+            if (! in_array($order->insurance_status, ['refunded', 'withheld'], true)) {
+                $updates['insurance_status'] = 'pending';
+            }
+        }
+
+        $order->update($updates);
+
+        $reference = $order->invoice?->invoice_number ?? $order->order_number;
+
+        $message = 'تم تعميد أمر العمل من مدير العمال بنجاح.';
+        if ($insuranceAmount > 0) {
+            $message .= ' ظهر مبلغ التأمين في صفحة استرداد التأمين وبانتظار تعميد المسئول ثم المدير العام ثم المحاسب.';
+        }
+
+        return redirect()
+            ->route('worker-orders.show', $reference)
+            ->with('success', $message);
+    }
+
     public function storeAssembler(Request $request, string $workOrderKey, WorkerOrderSyncService $syncService)
     {
         $user = $request->user();
         abort_unless(
             $user?->hasAnyRole(
                 User::ROLE_ADMIN,
+                User::ROLE_GENERAL_MANAGER,
                 User::ROLE_MANAGER,
                 User::ROLE_WORKERS_MANAGER,
             ),
@@ -233,6 +294,7 @@ class WorkerOrderController extends Controller
         abort_unless(
             $user?->hasAnyRole(
                 User::ROLE_ADMIN,
+                User::ROLE_GENERAL_MANAGER,
                 User::ROLE_MANAGER,
                 User::ROLE_WORKERS_MANAGER,
             ),
@@ -281,6 +343,13 @@ class WorkerOrderController extends Controller
 
     public function destroyNote(string $workOrderKey, WorkerOrderNote $note, WorkerOrderSyncService $syncService)
     {
+        $user = request()->user();
+        abort_unless(
+            $user?->hasAnyRole(User::ROLE_ADMIN, User::ROLE_GENERAL_MANAGER, User::ROLE_MANAGER),
+            403,
+            'غير مصرح لك بحذف الملاحظات.',
+        );
+
         $order = $this->resolveWorkOrder($workOrderKey, $syncService);
 
         abort_unless($note->order_id === $order->id, 404);
@@ -362,6 +431,12 @@ class WorkerOrderController extends Controller
         $firstLine = $order->workerOrders->first();
         $pendingLines = (int) ($order->pending_lines ?? 0);
         $totalLines = (int) ($order->total_lines ?? $order->workerOrders->count());
+        $photosReady = $order->hasAllWorkerPhotos();
+        $isApproved = (bool) $order->work_order_approved_at;
+        $user = auth()->user();
+        $canApprove = $photosReady
+            && ! $isApproved
+            && InsuranceApprovalChain::canUserApproveStep($user, InsuranceApprovalChain::STEP_WORKERS_MANAGER);
 
         return [
             'id' => $order->id,
@@ -376,6 +451,10 @@ class WorkerOrderController extends Controller
             'pending_count' => $pendingLines,
             'completed_count' => (int) ($order->completed_lines ?? 0),
             'location_slug' => $order->location_slug,
+            'photos_ready' => $photosReady,
+            'is_approved' => $isApproved,
+            'can_approve' => $canApprove,
+            'approved_at' => $order->work_order_approved_at?->toIso8601String(),
             'preview_products' => $order->workerOrders->take(3)->map(fn (WorkerOrder $line) => [
                 'name' => $line->product_name,
                 'image_url' => $line->product_image_url,
@@ -445,6 +524,7 @@ class WorkerOrderController extends Controller
                 ->all(),
             'timeline' => $this->buildTimeline($order),
             'delivery_note_url' => '/worker-orders/'.rawurlencode($summary['reference_number']).'/delivery-note',
+            'approved_by_name' => $order->workOrderApprovedBy?->name,
         ]);
     }
 
@@ -513,7 +593,64 @@ class WorkerOrderController extends Controller
             'completed' => $allDone,
         ];
 
+        $items[] = [
+            'key' => 'approved',
+            'title' => 'تعميد مدير العمال',
+            'description' => $order->work_order_approved_at
+                ? 'تم اعتماد اكتمال التركيب والاستلام — بانتظار سلسلة التعميدات في استرداد التأمين'
+                : 'بانتظار تعميد مدير العمال بعد رفع كل الصور',
+            'timestamp' => $order->work_order_approved_at?->toIso8601String(),
+            'user_name' => $order->workOrderApprovedBy?->name,
+            'completed' => (bool) $order->work_order_approved_at,
+        ];
+
         return $items;
+    }
+
+    private function assertCanUploadWorkerPhotos(Request $request): void
+    {
+        $user = $request->user();
+
+        // مدير العمال يعتمد فقط بعد رفع العامل للصور — لا يرفعها بنفسه.
+        abort_if(
+            $user?->isWorkersManager(),
+            403,
+            'لا يمكن لمدير العمال رفع الصور. يجب على العامل رفع صور التركيب والاستلام أولاً ثم التعميد.',
+        );
+    }
+
+    /**
+     * مبلغ التأمين المحفوظ على الطلب، أو المحسوب من المنتجات عند التعميد.
+     */
+    private function resolveInsuranceAmountForApproval(Order $order): float
+    {
+        $stored = round((float) $order->insurance_amount, 2);
+        if ($stored > 0) {
+            return $stored;
+        }
+
+        $fromPivot = round((float) $order->products->sum(
+            fn ($product) => (float) ($product->pivot->insurance_amount ?? 0)
+                * max(1, (int) ($product->pivot->quantity ?? 1))
+        ), 2);
+
+        if ($fromPivot > 0) {
+            return $fromPivot;
+        }
+
+        $lines = $order->products
+            ->map(fn ($product) => [
+                'product_id' => $product->id,
+                'quantity' => max(1, (int) ($product->pivot->quantity ?? 1)),
+            ])
+            ->values()
+            ->all();
+
+        if ($lines === []) {
+            return 0.0;
+        }
+
+        return OrderInsuranceCalculator::fromLines($lines)['total'];
     }
 
     private function resolveWorkOrder(string $workOrderKey, WorkerOrderSyncService $syncService): Order
