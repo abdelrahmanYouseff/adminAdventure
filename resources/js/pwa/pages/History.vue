@@ -1,8 +1,11 @@
 <script setup lang="ts">
+import { computed } from 'vue';
 import { Head, Link, router } from '@inertiajs/vue3';
 import { CalendarDays, CheckCircle2, History, LogOut, Package } from 'lucide-vue-next';
 import { formatDate, formatDateTime } from '@/lib/formatNumber';
 import WorkerBottomNav from '../components/WorkerBottomNav.vue';
+import WorkerLanguageSwitcher from '../components/WorkerLanguageSwitcher.vue';
+import { useI18n } from '../i18n';
 
 interface HistoryProduct {
     id: number;
@@ -36,18 +39,21 @@ interface Props {
 
 defineProps<Props>();
 
+const { t } = useI18n();
+const pageTitle = computed(() => t('past_installations'));
+
 function logout() {
     router.post(route('pwa.logout'));
 }
 
 function formatInstallDate(date: string | null): string {
-    if (!date) return 'موعد غير محدد';
+    if (!date) return t('date_unset');
     return formatDate(date);
 }
 </script>
 
 <template>
-    <Head title="التركيبات السابقة" />
+    <Head :title="pageTitle" />
 
     <div class="relative flex min-h-dvh flex-col bg-[#f5f7fb] px-5 pb-[calc(5.5rem+env(safe-area-inset-bottom))] pt-[max(1.25rem,env(safe-area-inset-top))]">
         <div class="pointer-events-none absolute inset-0 overflow-hidden">
@@ -57,17 +63,20 @@ function formatInstallDate(date: string | null): string {
 
         <header class="relative mx-auto flex w-full max-w-md items-center justify-between gap-3">
             <div class="min-w-0">
-                <p class="text-xs text-slate-500">مرحباً</p>
-                <h1 class="truncate text-lg font-bold text-slate-900">{{ worker.name || 'عامل' }}</h1>
+                <p class="text-xs text-slate-500">{{ t('hello') }}</p>
+                <h1 class="truncate text-lg font-bold text-slate-900">{{ worker.name || t('worker') }}</h1>
             </div>
-            <button
-                type="button"
-                class="inline-flex h-11 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 shadow-sm transition active:scale-[0.98] hover:bg-slate-50"
-                @click="logout"
-            >
-                <LogOut class="h-4 w-4" />
-                خروج
-            </button>
+            <div class="flex shrink-0 items-center gap-2">
+                <WorkerLanguageSwitcher />
+                <button
+                    type="button"
+                    class="inline-flex h-11 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 shadow-sm transition active:scale-[0.98] hover:bg-slate-50"
+                    @click="logout"
+                >
+                    <LogOut class="h-4 w-4" />
+                    {{ t('logout') }}
+                </button>
+            </div>
         </header>
 
         <main class="relative mx-auto mt-6 flex w-full max-w-md flex-1 flex-col gap-4">
@@ -77,22 +86,22 @@ function formatInstallDate(date: string | null): string {
                         <History class="h-6 w-6 text-slate-700" />
                     </div>
                     <div class="min-w-0 flex-1">
-                        <p class="text-sm text-slate-500">التركيبات السابقة</p>
+                        <p class="text-sm text-slate-500">{{ t('past_installations') }}</p>
                         <p class="text-2xl font-black tabular-nums text-slate-900">{{ history.length }}</p>
                     </div>
                 </div>
             </div>
 
             <section class="space-y-3">
-                <h2 class="px-1 text-sm font-semibold text-slate-700">ما تم إنجازه سابقاً</h2>
+                <h2 class="px-1 text-sm font-semibold text-slate-700">{{ t('done_before') }}</h2>
 
                 <div
                     v-if="!history.length"
                     class="rounded-3xl border border-dashed border-slate-200 bg-white/80 px-5 py-10 text-center"
                 >
                     <Package class="mx-auto h-8 w-8 text-slate-300" />
-                    <p class="mt-3 text-sm font-medium text-slate-600">لا توجد تركيبات سابقة بعد</p>
-                    <p class="mt-1 text-xs text-slate-400">بعد إتمام التركيب والاستلام ستظهر هنا</p>
+                    <p class="mt-3 text-sm font-medium text-slate-600">{{ t('no_history') }}</p>
+                    <p class="mt-1 text-xs text-slate-400">{{ t('no_history_hint') }}</p>
                 </div>
 
                 <article
@@ -109,12 +118,12 @@ function formatInstallDate(date: string | null): string {
                                     {{ formatInstallDate(item.installation_date) }}
                                 </p>
                                 <p v-if="item.completed_at" class="mt-1 text-xs text-slate-400">
-                                    اكتمل: {{ formatDateTime(item.completed_at) }}
+                                    {{ t('completed_at', { date: formatDateTime(item.completed_at) }) }}
                                 </p>
                             </div>
                             <span class="inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700 ring-1 ring-emerald-100">
                                 <CheckCircle2 class="h-3.5 w-3.5" />
-                                مكتمل
+                                {{ t('completed') }}
                             </span>
                         </div>
                     </Link>
@@ -132,28 +141,28 @@ function formatInstallDate(date: string | null): string {
                                         <img
                                             v-if="product.installation_photo_url"
                                             :src="product.installation_photo_url"
-                                            alt="صورة التركيب"
+                                            :alt="t('install_photo_alt')"
                                             class="h-full w-full object-cover"
                                         />
                                         <div v-else class="flex h-full items-center justify-center text-slate-300">
                                             <Package class="h-6 w-6" />
                                         </div>
                                     </div>
-                                    <p class="px-2 py-1.5 text-center text-[10px] font-medium text-slate-500">تركيب</p>
+                                    <p class="px-2 py-1.5 text-center text-[10px] font-medium text-slate-500">{{ t('install') }}</p>
                                 </div>
                                 <div class="overflow-hidden rounded-xl bg-white ring-1 ring-slate-200">
                                     <div class="aspect-square bg-slate-100">
                                         <img
                                             v-if="product.pickup_photo_url"
                                             :src="product.pickup_photo_url"
-                                            alt="صورة الاستلام"
+                                            :alt="t('pickup_photo_alt')"
                                             class="h-full w-full object-cover"
                                         />
                                         <div v-else class="flex h-full items-center justify-center text-slate-300">
                                             <Package class="h-6 w-6" />
                                         </div>
                                     </div>
-                                    <p class="px-2 py-1.5 text-center text-[10px] font-medium text-slate-500">استلام</p>
+                                    <p class="px-2 py-1.5 text-center text-[10px] font-medium text-slate-500">{{ t('pickup') }}</p>
                                 </div>
                             </div>
                         </div>

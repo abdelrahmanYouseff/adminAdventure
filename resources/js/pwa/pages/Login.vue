@@ -1,8 +1,11 @@
 <script setup lang="ts">
 import { Head, useForm } from '@inertiajs/vue3';
 import { Eye, EyeOff } from 'lucide-vue-next';
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
+import WorkerLanguageSwitcher from '../components/WorkerLanguageSwitcher.vue';
+import { useI18n } from '../i18n';
 
+const { t } = useI18n();
 const showPassword = ref(false);
 const formError = ref<string | null>(null);
 
@@ -10,6 +13,8 @@ const form = useForm({
     email: '',
     password: '',
 });
+
+const pageTitle = computed(() => t('login_title'));
 
 function submit() {
     formError.value = null;
@@ -20,7 +25,7 @@ function submit() {
             formError.value =
                 errors.email ||
                 errors.password ||
-                'تعذر تسجيل الدخول. تحقق من البيانات وحاول مرة أخرى.';
+                t('login_failed');
         },
         onFinish: () => {
             form.processing = false;
@@ -30,7 +35,7 @@ function submit() {
 </script>
 
 <template>
-    <Head title="تسجيل الدخول" />
+    <Head :title="pageTitle" />
 
     <div class="relative flex min-h-dvh flex-col bg-[#f5f7fb] px-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-[max(1.5rem,env(safe-area-inset-top))]">
         <div class="pointer-events-none absolute inset-0 overflow-hidden">
@@ -38,11 +43,15 @@ function submit() {
             <div class="absolute -right-16 bottom-24 h-64 w-64 rounded-full bg-orange-100/60 blur-3xl" />
         </div>
 
+        <div class="relative mx-auto flex w-full max-w-md justify-end">
+            <WorkerLanguageSwitcher />
+        </div>
+
         <div class="relative mx-auto flex w-full max-w-md flex-1 flex-col justify-center">
             <div class="mb-10 text-center">
-                <img src="/assets/logo.png" alt="عالم المغامرة" class="mx-auto mb-4 h-14 w-auto object-contain" />
-                <h1 class="text-2xl font-bold tracking-tight text-slate-900">تطبيق العمال</h1>
-                <p class="mt-2 text-sm text-slate-500">سجّل الدخول لمتابعة أوامر العمل القائمة</p>
+                <img src="/assets/logo.png" :alt="t('app_name')" class="mx-auto mb-4 h-14 w-auto object-contain" />
+                <h1 class="text-2xl font-bold tracking-tight text-slate-900">{{ t('worker_app') }}</h1>
+                <p class="mt-2 text-sm text-slate-500">{{ t('login_subtitle') }}</p>
             </div>
 
             <form class="space-y-4 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6" @submit.prevent="submit">
@@ -54,7 +63,7 @@ function submit() {
                 </div>
 
                 <div class="space-y-2">
-                    <label for="email" class="block text-sm font-medium text-slate-700">البريد الإلكتروني</label>
+                    <label for="email" class="block text-sm font-medium text-slate-700">{{ t('email') }}</label>
                     <input
                         id="email"
                         v-model="form.email"
@@ -68,7 +77,7 @@ function submit() {
                 </div>
 
                 <div class="space-y-2">
-                    <label for="password" class="block text-sm font-medium text-slate-700">كلمة المرور</label>
+                    <label for="password" class="block text-sm font-medium text-slate-700">{{ t('password') }}</label>
                     <div class="relative">
                         <input
                             id="password"
@@ -82,7 +91,7 @@ function submit() {
                         />
                         <button
                             type="button"
-                            class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                            class="absolute end-3 top-1/2 -translate-y-1/2 text-slate-400"
                             @click="showPassword = !showPassword"
                         >
                             <Eye v-if="!showPassword" class="h-5 w-5" />
@@ -96,7 +105,7 @@ function submit() {
                     class="flex h-12 w-full items-center justify-center rounded-xl bg-sky-600 text-base font-semibold text-white transition active:scale-[0.98] hover:bg-sky-500 disabled:opacity-60"
                     :disabled="form.processing"
                 >
-                    {{ form.processing ? 'جاري الدخول...' : 'دخول' }}
+                    {{ form.processing ? t('logging_in') : t('login') }}
                 </button>
             </form>
         </div>

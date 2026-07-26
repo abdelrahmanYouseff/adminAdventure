@@ -172,6 +172,10 @@
             @if($data->customerAddress())
                 <div style="margin-top: 5px;">{{ $data->customerAddress() }}</div>
             @endif
+            @if($data->companyTaxNumber())
+                <div style="margin-top: 5px;"><span class="meta-label">VAT No:</span> {{ $data->companyTaxNumber() }}</div>
+                <div style="margin-top: 2px;" dir="rtl"><span class="meta-label">الرقم الضريبي:</span> {{ $data->companyTaxNumber() }}</div>
+            @endif
             <div style="margin-top: 6px; font-size: 7pt;">
                 Email / Contact No: {{ $data->customerEmail() }} / {{ $data->customerPhone() }}
             </div>
@@ -189,10 +193,28 @@
                     <td width="50%" valign="top">
                         <div><span class="meta-label">Prepared By:</span> {{ $data->preparedBy() }}</div>
                         <div style="margin-top: 5px;"><span class="meta-label">Valid Until:</span> {{ $data->validUntilLong() }}</div>
+                        @if($data->activityAt())
+                            <div style="margin-top: 5px;"><span class="meta-label">Event Date:</span> {{ $data->activityAt() }}</div>
+                        @endif
+                        @if($data->installationAt())
+                            <div style="margin-top: 5px;"><span class="meta-label">Installation:</span> {{ $data->installationAt() }}</div>
+                        @endif
+                        @if($data->dismantlingAt())
+                            <div style="margin-top: 5px;"><span class="meta-label">Dismantling:</span> {{ $data->dismantlingAt() }}</div>
+                        @endif
                     </td>
                     <td width="50%" valign="top">
                         @if($data->customerAddress())
                             <div><span class="meta-label">Location:</span> {{ $data->customerAddress() }}</div>
+                        @endif
+                        @if($data->activityAt())
+                            <div style="margin-top: 5px;" dir="rtl"><span class="meta-label">تاريخ الفعالية:</span> {{ $data->activityAt() }}</div>
+                        @endif
+                        @if($data->installationAt())
+                            <div style="margin-top: 5px;" dir="rtl"><span class="meta-label">تاريخ التركيب:</span> {{ $data->installationAt() }}</div>
+                        @endif
+                        @if($data->dismantlingAt())
+                            <div style="margin-top: 5px;" dir="rtl"><span class="meta-label">تاريخ الفك:</span> {{ $data->dismantlingAt() }}</div>
                         @endif
                     </td>
                 </tr>
@@ -274,11 +296,24 @@
                     <td class="label">VAT</td>
                     <td class="value">{{ $data->formatSar($data->vatAmount(), 0) }}</td>
                 </tr>
+                @if($data->hasInsurance())
+                    <tr>
+                        <td class="label">INSURANCE DEPOSIT</td>
+                        <td class="value">{{ $data->formatSar($data->insuranceAmount(), 2) }}</td>
+                    </tr>
+                @endif
                 <tr class="total-row">
                     <td class="label" style="background-color: #333; color: #fff;">TOTAL</td>
                     <td class="value" style="background-color: #333; color: #fff;">{{ $data->formatSar($data->total(), 2) }}</td>
                 </tr>
             </table>
+            @if($data->hasInsurance())
+                <div style="margin-top: 8px; font-size: 6.5pt; color: #444; line-height: 1.45;">
+                    {{ $data->insuranceNoteEn() }}
+                    <br>
+                    <span dir="rtl" style="font-family: xbriyaz, dejavusans, sans-serif;">{{ $data->insuranceNoteAr() }}</span>
+                </div>
+            @endif
         </td>
     </tr>
 </table>

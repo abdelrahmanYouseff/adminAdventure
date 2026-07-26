@@ -230,3 +230,31 @@
     padding-left: 0.75rem;
     padding-right: 3rem;
 }
+
+/* أيقونة التقويم في حقول التاريخ أقصى اليمين */
+input[type='date'],
+input[type='datetime-local'],
+input[type='time'],
+input[type='month'],
+input[type='week'] {
+    position: relative;
+    direction: ltr;
+    text-align: left;
+    padding-inline-end: 2.5rem;
+}
+
+input[type='date']::-webkit-calendar-picker-indicator,
+input[type='datetime-local']::-webkit-calendar-picker-indicator,
+input[type='time']::-webkit-calendar-picker-indicator,
+input[type='month']::-webkit-calendar-picker-indicator,
+input[type='week']::-webkit-calendar-picker-indicator {
+    position: absolute;
+    inset-inline-end: 0.75rem;
+    inset-inline-start: auto;
+    right: 0.75rem;
+    left: auto;
+    width: 1.15rem;
+    height: 1.15rem;
+    cursor: pointer;
+    opacity: 0.75;
+}

@@ -9,12 +9,20 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
     Building2,
     Check,
     ChevronDown,
     Download,
     Edit,
     Eye,
+    MoreVertical,
     Plus,
     Trash2,
     User,
@@ -57,10 +65,16 @@ interface Customer {
     name: string;
     contact_name: string | null;
     phone: string | null;
+    phone_secondary: string | null;
     email: string | null;
     address: string | null;
     tax_number: string | null;
+    iban: string | null;
+    iban_image_url: string | null;
     notes: string | null;
+    country: string | null;
+    gender: string | null;
+    date_of_birth: string | null;
     created_at: string | null;
     quotations_count: number;
     quotations: Quotation[];
@@ -76,18 +90,49 @@ defineOptions({ layout: AppLayout });
 const page = usePage();
 const successMessage = computed(() => page.props.flash?.success as string | undefined);
 const formOpen = ref(false);
+const formMode = ref<'create' | 'edit'>('create');
+const editingCustomer = ref<Customer | null>(null);
 const expandedKey = ref<string | null>(null);
 const expandedQuotationId = ref<number | null>(null);
 const typeFilter = ref<'all' | 'individual' | 'company'>('all');
 
 const form = useForm({
     company_name: '',
+    name: '',
     contact_name: '',
     phone: '',
+    phone_secondary: '',
     email: '',
     address: '',
     tax_number: '',
+    country: '',
+    gender: '' as '' | 'male' | 'female',
+    date_of_birth: '',
+    iban: '',
+    iban_image: null as File | null,
+    remove_iban_image: false,
     notes: '',
+});
+
+const ibanImageInput = ref<HTMLInputElement | null>(null);
+const ibanImagePreview = ref<string | null>(null);
+
+const formTitle = computed(() => {
+    if (formMode.value === 'create') {
+        return 'إضافة عميل شركة';
+    }
+
+    return editingCustomer.value?.type === 'company'
+        ? 'تعديل عميل شركة'
+        : 'تعديل عميل فردي';
+});
+
+const currentIbanPreview = computed(() => {
+    if (form.remove_iban_image) {
+        return ibanImagePreview.value;
+    }
+
+    return ibanImagePreview.value || editingCustomer.value?.iban_image_url || null;
 });
 
 const filteredCustomers = computed(() => {
@@ -104,20 +149,107 @@ const stats = computed(() => ({
     company: props.customers.filter((c) => c.type === 'company').length,
 }));
 
+function resetIbanImageUi() {
+    form.iban_image = null;
+    form.remove_iban_image = false;
+    if (ibanImagePreview.value) {
+        URL.revokeObjectURL(ibanImagePreview.value);
+        ibanImagePreview.value = null;
+    }
+    if (ibanImageInput.value) {
+        ibanImageInput.value.value = '';
+    }
+}
+
 function openForm() {
+    formMode.value = 'create';
+    editingCustomer.value = null;
     form.reset();
     form.clearErrors();
+    resetIbanImageUi();
     formOpen.value = true;
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function openEditForm(customer: Customer) {
+    formMode.value = 'edit';
+    editingCustomer.value = customer;
+    form.clearErrors();
+    form.company_name = customer.type === 'company' ? customer.name : '';
+    form.name = customer.type === 'individual' ? customer.name : '';
+    form.contact_name = customer.contact_name ?? '';
+    form.phone = customer.phone ?? '';
+    form.phone_secondary = customer.phone_secondary ?? '';
+    form.email = customer.email ?? '';
+    form.address = customer.address ?? '';
+    form.tax_number = customer.tax_number ?? '';
+    form.country = customer.country ?? '';
+    form.gender = (customer.gender as '' | 'male' | 'female') || '';
+    form.date_of_birth = customer.date_of_birth ?? '';
+    form.iban = customer.iban ?? '';
+    form.notes = customer.notes ?? '';
+    resetIbanImageUi();
+    formOpen.value = true;
+    window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 function closeForm() {
     formOpen.value = false;
+    formMode.value = 'create';
+    editingCustomer.value = null;
     form.reset();
     form.clearErrors();
+    resetIbanImageUi();
+}
+
+function onIbanImageSelected(event: Event) {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0] ?? null;
+    form.iban_image = file;
+    form.remove_iban_image = false;
+
+    if (ibanImagePreview.value) {
+        URL.revokeObjectURL(ibanImagePreview.value);
+        ibanImagePreview.value = null;
+    }
+
+    if (file) {
+        ibanImagePreview.value = URL.createObjectURL(file);
+    }
+}
+
+function clearIbanImage() {
+    form.iban_image = null;
+    if (ibanImagePreview.value) {
+        URL.revokeObjectURL(ibanImagePreview.value);
+        ibanImagePreview.value = null;
+    }
+    if (ibanImageInput.value) {
+        ibanImageInput.value.value = '';
+    }
+
+    if (formMode.value === 'edit' && editingCustomer.value?.iban_image_url) {
+        form.remove_iban_image = true;
+    }
 }
 
 function submit() {
-    form.post(route('company-clients.store'), {
+    if (formMode.value === 'create') {
+        form.post(route('company-clients.store'), {
+            forceFormData: true,
+            preserveScroll: true,
+            onSuccess: () => closeForm(),
+        });
+        return;
+    }
+
+    const customer = editingCustomer.value;
+    if (!customer) {
+        return;
+    }
+
+    form.post(`/customers/${customer.type}/${customer.id}`, {
+        forceFormData: true,
         preserveScroll: true,
         onSuccess: () => closeForm(),
     });
@@ -135,6 +267,14 @@ function destroyClient(customer: Customer) {
     router.delete(route('company-clients.destroy', customer.id), {
         preserveScroll: true,
     });
+}
+
+function customerProfileUrl(customer: Customer) {
+    return `/customers/${customer.type}/${customer.id}`;
+}
+
+function openCustomerProfile(customer: Customer) {
+    router.visit(customerProfileUrl(customer));
 }
 
 function toggleCustomer(customer: Customer) {
@@ -267,8 +407,9 @@ function quotationPdfUrl(id: number): string {
         <Card v-if="formOpen" class="shadow-sm">
             <CardHeader class="flex flex-row items-center justify-between gap-3 p-4 sm:p-6">
                 <CardTitle class="flex items-center gap-2 text-lg">
-                    <Building2 class="h-5 w-5" />
-                    إضافة عميل شركة
+                    <Edit v-if="formMode === 'edit'" class="h-5 w-5" />
+                    <Building2 v-else class="h-5 w-5" />
+                    {{ formTitle }}
                 </CardTitle>
                 <Button variant="ghost" size="icon" class="h-9 w-9" @click="closeForm">
                     <X class="h-4 w-4" />
@@ -276,39 +417,117 @@ function quotationPdfUrl(id: number): string {
             </CardHeader>
             <CardContent class="p-4 pt-0 sm:p-6 sm:pt-0">
                 <form class="grid gap-4 sm:grid-cols-2" @submit.prevent="submit">
-                    <div class="space-y-2 sm:col-span-2">
-                        <Label for="company_name">اسم الشركة *</Label>
-                        <Input id="company_name" v-model="form.company_name" class="h-11" required />
-                        <p v-if="form.errors.company_name" class="text-sm text-destructive">{{ form.errors.company_name }}</p>
-                    </div>
-                    <div class="space-y-2">
-                        <Label for="contact_name">اسم المسؤول</Label>
-                        <Input id="contact_name" v-model="form.contact_name" class="h-11" />
-                    </div>
+                    <template v-if="formMode === 'create' || editingCustomer?.type === 'company'">
+                        <div class="space-y-2 sm:col-span-2">
+                            <Label for="company_name">اسم الشركة *</Label>
+                            <Input id="company_name" v-model="form.company_name" class="h-11" required />
+                            <p v-if="form.errors.company_name" class="text-sm text-destructive">{{ form.errors.company_name }}</p>
+                        </div>
+                        <div class="space-y-2">
+                            <Label for="contact_name">اسم المسؤول</Label>
+                            <Input id="contact_name" v-model="form.contact_name" class="h-11" />
+                        </div>
+                    </template>
+
+                    <template v-else>
+                        <div class="space-y-2 sm:col-span-2">
+                            <Label for="name">اسم العميل *</Label>
+                            <Input id="name" v-model="form.name" class="h-11" required />
+                            <p v-if="form.errors.name" class="text-sm text-destructive">{{ form.errors.name }}</p>
+                        </div>
+                        <div class="space-y-2">
+                            <Label for="gender">الجنس</Label>
+                            <select
+                                id="gender"
+                                v-model="form.gender"
+                                class="flex h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                            >
+                                <option value="">—</option>
+                                <option value="male">ذكر</option>
+                                <option value="female">أنثى</option>
+                            </select>
+                        </div>
+                        <div class="space-y-2">
+                            <Label for="date_of_birth">تاريخ الميلاد</Label>
+                            <Input id="date_of_birth" v-model="form.date_of_birth" type="date" class="h-11" dir="ltr" />
+                        </div>
+                        <div class="space-y-2">
+                            <Label for="country">الدولة</Label>
+                            <Input id="country" v-model="form.country" class="h-11" />
+                        </div>
+                    </template>
+
                     <div class="space-y-2">
                         <Label for="phone">الجوال</Label>
                         <Input id="phone" v-model="form.phone" class="h-11" dir="ltr" />
                     </div>
                     <div class="space-y-2">
-                        <Label for="email">البريد الإلكتروني</Label>
-                        <Input id="email" v-model="form.email" type="email" class="h-11" dir="ltr" />
+                        <Label for="phone_secondary">جوال آخر</Label>
+                        <Input id="phone_secondary" v-model="form.phone_secondary" class="h-11" dir="ltr" />
                     </div>
                     <div class="space-y-2">
+                        <Label for="email">البريد الإلكتروني</Label>
+                        <Input id="email" v-model="form.email" type="email" class="h-11" dir="ltr" />
+                        <p v-if="form.errors.email" class="text-sm text-destructive">{{ form.errors.email }}</p>
+                    </div>
+
+                    <div v-if="formMode === 'create' || editingCustomer?.type === 'company'" class="space-y-2">
                         <Label for="tax_number">الرقم الضريبي</Label>
                         <Input id="tax_number" v-model="form.tax_number" class="h-11" dir="ltr" />
                     </div>
+
+                    <div class="space-y-2" :class="formMode === 'edit' && editingCustomer?.type === 'individual' ? 'sm:col-span-2' : ''">
+                        <Label for="iban">رقم الآيبان (IBAN)</Label>
+                        <Input
+                            id="iban"
+                            v-model="form.iban"
+                            class="h-11 font-mono tracking-wide"
+                            dir="ltr"
+                            placeholder="SAxxxxxxxxxxxxxxxxxxxxxx"
+                            maxlength="34"
+                        />
+                        <p v-if="form.errors.iban" class="text-sm text-destructive">{{ form.errors.iban }}</p>
+                    </div>
+
                     <div class="space-y-2 sm:col-span-2">
+                        <Label for="iban_image">صورة الآيبان</Label>
+                        <input
+                            id="iban_image"
+                            ref="ibanImageInput"
+                            type="file"
+                            accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp"
+                            class="block w-full cursor-pointer rounded-lg border border-input bg-background px-3 py-2.5 text-sm file:me-3 file:rounded-md file:border-0 file:bg-slate-900 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-white"
+                            @change="onIbanImageSelected"
+                        />
+                        <p class="text-xs text-muted-foreground">JPG أو PNG أو WebP — بحد أقصى 5 ميجابايت</p>
+                        <p v-if="form.errors.iban_image" class="text-sm text-destructive">{{ form.errors.iban_image }}</p>
+                        <div v-if="currentIbanPreview" class="relative mt-2 inline-block overflow-hidden rounded-xl border">
+                            <img :src="currentIbanPreview" alt="معاينة صورة الآيبان" class="max-h-40 max-w-full object-contain" />
+                            <Button
+                                type="button"
+                                variant="secondary"
+                                size="sm"
+                                class="absolute start-2 top-2 h-8"
+                                @click="clearIbanImage"
+                            >
+                                إزالة
+                            </Button>
+                        </div>
+                    </div>
+
+                    <div v-if="formMode === 'create' || editingCustomer?.type === 'company'" class="space-y-2 sm:col-span-2">
                         <Label for="address">العنوان</Label>
                         <Textarea id="address" v-model="form.address" rows="2" class="resize-none" />
                     </div>
-                    <div class="space-y-2 sm:col-span-2">
+                    <div v-if="formMode === 'create' || editingCustomer?.type === 'company'" class="space-y-2 sm:col-span-2">
                         <Label for="notes">ملاحظات</Label>
                         <Textarea id="notes" v-model="form.notes" rows="2" class="resize-none" />
                     </div>
+
                     <div class="flex flex-col-reverse gap-2 sm:col-span-2 sm:flex-row sm:justify-end">
                         <Button type="button" variant="outline" class="h-10" @click="closeForm">إلغاء</Button>
                         <Button type="submit" class="h-10" :disabled="form.processing">
-                            {{ form.processing ? 'جاري الحفظ...' : 'حفظ' }}
+                            {{ form.processing ? 'جاري الحفظ...' : (formMode === 'edit' ? 'حفظ التعديلات' : 'حفظ') }}
                         </Button>
                     </div>
                 </form>
@@ -341,19 +560,22 @@ function quotationPdfUrl(id: number): string {
 
                             <template v-for="customer in filteredCustomers" :key="customer.key">
                                 <tr
-                                    class="border-b last:border-0"
-                                    :class="[
-                                        customer.type === 'company' ? 'cursor-pointer hover:bg-muted/30' : '',
-                                        expandedKey === customer.key ? 'bg-muted/20' : '',
-                                    ]"
-                                    @click="toggleCustomer(customer)"
+                                    class="cursor-pointer border-b last:border-0 hover:bg-muted/30"
+                                    :class="expandedKey === customer.key ? 'bg-muted/20' : ''"
+                                    @click="openCustomerProfile(customer)"
                                 >
-                                    <td class="px-2 py-3 text-center">
-                                        <ChevronDown
+                                    <td class="px-2 py-3 text-center" @click.stop="toggleCustomer(customer)">
+                                        <button
                                             v-if="customer.type === 'company'"
-                                            class="mx-auto h-4 w-4 text-muted-foreground transition-transform"
-                                            :class="expandedKey === customer.key ? 'rotate-180' : ''"
-                                        />
+                                            type="button"
+                                            class="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted"
+                                            :title="expandedKey === customer.key ? 'إخفاء العروض' : 'عرض العروض'"
+                                        >
+                                            <ChevronDown
+                                                class="h-4 w-4 transition-transform"
+                                                :class="expandedKey === customer.key ? 'rotate-180' : ''"
+                                            />
+                                        </button>
                                     </td>
                                     <td class="px-4 py-3">
                                         <span
@@ -367,11 +589,26 @@ function quotationPdfUrl(id: number): string {
                                             {{ customer.type === 'company' ? 'شركة' : 'فردي' }}
                                         </span>
                                     </td>
-                                    <td class="px-4 py-3 font-semibold">{{ customer.name }}</td>
+                                    <td class="px-4 py-3 font-semibold">
+                                        <Link
+                                            :href="customerProfileUrl(customer)"
+                                            class="text-primary underline-offset-4 hover:underline"
+                                            @click.stop
+                                        >
+                                            {{ customer.name }}
+                                        </Link>
+                                    </td>
                                     <td class="px-4 py-3">
                                         {{ customer.type === 'company' ? (customer.contact_name || '—') : 'عميل الموقع' }}
                                     </td>
-                                    <td class="px-4 py-3" dir="ltr">{{ customer.phone || '—' }}</td>
+                                    <td class="px-4 py-3" dir="ltr">
+                                        <div class="space-y-0.5">
+                                            <div>{{ customer.phone || '—' }}</div>
+                                            <div v-if="customer.phone_secondary" class="text-xs text-muted-foreground">
+                                                {{ customer.phone_secondary }}
+                                            </div>
+                                        </div>
+                                    </td>
                                     <td class="px-4 py-3" dir="ltr">{{ customer.email || '—' }}</td>
                                     <td class="px-4 py-3">
                                         <Badge v-if="customer.type === 'company'" variant="secondary" class="tabular-nums">
@@ -383,18 +620,44 @@ function quotationPdfUrl(id: number): string {
                                         {{ customer.created_at ? formatDateTime(customer.created_at) : '—' }}
                                     </td>
                                     <td class="px-4 py-3 text-center" @click.stop>
-                                        <Button
-                                            v-if="customer.type === 'company'"
-                                            type="button"
-                                            variant="ghost"
-                                            size="sm"
-                                            class="h-9 text-destructive hover:bg-destructive/10 hover:text-destructive"
-                                            @click="destroyClient(customer)"
-                                        >
-                                            <Trash2 class="ms-1.5 h-4 w-4" />
-                                            حذف
-                                        </Button>
-                                        <span v-else class="text-xs text-muted-foreground">—</span>
+                                        <DropdownMenu>
+                                            <DropdownMenuTrigger as-child>
+                                                <Button
+                                                    type="button"
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    class="h-9 w-9 text-muted-foreground"
+                                                    :aria-label="`إجراءات ${customer.name}`"
+                                                >
+                                                    <MoreVertical class="h-5 w-5" />
+                                                </Button>
+                                            </DropdownMenuTrigger>
+                                            <DropdownMenuContent align="end" class="min-w-40">
+                                                <DropdownMenuItem as-child class="cursor-pointer gap-2">
+                                                    <Link :href="customerProfileUrl(customer)">
+                                                        <Eye class="h-4 w-4" />
+                                                        عرض
+                                                    </Link>
+                                                </DropdownMenuItem>
+                                                <DropdownMenuItem
+                                                    class="cursor-pointer gap-2"
+                                                    @select="openEditForm(customer)"
+                                                >
+                                                    <Edit class="h-4 w-4" />
+                                                    تعديل
+                                                </DropdownMenuItem>
+                                                <template v-if="customer.type === 'company'">
+                                                    <DropdownMenuSeparator />
+                                                    <DropdownMenuItem
+                                                        class="cursor-pointer gap-2 text-destructive focus:bg-destructive/10 focus:text-destructive"
+                                                        @select="destroyClient(customer)"
+                                                    >
+                                                        <Trash2 class="h-4 w-4" />
+                                                        حذف
+                                                    </DropdownMenuItem>
+                                                </template>
+                                            </DropdownMenuContent>
+                                        </DropdownMenu>
                                     </td>
                                 </tr>
 

@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, ref } from 'vue';
 import { Head, Link, useForm, usePage } from '@inertiajs/vue3';
 import {
+    ArrowLeft,
     ArrowRight,
     Camera,
     CheckCircle2,
@@ -14,6 +15,9 @@ import {
     X,
 } from 'lucide-vue-next';
 import { formatDate, formatDateTime } from '@/lib/formatNumber';
+import WorkerLanguageSwitcher from '../components/WorkerLanguageSwitcher.vue';
+import { useI18n } from '../i18n';
+import type { MessageKey } from '../i18n/messages';
 
 type PickupCondition = 'excellent' | 'good' | 'damaged' | 'broken';
 type CaptureMode = 'install' | 'pickup';
@@ -59,21 +63,15 @@ interface Props {
 
 const props = defineProps<Props>();
 const page = usePage();
+const { t, isRtl, dir } = useI18n();
 const successMessage = computed(() => page.props.flash?.success as string | undefined);
 
-const conditionOptions: { key: PickupCondition; label: string }[] = [
-    { key: 'excellent', label: 'ممتاز' },
-    { key: 'good', label: 'جيد' },
-    { key: 'damaged', label: 'تالف' },
-    { key: 'broken', label: 'مكسور' },
+const conditionKeys: { key: PickupCondition; labelKey: MessageKey }[] = [
+    { key: 'excellent', labelKey: 'condition_excellent' },
+    { key: 'good', labelKey: 'condition_good' },
+    { key: 'damaged', labelKey: 'condition_damaged' },
+    { key: 'broken', labelKey: 'condition_broken' },
 ];
-
-const conditionLabels: Record<PickupCondition, string> = {
-    excellent: 'ممتاز',
-    good: 'جيد',
-    damaged: 'تالف',
-    broken: 'مكسور',
-};
 
 const selectedProduct = ref<ProductLine | null>(null);
 const captureMode = ref<CaptureMode>('install');
@@ -111,15 +109,30 @@ const notes = computed(() => props.installation.notes ?? []);
 
 const activeForm = computed(() => (captureMode.value === 'install' ? installForm : pickupForm));
 
+const pageTitle = computed(() =>
+    t('install_title', { name: props.installation.customer_name }),
+);
+
+function conditionLabel(key: PickupCondition): string {
+    const map: Record<PickupCondition, MessageKey> = {
+        excellent: 'condition_excellent',
+        good: 'condition_good',
+        damaged: 'condition_damaged',
+        broken: 'condition_broken',
+    };
+
+    return t(map[key]);
+}
+
 function formatInstallDate(date: string | null): string {
-    if (!date) return 'موعد غير محدد';
+    if (!date) return t('date_unset');
     return formatDate(date);
 }
 
 function submitNote() {
     const body = noteForm.body.trim();
     if (!body) {
-        noteForm.setError('body', 'يجب كتابة الملاحظة.');
+        noteForm.setError('body', t('note_required'));
         return;
     }
 
@@ -192,7 +205,7 @@ function submitCapture() {
 
     if (captureMode.value === 'install') {
         if (!installForm.installation_photo) {
-            photoError.value = 'يجب تصوير التركيب قبل الإرسال.';
+            photoError.value = t('need_install_photo');
             return;
         }
 
@@ -205,7 +218,7 @@ function submitCapture() {
     }
 
     if (!pickupForm.pickup_photo) {
-        photoError.value = 'يجب تصوير المنتج عند الاستلام قبل الفك.';
+        photoError.value = t('need_pickup_photo');
         return;
     }
 
@@ -222,7 +235,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-    <Head :title="`تركيب — ${installation.customer_name}`" />
+    <Head :title="pageTitle" />
 
     <div class="relative flex min-h-dvh flex-col bg-[#f5f7fb] px-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-[max(1.25rem,env(safe-area-inset-top))]">
         <div class="pointer-events-none absolute inset-0 overflow-hidden">
@@ -235,12 +248,14 @@ onBeforeUnmount(() => {
                 href="/worker-app"
                 class="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 shadow-sm"
             >
-                <ArrowRight class="h-5 w-5" />
+                <ArrowRight v-if="isRtl" class="h-5 w-5" />
+                <ArrowLeft v-else class="h-5 w-5" />
             </Link>
             <div class="min-w-0 flex-1">
-                <p class="text-xs text-slate-500">تفاصيل التركيب</p>
+                <p class="text-xs text-slate-500">{{ t('install_details') }}</p>
                 <h1 class="truncate text-lg font-bold text-slate-900">{{ installation.customer_name }}</h1>
             </div>
+            <WorkerLanguageSwitcher />
         </header>
 
         <main class="relative mx-auto mt-5 flex w-full max-w-md flex-1 flex-col gap-4">
@@ -254,15 +269,18 @@ onBeforeUnmount(() => {
             <section class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
                 <div class="flex items-start justify-between gap-3">
                     <div>
-                        <p class="text-sm text-slate-500">موعد التركيب</p>
+                        <p class="text-sm text-slate-500">{{ t('install_date') }}</p>
                         <p class="mt-1 font-semibold text-slate-900">{{ formatInstallDate(installation.installation_date) }}</p>
                     </div>
                     <div class="flex flex-col items-end gap-1">
                         <span class="rounded-full bg-sky-50 px-2.5 py-1 text-[11px] font-semibold text-sky-700 ring-1 ring-sky-100">
-                            تركيب {{ installation.completed_count }}/{{ installation.products_count }}
+                            {{ t('install_progress', { done: installation.completed_count, total: installation.products_count }) }}
                         </span>
                         <span class="rounded-full bg-violet-50 px-2.5 py-1 text-[11px] font-semibold text-violet-700 ring-1 ring-violet-100">
-                            استلام {{ installation.products_count - installation.pending_pickup_count }}/{{ installation.products_count }}
+                            {{ t('pickup_progress', {
+                                done: installation.products_count - installation.pending_pickup_count,
+                                total: installation.products_count,
+                            }) }}
                         </span>
                     </div>
                 </div>
@@ -285,7 +303,7 @@ onBeforeUnmount(() => {
                         class="inline-flex items-center gap-2 font-semibold text-sky-600"
                     >
                         <MapPin class="h-4 w-4" />
-                        الموقع علي الخريطة
+                        {{ t('map_location') }}
                         <ExternalLink class="h-3.5 w-3.5 opacity-70" />
                     </a>
                 </div>
@@ -294,17 +312,17 @@ onBeforeUnmount(() => {
             <section class="space-y-3">
                 <h2 class="flex items-center gap-2 px-1 text-sm font-semibold text-slate-700">
                     <MessageSquareText class="h-4 w-4 text-slate-400" />
-                    ملاحظات
+                    {{ t('notes') }}
                 </h2>
 
                 <div class="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
-                    <label for="worker-note" class="sr-only">اكتب ملاحظة</label>
+                    <label for="worker-note" class="sr-only">{{ t('write_note') }}</label>
                     <textarea
                         id="worker-note"
                         v-model="noteForm.body"
                         rows="3"
                         maxlength="2000"
-                        placeholder="اكتب أي ملاحظة عن التركيب أو الموقع..."
+                        :placeholder="t('note_placeholder')"
                         class="w-full resize-none rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none ring-sky-400/30 placeholder:text-slate-400 focus:border-sky-400 focus:bg-white focus:ring-2"
                         :disabled="noteForm.processing"
                     />
@@ -317,7 +335,7 @@ onBeforeUnmount(() => {
                         :disabled="noteForm.processing || !noteForm.body.trim()"
                         @click="submitNote"
                     >
-                        {{ noteForm.processing ? 'جاري الحفظ...' : 'حفظ الملاحظة' }}
+                        {{ noteForm.processing ? t('saving') : t('save_note') }}
                     </button>
                 </div>
 
@@ -329,16 +347,16 @@ onBeforeUnmount(() => {
                     >
                         <p class="whitespace-pre-wrap text-sm leading-relaxed text-slate-800">{{ note.body }}</p>
                         <p class="mt-2 text-[11px] text-slate-400">
-                            {{ note.is_mine ? 'أنت' : note.user_name }}
+                            {{ note.is_mine ? t('you') : note.user_name }}
                             <span v-if="note.created_at"> · {{ formatDateTime(note.created_at) }}</span>
                         </p>
                     </article>
                 </div>
-                <p v-else class="px-1 text-xs text-slate-400">لا توجد ملاحظات بعد.</p>
+                <p v-else class="px-1 text-xs text-slate-400">{{ t('no_notes') }}</p>
             </section>
 
             <section class="space-y-3">
-                <h2 class="px-1 text-sm font-semibold text-slate-700">المنتجات المراد تركيبها</h2>
+                <h2 class="px-1 text-sm font-semibold text-slate-700">{{ t('products_to_install') }}</h2>
 
                 <article
                     v-for="product in pendingProducts"
@@ -364,7 +382,7 @@ onBeforeUnmount(() => {
                             @click="openInstallCapture(product)"
                         >
                             <Camera class="h-5 w-5" />
-                            صوّر بعد التركيب
+                            {{ t('photo_after_install') }}
                         </button>
                     </div>
                 </article>
@@ -374,13 +392,13 @@ onBeforeUnmount(() => {
                     class="rounded-3xl border border-dashed border-emerald-200 bg-emerald-50/60 px-5 py-8 text-center"
                 >
                     <CheckCircle2 class="mx-auto h-8 w-8 text-emerald-500" />
-                    <p class="mt-3 text-sm font-semibold text-emerald-800">تم تسجيل تركيب كل المنتجات</p>
+                    <p class="mt-3 text-sm font-semibold text-emerald-800">{{ t('all_installed') }}</p>
                 </div>
             </section>
 
             <section v-if="awaitingPickupProducts.length" class="space-y-3">
-                <h2 class="px-1 text-sm font-semibold text-slate-700">الاستلام قبل الفك</h2>
-                <p class="px-1 text-xs text-slate-500">صوّر كل منتج عند الاستلام قبل ما تفكّه</p>
+                <h2 class="px-1 text-sm font-semibold text-slate-700">{{ t('pickup_before_dismantle') }}</h2>
+                <p class="px-1 text-xs text-slate-500">{{ t('pickup_before_hint') }}</p>
 
                 <article
                     v-for="product in awaitingPickupProducts"
@@ -403,7 +421,7 @@ onBeforeUnmount(() => {
                             <img
                                 v-if="product.installation_photo_url"
                                 :src="product.installation_photo_url"
-                                alt="صورة التركيب"
+                                :alt="t('install_photo_alt')"
                                 class="h-full w-full object-cover"
                             />
                         </div>
@@ -412,7 +430,7 @@ onBeforeUnmount(() => {
                         <div class="flex items-start justify-between gap-2">
                             <div class="min-w-0">
                                 <p class="truncate font-semibold text-slate-900">{{ product.product_name }}</p>
-                                <p class="mt-0.5 text-xs text-emerald-600">تم التركيب ✓</p>
+                                <p class="mt-0.5 text-xs text-emerald-600">{{ t('installed_ok') }}</p>
                             </div>
                             <Truck class="h-5 w-5 shrink-0 text-violet-500" />
                         </div>
@@ -422,14 +440,14 @@ onBeforeUnmount(() => {
                             @click="openPickupCapture(product)"
                         >
                             <Camera class="h-5 w-5" />
-                            صوّر عند الاستلام قبل الفك
+                            {{ t('photo_on_pickup') }}
                         </button>
                     </div>
                 </article>
             </section>
 
             <section v-if="finishedProducts.length" class="space-y-3 pb-4">
-                <h2 class="px-1 text-sm font-semibold text-slate-700">مكتمل (تركيب + استلام)</h2>
+                <h2 class="px-1 text-sm font-semibold text-slate-700">{{ t('completed_both') }}</h2>
                 <article
                     v-for="product in finishedProducts"
                     :key="`done-${product.id}`"
@@ -440,22 +458,22 @@ onBeforeUnmount(() => {
                             <img
                                 v-if="product.installation_photo_url"
                                 :src="product.installation_photo_url"
-                                alt="صورة التركيب"
+                                :alt="t('install_photo_alt')"
                                 class="h-full w-full object-cover"
                             />
                             <span class="absolute bottom-2 start-2 rounded-md bg-black/55 px-1.5 py-0.5 text-[10px] font-medium text-white">
-                                تركيب
+                                {{ t('install') }}
                             </span>
                         </div>
                         <div class="relative aspect-square bg-slate-100">
                             <img
                                 v-if="product.pickup_photo_url"
                                 :src="product.pickup_photo_url"
-                                alt="صورة الاستلام"
+                                :alt="t('pickup_photo_alt')"
                                 class="h-full w-full object-cover"
                             />
                             <span class="absolute bottom-2 start-2 rounded-md bg-black/55 px-1.5 py-0.5 text-[10px] font-medium text-white">
-                                استلام
+                                {{ t('pickup') }}
                             </span>
                         </div>
                     </div>
@@ -463,13 +481,13 @@ onBeforeUnmount(() => {
                         <div class="min-w-0">
                             <p class="truncate font-semibold text-slate-900">{{ product.product_name }}</p>
                             <p v-if="product.pickup_condition" class="mt-0.5 text-xs text-slate-500">
-                                الحالة: {{ conditionLabels[product.pickup_condition] }}
+                                {{ t('condition') }}: {{ conditionLabel(product.pickup_condition) }}
                                 <span v-if="product.pickup_at"> — {{ formatDateTime(product.pickup_at) }}</span>
                             </p>
                         </div>
                         <span class="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700 ring-1 ring-emerald-100">
                             <CheckCircle2 class="h-3.5 w-3.5" />
-                            مكتمل
+                            {{ t('completed') }}
                         </span>
                     </div>
                 </article>
@@ -483,12 +501,15 @@ onBeforeUnmount(() => {
                 role="dialog"
                 aria-modal="true"
             >
-                <button type="button" class="absolute inset-0 bg-slate-900/50" aria-label="إغلاق" @click="closeCapture" />
-                <div class="relative z-10 flex max-h-[92vh] w-full max-w-md flex-col overflow-hidden rounded-t-3xl bg-white shadow-2xl sm:rounded-3xl" dir="rtl">
+                <button type="button" class="absolute inset-0 bg-slate-900/50" :aria-label="t('close')" @click="closeCapture" />
+                <div
+                    class="relative z-10 flex max-h-[92vh] w-full max-w-md flex-col overflow-hidden rounded-t-3xl bg-white shadow-2xl sm:rounded-3xl"
+                    :dir="dir"
+                >
                     <div class="flex items-start justify-between gap-3 border-b border-slate-100 px-5 py-4">
                         <div class="min-w-0">
                             <h2 class="text-lg font-bold text-slate-900">
-                                {{ captureMode === 'install' ? 'تسجيل صورة التركيب' : 'تسجيل صورة الاستلام قبل الفك' }}
+                                {{ captureMode === 'install' ? t('capture_install_title') : t('capture_pickup_title') }}
                             </h2>
                             <p class="mt-1 truncate text-sm text-slate-500">{{ selectedProduct.product_name }}</p>
                         </div>
@@ -503,10 +524,10 @@ onBeforeUnmount(() => {
 
                     <div class="space-y-4 overflow-y-auto px-5 py-4">
                         <div v-if="captureMode === 'pickup'" class="space-y-2">
-                            <p class="text-sm font-medium text-slate-700">حالة المنتج عند الاستلام</p>
+                            <p class="text-sm font-medium text-slate-700">{{ t('product_condition') }}</p>
                             <div class="grid grid-cols-2 gap-2">
                                 <button
-                                    v-for="option in conditionOptions"
+                                    v-for="option in conditionKeys"
                                     :key="option.key"
                                     type="button"
                                     class="h-11 rounded-xl text-sm font-semibold ring-1 transition"
@@ -515,7 +536,7 @@ onBeforeUnmount(() => {
                                         : 'bg-slate-50 text-slate-700 ring-slate-200'"
                                     @click="pickupForm.pickup_condition = option.key"
                                 >
-                                    {{ option.label }}
+                                    {{ t(option.labelKey) }}
                                 </button>
                             </div>
                             <p v-if="pickupForm.errors.pickup_condition" class="text-sm text-rose-600">
@@ -541,15 +562,15 @@ onBeforeUnmount(() => {
                         >
                             <Camera class="h-8 w-8" />
                             <p class="font-semibold">
-                                {{ captureMode === 'install' ? 'افتح الكاميرا وصوّر التركيب' : 'افتح الكاميرا وصوّر قبل الفك' }}
+                                {{ captureMode === 'install' ? t('open_camera_install') : t('open_camera_pickup') }}
                             </p>
-                            <p class="text-xs opacity-80">أو اختر صورة من المعرض</p>
+                            <p class="text-xs opacity-80">{{ t('or_gallery') }}</p>
                         </button>
 
                         <img
                             v-if="photoPreview"
                             :src="photoPreview"
-                            alt="معاينة"
+                            :alt="t('preview')"
                             class="max-h-64 w-full rounded-2xl object-cover"
                         />
 
@@ -567,7 +588,7 @@ onBeforeUnmount(() => {
                             class="h-12 rounded-2xl border border-slate-200 bg-white text-sm font-semibold text-slate-700"
                             @click="closeCapture"
                         >
-                            إلغاء
+                            {{ t('cancel') }}
                         </button>
                         <button
                             type="button"
@@ -576,7 +597,7 @@ onBeforeUnmount(() => {
                             :disabled="activeForm.processing"
                             @click="submitCapture"
                         >
-                            {{ activeForm.processing ? 'جاري الحفظ...' : 'حفظ التسجيل' }}
+                            {{ activeForm.processing ? t('saving') : t('save_record') }}
                         </button>
                     </div>
                 </div>

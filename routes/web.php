@@ -167,6 +167,21 @@ Route::get('customers', [\App\Http\Controllers\CustomerController::class, 'index
     ->middleware(['auth', 'verified', 'role:admin,general_manager,manager'])
     ->name('customers');
 
+Route::get('customers/{type}/{id}', [\App\Http\Controllers\CustomerController::class, 'show'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager'])
+    ->where(['type' => 'individual|company', 'id' => '[0-9]+'])
+    ->name('customers.show');
+
+Route::post('customers/{type}/{id}', [\App\Http\Controllers\CustomerController::class, 'update'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager'])
+    ->where(['type' => 'individual|company', 'id' => '[0-9]+'])
+    ->name('customers.update');
+
+Route::post('customers/{type}/{id}/bank', [\App\Http\Controllers\CustomerController::class, 'updateBank'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager'])
+    ->where(['type' => 'individual|company', 'id' => '[0-9]+'])
+    ->name('customers.update-bank');
+
 Route::get('company-clients', [\App\Http\Controllers\CompanyClientController::class, 'index'])
     ->middleware(['auth', 'verified', 'role:admin,general_manager,manager'])
     ->name('company-clients.index');

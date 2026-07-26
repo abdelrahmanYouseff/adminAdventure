@@ -1,8 +1,11 @@
 <script setup lang="ts">
+import { computed } from 'vue';
 import { Head, Link, router } from '@inertiajs/vue3';
 import { CalendarDays, ExternalLink, HardHat, LogOut, MapPin, Package } from 'lucide-vue-next';
 import { formatDate, formatInteger } from '@/lib/formatNumber';
 import WorkerBottomNav from '../components/WorkerBottomNav.vue';
+import WorkerLanguageSwitcher from '../components/WorkerLanguageSwitcher.vue';
+import { useI18n } from '../i18n';
 
 interface Installation {
     id: number;
@@ -30,12 +33,15 @@ interface Props {
 
 defineProps<Props>();
 
+const { t } = useI18n();
+const pageTitle = computed(() => t('current_installations'));
+
 function logout() {
     router.post(route('pwa.logout'));
 }
 
 function formatInstallDate(date: string | null): string {
-    if (!date) return 'موعد غير محدد';
+    if (!date) return t('date_unset');
     return formatDate(date);
 }
 
@@ -47,7 +53,7 @@ function openMap(event: Event, url: string) {
 </script>
 
 <template>
-    <Head title="التركيبات الحالية" />
+    <Head :title="pageTitle" />
 
     <div class="relative flex min-h-dvh flex-col bg-[#f5f7fb] px-5 pb-[calc(5.5rem+env(safe-area-inset-bottom))] pt-[max(1.25rem,env(safe-area-inset-top))]">
         <div class="pointer-events-none absolute inset-0 overflow-hidden">
@@ -57,17 +63,20 @@ function openMap(event: Event, url: string) {
 
         <header class="relative mx-auto flex w-full max-w-md items-center justify-between gap-3">
             <div class="min-w-0">
-                <p class="text-xs text-slate-500">مرحباً</p>
-                <h1 class="truncate text-lg font-bold text-slate-900">{{ worker.name || 'عامل' }}</h1>
+                <p class="text-xs text-slate-500">{{ t('hello') }}</p>
+                <h1 class="truncate text-lg font-bold text-slate-900">{{ worker.name || t('worker') }}</h1>
             </div>
-            <button
-                type="button"
-                class="inline-flex h-11 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 shadow-sm transition active:scale-[0.98] hover:bg-slate-50"
-                @click="logout"
-            >
-                <LogOut class="h-4 w-4" />
-                خروج
-            </button>
+            <div class="flex shrink-0 items-center gap-2">
+                <WorkerLanguageSwitcher />
+                <button
+                    type="button"
+                    class="inline-flex h-11 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 shadow-sm transition active:scale-[0.98] hover:bg-slate-50"
+                    @click="logout"
+                >
+                    <LogOut class="h-4 w-4" />
+                    {{ t('logout') }}
+                </button>
+            </div>
         </header>
 
         <main class="relative mx-auto mt-6 flex w-full max-w-md flex-1 flex-col gap-4">
@@ -77,7 +86,7 @@ function openMap(event: Event, url: string) {
                         <HardHat class="h-6 w-6 text-sky-600" />
                     </div>
                     <div class="min-w-0 flex-1">
-                        <p class="text-sm text-slate-500">التركيبات الحالية</p>
+                        <p class="text-sm text-slate-500">{{ t('current_installations') }}</p>
                         <p class="text-2xl font-black tabular-nums text-sky-600">
                             {{ formatInteger(pendingOrdersCount) }}
                         </p>
@@ -86,15 +95,15 @@ function openMap(event: Event, url: string) {
             </div>
 
             <section class="space-y-3">
-                <h2 class="px-1 text-sm font-semibold text-slate-700">مفروض تركّبها الآن</h2>
+                <h2 class="px-1 text-sm font-semibold text-slate-700">{{ t('assign_now') }}</h2>
 
                 <div
                     v-if="!installations.length"
                     class="rounded-3xl border border-dashed border-slate-200 bg-white/80 px-5 py-10 text-center"
                 >
                     <Package class="mx-auto h-8 w-8 text-slate-300" />
-                    <p class="mt-3 text-sm font-medium text-slate-600">لا توجد تركيبات حالية</p>
-                    <p class="mt-1 text-xs text-slate-400">ستظهر هنا الأوامر بعد تعيينك من مدير العمال</p>
+                    <p class="mt-3 text-sm font-medium text-slate-600">{{ t('no_current') }}</p>
+                    <p class="mt-1 text-xs text-slate-400">{{ t('no_current_hint') }}</p>
                 </div>
 
                 <Link
@@ -112,10 +121,10 @@ function openMap(event: Event, url: string) {
                                 : 'bg-amber-50 text-amber-700 ring-amber-100'"
                         >
                             <template v-if="item.phase === 'pickup'">
-                                {{ item.pending_pickup_count }} استلام
+                                {{ t('pickup_count', { count: item.pending_pickup_count }) }}
                             </template>
                             <template v-else>
-                                {{ item.pending_count }}/{{ item.products_count }} متبقي
+                                {{ t('remaining', { pending: item.pending_count, total: item.products_count }) }}
                             </template>
                         </span>
                     </div>
@@ -132,7 +141,7 @@ function openMap(event: Event, url: string) {
                             @click="openMap($event, item.map_url!)"
                         >
                             <MapPin class="h-4 w-4 shrink-0" />
-                            الموقع علي الخريطة
+                            {{ t('map_location') }}
                             <ExternalLink class="h-3.5 w-3.5 shrink-0 opacity-70" />
                         </button>
                     </div>

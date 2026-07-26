@@ -53,6 +53,21 @@ class QuotationPdfData
         return $this->formatDateLong($this->quotation->valid_until);
     }
 
+    public function activityAt(): ?string
+    {
+        return $this->formatDateTime($this->quotation->activity_at);
+    }
+
+    public function installationAt(): ?string
+    {
+        return $this->formatDateTime($this->quotation->installation_at);
+    }
+
+    public function dismantlingAt(): ?string
+    {
+        return $this->formatDateTime($this->quotation->dismantling_at);
+    }
+
     public function customerName(): string
     {
         return $this->quotation->customer_name ?: '—';
@@ -73,6 +88,13 @@ class QuotationPdfData
         $address = $this->quotation->customer_address;
 
         return $address && trim($address) !== '' ? trim($address) : null;
+    }
+
+    public function companyTaxNumber(): ?string
+    {
+        $tax = $this->quotation->company_tax_number;
+
+        return $tax && trim($tax) !== '' ? trim($tax) : null;
     }
 
     public function preparedBy(): string
@@ -124,9 +146,29 @@ class QuotationPdfData
         return round((float) $this->quotation->tax_amount, 2);
     }
 
+    public function insuranceAmount(): float
+    {
+        return round((float) ($this->quotation->insurance_amount ?? 0), 2);
+    }
+
+    public function hasInsurance(): bool
+    {
+        return $this->insuranceAmount() > 0;
+    }
+
     public function total(): float
     {
         return round((float) $this->quotation->total_amount, 2);
+    }
+
+    public function insuranceNoteEn(): string
+    {
+        return 'Insurance deposit is refundable upon product pickup/collection after the event.';
+    }
+
+    public function insuranceNoteAr(): string
+    {
+        return 'مبلغ التأمين مسترد عند استلام المنتجات بعد انتهاء الفعالية.';
     }
 
     public function notes(): ?string
@@ -228,6 +270,10 @@ class QuotationPdfData
 
     private function formatDate(mixed $date): string
     {
+        if (! $date) {
+            return '—';
+        }
+
         $carbon = $date instanceof Carbon ? $date : Carbon::parse($date);
 
         return $carbon->format('Y-m-d');
@@ -235,8 +281,23 @@ class QuotationPdfData
 
     private function formatDateLong(mixed $date): string
     {
+        if (! $date) {
+            return '—';
+        }
+
         $carbon = $date instanceof Carbon ? $date : Carbon::parse($date);
 
         return $carbon->format('d/F/Y');
+    }
+
+    private function formatDateTime(mixed $date): ?string
+    {
+        if (! $date) {
+            return null;
+        }
+
+        $carbon = $date instanceof Carbon ? $date : Carbon::parse($date);
+
+        return $carbon->format('d/m/Y H:i');
     }
 }

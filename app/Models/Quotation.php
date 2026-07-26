@@ -14,10 +14,15 @@ class Quotation extends Model
         'customer_email',
         'customer_phone',
         'customer_address',
+        'company_tax_number',
         'valid_until',
+        'activity_at',
+        'installation_at',
+        'dismantling_at',
         'notes',
         'subtotal',
         'tax_amount',
+        'insurance_amount',
         'total_amount',
         'status',
         'user_id',
@@ -25,8 +30,12 @@ class Quotation extends Model
 
     protected $casts = [
         'valid_until' => 'date',
+        'activity_at' => 'datetime',
+        'installation_at' => 'datetime',
+        'dismantling_at' => 'datetime',
         'subtotal' => 'decimal:2',
         'tax_amount' => 'decimal:2',
+        'insurance_amount' => 'decimal:2',
         'total_amount' => 'decimal:2',
     ];
 

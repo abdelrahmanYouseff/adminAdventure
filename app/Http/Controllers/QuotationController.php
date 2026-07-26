@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Category;
 use App\Models\CompanyClient;
 use App\Models\Order;
 use App\Models\Quotation;
@@ -9,6 +10,7 @@ use App\Models\QuotationItem;
 use App\Models\Product;
 use App\Models\User;
 use App\Services\QuotationPdfService;
+use App\Support\OrderInsuranceCalculator;
 use App\Support\QuotationPdfData;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -41,10 +43,19 @@ class QuotationController extends Controller
      */
     public function create()
     {
-        $products = Product::where('status', 'active')->get();
+        $products = Product::where('status', 'active')
+            ->with('category:id,category_name')
+            ->orderBy('product_name')
+            ->get(['id', 'product_name', 'description', 'price', 'insurance_amount', 'category_id']);
+
+        $categories = Category::query()
+            ->whereHas('products', fn ($q) => $q->where('status', 'active'))
+            ->orderBy('category_name')
+            ->get(['id', 'category_name']);
 
         return Inertia::render('Quotations/Create', [
             'products' => $products,
+            'categories' => $categories,
         ]);
     }
 
@@ -90,6 +101,7 @@ class QuotationController extends Controller
                     'customer_email' => $companyClient->email,
                     'customer_phone' => $this->normalizePhoneForForm($companyClient->phone ?: $validated['phone']),
                     'customer_address' => $companyClient->address,
+                    'company_tax_number' => $companyClient->tax_number,
                     'source' => 'company_client',
                 ],
             ]);
@@ -137,6 +149,7 @@ class QuotationController extends Controller
                     'customer_address' => $latestQuotation?->customer_address
                         ?: $latestOrder?->address
                         ?: null,
+                    'company_tax_number' => null,
                     'source' => 'user',
                 ],
             ]);
@@ -160,6 +173,7 @@ class QuotationController extends Controller
                     'customer_email' => $quotation->customer_email,
                     'customer_phone' => $this->normalizePhoneForForm($quotation->customer_phone),
                     'customer_address' => $quotation->customer_address,
+                    'company_tax_number' => $quotation->company_tax_number,
                     'source' => 'quotation',
                 ],
             ]);
@@ -183,6 +197,7 @@ class QuotationController extends Controller
                     'customer_email' => $order->customer_email,
                     'customer_phone' => $this->normalizePhoneForForm($order->customer_phone),
                     'customer_address' => $order->address,
+                    'company_tax_number' => null,
                     'source' => 'order',
                 ],
             ]);
@@ -259,7 +274,12 @@ class QuotationController extends Controller
             'customer_email' => 'nullable|email|max:255',
             'customer_phone' => 'nullable|string|max:20',
             'customer_address' => 'nullable|string',
+            'company_tax_number' => 'nullable|string|max:100',
             'valid_until' => 'required|date|after:today',
+            'activity_at' => 'nullable|date',
+            'installation_at' => 'nullable|date',
+            'dismantling_at' => 'nullable|date|after_or_equal:installation_at',
+            'insurance_amount' => 'nullable|numeric|min:0',
             'notes' => 'nullable|string',
             'items' => 'required|array|min:1',
             'items.*.product_id' => 'required|exists:products,id',
@@ -272,6 +292,12 @@ class QuotationController extends Controller
             'valid_until.required' => 'تاريخ الصلاحية مطلوب.',
             'valid_until.date' => 'تاريخ الصلاحية غير صالح.',
             'valid_until.after' => 'تاريخ الصلاحية يجب أن يكون بعد اليوم.',
+            'activity_at.date' => 'تاريخ الفعالية غير صالح.',
+            'installation_at.date' => 'تاريخ التركيب غير صالح.',
+            'dismantling_at.date' => 'تاريخ الفك غير صالح.',
+            'dismantling_at.after_or_equal' => 'تاريخ الفك يجب أن يكون بعد أو يساوي تاريخ التركيب.',
+            'insurance_amount.numeric' => 'مبلغ التأمين غير صالح.',
+            'insurance_amount.min' => 'مبلغ التأمين لا يمكن أن يكون سالباً.',
             'items.required' => 'يجب إضافة منتج واحد على الأقل.',
             'items.min' => 'يجب إضافة منتج واحد على الأقل.',
             'items.*.product_id.required' => 'المنتج مطلوب.',
@@ -290,7 +316,11 @@ class QuotationController extends Controller
                 'customer_email' => $request->customer_email,
                 'customer_phone' => $request->customer_phone,
                 'customer_address' => $request->customer_address,
+                'company_tax_number' => $request->input('company_tax_number') ?: null,
                 'valid_until' => $request->valid_until,
+                'activity_at' => $request->input('activity_at') ?: null,
+                'installation_at' => $request->input('installation_at') ?: null,
+                'dismantling_at' => $request->input('dismantling_at') ?: null,
                 'notes' => $request->notes,
                 'user_id' => auth()->id(),
             ]);
@@ -312,12 +342,17 @@ class QuotationController extends Controller
                 ]);
             }
 
-            $taxAmount = $subtotal * 0.15; // 15% tax
-            $totalAmount = $subtotal + $taxAmount;
+            $insuranceAmount = $request->filled('insurance_amount')
+                ? round((float) $request->insurance_amount, 2)
+                : OrderInsuranceCalculator::fromLines($request->items)['total'];
+
+            $taxAmount = round($subtotal * 0.15, 2);
+            $totalAmount = round($subtotal + $taxAmount + $insuranceAmount, 2);
 
             $quotation->update([
                 'subtotal' => $subtotal,
                 'tax_amount' => $taxAmount,
+                'insurance_amount' => $insuranceAmount,
                 'total_amount' => $totalAmount,
             ]);
 
@@ -357,11 +392,20 @@ class QuotationController extends Controller
     public function edit(Quotation $quotation)
     {
         $quotation->load(['items.product']);
-        $products = Product::where('status', 'active')->get();
+        $products = Product::where('status', 'active')
+            ->with('category:id,category_name')
+            ->orderBy('product_name')
+            ->get(['id', 'product_name', 'description', 'price', 'insurance_amount', 'category_id']);
+
+        $categories = Category::query()
+            ->whereHas('products', fn ($q) => $q->where('status', 'active'))
+            ->orderBy('category_name')
+            ->get(['id', 'category_name']);
 
         return Inertia::render('Quotations/Edit', [
             'quotation' => $quotation,
             'products' => $products,
+            'categories' => $categories,
         ]);
     }
 
@@ -375,7 +419,12 @@ class QuotationController extends Controller
             'customer_email' => 'nullable|email|max:255',
             'customer_phone' => 'nullable|string|max:20',
             'customer_address' => 'nullable|string',
+            'company_tax_number' => 'nullable|string|max:100',
             'valid_until' => 'required|date',
+            'activity_at' => 'nullable|date',
+            'installation_at' => 'nullable|date',
+            'dismantling_at' => 'nullable|date|after_or_equal:installation_at',
+            'insurance_amount' => 'nullable|numeric|min:0',
             'notes' => 'nullable|string',
             'items' => 'required|array|min:1',
             'items.*.product_id' => 'required|exists:products,id',
@@ -391,7 +440,11 @@ class QuotationController extends Controller
                 'customer_email' => $request->customer_email,
                 'customer_phone' => $request->customer_phone,
                 'customer_address' => $request->customer_address,
+                'company_tax_number' => $request->input('company_tax_number') ?: null,
                 'valid_until' => $request->valid_until,
+                'activity_at' => $request->input('activity_at') ?: null,
+                'installation_at' => $request->input('installation_at') ?: null,
+                'dismantling_at' => $request->input('dismantling_at') ?: null,
                 'notes' => $request->notes,
             ]);
 
@@ -415,12 +468,17 @@ class QuotationController extends Controller
                 ]);
             }
 
-            $taxAmount = $subtotal * 0.15; // 15% tax
-            $totalAmount = $subtotal + $taxAmount;
+            $insuranceAmount = $request->filled('insurance_amount')
+                ? round((float) $request->insurance_amount, 2)
+                : OrderInsuranceCalculator::fromLines($request->items)['total'];
+
+            $taxAmount = round($subtotal * 0.15, 2);
+            $totalAmount = round($subtotal + $taxAmount + $insuranceAmount, 2);
 
             $quotation->update([
                 'subtotal' => $subtotal,
                 'tax_amount' => $taxAmount,
+                'insurance_amount' => $insuranceAmount,
                 'total_amount' => $totalAmount,
             ]);
 

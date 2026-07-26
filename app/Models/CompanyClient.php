@@ -10,9 +10,27 @@ class CompanyClient extends Model
         'company_name',
         'contact_name',
         'phone',
+        'phone_secondary',
         'email',
         'address',
         'tax_number',
+        'iban',
+        'iban_image',
         'notes',
     ];
+
+    protected $appends = [
+        'iban_image_url',
+    ];
+
+    public function getIbanImageUrlAttribute(): ?string
+    {
+        if (! $this->iban_image) {
+            return null;
+        }
+
+        return str_starts_with($this->iban_image, 'http')
+            ? $this->iban_image
+            : asset('storage/'.ltrim($this->iban_image, '/'));
+    }
 }

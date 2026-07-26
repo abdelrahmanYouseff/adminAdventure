@@ -31,6 +31,13 @@ interface Product {
     product_name: string;
     description: string;
     price: number;
+    insurance_amount?: number | string | null;
+    category_id?: number | null;
+}
+
+interface Category {
+    id: number;
+    category_name: string;
 }
 
 interface QuotationItem {
@@ -40,13 +47,17 @@ interface QuotationItem {
     quantity: number;
     unit_price: number;
     total_price: number;
+    insurance_amount: number;
 }
 
 interface Props {
     products: Product[];
+    categories: Category[];
 }
 
-const props = defineProps<Props>();
+const props = withDefaults(defineProps<Props>(), {
+    categories: () => [],
+});
 
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'عروض الأسعار', href: route('quotations.index') },
@@ -58,29 +69,50 @@ const form = useForm({
     customer_email: '',
     customer_phone: '',
     customer_address: '',
+    company_tax_number: '',
     valid_until: (() => {
         const date = new Date();
         date.setDate(date.getDate() + 7);
         return date.toISOString().slice(0, 10);
     })(),
+    activity_at: '',
+    installation_at: '',
+    dismantling_at: '',
+    insurance_amount: 0 as number,
     notes: '',
     items: [] as QuotationItem[],
 });
 
+const selectedCategoryId = ref<number | ''>('');
 const selectedProductId = ref<number | null>(null);
 const selectedQuantity = ref(1);
 const selectedUnitPrice = ref(0);
+const insuranceManual = ref(false);
 const customerLookupStatus = ref<'idle' | 'loading' | 'found' | 'not_found'>('idle');
 const customerLookupMessage = ref('');
 let phoneLookupTimer: ReturnType<typeof setTimeout> | null = null;
 let phoneLookupRequestId = 0;
 
+const filteredProducts = computed(() => {
+    if (selectedCategoryId.value === '' || selectedCategoryId.value == null) {
+        return props.products;
+    }
+
+    return props.products.filter((product) => product.category_id === Number(selectedCategoryId.value));
+});
+
 const subtotal = computed(() => {
     return form.items.reduce((sum, item) => sum + (parseFloat(String(item.total_price)) || 0), 0);
 });
 
+const suggestedInsurance = computed(() => {
+    return form.items.reduce((sum, item) => {
+        return sum + (Number(item.insurance_amount || 0) * Number(item.quantity || 0));
+    }, 0);
+});
+
 const taxAmount = computed(() => subtotal.value * 0.15);
-const totalAmount = computed(() => subtotal.value + taxAmount.value);
+const totalAmount = computed(() => subtotal.value + taxAmount.value + Number(form.insurance_amount || 0));
 const itemsCount = computed(() => form.items.reduce((sum, item) => sum + Number(item.quantity || 0), 0));
 
 const selectedProduct = computed(() => {
@@ -88,33 +120,75 @@ const selectedProduct = computed(() => {
     return props.products.find(p => p.id === selectedProductId.value) ?? null;
 });
 
+function syncInsuranceFromItems() {
+    if (!insuranceManual.value) {
+        form.insurance_amount = Math.round(suggestedInsurance.value * 100) / 100;
+    }
+}
+
+watch(suggestedInsurance, () => {
+    syncInsuranceFromItems();
+});
+
+watch(selectedCategoryId, () => {
+    if (selectedProductId.value == null) return;
+    const stillVisible = filteredProducts.value.some((p) => p.id === selectedProductId.value);
+    if (!stillVisible) {
+        selectedProductId.value = null;
+        selectedUnitPrice.value = 0;
+    }
+});
+
 const addItem = () => {
     if (selectedProductId.value == null || !selectedProduct.value) return;
 
     const product = selectedProduct.value;
+    const quantityToAdd = Math.max(1, Number(selectedQuantity.value) || 1);
+    const unitPrice = Number(selectedUnitPrice.value) || 0;
+    const existingIndex = form.items.findIndex((item) => item.product_id === product.id);
 
-    form.items.push({
-        product_id: product.id,
-        product_name: product.product_name,
-        description: product.description,
-        quantity: selectedQuantity.value,
-        unit_price: selectedUnitPrice.value,
-        total_price: selectedQuantity.value * selectedUnitPrice.value,
-    });
+    if (existingIndex >= 0) {
+        const existing = form.items[existingIndex];
+        existing.quantity = Number(existing.quantity) + quantityToAdd;
+        // احتفظ بسعر الوحدة الحالي للبند إن وُجد، وحدّث الإجمالي
+        existing.total_price = existing.quantity * Number(existing.unit_price);
+    } else {
+        form.items.push({
+            product_id: product.id,
+            product_name: product.product_name,
+            description: product.description,
+            quantity: quantityToAdd,
+            unit_price: unitPrice,
+            total_price: quantityToAdd * unitPrice,
+            insurance_amount: Number(product.insurance_amount || 0),
+        });
+    }
 
     selectedProductId.value = null;
     selectedQuantity.value = 1;
     selectedUnitPrice.value = 0;
+    syncInsuranceFromItems();
 };
 
 const removeItem = (index: number) => {
     form.items.splice(index, 1);
+    syncInsuranceFromItems();
 };
 
 const updateItemPrice = (index: number) => {
     const item = form.items[index];
     item.total_price = item.quantity * item.unit_price;
+    syncInsuranceFromItems();
 };
+
+function onInsuranceInput() {
+    insuranceManual.value = true;
+}
+
+function resetInsuranceToSuggested() {
+    insuranceManual.value = false;
+    syncInsuranceFromItems();
+}
 
 const submit = () => {
     form.post(route('quotations.store'));
@@ -156,6 +230,7 @@ async function lookupCustomerByPhone(phone: string) {
         if (!data?.success || !data.customer) {
             customerLookupStatus.value = 'not_found';
             customerLookupMessage.value = data?.message || 'لا يوجد عميل بهذا الرقم.';
+            form.company_tax_number = '';
             return;
         }
 
@@ -172,6 +247,8 @@ async function lookupCustomerByPhone(phone: string) {
         if (customer.customer_address) {
             form.customer_address = customer.customer_address;
         }
+        // الرقم الضريبي يُجلب فقط من بيانات الشركة المسجّلة، وإلا يبقى فاضي
+        form.company_tax_number = customer.company_tax_number || '';
 
         customerLookupStatus.value = 'found';
         customerLookupMessage.value = data.message || 'تم تعبئة بيانات العميل تلقائياً.';
@@ -343,6 +420,27 @@ watch(
                                 </div>
 
                                 <div class="space-y-2">
+                                    <Label for="company_tax_number" class="flex items-center gap-1.5">
+                                        <Receipt class="h-3.5 w-3.5 text-muted-foreground" />
+                                        الرقم الضريبي للشركة
+                                    </Label>
+                                    <Input
+                                        id="company_tax_number"
+                                        v-model="form.company_tax_number"
+                                        type="text"
+                                        placeholder="يُجلب تلقائياً إن كانت الشركة مسجّلة"
+                                        class="h-11 rounded-xl text-right"
+                                        dir="rtl"
+                                    />
+                                    <p class="text-xs text-muted-foreground">
+                                        عند إدخال رقم هاتف شركة مسجّلة يُعبَّأ تلقائياً، وإلا يبقى فارغاً.
+                                    </p>
+                                    <p v-if="form.errors.company_tax_number" class="text-xs text-rose-600">
+                                        {{ form.errors.company_tax_number }}
+                                    </p>
+                                </div>
+
+                                <div class="space-y-2">
                                     <Label for="valid_until" class="flex items-center gap-1.5">
                                         <Calendar class="h-3.5 w-3.5 text-muted-foreground" />
                                         صالح حتى
@@ -357,6 +455,48 @@ watch(
                                     />
                                 </div>
 
+                                <div class="space-y-2">
+                                    <Label for="activity_at" class="flex items-center gap-1.5">
+                                        <Calendar class="h-3.5 w-3.5 text-muted-foreground" />
+                                        تاريخ الفعالية مع الوقت
+                                    </Label>
+                                    <Input
+                                        id="activity_at"
+                                        v-model="form.activity_at"
+                                        type="datetime-local"
+                                        class="h-11 rounded-xl"
+                                    />
+                                    <p v-if="form.errors.activity_at" class="text-xs text-rose-600">{{ form.errors.activity_at }}</p>
+                                </div>
+
+                                <div class="space-y-2">
+                                    <Label for="installation_at" class="flex items-center gap-1.5">
+                                        <Calendar class="h-3.5 w-3.5 text-muted-foreground" />
+                                        تاريخ التركيب مع الوقت
+                                    </Label>
+                                    <Input
+                                        id="installation_at"
+                                        v-model="form.installation_at"
+                                        type="datetime-local"
+                                        class="h-11 rounded-xl"
+                                    />
+                                    <p v-if="form.errors.installation_at" class="text-xs text-rose-600">{{ form.errors.installation_at }}</p>
+                                </div>
+
+                                <div class="space-y-2">
+                                    <Label for="dismantling_at" class="flex items-center gap-1.5">
+                                        <Calendar class="h-3.5 w-3.5 text-muted-foreground" />
+                                        تاريخ الفك مع الوقت
+                                    </Label>
+                                    <Input
+                                        id="dismantling_at"
+                                        v-model="form.dismantling_at"
+                                        type="datetime-local"
+                                        class="h-11 rounded-xl"
+                                    />
+                                    <p v-if="form.errors.dismantling_at" class="text-xs text-rose-600">{{ form.errors.dismantling_at }}</p>
+                                </div>
+
                                 <div class="space-y-2 sm:col-span-2">
                                     <Label for="customer_address" class="flex items-center gap-1.5">
                                         <MapPin class="h-3.5 w-3.5 text-muted-foreground" />
@@ -369,6 +509,37 @@ watch(
                                         rows="2"
                                         class="rounded-xl resize-none"
                                     />
+                                </div>
+
+                                <div class="space-y-2 sm:col-span-2">
+                                    <div class="flex flex-wrap items-center justify-between gap-2">
+                                        <Label for="insurance_amount" class="flex items-center gap-1.5">
+                                            <Receipt class="h-3.5 w-3.5 text-muted-foreground" />
+                                            مبلغ التأمين
+                                        </Label>
+                                        <button
+                                            v-if="insuranceManual"
+                                            type="button"
+                                            class="text-xs font-medium text-sky-600 hover:underline"
+                                            @click="resetInsuranceToSuggested"
+                                        >
+                                            إعادة الحساب من المنتجات ({{ formatCurrency(suggestedInsurance) }})
+                                        </button>
+                                    </div>
+                                    <Input
+                                        id="insurance_amount"
+                                        v-model.number="form.insurance_amount"
+                                        type="number"
+                                        min="0"
+                                        step="0.01"
+                                        class="h-11 rounded-xl"
+                                        dir="ltr"
+                                        @input="onInsuranceInput"
+                                    />
+                                    <p class="text-xs text-muted-foreground">
+                                        يُحسب تلقائياً من تأمين المنتجات ويمكن تعديله يدوياً. بدون ضريبة.
+                                    </p>
+                                    <p v-if="form.errors.insurance_amount" class="text-xs text-rose-600">{{ form.errors.insurance_amount }}</p>
                                 </div>
 
                                 <div class="space-y-2 sm:col-span-2">
@@ -410,15 +581,32 @@ watch(
                             <div class="rounded-xl border border-dashed border-border bg-muted/20 p-4 sm:p-5">
                                 <p class="mb-4 text-sm font-medium text-foreground">إضافة منتج للعرض</p>
                                 <div class="grid gap-3 sm:grid-cols-12 sm:items-end">
-                                    <div class="space-y-2 sm:col-span-5">
+                                    <div class="space-y-2 sm:col-span-3">
+                                        <Label for="category-filter" class="text-xs text-muted-foreground">الصنف</Label>
+                                        <select
+                                            id="category-filter"
+                                            v-model="selectedCategoryId"
+                                            class="flex h-11 w-full rounded-xl border border-input bg-background px-3 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                                        >
+                                            <option value="">كل الأصناف</option>
+                                            <option
+                                                v-for="category in categories"
+                                                :key="category.id"
+                                                :value="category.id"
+                                            >
+                                                {{ category.category_name }}
+                                            </option>
+                                        </select>
+                                    </div>
+                                    <div class="space-y-2 sm:col-span-4">
                                         <Label for="product-search" class="text-xs text-muted-foreground">المنتج</Label>
                                         <ProductSearchCombobox
                                             v-model="selectedProductId"
-                                            :products="products"
+                                            :products="filteredProducts"
                                             input-id="product-search"
                                         />
                                     </div>
-                                    <div class="space-y-2 sm:col-span-2">
+                                    <div class="space-y-2 sm:col-span-1">
                                         <Label for="quantity" class="text-xs text-muted-foreground">الكمية</Label>
                                         <Input
                                             id="quantity"
@@ -428,7 +616,7 @@ watch(
                                             class="h-11 rounded-xl tabular-nums"
                                         />
                                     </div>
-                                    <div class="space-y-2 sm:col-span-3">
+                                    <div class="space-y-2 sm:col-span-2">
                                         <Label for="unit_price" class="text-xs text-muted-foreground">سعر الوحدة (ر.س)</Label>
                                         <Input
                                             id="unit_price"
@@ -453,7 +641,14 @@ watch(
                                     </div>
                                 </div>
                                 <p v-if="selectedProduct" class="mt-3 text-xs text-muted-foreground">
-                                    السعر الافتراضي: <span class="font-medium tabular-nums text-foreground" dir="ltr">{{ formatCurrency(selectedProduct.price) }}</span>
+                                    السعر الافتراضي:
+                                    <span class="font-medium tabular-nums text-foreground" dir="ltr">{{ formatCurrency(selectedProduct.price) }}</span>
+                                    <span v-if="form.items.some((i) => i.product_id === selectedProduct.id)" class="ms-2 text-amber-600">
+                                        · موجود في العرض — سيتم زيادة الكمية
+                                    </span>
+                                </p>
+                                <p v-else-if="selectedCategoryId !== '' && !filteredProducts.length" class="mt-3 text-xs text-amber-600">
+                                    لا توجد منتجات في هذا الصنف.
                                 </p>
                             </div>
 
@@ -573,6 +768,10 @@ watch(
                                     <div class="mt-2 flex items-center justify-between text-sm">
                                         <span class="text-muted-foreground">ض.ق.م (15%)</span>
                                         <span class="font-medium tabular-nums" dir="ltr">{{ formatCurrency(taxAmount) }}</span>
+                                    </div>
+                                    <div class="mt-2 flex items-center justify-between text-sm">
+                                        <span class="text-muted-foreground">مبلغ التأمين</span>
+                                        <span class="font-medium tabular-nums" dir="ltr">{{ formatCurrency(form.insurance_amount || 0) }}</span>
                                     </div>
                                 </div>
                             </div>

@@ -45,10 +45,13 @@ class User extends Authenticatable
         'password',
         'role',
         'phone',
+        'phone_secondary',
         'country',
         'profile_completed',
         'date_of_birth',
         'gender',
+        'iban',
+        'iban_image',
     ];
 
     /**
@@ -67,6 +70,7 @@ class User extends Authenticatable
      */
     protected $appends = [
         'name',
+        'iban_image_url',
     ];
 
     /**
@@ -75,6 +79,19 @@ class User extends Authenticatable
     public function getNameAttribute(): string
     {
         return (string) ($this->attributes['customer_name'] ?? '');
+    }
+
+    public function getIbanImageUrlAttribute(): ?string
+    {
+        $path = $this->attributes['iban_image'] ?? null;
+
+        if (! $path) {
+            return null;
+        }
+
+        return str_starts_with($path, 'http')
+            ? $path
+            : asset('storage/'.ltrim($path, '/'));
     }
 
     /**

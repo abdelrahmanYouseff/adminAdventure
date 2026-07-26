@@ -126,6 +126,42 @@ class DeliveryNotePdfData
         return count($this->productLines());
     }
 
+    /**
+     * Product lines that have installation and/or pickup photos for the PDF.
+     *
+     * @return array<int, array{
+     *     name: string,
+     *     installation_photo_path: string|null,
+     *     pickup_photo_path: string|null,
+     *     has_installation_photo: bool,
+     *     has_pickup_photo: bool
+     * }>
+     */
+    public function photoLines(): array
+    {
+        return $this->order->workerOrders
+            ->map(function ($line) {
+                $installationPath = $this->absoluteStoragePath($line->installation_photo);
+                $pickupPath = $this->absoluteStoragePath($line->pickup_photo);
+
+                return [
+                    'name' => $line->product_name,
+                    'installation_photo_path' => $installationPath,
+                    'pickup_photo_path' => $pickupPath,
+                    'has_installation_photo' => $installationPath !== null,
+                    'has_pickup_photo' => $pickupPath !== null,
+                ];
+            })
+            ->filter(fn (array $row) => $row['has_installation_photo'] || $row['has_pickup_photo'])
+            ->values()
+            ->all();
+    }
+
+    public function hasPhotos(): bool
+    {
+        return $this->photoLines() !== [];
+    }
+
     public function companyLegalNameEn(): string
     {
         return 'Adventure World Entertainment Company';
@@ -194,6 +230,31 @@ class DeliveryNotePdfData
         }
 
         return $quantities;
+    }
+
+    private function absoluteStoragePath(?string $path): ?string
+    {
+        if (! $path) {
+            return null;
+        }
+
+        if (str_starts_with($path, 'http://') || str_starts_with($path, 'https://')) {
+            return null;
+        }
+
+        $relative = ltrim($path, '/');
+        $candidates = [
+            storage_path('app/public/'.$relative),
+            public_path('storage/'.$relative),
+        ];
+
+        foreach ($candidates as $candidate) {
+            if (is_file($candidate)) {
+                return $candidate;
+            }
+        }
+
+        return null;
     }
 
     private function formatDate(mixed $date): string

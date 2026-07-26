@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Link } from '@inertiajs/vue3';
 import { HardHat, History } from 'lucide-vue-next';
+import { useI18n } from '../i18n';
 
 interface Props {
     active: 'current' | 'history';
@@ -10,6 +11,8 @@ interface Props {
 withDefaults(defineProps<Props>(), {
     currentCount: 0,
 });
+
+const { t } = useI18n();
 </script>
 
 <template>
@@ -32,7 +35,7 @@ withDefaults(defineProps<Props>(), {
                         {{ currentCount > 99 ? '99+' : currentCount }}
                     </span>
                 </span>
-                التركيبات الحالية
+                {{ t('current_installations') }}
             </Link>
 
             <Link
@@ -41,7 +44,7 @@ withDefaults(defineProps<Props>(), {
                 :class="active === 'history' ? 'bg-slate-900 text-white' : 'text-slate-500 hover:bg-slate-50'"
             >
                 <History class="h-5 w-5" />
-                التركيبات السابقة
+                {{ t('past_installations') }}
             </Link>
         </div>
     </nav>
