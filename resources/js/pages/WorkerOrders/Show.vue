@@ -32,8 +32,9 @@ import {
     MoreHorizontal,
     ShieldCheck,
     Clock,
+    Wallet,
 } from 'lucide-vue-next';
-import { formatDate, formatDateTime } from '@/lib/formatNumber';
+import { formatCurrency, formatDate, formatDateTime } from '@/lib/formatNumber';
 import Swal from 'sweetalert2';
 
 type TabKey = 'overview' | 'installation' | 'pickup' | 'games' | 'notes' | 'timeline';
@@ -128,6 +129,10 @@ interface WorkOrder {
     can_approve?: boolean;
     approved_at?: string | null;
     approved_by_name?: string | null;
+    currency?: string;
+    total_amount?: number;
+    amount_paid?: number;
+    remaining_amount?: number;
 }
 
 interface Props {
@@ -150,6 +155,9 @@ const canAssignWorkers = computed(() =>
 const canApproveOrder = computed(() =>
     ['admin', 'workers_manager'].includes(authRole.value || ''),
 );
+const remainingAmount = computed(() => Number(props.workOrder.remaining_amount ?? 0));
+const hasRemainingBalance = computed(() => remainingAmount.value > 0.009);
+const orderCurrency = computed(() => props.workOrder.currency || 'SAR');
 /** مدير العمال يعتمد فقط — رفع الصور من تطبيق العامل */
 const canUploadPhotos = computed(() => authRole.value !== 'workers_manager');
 const canDeleteNotes = computed(() =>
@@ -620,6 +628,27 @@ watch(pickupDialogOpen, (isOpen) => { if (!isOpen) closePickupDialog(); });
                 </div>
             </header>
 
+            <div
+                v-if="hasRemainingBalance"
+                class="flex flex-col gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-amber-950 shadow-sm sm:flex-row sm:items-center sm:justify-between"
+            >
+                <div class="flex items-start gap-3">
+                    <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-700">
+                        <Wallet class="h-5 w-5" />
+                    </div>
+                    <div>
+                        <p class="font-semibold">متبقي على العميل</p>
+                        <p class="mt-0.5 text-sm text-amber-800/80">
+                            إجمالي الطلب {{ formatCurrency(workOrder.total_amount || 0, orderCurrency) }}
+                            — دُفع {{ formatCurrency(workOrder.amount_paid || 0, orderCurrency) }}
+                        </p>
+                    </div>
+                </div>
+                <p class="text-2xl font-bold tabular-nums text-amber-700 sm:text-end" dir="ltr">
+                    {{ formatCurrency(remainingAmount, orderCurrency) }}
+                </p>
+            </div>
+
             <!-- Summary cards -->
             <section class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
                 <article class="group rounded-2xl bg-white p-5 shadow-[0_8px_30px_rgb(15,23,42,0.05)] transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_12px_40px_rgb(15,23,42,0.08)]">
@@ -971,6 +1000,37 @@ watch(pickupDialogOpen, (isOpen) => { if (!isOpen) closePickupDialog(); });
                     <p class="text-sm font-semibold text-slate-900">المعدات</p>
                     <p class="mt-4 text-4xl font-bold tracking-tight text-slate-900">{{ workOrder.products_count }}</p>
                     <p class="mt-1 text-sm text-slate-500">ألعاب / منتجات للإيجار</p>
+                </article>
+
+                <article class="rounded-2xl bg-white p-6 shadow-[0_8px_30px_rgb(15,23,42,0.05)]">
+                    <p class="flex items-center gap-2 text-sm font-semibold text-slate-900">
+                        <Wallet class="h-4 w-4 text-slate-400" />
+                        التحصيل
+                    </p>
+                    <div class="mt-5 space-y-3 text-sm">
+                        <div class="flex items-center justify-between">
+                            <span class="text-slate-500">إجمالي المطلوب</span>
+                            <span class="font-semibold tabular-nums text-slate-900" dir="ltr">
+                                {{ formatCurrency(workOrder.total_amount || 0, orderCurrency) }}
+                            </span>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <span class="text-slate-500">المدفوع</span>
+                            <span class="font-semibold tabular-nums text-emerald-700" dir="ltr">
+                                {{ formatCurrency(workOrder.amount_paid || 0, orderCurrency) }}
+                            </span>
+                        </div>
+                        <div class="flex items-center justify-between border-t border-slate-100 pt-3">
+                            <span class="font-medium text-slate-700">المتبقي</span>
+                            <span
+                                class="text-lg font-bold tabular-nums"
+                                :class="hasRemainingBalance ? 'text-amber-600' : 'text-emerald-600'"
+                                dir="ltr"
+                            >
+                                {{ formatCurrency(remainingAmount, orderCurrency) }}
+                            </span>
+                        </div>
+                    </div>
                 </article>
 
                 <article class="rounded-2xl bg-white p-6 shadow-[0_8px_30px_rgb(15,23,42,0.05)]">

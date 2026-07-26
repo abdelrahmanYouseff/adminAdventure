@@ -8,9 +8,12 @@ use App\Models\WorkerOrder;
 
 class WorkerOrderSyncService
 {
+    /**
+     * Prefer pivot products; fall back to items JSON (with product_id when available).
+     */
     public function syncFromOrder(Order $order): void
     {
-        if (! $this->isPaid($order)) {
+        if (! $this->shouldCreateWorkOrders($order)) {
             return;
         }
 
@@ -32,7 +35,11 @@ class WorkerOrderSyncService
             $image = null;
 
             if ($productId) {
-                $image = Product::query()->whereKey($productId)->value('image');
+                $product = Product::query()->find($productId);
+                $image = $product?->image;
+                if ($product && ($productName === 'منتج' || $productName === '')) {
+                    $productName = $product->product_name;
+                }
             }
 
             $this->upsertWorkerOrder($order, $index, $productId, $productName, $image);
@@ -67,8 +74,13 @@ class WorkerOrderSyncService
         $workerOrder->save();
     }
 
-    private function isPaid(Order $order): bool
+    /**
+     * Work orders are released once the accountant approves at least one
+     * payment receipt — even a partial one — regardless of whether the order
+     * is fully paid yet.
+     */
+    private function shouldCreateWorkOrders(Order $order): bool
     {
-        return $order->payment_status === 'paid' || $order->status === 'paid';
+        return $order->hasApprovedPaymentReceipt();
     }
 }

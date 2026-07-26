@@ -15,6 +15,7 @@ interface QuotationItem {
     description: string;
     quantity: number;
     unit_price: number;
+    discount_amount: number;
     total_price: number;
 }
 
@@ -28,6 +29,7 @@ interface Quotation {
     valid_until: string;
     notes: string;
     subtotal: number;
+    discount_total: number;
     tax_amount: number;
     total_amount: number;
     status: string;
@@ -231,7 +233,15 @@ function quotationPdfUrl(id: number): string {
                     </CardHeader>
                     <CardContent class="space-y-4">
                         <div class="flex justify-between">
-                            <span>Subtotal:</span>
+                            <span>Subtotal before discount:</span>
+                            <span class="tabular-nums" dir="ltr">{{ formatCurrency(Number(quotation.subtotal) + Number(quotation.discount_total || 0)) }}</span>
+                        </div>
+                        <div v-if="Number(quotation.discount_total) > 0" class="flex justify-between text-amber-700">
+                            <span>Discount:</span>
+                            <span class="tabular-nums" dir="ltr">- {{ formatCurrency(quotation.discount_total) }}</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>Subtotal after discount:</span>
                             <span class="tabular-nums" dir="ltr">{{ formatCurrency(quotation.subtotal) }}</span>
                         </div>
                         <div class="flex justify-between">
@@ -259,6 +269,7 @@ function quotationPdfUrl(id: number): string {
                                 <TableHead>Description</TableHead>
                                 <TableHead class="text-right">Quantity</TableHead>
                                 <TableHead class="text-right">Unit Price</TableHead>
+                                <TableHead class="text-right">Discount / Unit</TableHead>
                                 <TableHead class="text-right">Total</TableHead>
                             </TableRow>
                         </TableHeader>
@@ -275,6 +286,9 @@ function quotationPdfUrl(id: number): string {
                                 </TableCell>
                                 <TableCell class="text-right tabular-nums" dir="ltr">
                                     {{ formatCurrency(item.unit_price) }}
+                                </TableCell>
+                                <TableCell class="text-right tabular-nums text-amber-700" dir="ltr">
+                                    {{ Number(item.discount_amount) > 0 ? formatCurrency(item.discount_amount) : '—' }}
                                 </TableCell>
                                 <TableCell class="text-right font-medium tabular-nums" dir="ltr">
                                     {{ formatCurrency(item.total_price) }}

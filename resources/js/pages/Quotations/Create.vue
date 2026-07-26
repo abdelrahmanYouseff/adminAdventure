@@ -46,6 +46,7 @@ interface QuotationItem {
     description: string;
     quantity: number;
     unit_price: number;
+    discount_amount: number;
     total_price: number;
     insurance_amount: number;
 }
@@ -105,6 +106,14 @@ const subtotal = computed(() => {
     return form.items.reduce((sum, item) => sum + (parseFloat(String(item.total_price)) || 0), 0);
 });
 
+const discountTotal = computed(() => {
+    return form.items.reduce((sum, item) => {
+        return sum + (Number(item.discount_amount || 0) * Number(item.quantity || 0));
+    }, 0);
+});
+
+const grossSubtotal = computed(() => subtotal.value + discountTotal.value);
+
 const suggestedInsurance = computed(() => {
     return form.items.reduce((sum, item) => {
         return sum + (Number(item.insurance_amount || 0) * Number(item.quantity || 0));
@@ -151,7 +160,10 @@ const addItem = () => {
         const existing = form.items[existingIndex];
         existing.quantity = Number(existing.quantity) + quantityToAdd;
         // احتفظ بسعر الوحدة الحالي للبند إن وُجد، وحدّث الإجمالي
-        existing.total_price = existing.quantity * Number(existing.unit_price);
+        existing.total_price = existing.quantity * Math.max(
+            0,
+            Number(existing.unit_price) - Number(existing.discount_amount || 0),
+        );
     } else {
         form.items.push({
             product_id: product.id,
@@ -159,6 +171,7 @@ const addItem = () => {
             description: product.description,
             quantity: quantityToAdd,
             unit_price: unitPrice,
+            discount_amount: 0,
             total_price: quantityToAdd * unitPrice,
             insurance_amount: Number(product.insurance_amount || 0),
         });
@@ -177,7 +190,12 @@ const removeItem = (index: number) => {
 
 const updateItemPrice = (index: number) => {
     const item = form.items[index];
-    item.total_price = item.quantity * item.unit_price;
+    const unitPrice = Math.max(0, Number(item.unit_price) || 0);
+    const discount = Math.min(unitPrice, Math.max(0, Number(item.discount_amount) || 0));
+
+    item.unit_price = unitPrice;
+    item.discount_amount = discount;
+    item.total_price = Number(item.quantity || 0) * (unitPrice - discount);
     syncInsuranceFromItems();
 };
 
@@ -661,6 +679,7 @@ watch(
                                             <TableHead class="hidden font-semibold md:table-cell">الوصف</TableHead>
                                             <TableHead class="w-24 font-semibold text-center">الكمية</TableHead>
                                             <TableHead class="w-32 font-semibold">السعر</TableHead>
+                                            <TableHead class="w-32 font-semibold">خصم / وحدة</TableHead>
                                             <TableHead class="w-28 font-semibold">الإجمالي</TableHead>
                                             <TableHead class="w-12" />
                                         </TableRow>
@@ -699,6 +718,25 @@ watch(
                                                     dir="ltr"
                                                     @input="updateItemPrice(index)"
                                                 />
+                                            </TableCell>
+                                            <TableCell>
+                                                <Input
+                                                    v-model="item.discount_amount"
+                                                    type="number"
+                                                    step="0.01"
+                                                    min="0"
+                                                    :max="Number(item.unit_price) || 0"
+                                                    class="h-9 w-full min-w-[5.5rem] rounded-lg border-amber-200 bg-amber-50/50 tabular-nums focus-visible:ring-amber-400"
+                                                    dir="ltr"
+                                                    @input="updateItemPrice(index)"
+                                                />
+                                                <p
+                                                    v-if="Number(item.discount_amount) > 0"
+                                                    class="mt-1 text-[10px] text-amber-700"
+                                                >
+                                                    بعد الخصم:
+                                                    <span dir="ltr">{{ formatCurrency(Number(item.unit_price) - Number(item.discount_amount)) }}</span>
+                                                </p>
                                             </TableCell>
                                             <TableCell class="font-semibold tabular-nums text-foreground" dir="ltr">
                                                 {{ formatCurrency(item.total_price) }}
@@ -762,7 +800,18 @@ watch(
                                 </div>
                                 <div class="border-t border-border/60 pt-3">
                                     <div class="flex items-center justify-between text-sm">
-                                        <span class="text-muted-foreground">المجموع الفرعي</span>
+                                        <span class="text-muted-foreground">المجموع قبل الخصم</span>
+                                        <span class="font-medium tabular-nums" dir="ltr">{{ formatCurrency(grossSubtotal) }}</span>
+                                    </div>
+                                    <div
+                                        v-if="discountTotal > 0"
+                                        class="mt-2 flex items-center justify-between text-sm text-amber-700"
+                                    >
+                                        <span>إجمالي الخصم</span>
+                                        <span class="font-semibold tabular-nums" dir="ltr">- {{ formatCurrency(discountTotal) }}</span>
+                                    </div>
+                                    <div class="mt-2 flex items-center justify-between text-sm">
+                                        <span class="text-muted-foreground">المجموع بعد الخصم</span>
                                         <span class="font-medium tabular-nums" dir="ltr">{{ formatCurrency(subtotal) }}</span>
                                     </div>
                                     <div class="mt-2 flex items-center justify-between text-sm">

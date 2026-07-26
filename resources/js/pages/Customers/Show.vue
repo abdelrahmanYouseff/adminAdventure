@@ -8,20 +8,38 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog';
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
     ArrowRight,
     Building2,
     Calendar,
     ChevronDown,
     CreditCard,
+    Eye,
+    FileText,
     ImageIcon,
     Mail,
     MapPin,
+    MoreHorizontal,
+    Package,
     Phone,
     Receipt,
     ShoppingBag,
     User,
+    Wallet,
 } from 'lucide-vue-next';
-import { formatDate, formatDateTime, formatInteger, formatPrice } from '@/lib/formatNumber';
+import { formatCurrency, formatDate, formatDateTime, formatInteger, formatPrice } from '@/lib/formatNumber';
 
 interface QuotationItem {
     id: number;
@@ -52,6 +70,25 @@ interface Quotation {
     items: QuotationItem[];
 }
 
+interface OrderItemRow {
+    product_id?: number | null;
+    name: string;
+    image_url?: string | null;
+    quantity: number;
+    price: number;
+    discount_amount: number;
+    total: number;
+}
+
+interface PaymentReceiptRow {
+    id: number;
+    receipt_number: string;
+    amount: number;
+    amount_paid_after: number;
+    remaining_after: number;
+    created_at: string | null;
+}
+
 interface OrderRow {
     id: number;
     order_number: string;
@@ -61,12 +98,22 @@ interface OrderRow {
     customer_email: string | null;
     address: string | null;
     activity_date: string | null;
+    currency: string;
     total_amount: number;
+    discount_total?: number;
+    amount_paid: number;
+    remaining_amount: number;
     insurance_amount: number;
     status: string;
     payment_status: string | null;
     payment_method: string | null;
     created_at: string | null;
+    items: OrderItemRow[];
+    products_count?: number;
+    latest_receipt_id: number | null;
+    receipts: PaymentReceiptRow[];
+    can_settle: boolean;
+    payment_receipt_url: string;
 }
 
 interface Customer {
@@ -103,9 +150,20 @@ defineOptions({ layout: AppLayout });
 
 const page = usePage();
 const successMessage = computed(() => page.props.flash?.success as string | undefined);
+const errorMessage = computed(() => page.props.flash?.error as string | undefined);
 const expandedQuotationId = ref<number | null>(null);
+const expandedOrderId = ref<number | null>(null);
+const settleOrderId = ref<number | null>(null);
+const productsDialogOpen = ref(false);
+const productsDialogOrder = ref<OrderRow | null>(null);
 const ibanImageInput = ref<HTMLInputElement | null>(null);
 const ibanImagePreview = ref<string | null>(null);
+
+const settleForm = useForm({
+    amount: '' as number | string,
+    payment_method: 'cash',
+    notes: '',
+});
 
 const bankForm = useForm({
     phone_secondary: props.customer.phone_secondary ?? '',
@@ -238,6 +296,8 @@ function getOrderStatusText(status: string) {
             return 'مؤكد';
         case 'processing':
             return 'قيد التنفيذ';
+        case 'paid':
+            return 'مدفوع';
         case 'completed':
             return 'مكتمل';
         case 'cancelled':
@@ -245,6 +305,65 @@ function getOrderStatusText(status: string) {
         default:
             return status;
     }
+}
+
+function toggleOrder(orderId: number) {
+    expandedOrderId.value = expandedOrderId.value === orderId ? null : orderId;
+}
+
+function openProductsDialog(order: OrderRow) {
+    productsDialogOrder.value = order;
+    productsDialogOpen.value = true;
+}
+
+function openSettle(order: OrderRow) {
+    settleOrderId.value = order.id;
+    settleForm.amount = '';
+    settleForm.payment_method = order.payment_method || 'cash';
+    settleForm.notes = '';
+    settleForm.clearErrors();
+}
+
+function fillFullRemaining(order: OrderRow) {
+    settleForm.amount = Number(order.remaining_amount) || 0;
+    settleForm.clearErrors('amount');
+}
+
+function closeSettle() {
+    settleOrderId.value = null;
+    settleForm.reset();
+}
+
+function submitSettle(order: OrderRow) {
+    const amount = Number(settleForm.amount);
+    const remaining = Number(order.remaining_amount);
+
+    if (!Number.isFinite(amount) || amount <= 0) {
+        settleForm.setError('amount', 'أدخل مبلغ سداد أكبر من صفر.');
+        return;
+    }
+
+    if (amount > remaining + 0.009) {
+        settleForm.setError('amount', `المبلغ أكبر من المتبقي (${remaining}). يمكنك سداد جزء منه فقط.`);
+        return;
+    }
+
+    settleForm.clearErrors('amount');
+    settleForm.amount = amount;
+
+    settleForm.post(`/orders/${order.id}/settle-payment`, {
+        preserveScroll: true,
+        onSuccess: () => {
+            closeSettle();
+        },
+    });
+}
+
+function receiptUrl(order: OrderRow, receiptId?: number | null) {
+    if (receiptId) {
+        return route('orders.payment-receipts.show', { order: order.id, receipt: receiptId });
+    }
+    return order.payment_receipt_url || route('orders.payment-receipt', order.id);
 }
 </script>
 
@@ -257,6 +376,12 @@ function getOrderStatusText(status: string) {
             class="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm font-medium text-green-800"
         >
             {{ successMessage }}
+        </p>
+        <p
+            v-if="errorMessage"
+            class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-800"
+        >
+            {{ errorMessage }}
         </p>
 
         <div class="flex flex-wrap items-center justify-between gap-3">
@@ -560,49 +685,240 @@ function getOrderStatusText(status: string) {
                 <div v-if="customer.orders.length === 0" class="rounded-xl border border-dashed px-4 py-10 text-center text-sm text-muted-foreground">
                     لا توجد طلبات مرتبطة بهذا العميل.
                 </div>
-                <div v-else class="overflow-x-auto rounded-xl border">
-                    <table class="w-full min-w-[720px] text-sm">
-                        <thead class="bg-muted/40 text-muted-foreground">
+                <div v-else class="overflow-x-auto rounded-xl border bg-background">
+                    <table class="w-full min-w-[1180px] text-sm">
+                        <thead class="border-b bg-slate-50 text-xs text-slate-600">
                             <tr>
-                                <th class="px-4 py-3 text-right font-semibold">رقم الطلب</th>
-                                <th class="px-4 py-3 text-right font-semibold">الفاتورة</th>
-                                <th class="px-4 py-3 text-right font-semibold">تاريخ النشاط</th>
-                                <th class="px-4 py-3 text-right font-semibold">المبلغ</th>
-                                <th class="px-4 py-3 text-right font-semibold">التأمين</th>
-                                <th class="px-4 py-3 text-right font-semibold">الحالة</th>
-                                <th class="px-4 py-3 text-right font-semibold">التاريخ</th>
-                                <th class="px-4 py-3 text-center font-semibold">عرض</th>
+                                <th class="w-10 px-3 py-3 text-center font-semibold"></th>
+                                <th class="px-3 py-3 text-right font-semibold">رقم الطلب</th>
+                                <th class="px-3 py-3 text-right font-semibold">المنتجات</th>
+                                <th class="px-3 py-3 text-right font-semibold">تاريخ الفعالية</th>
+                                <th class="px-3 py-3 text-left font-semibold">الإجمالي</th>
+                                <th class="px-3 py-3 text-left font-semibold">المدفوع</th>
+                                <th class="px-3 py-3 text-left font-semibold">المتبقي</th>
+                                <th class="w-16 px-3 py-3 text-center font-semibold">الإجراءات</th>
                             </tr>
                         </thead>
                         <tbody>
-                            <tr
-                                v-for="order in customer.orders"
-                                :key="order.id"
-                                class="border-t"
-                            >
-                                <td class="px-4 py-3 font-semibold" dir="ltr">{{ order.order_number }}</td>
-                                <td class="px-4 py-3" dir="ltr">{{ order.invoice_number || '—' }}</td>
-                                <td class="px-4 py-3 tabular-nums" dir="ltr">
-                                    {{ order.activity_date ? formatDate(order.activity_date) : '—' }}
-                                </td>
-                                <td class="px-4 py-3 font-semibold tabular-nums" dir="ltr">
-                                    {{ formatPrice(order.total_amount) }} ر.س
-                                </td>
-                                <td class="px-4 py-3 tabular-nums" dir="ltr">
-                                    {{ formatPrice(order.insurance_amount) }} ر.س
-                                </td>
-                                <td class="px-4 py-3">
-                                    <Badge variant="secondary">{{ getOrderStatusText(order.status) }}</Badge>
-                                </td>
-                                <td class="px-4 py-3 tabular-nums text-muted-foreground" dir="ltr">
-                                    {{ order.created_at ? formatDate(order.created_at) : '—' }}
-                                </td>
-                                <td class="px-4 py-3 text-center">
-                                    <Button as-child variant="ghost" size="sm" class="h-8">
-                                        <Link :href="`/orders/${order.id}`">عرض</Link>
-                                    </Button>
-                                </td>
-                            </tr>
+                            <template v-for="order in customer.orders" :key="order.id">
+                                <tr class="border-b transition-colors hover:bg-slate-50/70">
+                                    <td class="px-3 py-3 text-center">
+                                        <button
+                                            type="button"
+                                            class="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition hover:bg-muted hover:text-foreground"
+                                            :aria-label="expandedOrderId === order.id ? 'إخفاء التفاصيل' : 'عرض التفاصيل'"
+                                            @click="toggleOrder(order.id)"
+                                        >
+                                            <ChevronDown
+                                                class="h-4 w-4 transition-transform"
+                                                :class="expandedOrderId === order.id ? 'rotate-180' : ''"
+                                            />
+                                        </button>
+                                    </td>
+                                    <td class="px-3 py-3">
+                                        <p class="font-semibold tabular-nums text-slate-900" dir="ltr">{{ order.order_number }}</p>
+                                        <p v-if="order.invoice_number" class="mt-0.5 text-xs text-muted-foreground" dir="ltr">
+                                            {{ order.invoice_number }}
+                                        </p>
+                                    </td>
+                                    <td class="px-3 py-3">
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="sm"
+                                            class="h-8 gap-1.5"
+                                            :disabled="!order.items.length"
+                                            @click="openProductsDialog(order)"
+                                        >
+                                            <Package class="h-3.5 w-3.5" />
+                                            عرض المنتجات
+                                            <span
+                                                v-if="order.items.length"
+                                                class="rounded-full bg-muted px-1.5 text-[11px] font-semibold tabular-nums"
+                                            >
+                                                {{ formatInteger(order.products_count ?? order.items.length) }}
+                                            </span>
+                                        </Button>
+                                    </td>
+                                    <td class="whitespace-nowrap px-3 py-3 font-medium tabular-nums" dir="ltr">
+                                        {{ order.activity_date ? formatDate(order.activity_date) : '—' }}
+                                    </td>
+                                    <td class="whitespace-nowrap px-3 py-3 text-left font-semibold tabular-nums" dir="ltr">
+                                        {{ formatCurrency(order.total_amount, order.currency) }}
+                                    </td>
+                                    <td class="whitespace-nowrap px-3 py-3 text-left font-semibold tabular-nums text-emerald-700" dir="ltr">
+                                        {{ formatCurrency(order.amount_paid, order.currency) }}
+                                    </td>
+                                    <td
+                                        class="whitespace-nowrap px-3 py-3 text-left font-bold tabular-nums"
+                                        :class="order.remaining_amount > 0 ? 'text-amber-600' : 'text-emerald-600'"
+                                        dir="ltr"
+                                    >
+                                        {{ formatCurrency(order.remaining_amount, order.currency) }}
+                                    </td>
+                                    <td class="px-3 py-3 text-center">
+                                        <DropdownMenu>
+                                            <DropdownMenuTrigger as-child>
+                                                <Button variant="ghost" size="icon" class="h-8 w-8">
+                                                    <MoreHorizontal class="h-4 w-4" />
+                                                    <span class="sr-only">الإجراءات</span>
+                                                </Button>
+                                            </DropdownMenuTrigger>
+                                            <DropdownMenuContent align="end" class="w-44">
+                                                <DropdownMenuItem as-child>
+                                                    <a :href="receiptUrl(order)" target="_blank" rel="noopener" class="cursor-pointer">
+                                                        <FileText class="ms-2 h-4 w-4" />
+                                                        سند قبض
+                                                    </a>
+                                                </DropdownMenuItem>
+                                                <DropdownMenuItem
+                                                    v-if="order.can_settle"
+                                                    class="cursor-pointer"
+                                                    @click="openSettle(order)"
+                                                >
+                                                    <Wallet class="ms-2 h-4 w-4" />
+                                                    سداد
+                                                </DropdownMenuItem>
+                                                <DropdownMenuItem as-child>
+                                                    <Link :href="`/orders/${order.id}`" class="cursor-pointer">
+                                                        <Eye class="ms-2 h-4 w-4" />
+                                                        عرض الطلب
+                                                    </Link>
+                                                </DropdownMenuItem>
+                                            </DropdownMenuContent>
+                                        </DropdownMenu>
+                                    </td>
+                                </tr>
+
+                                <tr v-if="expandedOrderId === order.id" class="border-b bg-slate-50/70">
+                                    <td colspan="8" class="p-4">
+                                        <div class="grid gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(300px,1fr)]">
+                                            <div class="overflow-hidden rounded-lg border bg-background">
+                                                <div class="border-b bg-muted/30 px-4 py-2.5">
+                                                    <p class="font-semibold">تفاصيل المنتجات</p>
+                                                </div>
+                                                <table class="w-full text-sm">
+                                                    <thead class="text-xs text-muted-foreground">
+                                                        <tr>
+                                                            <th class="px-3 py-2 text-right font-medium">المنتج</th>
+                                                            <th class="px-3 py-2 text-center font-medium">الكمية</th>
+                                                            <th class="px-3 py-2 text-left font-medium">السعر</th>
+                                                            <th class="px-3 py-2 text-left font-medium">الخصم</th>
+                                                            <th class="px-3 py-2 text-left font-medium">الإجمالي</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        <tr v-for="(item, idx) in order.items" :key="`${order.id}-${idx}`" class="border-t">
+                                                            <td class="px-3 py-2 font-medium">{{ item.name }}</td>
+                                                            <td class="px-3 py-2 text-center tabular-nums" dir="ltr">{{ formatInteger(item.quantity) }}</td>
+                                                            <td class="px-3 py-2 text-left tabular-nums" dir="ltr">{{ formatCurrency(item.price, order.currency) }}</td>
+                                                            <td class="px-3 py-2 text-left tabular-nums text-amber-700" dir="ltr">{{ formatCurrency(item.discount_amount, order.currency) }}</td>
+                                                            <td class="px-3 py-2 text-left font-semibold tabular-nums" dir="ltr">{{ formatCurrency(item.total, order.currency) }}</td>
+                                                        </tr>
+                                                        <tr v-if="order.items.length === 0">
+                                                            <td colspan="5" class="px-3 py-6 text-center text-muted-foreground">لا توجد منتجات</td>
+                                                        </tr>
+                                                    </tbody>
+                                                </table>
+                                            </div>
+
+                                            <div class="overflow-hidden rounded-lg border bg-background">
+                                                <div class="border-b bg-muted/30 px-4 py-2.5">
+                                                    <p class="font-semibold">سندات القبض</p>
+                                                </div>
+                                                <div v-if="order.receipts.length > 0" class="divide-y">
+                                                    <div
+                                                        v-for="receipt in order.receipts"
+                                                        :key="receipt.id"
+                                                        class="flex items-center justify-between gap-3 px-4 py-3"
+                                                    >
+                                                        <div class="min-w-0">
+                                                            <p class="font-semibold tabular-nums" dir="ltr">{{ receipt.receipt_number }}</p>
+                                                            <p class="mt-0.5 text-xs text-muted-foreground">
+                                                                دفعة {{ formatCurrency(receipt.amount, order.currency) }}
+                                                                · المتبقي {{ formatCurrency(receipt.remaining_after, order.currency) }}
+                                                            </p>
+                                                        </div>
+                                                        <Button as-child variant="outline" size="sm" class="h-8 shrink-0">
+                                                            <a :href="receiptUrl(order, receipt.id)" target="_blank" rel="noopener">فتح</a>
+                                                        </Button>
+                                                    </div>
+                                                </div>
+                                                <p v-else class="px-4 py-8 text-center text-sm text-muted-foreground">
+                                                    لا توجد سندات قبض.
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </td>
+                                </tr>
+
+                                <tr v-if="settleOrderId === order.id" class="border-b bg-amber-50/70">
+                                    <td colspan="8" class="p-4">
+                                        <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+                                            <div class="flex items-center gap-2">
+                                                <Wallet class="h-4 w-4 text-amber-700" />
+                                                <p class="font-semibold text-amber-900">سداد الطلب {{ order.order_number }}</p>
+                                            </div>
+                                            <p class="text-xs text-amber-800">
+                                                يمكنك سداد جزء من المتبقي أو كامل المبلغ
+                                            </p>
+                                        </div>
+                                        <div class="grid gap-3 lg:grid-cols-3">
+                                            <div class="space-y-1.5">
+                                                <div class="flex items-center justify-between gap-2">
+                                                    <Label for="settle-amount">مبلغ السداد</Label>
+                                                    <button
+                                                        type="button"
+                                                        class="text-xs font-medium text-amber-800 underline-offset-2 hover:underline"
+                                                        @click="fillFullRemaining(order)"
+                                                    >
+                                                        سداد كامل المتبقي
+                                                    </button>
+                                                </div>
+                                                <Input
+                                                    id="settle-amount"
+                                                    v-model="settleForm.amount"
+                                                    type="number"
+                                                    min="0.01"
+                                                    step="0.01"
+                                                    :max="order.remaining_amount"
+                                                    class="h-10 tabular-nums"
+                                                    dir="ltr"
+                                                    placeholder="مثال: 500"
+                                                />
+                                                <p v-if="settleForm.errors.amount" class="text-xs text-red-600">{{ settleForm.errors.amount }}</p>
+                                                <p class="text-xs text-amber-800">
+                                                    المتبقي الحالي: {{ formatCurrency(order.remaining_amount, order.currency) }}
+                                                </p>
+                                            </div>
+                                            <div class="space-y-1.5">
+                                                <Label for="settle-method">طريقة الدفع</Label>
+                                                <select
+                                                    id="settle-method"
+                                                    v-model="settleForm.payment_method"
+                                                    class="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                                                >
+                                                    <option value="cash">نقدي</option>
+                                                    <option value="bank_transfer">تحويل بنكي</option>
+                                                    <option value="credit_card">بطاقة ائتمان</option>
+                                                    <option value="noon">Noon</option>
+                                                    <option value="paypal">PayPal</option>
+                                                </select>
+                                            </div>
+                                            <div class="space-y-1.5">
+                                                <Label for="settle-notes">ملاحظات</Label>
+                                                <Input id="settle-notes" v-model="settleForm.notes" class="h-10" placeholder="اختياري" />
+                                            </div>
+                                        </div>
+                                        <div class="mt-3 flex gap-2">
+                                            <Button type="button" class="h-9" :disabled="settleForm.processing" @click="submitSettle(order)">
+                                                {{ settleForm.processing ? 'جاري السداد...' : 'تأكيد السداد وإصدار سند قبض' }}
+                                            </Button>
+                                            <Button type="button" variant="outline" class="h-9" @click="closeSettle">إلغاء</Button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </template>
                         </tbody>
                     </table>
                 </div>
@@ -716,4 +1032,51 @@ function getOrderStatusText(status: string) {
             </CardContent>
         </Card>
     </div>
+
+    <Dialog v-model:open="productsDialogOpen">
+        <DialogContent class="max-w-lg sm:max-w-xl">
+            <DialogHeader>
+                <DialogTitle>منتجات الطلب</DialogTitle>
+                <DialogDescription v-if="productsDialogOrder">
+                    {{ productsDialogOrder.order_number }}
+                    ·
+                    {{ formatInteger(productsDialogOrder.items.length) }} منتج
+                </DialogDescription>
+            </DialogHeader>
+
+            <div v-if="productsDialogOrder" class="max-h-[60vh] space-y-3 overflow-y-auto pe-1">
+                <div
+                    v-for="(item, idx) in productsDialogOrder.items"
+                    :key="`${productsDialogOrder.id}-${item.product_id ?? idx}`"
+                    class="flex items-center gap-3 rounded-xl border bg-muted/20 p-3"
+                >
+                    <div class="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-lg border bg-background">
+                        <img
+                            v-if="item.image_url"
+                            :src="item.image_url"
+                            :alt="item.name"
+                            class="h-full w-full object-cover"
+                        />
+                        <Package v-else class="h-6 w-6 text-muted-foreground" />
+                    </div>
+                    <div class="min-w-0 flex-1">
+                        <p class="font-semibold leading-snug text-slate-900">{{ item.name }}</p>
+                        <p class="mt-1 text-sm text-muted-foreground">
+                            الكمية:
+                            <span class="font-medium tabular-nums text-slate-800" dir="ltr">
+                                {{ formatInteger(item.quantity) }}
+                            </span>
+                        </p>
+                    </div>
+                </div>
+
+                <p
+                    v-if="productsDialogOrder.items.length === 0"
+                    class="rounded-xl border border-dashed px-4 py-10 text-center text-sm text-muted-foreground"
+                >
+                    لا توجد منتجات في هذا الطلب.
+                </p>
+            </div>
+        </DialogContent>
+    </Dialog>
 </template>

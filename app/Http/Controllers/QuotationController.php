@@ -285,6 +285,7 @@ class QuotationController extends Controller
             'items.*.product_id' => 'required|exists:products,id',
             'items.*.quantity' => 'required|integer|min:1',
             'items.*.unit_price' => 'required|numeric|min:0',
+            'items.*.discount_amount' => 'nullable|numeric|min:0|lte:items.*.unit_price',
         ], [
             'customer_name.required' => 'اسم العميل مطلوب.',
             'customer_name.max' => 'اسم العميل طويل جداً.',
@@ -306,6 +307,9 @@ class QuotationController extends Controller
             'items.*.quantity.min' => 'الكمية يجب أن تكون 1 على الأقل.',
             'items.*.unit_price.required' => 'سعر الوحدة مطلوب.',
             'items.*.unit_price.min' => 'سعر الوحدة لا يمكن أن يكون سالباً.',
+            'items.*.discount_amount.numeric' => 'مبلغ الخصم غير صالح.',
+            'items.*.discount_amount.min' => 'مبلغ الخصم لا يمكن أن يكون سالباً.',
+            'items.*.discount_amount.lte' => 'خصم الوحدة لا يمكن أن يتجاوز سعر الوحدة.',
         ]);
 
         try {
@@ -326,18 +330,24 @@ class QuotationController extends Controller
             ]);
 
             $subtotal = 0;
+            $discountTotal = 0;
             foreach ($request->items as $item) {
                 $product = Product::find($item['product_id']);
-                $totalPrice = $item['quantity'] * $item['unit_price'];
+                $quantity = (int) $item['quantity'];
+                $unitPrice = round((float) $item['unit_price'], 2);
+                $discountAmount = round((float) ($item['discount_amount'] ?? 0), 2);
+                $totalPrice = round($quantity * ($unitPrice - $discountAmount), 2);
                 $subtotal += $totalPrice;
+                $discountTotal += round($quantity * $discountAmount, 2);
 
                 QuotationItem::create([
                     'quotation_id' => $quotation->id,
                     'product_id' => $item['product_id'],
                     'product_name' => $product->product_name,
                     'description' => $product->description,
-                    'quantity' => $item['quantity'],
-                    'unit_price' => $item['unit_price'],
+                    'quantity' => $quantity,
+                    'unit_price' => $unitPrice,
+                    'discount_amount' => $discountAmount,
                     'total_price' => $totalPrice,
                 ]);
             }
@@ -351,6 +361,7 @@ class QuotationController extends Controller
 
             $quotation->update([
                 'subtotal' => $subtotal,
+                'discount_total' => $discountTotal,
                 'tax_amount' => $taxAmount,
                 'insurance_amount' => $insuranceAmount,
                 'total_amount' => $totalAmount,
@@ -430,6 +441,7 @@ class QuotationController extends Controller
             'items.*.product_id' => 'required|exists:products,id',
             'items.*.quantity' => 'required|integer|min:1',
             'items.*.unit_price' => 'required|numeric|min:0',
+            'items.*.discount_amount' => 'nullable|numeric|min:0|lte:items.*.unit_price',
         ]);
 
         try {
@@ -452,18 +464,24 @@ class QuotationController extends Controller
             $quotation->items()->delete();
 
             $subtotal = 0;
+            $discountTotal = 0;
             foreach ($request->items as $item) {
                 $product = Product::find($item['product_id']);
-                $totalPrice = $item['quantity'] * $item['unit_price'];
+                $quantity = (int) $item['quantity'];
+                $unitPrice = round((float) $item['unit_price'], 2);
+                $discountAmount = round((float) ($item['discount_amount'] ?? 0), 2);
+                $totalPrice = round($quantity * ($unitPrice - $discountAmount), 2);
                 $subtotal += $totalPrice;
+                $discountTotal += round($quantity * $discountAmount, 2);
 
                 QuotationItem::create([
                     'quotation_id' => $quotation->id,
                     'product_id' => $item['product_id'],
                     'product_name' => $product->product_name,
                     'description' => $product->description,
-                    'quantity' => $item['quantity'],
-                    'unit_price' => $item['unit_price'],
+                    'quantity' => $quantity,
+                    'unit_price' => $unitPrice,
+                    'discount_amount' => $discountAmount,
                     'total_price' => $totalPrice,
                 ]);
             }
@@ -477,6 +495,7 @@ class QuotationController extends Controller
 
             $quotation->update([
                 'subtotal' => $subtotal,
+                'discount_total' => $discountTotal,
                 'tax_amount' => $taxAmount,
                 'insurance_amount' => $insuranceAmount,
                 'total_amount' => $totalAmount,

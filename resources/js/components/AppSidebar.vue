@@ -4,7 +4,7 @@ import NavUser from '@/components/NavUser.vue';
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar';
 import { type Auth, type NavItem, type StaffRole } from '@/types';
 import { Link, usePage } from '@inertiajs/vue3';
-import { LayoutGrid, ShoppingBag, Users, Package, FileText, FileSpreadsheet, ShoppingCart, Tags, MessageCircle, HardHat, ShieldCheck } from 'lucide-vue-next';
+import { LayoutGrid, ShoppingBag, Users, Package, FileText, FileSpreadsheet, ShoppingCart, Tags, MessageCircle, HardHat, ShieldCheck, Receipt } from 'lucide-vue-next';
 import AppLogo from './AppLogo.vue';
 import { computed } from 'vue';
 
@@ -43,6 +43,12 @@ const allNavItems: NavItemWithRoles[] = [
         href: '/orders',
         icon: ShoppingCart,
         roles: ['admin', 'general_manager', 'manager'],
+    },
+    {
+        title: 'سندات القبض',
+        href: '/payment-receipts',
+        icon: Receipt,
+        roles: ['admin', 'general_manager', 'manager', 'accounts'],
     },
     {
         title: 'أوامر العمل',

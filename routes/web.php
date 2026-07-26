@@ -286,11 +286,11 @@ Route::get('orders', [OrderController::class, 'index'])
     ->name('orders.index');
 
 Route::get('orders/create', [OrderController::class, 'create'])
-    ->middleware(['auth', 'verified', 'role:admin'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager'])
     ->name('orders.create');
 
 Route::post('orders', [OrderController::class, 'store'])
-    ->middleware(['auth', 'verified', 'role:admin'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager'])
     ->name('orders.store');
 
 Route::get('orders/{order}', [OrderController::class, 'show'])
@@ -304,6 +304,26 @@ Route::patch('orders/{order}/activity-time', [OrderController::class, 'updateAct
 Route::delete('orders/{order}', [OrderController::class, 'destroy'])
     ->middleware(['auth', 'verified', 'role:admin'])
     ->name('orders.destroy');
+
+Route::post('orders/{order}/settle-payment', [OrderController::class, 'settlePayment'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager'])
+    ->name('orders.settle-payment');
+
+Route::get('payment-receipts', [\App\Http\Controllers\OrderPaymentReceiptController::class, 'index'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,accounts'])
+    ->name('payment-receipts.index');
+
+Route::post('payment-receipts/{receipt}/approve', [\App\Http\Controllers\OrderPaymentReceiptController::class, 'approve'])
+    ->middleware(['auth', 'verified', 'role:admin,accounts'])
+    ->name('payment-receipts.approve');
+
+Route::get('orders/{order}/payment-receipt', [OrderController::class, 'latestPaymentReceiptPdf'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,accounts'])
+    ->name('orders.payment-receipt');
+
+Route::get('orders/{order}/payment-receipts/{receipt}', [OrderController::class, 'paymentReceiptPdf'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,accounts'])
+    ->name('orders.payment-receipts.show');
 
 Route::get('worker-orders', [\App\Http\Controllers\WorkerOrderController::class, 'index'])
     ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,workers_manager'])

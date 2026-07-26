@@ -14,12 +14,14 @@ class QuotationItem extends Model
         'description',
         'quantity',
         'unit_price',
+        'discount_amount',
         'total_price',
     ];
 
     protected $casts = [
         'quantity' => 'integer',
         'unit_price' => 'decimal:2',
+        'discount_amount' => 'decimal:2',
         'total_price' => 'decimal:2',
     ];
 
@@ -38,14 +40,14 @@ class QuotationItem extends Model
         parent::boot();
 
         static::creating(function ($item) {
-            if (empty($item->total_price)) {
-                $item->total_price = $item->quantity * $item->unit_price;
-            }
+            $netUnitPrice = max(0, (float) $item->unit_price - (float) ($item->discount_amount ?? 0));
+            $item->total_price = (int) $item->quantity * $netUnitPrice;
         });
 
         static::updating(function ($item) {
-            if ($item->isDirty(['quantity', 'unit_price'])) {
-                $item->total_price = $item->quantity * $item->unit_price;
+            if ($item->isDirty(['quantity', 'unit_price', 'discount_amount'])) {
+                $netUnitPrice = max(0, (float) $item->unit_price - (float) ($item->discount_amount ?? 0));
+                $item->total_price = (int) $item->quantity * $netUnitPrice;
             }
         });
     }

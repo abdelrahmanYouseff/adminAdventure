@@ -21,9 +21,8 @@ class SyncWorkerOrdersCommand extends Command
         if ($orderId) {
             $query->whereKey($orderId);
         } else {
-            $query->where(function ($q) {
-                $q->where('payment_status', 'paid')
-                    ->orWhere('status', 'paid');
+            $query->whereHas('paymentReceipts', function ($q) {
+                $q->where('approval_status', \App\Models\OrderPaymentReceipt::STATUS_APPROVED);
             });
         }
 

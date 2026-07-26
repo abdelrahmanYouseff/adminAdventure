@@ -30,6 +30,7 @@ interface Product {
     product_name: string;
     description: string | null;
     price: number | string;
+    insurance_amount?: number | string | null;
 }
 
 interface OrderItem {
@@ -38,6 +39,7 @@ interface OrderItem {
     description: string;
     quantity: number;
     unit_price: number;
+    discount_amount: number;
     total_price: number;
 }
 
@@ -57,7 +59,8 @@ const form = useForm({
     activity_date: '',
     currency: 'SAR',
     payment_method: 'cash',
-    status: 'paid',
+    status: 'processing',
+    amount_paid: 0 as number,
     notes: '',
     items: [] as OrderItem[],
 });
@@ -65,10 +68,35 @@ const form = useForm({
 const selectedProductId = ref<number | null>(null);
 const selectedQuantity = ref(1);
 const selectedUnitPrice = ref(0);
+const customerLookupStatus = ref<'idle' | 'loading' | 'found' | 'not_found'>('idle');
+const customerLookupMessage = ref('');
+let phoneLookupTimer: ReturnType<typeof setTimeout> | null = null;
+let phoneLookupRequestId = 0;
+
+function roundMoney(value: number): number {
+    return Math.round((value + Number.EPSILON) * 100) / 100;
+}
 
 const subtotal = computed(() =>
     form.items.reduce((sum, item) => sum + (Number(item.total_price) || 0), 0),
 );
+const discountTotal = computed(() =>
+    form.items.reduce(
+        (sum, item) => sum + Number(item.discount_amount || 0) * Number(item.quantity || 0),
+        0,
+    ),
+);
+const grossSubtotal = computed(() => roundMoney(subtotal.value + discountTotal.value));
+const insuranceTotal = computed(() =>
+    form.items.reduce((sum, item) => {
+        const product = props.products.find((p) => p.id === item.product_id);
+        const unitInsurance = Number(product?.insurance_amount ?? 0) || 0;
+        return sum + unitInsurance * Number(item.quantity || 0);
+    }, 0),
+);
+const grandTotal = computed(() => roundMoney(subtotal.value + insuranceTotal.value));
+const amountPaid = computed(() => Math.max(0, Number(form.amount_paid) || 0));
+const remainingAmount = computed(() => roundMoney(Math.max(0, grandTotal.value - amountPaid.value)));
 const itemsCount = computed(() =>
     form.items.reduce((sum, item) => sum + Number(item.quantity || 0), 0),
 );
@@ -86,7 +114,10 @@ function addItem() {
 
     if (existing) {
         existing.quantity += Number(selectedQuantity.value) || 1;
-        existing.total_price = existing.quantity * existing.unit_price;
+        existing.total_price = existing.quantity * Math.max(
+            0,
+            Number(existing.unit_price) - Number(existing.discount_amount || 0),
+        );
     } else {
         form.items.push({
             product_id: product.id,
@@ -94,6 +125,7 @@ function addItem() {
             description: product.description || '',
             quantity: Number(selectedQuantity.value) || 1,
             unit_price: Number(selectedUnitPrice.value) || 0,
+            discount_amount: 0,
             total_price: (Number(selectedQuantity.value) || 1) * (Number(selectedUnitPrice.value) || 0),
         });
     }
@@ -109,11 +141,78 @@ function removeItem(index: number) {
 
 function updateItemPrice(index: number) {
     const item = form.items[index];
-    item.total_price = Number(item.quantity) * Number(item.unit_price);
+    const unitPrice = Math.max(0, Number(item.unit_price) || 0);
+    const discount = Math.min(unitPrice, Math.max(0, Number(item.discount_amount) || 0));
+
+    item.unit_price = unitPrice;
+    item.discount_amount = discount;
+    item.total_price = Number(item.quantity || 0) * (unitPrice - discount);
 }
 
 function submit() {
     form.post(route('orders.store'));
+}
+
+function digitsOnly(value: string): string {
+    return value.replace(/\D+/g, '');
+}
+
+function isLookupReady(phone: string): boolean {
+    return digitsOnly(phone).length >= 9;
+}
+
+async function lookupCustomerByPhone(phone: string) {
+    const requestId = ++phoneLookupRequestId;
+    customerLookupStatus.value = 'loading';
+    customerLookupMessage.value = 'جاري البحث عن العميل...';
+
+    try {
+        const response = await fetch(
+            `${route('quotations.lookup-customer')}?phone=${encodeURIComponent(phone)}`,
+            {
+                headers: {
+                    Accept: 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                credentials: 'same-origin',
+            },
+        );
+
+        if (requestId !== phoneLookupRequestId) {
+            return;
+        }
+
+        const data = await response.json();
+
+        if (!data?.success || !data.customer) {
+            customerLookupStatus.value = 'not_found';
+            customerLookupMessage.value = data?.message || 'لا يوجد عميل بهذا الرقم.';
+            return;
+        }
+
+        const customer = data.customer;
+        if (customer.customer_name) {
+            form.customer_name = customer.customer_name;
+        }
+        if (customer.customer_email) {
+            form.customer_email = customer.customer_email;
+        }
+        if (customer.customer_phone) {
+            form.customer_phone = customer.customer_phone;
+        }
+        if (customer.customer_address) {
+            form.address = customer.customer_address;
+        }
+
+        customerLookupStatus.value = 'found';
+        customerLookupMessage.value = data.message || 'تم تعبئة بيانات العميل تلقائياً.';
+    } catch {
+        if (requestId !== phoneLookupRequestId) {
+            return;
+        }
+        customerLookupStatus.value = 'not_found';
+        customerLookupMessage.value = 'تعذر البحث عن العميل الآن.';
+    }
 }
 
 watch(selectedProductId, (newValue) => {
@@ -122,6 +221,33 @@ watch(selectedProductId, (newValue) => {
         if (product) {
             selectedUnitPrice.value = Number(product.price) || 0;
         }
+    }
+});
+
+watch(
+    () => form.customer_phone,
+    (phone) => {
+        if (phoneLookupTimer) {
+            clearTimeout(phoneLookupTimer);
+            phoneLookupTimer = null;
+        }
+
+        const trimmed = (phone || '').trim();
+        if (!isLookupReady(trimmed)) {
+            customerLookupStatus.value = 'idle';
+            customerLookupMessage.value = '';
+            return;
+        }
+
+        phoneLookupTimer = setTimeout(() => {
+            lookupCustomerByPhone(trimmed);
+        }, 450);
+    },
+);
+
+watch(grandTotal, (total) => {
+    if (Number(form.amount_paid) > total) {
+        form.amount_paid = total;
     }
 });
 </script>
@@ -176,6 +302,47 @@ watch(selectedProductId, (newValue) => {
                     <div class="space-y-5 p-5 sm:p-6">
                         <div class="grid gap-4 sm:grid-cols-2">
                             <div class="space-y-2 sm:col-span-2">
+                                <Label for="customer_phone" class="flex items-center gap-1.5">
+                                    <Phone class="h-3.5 w-3.5 text-muted-foreground" />
+                                    رقم الجوال
+                                </Label>
+                                <div class="flex h-11 overflow-hidden rounded-xl border border-input bg-background" dir="ltr">
+                                    <span class="flex shrink-0 items-center border-e border-input bg-muted/50 px-3 text-sm font-medium text-muted-foreground">
+                                        +966
+                                    </span>
+                                    <Input
+                                        id="customer_phone"
+                                        v-model="form.customer_phone"
+                                        type="tel"
+                                        inputmode="numeric"
+                                        placeholder="5XXXXXXXX"
+                                        class="h-full border-0 shadow-none focus-visible:ring-0"
+                                    />
+                                </div>
+                                <p
+                                    v-if="customerLookupStatus === 'loading'"
+                                    class="text-xs text-muted-foreground"
+                                >
+                                    {{ customerLookupMessage }}
+                                </p>
+                                <p
+                                    v-else-if="customerLookupStatus === 'found'"
+                                    class="text-xs font-medium text-emerald-600 dark:text-emerald-400"
+                                >
+                                    {{ customerLookupMessage }}
+                                </p>
+                                <p
+                                    v-else-if="customerLookupStatus === 'not_found'"
+                                    class="text-xs text-amber-600 dark:text-amber-400"
+                                >
+                                    {{ customerLookupMessage }} يمكنك إدخال البيانات يدوياً.
+                                </p>
+                                <p v-else class="text-xs text-muted-foreground">
+                                    اكتب رقم الجوال وسيتم تعبئة الاسم والبريد والعنوان تلقائياً إن وُجد.
+                                </p>
+                            </div>
+
+                            <div class="space-y-2 sm:col-span-2">
                                 <Label for="customer_name">
                                     اسم العميل <span class="text-red-500">*</span>
                                 </Label>
@@ -188,7 +355,7 @@ watch(selectedProductId, (newValue) => {
                                 />
                             </div>
 
-                            <div class="space-y-2">
+                            <div class="space-y-2 sm:col-span-2">
                                 <Label for="customer_email" class="flex items-center gap-1.5">
                                     <Mail class="h-3.5 w-3.5 text-muted-foreground" />
                                     البريد الإلكتروني
@@ -198,21 +365,6 @@ watch(selectedProductId, (newValue) => {
                                     v-model="form.customer_email"
                                     type="email"
                                     placeholder="example@email.com"
-                                    class="h-11 rounded-xl"
-                                    dir="ltr"
-                                />
-                            </div>
-
-                            <div class="space-y-2">
-                                <Label for="customer_phone" class="flex items-center gap-1.5">
-                                    <Phone class="h-3.5 w-3.5 text-muted-foreground" />
-                                    رقم الجوال
-                                </Label>
-                                <Input
-                                    id="customer_phone"
-                                    v-model="form.customer_phone"
-                                    type="tel"
-                                    placeholder="05XXXXXXXX"
                                     class="h-11 rounded-xl"
                                     dir="ltr"
                                 />
@@ -256,7 +408,6 @@ watch(selectedProductId, (newValue) => {
                                     v-model="form.status"
                                     class="flex h-11 w-full rounded-xl border border-input bg-background px-3 text-sm"
                                 >
-                                    <option value="paid">مدفوع (يظهر في أوامر العمل)</option>
                                     <option value="pending">قيد الانتظار</option>
                                     <option value="processing">قيد المعالجة</option>
                                 </select>
@@ -374,6 +525,7 @@ watch(selectedProductId, (newValue) => {
                                         <TableHead class="font-semibold">المنتج</TableHead>
                                         <TableHead class="w-24 text-center font-semibold">الكمية</TableHead>
                                         <TableHead class="w-32 font-semibold">السعر</TableHead>
+                                        <TableHead class="w-32 font-semibold">خصم / وحدة</TableHead>
                                         <TableHead class="w-28 font-semibold">الإجمالي</TableHead>
                                         <TableHead class="w-12" />
                                     </TableRow>
@@ -400,6 +552,27 @@ watch(selectedProductId, (newValue) => {
                                                 dir="ltr"
                                                 @input="updateItemPrice(index)"
                                             />
+                                        </TableCell>
+                                        <TableCell>
+                                            <Input
+                                                v-model="item.discount_amount"
+                                                type="number"
+                                                step="0.01"
+                                                min="0"
+                                                :max="Number(item.unit_price) || 0"
+                                                class="h-9 w-full min-w-[5.5rem] rounded-lg border-amber-200 bg-amber-50/50 tabular-nums focus-visible:ring-amber-400"
+                                                dir="ltr"
+                                                @input="updateItemPrice(index)"
+                                            />
+                                            <p
+                                                v-if="Number(item.discount_amount) > 0"
+                                                class="mt-1 text-[10px] text-amber-700"
+                                            >
+                                                بعد الخصم:
+                                                <span dir="ltr">
+                                                    {{ formatCurrency(Number(item.unit_price) - Number(item.discount_amount)) }}
+                                                </span>
+                                            </p>
                                         </TableCell>
                                         <TableCell class="font-semibold tabular-nums" dir="ltr">
                                             {{ formatCurrency(item.total_price) }}
@@ -454,6 +627,22 @@ watch(selectedProductId, (newValue) => {
                                 <span class="text-muted-foreground">إجمالي الوحدات</span>
                                 <span class="font-medium tabular-nums">{{ itemsCount }}</span>
                             </div>
+                            <div class="flex justify-between">
+                                <span class="text-muted-foreground">قبل الخصم</span>
+                                <span class="font-medium tabular-nums" dir="ltr">{{ formatCurrency(grossSubtotal) }}</span>
+                            </div>
+                            <div v-if="discountTotal > 0" class="flex justify-between text-amber-700">
+                                <span>إجمالي الخصم</span>
+                                <span class="font-semibold tabular-nums" dir="ltr">- {{ formatCurrency(discountTotal) }}</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-muted-foreground">بعد الخصم</span>
+                                <span class="font-medium tabular-nums" dir="ltr">{{ formatCurrency(subtotal) }}</span>
+                            </div>
+                            <div v-if="insuranceTotal > 0" class="flex justify-between">
+                                <span class="text-muted-foreground">التأمين</span>
+                                <span class="font-medium tabular-nums" dir="ltr">{{ formatCurrency(insuranceTotal) }}</span>
+                            </div>
                             <div class="flex justify-between border-t border-border/60 pt-3">
                                 <span class="text-muted-foreground">طريقة الدفع</span>
                                 <span class="font-medium">
@@ -471,17 +660,50 @@ watch(selectedProductId, (newValue) => {
                         </div>
 
                         <div class="flex items-center justify-between rounded-xl bg-primary/5 px-4 py-4 ring-1 ring-primary/10">
-                            <span class="font-semibold">الإجمالي</span>
+                            <span class="font-semibold">إجمالي المطلوب</span>
                             <span class="text-xl font-bold tabular-nums text-primary" dir="ltr">
-                                {{ formatCurrency(subtotal) }}
+                                {{ formatCurrency(grandTotal) }}
                             </span>
                         </div>
 
+                        <div class="space-y-2 rounded-xl border border-border/60 p-4">
+                            <Label for="amount_paid" class="text-sm font-medium">المبلغ المدفوع</Label>
+                            <Input
+                                id="amount_paid"
+                                v-model="form.amount_paid"
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                :max="grandTotal"
+                                class="h-11 rounded-xl tabular-nums"
+                                dir="ltr"
+                            />
+                            <p v-if="form.errors.amount_paid" class="text-xs text-red-600">
+                                {{ form.errors.amount_paid }}
+                            </p>
+                            <div class="flex items-center justify-between pt-1 text-sm">
+                                <span class="text-muted-foreground">المتبقي على العميل</span>
+                                <span
+                                    class="font-bold tabular-nums"
+                                    :class="remainingAmount > 0 ? 'text-amber-600' : 'text-emerald-600'"
+                                    dir="ltr"
+                                >
+                                    {{ formatCurrency(remainingAmount) }}
+                                </span>
+                            </div>
+                        </div>
+
                         <p
-                            v-if="form.status === 'paid'"
-                            class="rounded-xl bg-emerald-50 px-3 py-2 text-xs text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300"
+                            v-if="amountPaid > 0"
+                            class="rounded-xl bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-800 dark:bg-amber-950/30 dark:text-amber-200"
                         >
-                            عند الحفظ كـ «مدفوع» سيظهر الطلب تلقائياً في أوامر العمل.
+                            سيُسجَّل المبلغ المدفوع كسند قبض بانتظار اعتماد المحاسب. عند اعتماد أول مبلغ من صفحة «سندات القبض» يصدر أمر العمل تلقائياً — ولو كان الدفع جزئياً.
+                        </p>
+                        <p
+                            v-else
+                            class="rounded-xl bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-800 dark:bg-amber-950/30 dark:text-amber-200"
+                        >
+                            لم يُسجَّل أي مبلغ بعد — سيصدر أمر العمل بعد تسجيل الدفعة واعتمادها من المحاسب.
                         </p>
 
                         <div class="space-y-2">

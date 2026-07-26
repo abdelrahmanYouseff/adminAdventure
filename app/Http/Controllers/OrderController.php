@@ -4,12 +4,17 @@ namespace App\Http\Controllers;
 
 use App\Models\Order;
 use App\Models\Invoice;
+use App\Models\OrderPaymentReceipt;
 use App\Models\Product;
 use App\Models\User;
+use App\Services\OrderPaymentReceiptService;
+use App\Services\WorkerOrderSyncService;
 use App\Support\OrderInsuranceCalculator;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
+use Symfony\Component\HttpFoundation\Response;
 
 class OrderController extends Controller
 {
@@ -90,7 +95,7 @@ class OrderController extends Controller
         $products = Product::query()
             ->active()
             ->orderBy('product_name')
-            ->get(['id', 'product_name', 'description', 'price', 'image']);
+            ->get(['id', 'product_name', 'description', 'price', 'image', 'insurance_amount']);
 
         return Inertia::render('Orders/Create', [
             'products' => $products,
@@ -108,11 +113,13 @@ class OrderController extends Controller
             'currency' => ['required', 'string', 'in:SAR,USD,EUR'],
             'payment_method' => ['required', 'string', 'in:credit_card,cash,bank_transfer,paypal,noon'],
             'status' => ['required', 'string', 'in:pending,processing,paid,cancelled'],
+            'amount_paid' => ['nullable', 'numeric', 'min:0'],
             'notes' => ['nullable', 'string', 'max:1000'],
             'items' => ['required', 'array', 'min:1'],
             'items.*.product_id' => ['required', 'exists:products,id'],
             'items.*.quantity' => ['required', 'integer', 'min:1'],
             'items.*.unit_price' => ['required', 'numeric', 'min:0'],
+            'items.*.discount_amount' => ['nullable', 'numeric', 'min:0', 'lte:items.*.unit_price'],
         ], [
             'customer_name.required' => 'اسم العميل مطلوب.',
             'items.required' => 'يجب إضافة منتج واحد على الأقل.',
@@ -120,6 +127,9 @@ class OrderController extends Controller
             'items.*.product_id.exists' => 'أحد المنتجات المحددة غير موجود.',
             'payment_method.required' => 'طريقة الدفع مطلوبة.',
             'status.required' => 'حالة الطلب مطلوبة.',
+            'amount_paid.min' => 'المبلغ المدفوع لا يمكن أن يكون سالباً.',
+            'items.*.discount_amount.min' => 'خصم الوحدة لا يمكن أن يكون سالباً.',
+            'items.*.discount_amount.lte' => 'خصم الوحدة لا يمكن أن يتجاوز سعر الوحدة.',
         ]);
 
         $productIds = collect($validated['items'])->pluck('product_id')->all();
@@ -129,68 +139,203 @@ class OrderController extends Controller
 
         $itemsForOrder = [];
         $totalAmount = 0;
+        $discountTotal = 0;
 
         foreach ($validated['items'] as $item) {
             $qty = (int) $item['quantity'];
-            $price = (float) $item['unit_price'];
-            $lineTotal = $qty * $price;
+            $price = round((float) $item['unit_price'], 2);
+            $discountAmount = round((float) ($item['discount_amount'] ?? 0), 2);
+            $lineTotal = round($qty * ($price - $discountAmount), 2);
             $totalAmount += $lineTotal;
+            $discountTotal += round($qty * $discountAmount, 2);
 
             $itemsForOrder[] = [
+                'product_id' => (int) $item['product_id'],
                 'name' => $products[$item['product_id']] ?? 'Product #'.$item['product_id'],
                 'quantity' => $qty,
                 'price' => $price,
+                'discount_amount' => $discountAmount,
                 'amount' => $lineTotal,
                 'insurance_amount' => (float) ($insurance['unit_by_product'][(int) $item['product_id']] ?? 0),
             ];
         }
 
         $chargeAmount = round($totalAmount + $insuranceTotal, 2);
-        $isPaid = $validated['status'] === 'paid';
+        $amountPaid = array_key_exists('amount_paid', $validated) && $validated['amount_paid'] !== null
+            ? round((float) $validated['amount_paid'], 2)
+            : ($validated['status'] === 'paid' ? $chargeAmount : 0.0);
+
+        if ($amountPaid > $chargeAmount) {
+            return back()
+                ->withInput()
+                ->withErrors(['amount_paid' => 'المبلغ المدفوع لا يمكن أن يتجاوز إجمالي الطلب.']);
+        }
+
         $userId = $request->user()?->id ?? 1;
 
-        $invoice = Invoice::create([
-            'invoice_number' => Invoice::generateInvoiceNumber(),
-            'amount' => $chargeAmount,
-            'status' => $isPaid ? 'paid' : 'pending',
-            'payment_method' => $validated['payment_method'],
-            'issued_at' => now(),
-            'due_date' => now()->addDays(30),
-            'user_id' => $userId,
-        ]);
+        // Payments collected by employees stay pending until an accountant
+        // approves them, so the order starts with a zero approved balance and
+        // never lands directly in work orders.
+        $isCancelled = $validated['status'] === 'cancelled';
+        $initialStatus = $isCancelled
+            ? 'cancelled'
+            : ($amountPaid > 0 ? 'processing' : 'pending');
 
-        $order = Order::create([
-            'customer_name' => $validated['customer_name'],
-            'customer_email' => $validated['customer_email'] ?? null,
-            'customer_phone' => $validated['customer_phone'] ?? null,
-            'address' => $validated['address'] ?? null,
-            'activity_date' => $validated['activity_date'] ?? null,
-            'invoice_id' => $invoice->id,
-            'order_number' => Order::generateOrderNumber(),
-            'total_amount' => $chargeAmount,
-            'insurance_amount' => $insuranceTotal,
-            'insurance_status' => $insuranceTotal > 0 ? 'pending' : 'none',
-            'currency' => $validated['currency'],
-            'payment_method' => $validated['payment_method'],
-            'status' => $validated['status'],
-            'payment_status' => $isPaid ? 'paid' : 'pending',
-            'items' => $itemsForOrder,
-            'notes' => $validated['notes'] ?? null,
-            'user_id' => $userId,
-        ]);
-
-        foreach ($validated['items'] as $item) {
-            $productId = (int) $item['product_id'];
-            $order->products()->attach($productId, [
-                'quantity' => (int) $item['quantity'],
-                'price' => (float) $item['unit_price'],
-                'insurance_amount' => (float) ($insurance['unit_by_product'][$productId] ?? 0),
+        $order = DB::transaction(function () use (
+            $validated,
+            $itemsForOrder,
+            $chargeAmount,
+            $discountTotal,
+            $initialStatus,
+            $userId,
+            $insurance,
+            $insuranceTotal,
+        ) {
+            $invoice = Invoice::create([
+                'invoice_number' => Invoice::generateInvoiceNumber(),
+                'amount' => $chargeAmount,
+                'status' => 'pending',
+                'payment_method' => $validated['payment_method'],
+                'issued_at' => now(),
+                'due_date' => now()->addDays(30),
+                'user_id' => $userId,
             ]);
+
+            $order = Order::create([
+                'customer_name' => $validated['customer_name'],
+                'customer_email' => $validated['customer_email'] ?? null,
+                'customer_phone' => $validated['customer_phone'] ?? null,
+                'address' => $validated['address'] ?? null,
+                'activity_date' => $validated['activity_date'] ?? null,
+                'invoice_id' => $invoice->id,
+                'order_number' => Order::generateOrderNumber(),
+                'total_amount' => $chargeAmount,
+                'discount_total' => $discountTotal,
+                'amount_paid' => 0,
+                'insurance_amount' => $insuranceTotal,
+                'insurance_status' => $insuranceTotal > 0 ? 'pending' : 'none',
+                'currency' => $validated['currency'],
+                'payment_method' => $validated['payment_method'],
+                'status' => $initialStatus,
+                'payment_status' => 'pending',
+                'items' => $itemsForOrder,
+                'notes' => $validated['notes'] ?? null,
+                'user_id' => $userId,
+            ]);
+
+            foreach ($validated['items'] as $item) {
+                $productId = (int) $item['product_id'];
+                $order->products()->attach($productId, [
+                    'quantity' => (int) $item['quantity'],
+                    'price' => (float) $item['unit_price'],
+                    'discount_amount' => (float) ($item['discount_amount'] ?? 0),
+                    'insurance_amount' => (float) ($insurance['unit_by_product'][$productId] ?? 0),
+                ]);
+            }
+
+            return $order;
+        });
+
+        if ($amountPaid > 0) {
+            app(OrderPaymentReceiptService::class)->recordPayment(
+                $order->fresh(),
+                $amountPaid,
+                $request->user(),
+                $validated['payment_method'],
+                'initial',
+                'سند قبض عند إنشاء الطلب — بانتظار اعتماد المحاسب',
+            );
         }
+
+        $successMessage = $amountPaid > 0
+            ? 'تم إنشاء الطلب وتسجيل المبلغ المدفوع. سيصدر أمر العمل بعد اعتماد المحاسب للمبلغ من صفحة سندات القبض.'
+            : 'تم إنشاء الطلب بنجاح. سيصدر أمر العمل بعد تسجيل واعتماد الدفعة من المحاسب.';
 
         return redirect()
             ->route('orders.show', $order)
-            ->with('success', 'تم إنشاء الطلب بنجاح.');
+            ->with('success', $successMessage);
+    }
+
+    public function settlePayment(Request $request, Order $order): RedirectResponse
+    {
+        $validated = $request->validate([
+            'amount' => ['required', 'numeric', 'min:0.01'],
+            'payment_method' => ['nullable', 'string', 'in:credit_card,cash,bank_transfer,paypal,noon'],
+            'notes' => ['nullable', 'string', 'max:1000'],
+        ], [
+            'amount.required' => 'مبلغ السداد مطلوب.',
+            'amount.min' => 'مبلغ السداد يجب أن يكون أكبر من صفر.',
+        ]);
+
+        $pendingSum = round((float) $order->paymentReceipts()
+            ->where('approval_status', OrderPaymentReceipt::STATUS_PENDING)
+            ->sum('amount'), 2);
+        $committed = round((float) ($order->amount_paid ?? 0) + $pendingSum, 2);
+        $available = round(max(0, (float) $order->total_amount - $committed), 2);
+        $amount = round((float) $validated['amount'], 2);
+
+        if ($available <= 0) {
+            return back()->with('error', 'لا يوجد مبلغ متبقٍ غير مسجّل على هذا الطلب.');
+        }
+
+        if ($amount > $available) {
+            return back()->withErrors(['amount' => 'مبلغ السداد أكبر من المتبقي غير المسجّل ('.$available.').']);
+        }
+
+        try {
+            $receipt = app(OrderPaymentReceiptService::class)->recordPayment(
+                $order,
+                $amount,
+                $request->user(),
+                $validated['payment_method'] ?? $order->payment_method,
+                'settlement',
+                $validated['notes'] ?? 'سداد من ملف العميل — بانتظار اعتماد المحاسب',
+            );
+        } catch (\Throwable $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        return back()->with(
+            'success',
+            'تم تسجيل المبلغ في سند القبض '.$receipt->receipt_number.' وبانتظار اعتماد المحاسب.'
+        );
+    }
+
+    public function latestPaymentReceiptPdf(Order $order): Response
+    {
+        $service = app(OrderPaymentReceiptService::class);
+        $receipt = $order->paymentReceipts()
+            ->where('approval_status', OrderPaymentReceipt::STATUS_APPROVED)
+            ->latest('id')
+            ->first();
+
+        if (! $receipt) {
+            $receipt = $service->ensureInitialReceipt($order, request()->user());
+        }
+
+        if (! $receipt) {
+            abort(404, 'لا يوجد سند قبض معتمد لهذا الطلب.');
+        }
+
+        $pdf = $service->renderPdf($receipt);
+
+        return response($pdf, 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="'.$receipt->receipt_number.'.pdf"',
+        ]);
+    }
+
+    public function paymentReceiptPdf(Order $order, OrderPaymentReceipt $receipt): Response
+    {
+        abort_unless((int) $receipt->order_id === (int) $order->id, 404);
+        abort_unless($receipt->isApproved(), 403, 'لا يمكن عرض سند القبض قبل اعتماد المحاسب.');
+
+        $pdf = app(OrderPaymentReceiptService::class)->renderPdf($receipt);
+
+        return response($pdf, 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="'.$receipt->receipt_number.'.pdf"',
+        ]);
     }
 
     /**

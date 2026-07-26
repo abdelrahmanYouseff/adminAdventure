@@ -19,6 +19,8 @@ class Order extends Model
         'order_number',
         'location_slug',
         'total_amount',
+        'discount_total',
+        'amount_paid',
         'insurance_amount',
         'insurance_original_amount',
         'insurance_status',
@@ -44,6 +46,8 @@ class Order extends Model
 
     protected $casts = [
         'total_amount' => 'decimal:2',
+        'discount_total' => 'decimal:2',
+        'amount_paid' => 'decimal:2',
         'insurance_amount' => 'decimal:2',
         'insurance_original_amount' => 'decimal:2',
         'items' => 'array',
@@ -57,6 +61,18 @@ class Order extends Model
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];
+
+    protected $appends = [
+        'remaining_amount',
+    ];
+
+    public function getRemainingAmountAttribute(): float
+    {
+        $total = (float) ($this->attributes['total_amount'] ?? 0);
+        $paid = (float) ($this->attributes['amount_paid'] ?? 0);
+
+        return round(max(0, $total - $paid), 2);
+    }
 
     protected static function booted(): void
     {
@@ -89,7 +105,7 @@ class Order extends Model
     public function products()
     {
         return $this->belongsToMany(Product::class, 'order_product')
-                    ->withPivot('quantity', 'price', 'insurance_amount')
+                    ->withPivot('quantity', 'price', 'discount_amount', 'insurance_amount')
                     ->withTimestamps();
     }
 
@@ -106,6 +122,23 @@ class Order extends Model
     public function workerNotes()
     {
         return $this->hasMany(WorkerOrderNote::class);
+    }
+
+    public function paymentReceipts()
+    {
+        return $this->hasMany(OrderPaymentReceipt::class);
+    }
+
+    public function hasApprovedPaymentReceipt(): bool
+    {
+        if ($this->relationLoaded('paymentReceipts')) {
+            return $this->paymentReceipts
+                ->contains(fn ($receipt) => $receipt->approval_status === OrderPaymentReceipt::STATUS_APPROVED);
+        }
+
+        return $this->paymentReceipts()
+            ->where('approval_status', OrderPaymentReceipt::STATUS_APPROVED)
+            ->exists();
     }
 
     public function workOrderApprovedBy()

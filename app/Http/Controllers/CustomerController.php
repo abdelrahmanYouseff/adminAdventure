@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\CompanyClient;
 use App\Models\Order;
+use App\Models\Product;
 use App\Models\Quotation;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
@@ -428,7 +429,7 @@ class CustomerController extends Controller
         }
 
         return Order::query()
-            ->with('invoice:id,invoice_number')
+            ->with(['invoice:id,invoice_number', 'products', 'paymentReceipts' => fn ($q) => $q->latest('id')])
             ->where(function ($query) use ($userId, $normalizedPhone, $normalizedEmail) {
                 if ($userId !== null) {
                     $query->orWhere('user_id', $userId);
@@ -543,6 +544,7 @@ class CustomerController extends Controller
             'valid_until' => $quotation->valid_until?->toDateString(),
             'notes' => $quotation->notes,
             'subtotal' => (float) $quotation->subtotal,
+            'discount_total' => (float) ($quotation->discount_total ?? 0),
             'tax_amount' => (float) $quotation->tax_amount,
             'insurance_amount' => (float) ($quotation->insurance_amount ?? 0),
             'total_amount' => (float) $quotation->total_amount,
@@ -558,6 +560,7 @@ class CustomerController extends Controller
                 'description' => $item->description,
                 'quantity' => (int) $item->quantity,
                 'unit_price' => (float) $item->unit_price,
+                'discount_amount' => (float) ($item->discount_amount ?? 0),
                 'total_price' => (float) $item->total_price,
             ])->values(),
         ];
@@ -568,6 +571,70 @@ class CustomerController extends Controller
      */
     private function formatOrder(Order $order): array
     {
+        $items = [];
+        $productImages = $order->products
+            ->keyBy('id')
+            ->map(fn ($product) => $product->image_url);
+
+        if ($order->products->isEmpty() && is_array($order->items) && $order->items !== []) {
+            $productIds = collect($order->items)
+                ->pluck('product_id')
+                ->filter()
+                ->map(fn ($id) => (int) $id)
+                ->unique()
+                ->values()
+                ->all();
+
+            if ($productIds !== []) {
+                $productImages = Product::query()
+                    ->whereIn('id', $productIds)
+                    ->get()
+                    ->mapWithKeys(fn (Product $product) => [$product->id => $product->image_url]);
+            }
+        }
+
+        if ($order->products->isNotEmpty()) {
+            foreach ($order->products as $product) {
+                $qty = (int) ($product->pivot->quantity ?? 0);
+                $price = (float) ($product->pivot->price ?? 0);
+                $discount = (float) ($product->pivot->discount_amount ?? 0);
+
+                $items[] = [
+                    'product_id' => $product->id,
+                    'name' => $product->product_name,
+                    'image_url' => $product->image_url,
+                    'quantity' => $qty,
+                    'price' => $price,
+                    'discount_amount' => $discount,
+                    'total' => round($qty * ($price - $discount), 2),
+                ];
+            }
+        } elseif (is_array($order->items) && $order->items !== []) {
+            foreach ($order->items as $item) {
+                $qty = (int) ($item['quantity'] ?? 0);
+                $price = (float) ($item['price'] ?? $item['unit_price'] ?? 0);
+                $discount = (float) ($item['discount_amount'] ?? 0);
+                $productId = isset($item['product_id']) ? (int) $item['product_id'] : null;
+                $total = isset($item['amount'])
+                    ? (float) $item['amount']
+                    : round($qty * ($price - $discount), 2);
+
+                $items[] = [
+                    'product_id' => $productId,
+                    'name' => (string) ($item['name'] ?? $item['product_name'] ?? 'منتج'),
+                    'image_url' => $productId ? ($productImages[$productId] ?? null) : null,
+                    'quantity' => $qty,
+                    'price' => $price,
+                    'discount_amount' => $discount,
+                    'total' => $total,
+                ];
+            }
+        }
+
+        $total = (float) $order->total_amount;
+        $paid = (float) ($order->amount_paid ?? 0);
+        $remaining = round(max(0, $total - $paid), 2);
+
         return [
             'id' => $order->id,
             'order_number' => $order->order_number,
@@ -577,12 +644,29 @@ class CustomerController extends Controller
             'customer_email' => $order->customer_email,
             'address' => $order->address,
             'activity_date' => $order->activity_date?->format('Y-m-d'),
-            'total_amount' => (float) $order->total_amount,
+            'currency' => $order->currency ?: 'SAR',
+            'total_amount' => $total,
+            'discount_total' => (float) ($order->discount_total ?? 0),
+            'amount_paid' => $paid,
+            'remaining_amount' => $remaining,
             'insurance_amount' => (float) ($order->insurance_amount ?? 0),
             'status' => $order->status,
             'payment_status' => $order->payment_status,
             'payment_method' => $order->payment_method,
             'created_at' => $order->created_at?->toIso8601String(),
+            'items' => $items,
+            'products_count' => count($items),
+            'latest_receipt_id' => $order->paymentReceipts->first()?->id,
+            'receipts' => $order->paymentReceipts->map(fn ($receipt) => [
+                'id' => $receipt->id,
+                'receipt_number' => $receipt->receipt_number,
+                'amount' => (float) $receipt->amount,
+                'amount_paid_after' => (float) $receipt->amount_paid_after,
+                'remaining_after' => (float) $receipt->remaining_after,
+                'created_at' => $receipt->created_at?->toIso8601String(),
+            ])->values()->all(),
+            'can_settle' => $remaining > 0.009,
+            'payment_receipt_url' => route('orders.payment-receipt', $order),
         ];
     }
 

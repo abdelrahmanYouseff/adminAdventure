@@ -108,6 +108,8 @@ class QuotationPdfData
      *     description: ?string,
      *     quantity: int,
      *     unit_price: float,
+     *     discount_amount: float,
+     *     net_unit_price: float,
      *     unit_price_incl_vat: float,
      *     taxable_value: float,
      *     vat_percent: string,
@@ -121,13 +123,17 @@ class QuotationPdfData
             $taxable = round((float) $item->total_price, 2);
             $vat = round($taxable * self::VAT_RATE, 2);
             $unitEx = (float) $item->unit_price;
+            $discount = (float) ($item->discount_amount ?? 0);
+            $netUnitPrice = max(0, $unitEx - $discount);
 
             return [
                 'name' => $item->product_name,
                 'description' => $item->description && trim($item->description) !== '' ? trim($item->description) : null,
                 'quantity' => (int) $item->quantity,
                 'unit_price' => $unitEx,
-                'unit_price_incl_vat' => round($unitEx * (1 + self::VAT_RATE), 4),
+                'discount_amount' => $discount,
+                'net_unit_price' => $netUnitPrice,
+                'unit_price_incl_vat' => round($netUnitPrice * (1 + self::VAT_RATE), 4),
                 'taxable_value' => $taxable,
                 'vat_percent' => '15%',
                 'vat_amount' => $vat,
@@ -139,6 +145,16 @@ class QuotationPdfData
     public function subtotal(): float
     {
         return round((float) $this->quotation->subtotal, 2);
+    }
+
+    public function discountTotal(): float
+    {
+        return round((float) ($this->quotation->discount_total ?? 0), 2);
+    }
+
+    public function grossSubtotal(): float
+    {
+        return round($this->subtotal() + $this->discountTotal(), 2);
     }
 
     public function vatAmount(): float

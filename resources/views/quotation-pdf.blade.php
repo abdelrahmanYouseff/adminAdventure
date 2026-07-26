@@ -227,11 +227,12 @@
 <table class="items-table" style="margin-bottom: 16px;">
     <thead>
         <tr>
-            <th width="28%" align="left">Description</th>
-            <th width="7%">Qty</th>
-            <th width="11%">Price</th>
-            <th width="12%">Price<br>(Incl. VAT)</th>
-            <th width="12%">Taxable<br>Value</th>
+            <th width="23%" align="left">Description</th>
+            <th width="6%">Qty</th>
+            <th width="10%">Price</th>
+            <th width="9%">Discount<br>/ Unit</th>
+            <th width="11%">Price<br>(Incl. VAT)</th>
+            <th width="11%">Taxable<br>Value</th>
             <th width="6%">VAT%</th>
             <th width="11%">VAT<br>Amount</th>
             <th width="13%">Total</th>
@@ -248,6 +249,7 @@
                 </td>
                 <td align="center">{{ $item['quantity'] }}</td>
                 <td align="right">{{ $data->formatMoney($item['unit_price'], 4) }}</td>
+                <td align="right">{{ $item['discount_amount'] > 0 ? $data->formatMoney($item['discount_amount'], 2) : '-' }}</td>
                 <td align="right">{{ $data->formatMoney($item['unit_price_incl_vat'], 4) }} SAR</td>
                 <td align="right">{{ $data->formatMoney($item['taxable_value'], 0) }}</td>
                 <td align="center">{{ $item['vat_percent'] }}</td>
@@ -282,11 +284,13 @@
             <table class="totals-table">
                 <tr>
                     <td class="label">SUBTOTAL</td>
-                    <td class="value">{{ $data->formatSar($data->subtotal(), 0) }}</td>
+                    <td class="value">{{ $data->formatSar($data->grossSubtotal(), 0) }}</td>
                 </tr>
                 <tr>
                     <td class="label">DISCOUNT</td>
-                    <td class="value">SAR -</td>
+                    <td class="value">
+                        {{ $data->discountTotal() > 0 ? '- '.$data->formatSar($data->discountTotal(), 2) : 'SAR -' }}
+                    </td>
                 </tr>
                 <tr>
                     <td class="label">SUBTOTAL BEFORE VAT</td>

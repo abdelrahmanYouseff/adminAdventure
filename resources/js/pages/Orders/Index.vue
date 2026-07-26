@@ -81,6 +81,9 @@ defineOptions({ layout: AppLayout });
 const page = usePage();
 const userRole = computed(() => (page.props.auth as { user?: { role?: string } } | undefined)?.user?.role ?? null);
 const isAdmin = computed(() => userRole.value === 'admin');
+const canCreateOrders = computed(() =>
+    ['admin', 'general_manager', 'manager'].includes(userRole.value ?? ''),
+);
 
 const searchInput = ref(props.filters?.search ?? '');
 const statusFilter = ref(props.filters?.status ?? 'all');
@@ -252,7 +255,7 @@ function locationMapsUrl(address: string | null): string | null {
                 </p>
             </div>
             <Link
-                v-if="isAdmin"
+                v-if="canCreateOrders"
                 href="/orders/create"
                 class="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow transition hover:bg-primary/90 sm:h-11"
             >

@@ -17,7 +17,7 @@ import {
     Eye,
     ShieldCheck,
 } from 'lucide-vue-next';
-import { formatDate, formatInteger } from '@/lib/formatNumber';
+import { formatCurrency, formatDate, formatInteger } from '@/lib/formatNumber';
 import Swal from 'sweetalert2';
 
 interface PreviewProduct {
@@ -42,6 +42,8 @@ interface WorkOrderItem {
     is_approved?: boolean;
     can_approve?: boolean;
     approved_at?: string | null;
+    currency?: string;
+    remaining_amount?: number;
     preview_products: PreviewProduct[];
 }
 
@@ -405,8 +407,8 @@ watch(
                                             <div class="flex items-center gap-2">
                                                 <FileText class="h-4 w-4 shrink-0 text-primary/70" />
                                                 <div>
-                                                    <p class="font-semibold tabular-nums" dir="ltr">{{ item.reference_number }}</p>
-                                                    <p v-if="item.invoice_number && item.invoice_number !== item.reference_number" class="text-xs text-muted-foreground">
+                                                    <p class="font-semibold tabular-nums" dir="ltr">{{ item.order_number }}</p>
+                                                    <p v-if="item.invoice_number" class="text-xs text-muted-foreground tabular-nums" dir="ltr">
                                                         فاتورة: {{ item.invoice_number }}
                                                     </p>
                                                 </div>
@@ -415,7 +417,16 @@ watch(
                                         <TableCell>
                                             <div class="flex items-center gap-2">
                                                 <User class="h-4 w-4 shrink-0 text-muted-foreground" />
-                                                <span class="font-semibold">{{ item.customer_name }}</span>
+                                                <div class="min-w-0">
+                                                    <span class="font-semibold">{{ item.customer_name }}</span>
+                                                    <p
+                                                        v-if="(item.remaining_amount || 0) > 0"
+                                                        class="mt-0.5 text-xs font-semibold text-amber-600 tabular-nums"
+                                                        dir="ltr"
+                                                    >
+                                                        متبقي {{ formatCurrency(item.remaining_amount || 0, item.currency || 'SAR') }}
+                                                    </p>
+                                                </div>
                                             </div>
                                         </TableCell>
                                         <TableCell>

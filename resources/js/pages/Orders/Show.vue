@@ -1,17 +1,19 @@
 <script setup lang="ts">
-import { Head, Link } from '@inertiajs/vue3';
+import { computed } from 'vue';
+import { Head, Link, usePage } from '@inertiajs/vue3';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { ArrowRight, User, Mail, Phone, CreditCard, FileText, Calendar, Package } from 'lucide-vue-next';
+import { ArrowRight, User, Mail, Phone, CreditCard, FileText, Calendar, Package, HardHat } from 'lucide-vue-next';
 import { formatCurrency, formatDate, formatInteger } from '@/lib/formatNumber';
 
 interface OrderItem {
     name: string;
     quantity: number;
     price: number;
+    discount_amount?: number;
     duration?: number;
     amount?: number;
 }
@@ -19,6 +21,7 @@ interface OrderItem {
 interface ProductPivot {
     quantity: number;
     price: number;
+    discount_amount?: number;
 }
 
 interface Product {
@@ -41,10 +44,17 @@ interface Order {
     customer_email: string | null;
     customer_phone: string | null;
     total_amount: number;
+    discount_total?: number | null;
+    amount_paid?: number | null;
+    remaining_amount?: number | null;
     currency: string;
     payment_method: string;
+    payment_status?: string | null;
     payment_id: string | null;
     status: string;
+    activity_date?: string | null;
+    activity_time?: string | null;
+    address?: string | null;
     notes: string | null;
     items: OrderItem[] | null;
     created_at: string;
@@ -61,6 +71,10 @@ interface Props {
 const props = defineProps<Props>();
 
 defineOptions({ layout: AppLayout });
+
+const page = usePage();
+const successMessage = computed(() => (page.props.flash as { success?: string } | undefined)?.success);
+const isPaid = computed(() => props.order.status === 'paid' || props.order.payment_status === 'paid');
 
 const getStatusText = (status: string) => {
     const map: Record<string, string> = {
@@ -100,20 +114,22 @@ const getPaymentMethodText = (method: string) => {
 };
 
 const orderItems = () => {
-    const rows: { name: string; quantity: number; price: number; total: number }[] = [];
+    const rows: { name: string; quantity: number; price: number; discount: number; total: number }[] = [];
     const items = props.order.items || [];
 
     if (items.length > 0) {
         items.forEach((item: OrderItem) => {
             const q = Number(item.quantity) || 0;
             const p = Number(item.price) || 0;
+            const discount = Number(item.discount_amount) || 0;
             const duration = Number(item.duration) || 1;
-            const total = item.amount != null ? Number(item.amount) : q * p * duration;
+            const total = item.amount != null ? Number(item.amount) : q * (p - discount) * duration;
 
             rows.push({
                 name: item.name || '—',
                 quantity: q,
                 price: p,
+                discount,
                 total,
             });
         });
@@ -124,11 +140,13 @@ const orderItems = () => {
     (props.order.products || []).forEach((product: Product) => {
         const q = Number(product.pivot?.quantity) || 0;
         const p = Number(product.pivot?.price) || 0;
+        const discount = Number(product.pivot?.discount_amount) || 0;
         rows.push({
             name: product.product_name || '—',
             quantity: q,
             price: p,
-            total: q * p,
+            discount,
+            total: q * (p - discount),
         });
     });
 
@@ -139,6 +157,13 @@ const orderItems = () => {
 <template>
     <Head :title="`طلب ${order.order_number}`" />
     <div class="space-y-6 py-6">
+        <div
+            v-if="successMessage"
+            class="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800"
+        >
+            {{ successMessage }}
+        </div>
+
         <!-- Header -->
         <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div class="flex items-center gap-3">
@@ -154,6 +179,19 @@ const orderItems = () => {
                         {{ getStatusText(order.status) }}
                     </Badge>
                 </div>
+            </div>
+            <div class="flex flex-wrap items-center gap-2">
+                <Button
+                    v-if="isPaid"
+                    as-child
+                    variant="outline"
+                    class="h-10 gap-2"
+                >
+                    <Link :href="`/worker-orders/${order.id}`">
+                        <HardHat class="h-4 w-4" />
+                        فتح أمر العمل
+                    </Link>
+                </Button>
             </div>
         </div>
 
@@ -235,12 +273,13 @@ const orderItems = () => {
                             <TableHead>المنتج / البند</TableHead>
                             <TableHead class="text-center">الكمية</TableHead>
                             <TableHead class="text-left">السعر</TableHead>
+                            <TableHead class="text-left">الخصم / وحدة</TableHead>
                             <TableHead class="text-left">الإجمالي</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
                         <TableRow v-if="orderItems().length === 0">
-                            <TableCell colspan="4" class="text-center text-muted-foreground py-8">
+                            <TableCell colspan="5" class="text-center text-muted-foreground py-8">
                                 لا توجد عناصر
                             </TableCell>
                         </TableRow>
@@ -248,14 +287,42 @@ const orderItems = () => {
                             <TableCell class="font-medium">{{ row.name }}</TableCell>
                             <TableCell class="text-center tabular-nums" dir="ltr">{{ formatInteger(row.quantity) }}</TableCell>
                             <TableCell>{{ formatCurrency(row.price, order.currency) }}</TableCell>
+                            <TableCell :class="row.discount > 0 ? 'font-medium text-amber-700' : 'text-muted-foreground'">
+                                {{ formatCurrency(row.discount, order.currency) }}
+                            </TableCell>
                             <TableCell>{{ formatCurrency(row.total, order.currency) }}</TableCell>
                         </TableRow>
                     </TableBody>
                 </Table>
-                <div class="mt-4 flex justify-end border-t pt-4">
-                    <p class="text-lg font-bold">
-                        الإجمالي: {{ formatCurrency(Number(order.total_amount), order.currency) }}
-                    </p>
+                <div class="mt-4 space-y-2 border-t pt-4 text-sm">
+                    <div v-if="Number(order.discount_total ?? 0) > 0" class="flex justify-between text-amber-700">
+                        <span>إجمالي الخصم</span>
+                        <span class="font-semibold tabular-nums" dir="ltr">
+                            - {{ formatCurrency(Number(order.discount_total), order.currency) }}
+                        </span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-muted-foreground">إجمالي المطلوب</span>
+                        <span class="font-semibold tabular-nums" dir="ltr">
+                            {{ formatCurrency(Number(order.total_amount), order.currency) }}
+                        </span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-muted-foreground">المدفوع</span>
+                        <span class="font-semibold tabular-nums text-emerald-700" dir="ltr">
+                            {{ formatCurrency(Number(order.amount_paid ?? 0), order.currency) }}
+                        </span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="font-medium">المتبقي</span>
+                        <span
+                            class="text-lg font-bold tabular-nums"
+                            :class="Number(order.remaining_amount ?? 0) > 0 ? 'text-amber-600' : 'text-emerald-600'"
+                            dir="ltr"
+                        >
+                            {{ formatCurrency(Number(order.remaining_amount ?? Math.max(0, Number(order.total_amount) - Number(order.amount_paid ?? 0))), order.currency) }}
+                        </span>
+                    </div>
                 </div>
             </CardContent>
         </Card>

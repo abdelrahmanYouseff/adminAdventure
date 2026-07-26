@@ -18,19 +18,25 @@ class OrderObserver
             $this->dispatchNotification($order);
         }
 
-        if ($this->isPaid($order)) {
+        if ($this->shouldCreateWorkOrders($order)) {
             $this->syncWorkerOrders($order);
         }
     }
 
     public function updated(Order $order): void
     {
-        if ($order->wasChanged('payment_status') || $order->wasChanged('status')) {
+        // amount_paid changes on accountant approval even when status stays
+        // "processing" for partial payments — that must also release work orders.
+        if (
+            $order->wasChanged('payment_status')
+            || $order->wasChanged('status')
+            || $order->wasChanged('amount_paid')
+        ) {
             if ($this->shouldNotify($order)) {
                 $this->dispatchNotification($order);
             }
 
-            if ($this->isPaid($order)) {
+            if ($this->shouldCreateWorkOrders($order)) {
                 $this->syncWorkerOrders($order);
             }
         }
@@ -76,12 +82,16 @@ class OrderObserver
             return false;
         }
 
-        return $this->isPaid($order);
+        return $this->shouldCreateWorkOrders($order);
     }
 
-    private function isPaid(Order $order): bool
+    /**
+     * Both work-order sync and the customer notification wait for the
+     * accountant to approve at least one payment receipt.
+     */
+    private function shouldCreateWorkOrders(Order $order): bool
     {
-        return $order->payment_status === 'paid' || $order->status === 'paid';
+        return $order->hasApprovedPaymentReceipt();
     }
 
     private function syncWorkerOrders(Order $order): void

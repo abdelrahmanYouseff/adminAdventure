@@ -397,9 +397,14 @@ class WorkerOrderController extends Controller
                     ->limit(1)
             );
         } else {
-            $query->orderByRaw('activity_date IS NULL')
-                ->orderBy('activity_date')
-                ->orderByDesc('created_at');
+            // Newest released work orders first so accountant approvals surface immediately.
+            $query->orderByDesc(
+                WorkerOrder::query()
+                    ->select('created_at')
+                    ->whereColumn('order_id', 'orders.id')
+                    ->orderByDesc('created_at')
+                    ->limit(1)
+            )->orderByDesc('orders.created_at');
         }
 
         return $query
@@ -458,6 +463,10 @@ class WorkerOrderController extends Controller
             'is_approved' => $isApproved,
             'can_approve' => $canApprove,
             'approved_at' => $order->work_order_approved_at?->toIso8601String(),
+            'currency' => $order->currency ?: 'SAR',
+            'total_amount' => (float) $order->total_amount,
+            'amount_paid' => (float) ($order->amount_paid ?? 0),
+            'remaining_amount' => (float) $order->remaining_amount,
             'preview_products' => $order->workerOrders->take(3)->map(fn (WorkerOrder $line) => [
                 'name' => $line->product_name,
                 'image_url' => $line->product_image_url,
@@ -671,7 +680,9 @@ class WorkerOrderController extends Controller
 
         abort_unless($order, 404);
 
-        if (! $order->workerOrders()->exists()) {
+        // Only lazily materialise work-order lines once the accountant has
+        // approved a payment; otherwise the order must not surface here.
+        if (! $order->workerOrders()->exists() && $order->hasApprovedPaymentReceipt()) {
             $syncService->syncFromOrder($order->fresh());
             $order->unsetRelation('workerOrders');
         }
