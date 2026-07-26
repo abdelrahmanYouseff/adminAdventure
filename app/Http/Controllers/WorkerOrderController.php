@@ -446,6 +446,9 @@ class WorkerOrderController extends Controller
             'customer_name' => $firstLine?->customer_name ?? $order->customer_name,
             'customer_address' => $firstLine?->customer_address ?? $order->address,
             'installation_date' => ($firstLine?->installation_date ?? $order->activity_date)?->format('Y-m-d'),
+            'activity_time' => ($order->getAttributes()['activity_time'] ?? null)
+                ? \Carbon\Carbon::parse($order->getAttributes()['activity_time'])->format('H:i')
+                : null,
             'status' => $pendingLines > 0 ? 'pending' : 'completed',
             'products_count' => $totalLines,
             'pending_count' => $pendingLines,

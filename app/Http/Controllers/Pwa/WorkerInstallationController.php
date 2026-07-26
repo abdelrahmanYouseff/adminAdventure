@@ -7,6 +7,7 @@ use App\Models\Order;
 use App\Models\WorkerOrder;
 use App\Models\WorkerOrderNote;
 use App\Support\OrderWhatsAppMessage;
+use App\Support\WorkerLatePenalty;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -43,10 +44,15 @@ class WorkerInstallationController extends Controller
                 'customer_phone' => $order->customer_phone,
                 'map_url' => $this->resolveMapUrl($address),
                 'installation_date' => ($firstLine?->installation_date ?? $order->activity_date)?->format('Y-m-d'),
+                'activity_time' => ($order->getAttributes()['activity_time'] ?? null)
+                    ? \Carbon\Carbon::parse($order->getAttributes()['activity_time'])->format('H:i')
+                    : null,
                 'products_count' => $lines->count(),
                 'pending_count' => $pendingInstallCount,
                 'completed_count' => $completedInstallCount,
                 'pending_pickup_count' => $pendingPickupCount,
+                'is_approved' => (bool) $order->work_order_approved_at,
+                'late_penalty' => WorkerLatePenalty::forOrder($order),
                 'status' => $pendingInstallCount > 0 ? 'pending' : 'completed',
                 'products' => $lines->map(fn (WorkerOrder $line) => [
                     'id' => $line->id,

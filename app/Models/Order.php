@@ -14,6 +14,7 @@ class Order extends Model
         'customer_phone',
         'address',
         'activity_date',
+        'activity_time',
         'invoice_id',
         'order_number',
         'location_slug',

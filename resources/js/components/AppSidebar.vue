@@ -42,7 +42,7 @@ const allNavItems: NavItemWithRoles[] = [
         title: 'الطلبات',
         href: '/orders',
         icon: ShoppingCart,
-        roles: ['admin'],
+        roles: ['admin', 'general_manager', 'manager'],
     },
     {
         title: 'أوامر العمل',

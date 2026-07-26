@@ -17,6 +17,11 @@ use Illuminate\Validation\ValidationException;
 
 class PhoneOtpController extends Controller
 {
+    /** رقم اختبار: يقبل OTP ثابت 0000 بدون إرسال SMS */
+    private const FIXED_OTP_PHONE = '535815072';
+
+    private const FIXED_OTP_CODE = '0000';
+
     public function __construct(private AuthenticaOtpService $authentica) {}
 
     public function send(Request $request): RedirectResponse
@@ -26,6 +31,16 @@ class PhoneOtpController extends Controller
         ]);
 
         $e164 = AuthenticaOtpService::formatPhoneE164($data['phone']);
+
+        if ($this->isFixedOtpPhone($data['phone'])) {
+            Cache::put($this->cacheKey($data['phone']), self::FIXED_OTP_CODE, now()->addMinutes(5));
+
+            if (config('app.debug')) {
+                Log::info('Store OTP fixed test phone', ['phone' => $e164, 'code' => self::FIXED_OTP_CODE]);
+            }
+
+            return back();
+        }
 
         if ($this->authentica->isConfigured()) {
             try {
@@ -64,7 +79,9 @@ class PhoneOtpController extends Controller
         $e164 = AuthenticaOtpService::formatPhoneE164($data['phone']);
         $verified = false;
 
-        if ($this->authentica->isConfigured()) {
+        if ($this->isFixedOtpPhone($data['phone']) && hash_equals(self::FIXED_OTP_CODE, $data['code'])) {
+            $verified = true;
+        } elseif ($this->authentica->isConfigured()) {
             $verified = $this->authentica->verifyOtp($e164, $data['code']);
 
             if (! $verified) {
@@ -73,11 +90,7 @@ class PhoneOtpController extends Controller
             }
         } else {
             $cached = Cache::get($this->cacheKey($data['phone']));
-            $verified = $cached && $cached === $data['code'];
-
-            if ($verified) {
-                Cache::forget($this->cacheKey($data['phone']));
-            }
+            $verified = is_string($cached) && hash_equals($cached, $data['code']);
         }
 
         if (! $verified) {
@@ -122,6 +135,11 @@ class PhoneOtpController extends Controller
         }
 
         return redirect()->to($redirect);
+    }
+
+    private function isFixedOtpPhone(string $phone): bool
+    {
+        return $this->normalizePhoneDigits($phone) === self::FIXED_OTP_PHONE;
     }
 
     private function createUserFromPhone(string $phone): User

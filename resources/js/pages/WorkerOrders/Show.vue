@@ -31,6 +31,7 @@ import {
     History,
     MoreHorizontal,
     ShieldCheck,
+    Clock,
 } from 'lucide-vue-next';
 import { formatDate, formatDateTime } from '@/lib/formatNumber';
 import Swal from 'sweetalert2';
@@ -105,6 +106,7 @@ interface WorkOrder {
     customer_address: string | null;
     address: string | null;
     installation_date: string | null;
+    activity_time: string | null;
     created_at?: string | null;
     status: 'pending' | 'completed';
     event_status?: EventStatus;
@@ -294,6 +296,16 @@ function percent(done: number, total: number): number {
 function formatEventDate(date: string | null | undefined): string {
     if (!date) return 'غير محدد';
     return formatDate(date);
+}
+
+function formatActivityTime(time: string | null | undefined): string {
+    if (!time) return 'غير محدد';
+    const [hourStr, minuteStr = '00'] = time.split(':');
+    let hour = Number(hourStr);
+    if (Number.isNaN(hour)) return time;
+    const period = hour >= 12 ? 'PM' : 'AM';
+    hour = hour % 12 || 12;
+    return `${hour}:${minuteStr.padStart(2, '0')} ${period}`;
 }
 
 function formatWhen(date: string | null | undefined): string {
@@ -559,6 +571,11 @@ watch(pickupDialogOpen, (isOpen) => { if (!isOpen) closePickupDialog(); });
                             <span>{{ workOrder.products_count }} منتج</span>
                             <span class="hidden h-1 w-1 rounded-full bg-slate-300 sm:inline-block" />
                             <span>{{ formatEventDate(workOrder.installation_date) }}</span>
+                            <span class="hidden h-1 w-1 rounded-full bg-slate-300 sm:inline-block" />
+                            <span class="inline-flex items-center gap-1">
+                                <Clock class="h-3.5 w-3.5" />
+                                {{ formatActivityTime(workOrder.activity_time) }}
+                            </span>
                         </div>
                     </div>
                     <div class="flex flex-wrap items-center gap-2">
@@ -635,7 +652,8 @@ watch(pickupDialogOpen, (isOpen) => { if (!isOpen) closePickupDialog(); });
                     <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">موعد التركيب</p>
                     <p class="mt-1 text-lg font-bold text-slate-900">{{ formatEventDate(workOrder.installation_date) }}</p>
                     <p class="mt-1 text-sm text-slate-500">
-                        {{ installProgress.done }}/{{ installProgress.total }} تم تركيبها
+                        الوقت: {{ formatActivityTime(workOrder.activity_time) }}
+                        · {{ installProgress.done }}/{{ installProgress.total }} تم تركيبها
                     </p>
                 </article>
 
@@ -919,6 +937,10 @@ watch(pickupDialogOpen, (isOpen) => { if (!isOpen) closePickupDialog(); });
                                 <p class="text-slate-400">تاريخ الفعالية</p>
                                 <p class="font-semibold text-slate-900">{{ formatEventDate(workOrder.installation_date) }}</p>
                             </div>
+                            <div>
+                                <p class="text-slate-400">وقت الفعالية</p>
+                                <p class="font-semibold text-slate-900" dir="ltr">{{ formatActivityTime(workOrder.activity_time) }}</p>
+                            </div>
                         </div>
                         <div class="space-y-3 text-sm">
                             <div>
@@ -1003,7 +1025,7 @@ watch(pickupDialogOpen, (isOpen) => { if (!isOpen) closePickupDialog(); });
                             {{ installProgress.done }}/{{ installProgress.total }} مكتمل
                         </span>
                     </div>
-                    <div class="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                    <div class="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
                         <div class="rounded-2xl bg-slate-50 p-4">
                             <p class="text-xs text-slate-400">الموقع</p>
                             <p class="mt-1 line-clamp-2 text-sm font-semibold text-slate-800">{{ displayAddress || '—' }}</p>
@@ -1015,6 +1037,10 @@ watch(pickupDialogOpen, (isOpen) => { if (!isOpen) closePickupDialog(); });
                         <div class="rounded-2xl bg-slate-50 p-4">
                             <p class="text-xs text-slate-400">موعد التركيب</p>
                             <p class="mt-1 text-sm font-semibold text-slate-800">{{ formatEventDate(workOrder.installation_date) }}</p>
+                        </div>
+                        <div class="rounded-2xl bg-slate-50 p-4">
+                            <p class="text-xs text-slate-400">وقت الفعالية</p>
+                            <p class="mt-1 text-sm font-semibold text-slate-800" dir="ltr">{{ formatActivityTime(workOrder.activity_time) }}</p>
                         </div>
                         <div class="rounded-2xl bg-slate-50 p-4">
                             <p class="text-xs text-slate-400">صور مرفوعة</p>

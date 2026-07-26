@@ -5,7 +5,9 @@ namespace App\Http\Controllers;
 use App\Models\Order;
 use App\Models\Invoice;
 use App\Models\Product;
+use App\Models\User;
 use App\Support\OrderInsuranceCalculator;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
@@ -38,21 +40,38 @@ class OrderController extends Controller
             $query->where('status', $request->status);
         }
 
-        // Payment method filter
-        if ($request->has('payment_method') && $request->payment_method !== 'all') {
-            $query->where('payment_method', $request->payment_method);
-        }
-
         // Currency filter
         if ($request->has('currency') && $request->currency !== 'all') {
             $query->where('currency', $request->currency);
         }
 
+        $user = $request->user();
+        $canEditTime = $user && $user->hasAnyRole(
+            User::ROLE_ADMIN,
+            User::ROLE_GENERAL_MANAGER,
+            User::ROLE_MANAGER,
+        );
+
         $orders = $query->orderBy('created_at', 'desc')->paginate(15);
+
+        $orders->getCollection()->transform(function (Order $order) use ($canEditTime) {
+            $rawTime = $order->getAttributes()['activity_time'] ?? null;
+            $order->setAttribute(
+                'activity_time',
+                $rawTime ? \Carbon\Carbon::parse($rawTime)->format('H:i') : null
+            );
+            $order->setAttribute(
+                'can_edit_activity_time',
+                $canEditTime && blank($rawTime)
+            );
+
+            return $order;
+        });
 
         return Inertia::render('Orders/Index', [
             'orders' => $orders,
-            'filters' => $request->only(['search', 'status', 'payment_method', 'currency']),
+            'filters' => $request->only(['search', 'status', 'currency']),
+            'canManageActivityTime' => $canEditTime,
         ]);
     }
 
@@ -503,6 +522,37 @@ class OrderController extends Controller
                 'error' => $e->getMessage(),
             ], 500);
         }
+    }
+
+    public function updateActivityTime(Request $request, Order $order): RedirectResponse
+    {
+        $user = $request->user();
+
+        abort_unless(
+            $user && $user->hasAnyRole(User::ROLE_ADMIN, User::ROLE_GENERAL_MANAGER, User::ROLE_MANAGER),
+            403
+        );
+
+        if (! blank($order->getAttributes()['activity_time'] ?? null)) {
+            return back()->with('error', 'وقت الفعالية محدد مسبقاً لهذا الطلب.');
+        }
+
+        $validated = $request->validate([
+            'activity_time' => ['required', 'date_format:H:i'],
+        ], [
+            'activity_time.required' => 'وقت الفعالية مطلوب.',
+            'activity_time.date_format' => 'صيغة وقت الفعالية غير صحيحة.',
+        ]);
+
+        $order->activity_time = $validated['activity_time'];
+        $order->save();
+
+        $display = \Carbon\Carbon::createFromFormat('H:i', $validated['activity_time'])->format('g:i A');
+
+        return back()->with(
+            'success',
+            'تم تحديد وقت الفعالية للطلب '.$order->order_number.' إلى '.$display.'.'
+        );
     }
 
     public function updateStatus(Order $order, Request $request)

@@ -4,6 +4,7 @@ import { Head, Link, useForm, usePage } from '@inertiajs/vue3';
 import {
     ArrowLeft,
     ArrowRight,
+    BadgeCheck,
     Camera,
     CheckCircle2,
     ExternalLink,
@@ -11,6 +12,8 @@ import {
     MessageSquareText,
     Package,
     Phone,
+    ShieldAlert,
+    Timer,
     Truck,
     X,
 } from 'lucide-vue-next';
@@ -42,16 +45,28 @@ interface WorkNote {
     created_at: string | null;
 }
 
+interface LatePenalty {
+    is_late: boolean;
+    delay_minutes: number;
+    delay_hours: number;
+    delay_remainder_minutes: number;
+    scheduled_at: string | null;
+    installed_at: string | null;
+}
+
 interface Installation {
     id: number;
     customer_name: string;
     customer_phone: string | null;
     map_url: string | null;
     installation_date: string | null;
+    activity_time: string | null;
     products_count: number;
     pending_count: number;
     completed_count: number;
     pending_pickup_count: number;
+    is_approved: boolean;
+    late_penalty: LatePenalty | null;
     status: 'pending' | 'completed';
     products: ProductLine[];
     notes: WorkNote[];
@@ -128,6 +143,47 @@ function formatInstallDate(date: string | null): string {
     if (!date) return t('date_unset');
     return formatDate(date);
 }
+
+function formatActivityTime(time: string | null): string {
+    if (!time) return t('date_unset');
+    const [hourStr, minuteStr = '00'] = time.split(':');
+    let hour = Number(hourStr);
+    if (Number.isNaN(hour)) return time;
+    const period = hour >= 12 ? 'PM' : 'AM';
+    hour = hour % 12 || 12;
+    return t('activity_time_value', {
+        time: `${hour}:${minuteStr.padStart(2, '0')}`,
+        period,
+    });
+}
+
+function formatClock(iso: string | null): string {
+    if (!iso) return '—';
+    const date = new Date(iso);
+    if (Number.isNaN(date.getTime())) return '—';
+    let hour = date.getHours();
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    const period = hour >= 12 ? 'PM' : 'AM';
+    hour = hour % 12 || 12;
+    return `${hour}:${minutes} ${period}`;
+}
+
+function formatDelay(penalty: LatePenalty): string {
+    if (penalty.delay_hours > 0 && penalty.delay_remainder_minutes > 0) {
+        return t('delay_hours_minutes', {
+            hours: penalty.delay_hours,
+            minutes: penalty.delay_remainder_minutes,
+        });
+    }
+    if (penalty.delay_hours > 0) {
+        return t('delay_hours_only', { hours: penalty.delay_hours });
+    }
+    return t('delay_minutes_only', { minutes: penalty.delay_minutes });
+}
+
+const latePenalty = computed(() =>
+    props.installation.late_penalty?.is_late ? props.installation.late_penalty : null,
+);
 
 function submitNote() {
     const body = noteForm.body.trim();
@@ -232,6 +288,27 @@ function submitCapture() {
 onBeforeUnmount(() => {
     clearPreview();
 });
+
+const allPhotosDone = computed(() =>
+    props.installation.products_count > 0
+    && props.installation.completed_count === props.installation.products_count
+    && props.installation.pending_pickup_count === 0,
+);
+
+const waitApproval = computed(() => allPhotosDone.value && !props.installation.is_approved);
+
+const leaveDismissKey = `aw-can-leave-${props.installation.id}`;
+
+const showLeaveModal = ref(
+    allPhotosDone.value
+    && props.installation.is_approved
+    && !localStorage.getItem(leaveDismissKey),
+);
+
+function confirmLeave() {
+    localStorage.setItem(leaveDismissKey, '1');
+    showLeaveModal.value = false;
+}
 </script>
 
 <template>
@@ -258,7 +335,10 @@ onBeforeUnmount(() => {
             <WorkerLanguageSwitcher />
         </header>
 
-        <main class="relative mx-auto mt-5 flex w-full max-w-md flex-1 flex-col gap-4">
+        <main
+            class="relative mx-auto mt-5 flex w-full max-w-md flex-1 flex-col gap-4"
+            :class="waitApproval ? 'pb-36' : ''"
+        >
             <div
                 v-if="successMessage"
                 class="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800"
@@ -266,11 +346,38 @@ onBeforeUnmount(() => {
                 {{ successMessage }}
             </div>
 
+            <div
+                v-if="latePenalty"
+                class="rounded-3xl border border-rose-200 bg-gradient-to-br from-rose-50 to-orange-50 p-4 shadow-sm"
+            >
+                <div class="flex items-start gap-3">
+                    <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-rose-500 text-white shadow-md shadow-rose-500/30">
+                        <Timer class="h-5 w-5" />
+                    </span>
+                    <div class="min-w-0">
+                        <p class="font-bold text-rose-900">{{ t('late_penalty_title') }}</p>
+                        <p class="mt-1 text-sm leading-relaxed text-rose-800">
+                            {{ t('late_penalty_body', {
+                                scheduled: formatClock(latePenalty.scheduled_at),
+                                installed: formatClock(latePenalty.installed_at),
+                                delay: formatDelay(latePenalty),
+                            }) }}
+                        </p>
+                    </div>
+                </div>
+            </div>
+
             <section class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
                 <div class="flex items-start justify-between gap-3">
-                    <div>
-                        <p class="text-sm text-slate-500">{{ t('install_date') }}</p>
-                        <p class="mt-1 font-semibold text-slate-900">{{ formatInstallDate(installation.installation_date) }}</p>
+                    <div class="min-w-0 space-y-3">
+                        <div>
+                            <p class="text-sm text-slate-500">{{ t('install_date') }}</p>
+                            <p class="mt-1 font-semibold text-slate-900">{{ formatInstallDate(installation.installation_date) }}</p>
+                        </div>
+                        <div>
+                            <p class="text-sm text-slate-500">{{ t('activity_time') }}</p>
+                            <p class="mt-1 font-semibold text-slate-900" dir="ltr">{{ formatActivityTime(installation.activity_time) }}</p>
+                        </div>
                     </div>
                     <div class="flex flex-col items-end gap-1">
                         <span class="rounded-full bg-sky-50 px-2.5 py-1 text-[11px] font-semibold text-sky-700 ring-1 ring-sky-100">
@@ -598,6 +705,54 @@ onBeforeUnmount(() => {
                             @click="submitCapture"
                         >
                             {{ activeForm.processing ? t('saving') : t('save_record') }}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </Teleport>
+
+        <Teleport to="body">
+            <div
+                v-if="waitApproval"
+                class="fixed inset-x-0 bottom-0 z-[150] px-4 pb-[max(1.25rem,env(safe-area-inset-bottom))]"
+                :dir="dir"
+            >
+                <div class="mx-auto flex max-w-md items-start gap-3 rounded-3xl border border-amber-200 bg-gradient-to-br from-amber-50 to-orange-50 p-4 shadow-2xl shadow-amber-300/50">
+                    <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-amber-500 text-white shadow-md shadow-amber-500/40">
+                        <ShieldAlert class="h-6 w-6 animate-pulse" />
+                    </span>
+                    <div class="min-w-0">
+                        <p class="font-bold text-amber-900">{{ t('wait_approval_title') }}</p>
+                        <p class="mt-0.5 text-sm leading-relaxed text-amber-800">{{ t('wait_approval_body') }}</p>
+                    </div>
+                </div>
+            </div>
+        </Teleport>
+
+        <Teleport to="body">
+            <div
+                v-if="showLeaveModal"
+                class="fixed inset-0 z-[220] flex items-center justify-center p-5"
+                role="dialog"
+                aria-modal="true"
+                :dir="dir"
+            >
+                <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" />
+                <div class="relative z-10 w-full max-w-sm overflow-hidden rounded-3xl bg-white text-center shadow-2xl">
+                    <div class="bg-gradient-to-b from-emerald-500 to-teal-600 px-6 pb-8 pt-9 text-white">
+                        <span class="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-white/20 ring-8 ring-white/10">
+                            <BadgeCheck class="h-11 w-11" />
+                        </span>
+                        <h2 class="mt-4 text-2xl font-extrabold tracking-tight">{{ t('can_leave_title') }}</h2>
+                    </div>
+                    <div class="px-6 py-6">
+                        <p class="text-sm leading-relaxed text-slate-600">{{ t('can_leave_body') }}</p>
+                        <button
+                            type="button"
+                            class="mt-5 inline-flex h-12 w-full items-center justify-center rounded-2xl bg-emerald-600 text-sm font-bold text-white shadow-lg shadow-emerald-600/30 transition hover:bg-emerald-700 active:scale-[0.98]"
+                            @click="confirmLeave"
+                        >
+                            {{ t('confirm_ok') }}
                         </button>
                     </div>
                 </div>

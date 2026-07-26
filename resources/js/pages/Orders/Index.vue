@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue';
-import { Head, Link, router } from '@inertiajs/vue3';
+import { computed, ref, watch } from 'vue';
+import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -27,6 +27,9 @@ import {
     MapPin,
     ExternalLink,
     Plus,
+    Pencil,
+    Check,
+    X,
 } from 'lucide-vue-next';
 import { formatCurrency, formatDate, formatInteger } from '@/lib/formatNumber';
 
@@ -41,6 +44,8 @@ interface Order {
     payment_method: string;
     status: string;
     activity_date: string | null;
+    activity_time: string | null;
+    can_edit_activity_time?: boolean;
     address: string | null;
     created_at: string;
 }
@@ -58,36 +63,56 @@ interface Props {
     filters: {
         search?: string;
         status?: string;
-        payment_method?: string;
         currency?: string;
     };
+    canManageActivityTime?: boolean;
 }
 
 const props = withDefaults(
     defineProps<Props>(),
     {
         filters: () => ({}),
+        canManageActivityTime: false,
     }
 );
 
 defineOptions({ layout: AppLayout });
 
+const page = usePage();
+const userRole = computed(() => (page.props.auth as { user?: { role?: string } } | undefined)?.user?.role ?? null);
+const isAdmin = computed(() => userRole.value === 'admin');
+
 const searchInput = ref(props.filters?.search ?? '');
 const statusFilter = ref(props.filters?.status ?? 'all');
-const paymentFilter = ref(props.filters?.payment_method ?? 'all');
 const currencyFilter = ref(props.filters?.currency ?? 'all');
 
-function applyFilters(page = 1) {
+const hourOptions = Array.from({ length: 12 }, (_, i) => String(i + 1));
+const minuteOptions = Array.from({ length: 12 }, (_, i) => String(i * 5).padStart(2, '0'));
+
+const editingTime = ref<{
+    id: number | null;
+    hour: string;
+    minute: string;
+    period: 'AM' | 'PM';
+    saving: boolean;
+}>({
+    id: null,
+    hour: '12',
+    minute: '00',
+    period: 'PM',
+    saving: false,
+});
+
+function applyFilters(pageNum = 1) {
     router.get(route('orders.index'), {
         search: searchInput.value || undefined,
         status: statusFilter.value !== 'all' ? statusFilter.value : undefined,
-        payment_method: paymentFilter.value !== 'all' ? paymentFilter.value : undefined,
         currency: currencyFilter.value !== 'all' ? currencyFilter.value : undefined,
-        page: page > 1 ? page : undefined,
+        page: pageNum > 1 ? pageNum : undefined,
     }, { preserveState: true });
 }
 
-watch([statusFilter, paymentFilter, currencyFilter], () => {
+watch([statusFilter, currencyFilter], () => {
     applyFilters(1);
 });
 
@@ -95,11 +120,12 @@ function onSearchSubmit() {
     applyFilters(1);
 }
 
-function goToPage(page: number) {
-    if (page >= 1 && page <= props.orders.last_page) applyFilters(page);
+function goToPage(pageNum: number) {
+    if (pageNum >= 1 && pageNum <= props.orders.last_page) applyFilters(pageNum);
 }
 
 const deleteOrder = (order: Order) => {
+    if (!isAdmin.value) return;
     if (confirm('هل تريد حذف هذا الطلب؟')) {
         router.delete(route('orders.destroy', order.id), {
             preserveScroll: true,
@@ -133,16 +159,67 @@ const getStatusBadgeVariant = (status: string): 'default' | 'secondary' | 'destr
     }
 };
 
-const getPaymentMethodText = (method: string) => {
-    const map: Record<string, string> = {
-        credit_card: 'بطاقة ائتمان',
-        cash: 'نقدي',
-        bank_transfer: 'تحويل بنكي',
-        paypal: 'PayPal',
-        noon: 'Noon',
+function formatActivityTime(time: string | null): string {
+    if (!time) return '—';
+    const [hourStr, minuteStr = '00'] = time.split(':');
+    let hour = Number(hourStr);
+    if (Number.isNaN(hour)) return time;
+    const period = hour >= 12 ? 'PM' : 'AM';
+    hour = hour % 12 || 12;
+    return `${hour}:${minuteStr.padStart(2, '0')} ${period}`;
+}
+
+function toTwentyFourHour(hour: string, minute: string, period: 'AM' | 'PM'): string {
+    let h = Number(hour);
+    if (period === 'AM') {
+        h = h === 12 ? 0 : h;
+    } else {
+        h = h === 12 ? 12 : h + 12;
+    }
+    return `${String(h).padStart(2, '0')}:${minute.padStart(2, '0')}`;
+}
+
+function startEditTime(order: Order) {
+    if (!order.can_edit_activity_time) return;
+    editingTime.value = {
+        id: order.id,
+        hour: '12',
+        minute: '00',
+        period: 'PM',
+        saving: false,
     };
-    return map[method] || method;
-};
+}
+
+function cancelEditTime() {
+    editingTime.value = {
+        id: null,
+        hour: '12',
+        minute: '00',
+        period: 'PM',
+        saving: false,
+    };
+}
+
+function saveEditTime(order: Order) {
+    const activityTime = toTwentyFourHour(
+        editingTime.value.hour,
+        editingTime.value.minute,
+        editingTime.value.period,
+    );
+
+    editingTime.value.saving = true;
+    router.patch(
+        route('orders.update-activity-time', order.id),
+        { activity_time: activityTime },
+        {
+            preserveScroll: true,
+            onFinish: () => {
+                editingTime.value.saving = false;
+                cancelEditTime();
+            },
+        },
+    );
+}
 
 const pendingCount = () => props.orders.data.filter((o) => o.status === 'pending').length;
 const paidCount = () => props.orders.data.filter((o) => o.status === 'paid').length;
@@ -175,6 +252,7 @@ function locationMapsUrl(address: string | null): string | null {
                 </p>
             </div>
             <Link
+                v-if="isAdmin"
                 href="/orders/create"
                 class="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow transition hover:bg-primary/90 sm:h-11"
             >
@@ -245,7 +323,7 @@ function locationMapsUrl(address: string | null): string | null {
                         </Button>
                     </div>
 
-                    <div class="grid grid-cols-1 gap-3 min-[480px]:grid-cols-2 sm:grid-cols-3">
+                    <div class="grid grid-cols-1 gap-3 min-[480px]:grid-cols-2">
                         <div class="flex min-w-0 flex-col gap-1.5">
                             <Label for="status" class="text-xs text-muted-foreground">الحالة</Label>
                             <select
@@ -262,21 +340,6 @@ function locationMapsUrl(address: string | null): string | null {
                             </select>
                         </div>
                         <div class="flex min-w-0 flex-col gap-1.5">
-                            <Label for="payment" class="text-xs text-muted-foreground">طريقة الدفع</Label>
-                            <select
-                                id="payment"
-                                v-model="paymentFilter"
-                                class="flex h-11 w-full min-w-0 rounded-md border border-input bg-background px-3 py-2 text-sm shadow-xs"
-                            >
-                                <option value="all">الكل</option>
-                                <option value="credit_card">بطاقة ائتمان</option>
-                                <option value="cash">نقدي</option>
-                                <option value="bank_transfer">تحويل بنكي</option>
-                                <option value="paypal">PayPal</option>
-                                <option value="noon">Noon</option>
-                            </select>
-                        </div>
-                        <div class="flex min-w-0 flex-col gap-1.5 min-[480px]:col-span-2 sm:col-span-1">
                             <Label for="currency" class="text-xs text-muted-foreground">العملة</Label>
                             <select
                                 id="currency"
@@ -331,9 +394,69 @@ function locationMapsUrl(address: string | null): string | null {
                                         {{ formatCurrency(Number(order.total_amount), order.currency) }}
                                     </p>
                                 </div>
-                                <div class="text-end">
-                                    <p class="text-xs text-muted-foreground">طريقة الدفع</p>
-                                    <p class="mt-0.5 text-sm font-medium">{{ getPaymentMethodText(order.payment_method) }}</p>
+                                <div class="min-w-0 text-end">
+                                    <p class="text-xs text-muted-foreground">وقت الفعالية</p>
+                                    <div class="mt-1 flex items-center justify-end gap-1.5" v-if="editingTime.id === order.id" dir="ltr">
+                                        <div class="inline-flex h-8 items-center gap-0.5 rounded-md border border-input bg-background px-1">
+                                            <select
+                                                v-model="editingTime.hour"
+                                                class="h-7 w-8 cursor-pointer appearance-none bg-transparent text-center text-xs font-medium tabular-nums outline-none"
+                                                :disabled="editingTime.saving"
+                                            >
+                                                <option v-for="hour in hourOptions" :key="`m-h-${hour}`" :value="hour">{{ hour }}</option>
+                                            </select>
+                                            <span class="text-xs text-muted-foreground">:</span>
+                                            <select
+                                                v-model="editingTime.minute"
+                                                class="h-7 w-8 cursor-pointer appearance-none bg-transparent text-center text-xs font-medium tabular-nums outline-none"
+                                                :disabled="editingTime.saving"
+                                            >
+                                                <option v-for="minute in minuteOptions" :key="`m-m-${minute}`" :value="minute">{{ minute }}</option>
+                                            </select>
+                                            <span class="mx-0.5 h-4 w-px bg-border" />
+                                            <select
+                                                v-model="editingTime.period"
+                                                class="h-7 w-9 cursor-pointer appearance-none bg-transparent text-center text-xs font-medium outline-none"
+                                                :disabled="editingTime.saving"
+                                            >
+                                                <option value="AM">AM</option>
+                                                <option value="PM">PM</option>
+                                            </select>
+                                        </div>
+                                        <Button
+                                            type="button"
+                                            size="icon"
+                                            class="h-8 w-8 shrink-0"
+                                            :disabled="editingTime.saving"
+                                            @click="saveEditTime(order)"
+                                        >
+                                            <Check class="h-3.5 w-3.5" />
+                                        </Button>
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="icon"
+                                            class="h-8 w-8 shrink-0"
+                                            :disabled="editingTime.saving"
+                                            @click="cancelEditTime"
+                                        >
+                                            <X class="h-3.5 w-3.5" />
+                                        </Button>
+                                    </div>
+                                    <div v-else class="mt-0.5 flex items-center justify-end gap-2">
+                                        <p class="text-sm font-medium" dir="ltr">{{ formatActivityTime(order.activity_time) }}</p>
+                                        <Button
+                                            v-if="order.can_edit_activity_time"
+                                            type="button"
+                                            variant="outline"
+                                            size="sm"
+                                            class="h-8 gap-1 px-2 text-xs"
+                                            @click="startEditTime(order)"
+                                        >
+                                            <Pencil class="h-3.5 w-3.5" />
+                                            تحديد
+                                        </Button>
+                                    </div>
                                 </div>
                             </div>
 
@@ -383,7 +506,10 @@ function locationMapsUrl(address: string | null): string | null {
                             </div>
                         </div>
 
-                        <div class="grid grid-cols-2 gap-2 border-t border-border/60 bg-muted/10 p-3">
+                        <div
+                            class="grid gap-2 border-t border-border/60 bg-muted/10 p-3"
+                            :class="isAdmin ? 'grid-cols-2' : 'grid-cols-1'"
+                        >
                             <Button as-child variant="outline" class="h-11 touch-manipulation">
                                 <Link :href="route('orders.show', order.id)">
                                     <Eye class="ms-2 h-4 w-4" />
@@ -391,6 +517,7 @@ function locationMapsUrl(address: string | null): string | null {
                                 </Link>
                             </Button>
                             <Button
+                                v-if="isAdmin"
                                 variant="destructive"
                                 class="h-11 touch-manipulation"
                                 @click="deleteOrder(order)"
@@ -413,7 +540,7 @@ function locationMapsUrl(address: string | null): string | null {
                                 <TableHead>تاريخ الفعالية</TableHead>
                                 <TableHead>الموقع</TableHead>
                                 <TableHead>المبلغ</TableHead>
-                                <TableHead>طريقة الدفع</TableHead>
+                                <TableHead>وقت الفعالية</TableHead>
                                 <TableHead>الحالة</TableHead>
                                 <TableHead>التاريخ</TableHead>
                                 <TableHead class="w-[50px]">إجراءات</TableHead>
@@ -473,8 +600,72 @@ function locationMapsUrl(address: string | null): string | null {
                                         {{ formatCurrency(Number(order.total_amount), order.currency) }}
                                     </span>
                                 </TableCell>
-                                <TableCell>
-                                    {{ getPaymentMethodText(order.payment_method) }}
+                                <TableCell class="whitespace-nowrap" @click.stop>
+                                    <div v-if="editingTime.id === order.id" class="flex items-center gap-1.5" dir="ltr">
+                                        <div class="inline-flex h-8 items-center gap-0.5 rounded-md border border-input bg-background px-1">
+                                            <select
+                                                v-model="editingTime.hour"
+                                                class="h-7 w-8 cursor-pointer appearance-none bg-transparent text-center text-xs font-medium tabular-nums outline-none"
+                                                :disabled="editingTime.saving"
+                                            >
+                                                <option v-for="hour in hourOptions" :key="`d-h-${hour}`" :value="hour">{{ hour }}</option>
+                                            </select>
+                                            <span class="text-xs text-muted-foreground">:</span>
+                                            <select
+                                                v-model="editingTime.minute"
+                                                class="h-7 w-8 cursor-pointer appearance-none bg-transparent text-center text-xs font-medium tabular-nums outline-none"
+                                                :disabled="editingTime.saving"
+                                            >
+                                                <option v-for="minute in minuteOptions" :key="`d-m-${minute}`" :value="minute">{{ minute }}</option>
+                                            </select>
+                                            <span class="mx-0.5 h-4 w-px bg-border" />
+                                            <select
+                                                v-model="editingTime.period"
+                                                class="h-7 w-9 cursor-pointer appearance-none bg-transparent text-center text-xs font-medium outline-none"
+                                                :disabled="editingTime.saving"
+                                            >
+                                                <option value="AM">AM</option>
+                                                <option value="PM">PM</option>
+                                            </select>
+                                        </div>
+                                        <Button
+                                            type="button"
+                                            size="icon"
+                                            class="h-8 w-8 shrink-0"
+                                            :disabled="editingTime.saving"
+                                            title="حفظ"
+                                            @click="saveEditTime(order)"
+                                        >
+                                            <Check class="h-3.5 w-3.5" />
+                                        </Button>
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="icon"
+                                            class="h-8 w-8 shrink-0"
+                                            :disabled="editingTime.saving"
+                                            title="إلغاء"
+                                            @click="cancelEditTime"
+                                        >
+                                            <X class="h-3.5 w-3.5" />
+                                        </Button>
+                                    </div>
+                                    <div v-else class="flex items-center gap-2">
+                                        <span class="text-sm font-medium tabular-nums" dir="ltr">
+                                            {{ formatActivityTime(order.activity_time) }}
+                                        </span>
+                                        <Button
+                                            v-if="order.can_edit_activity_time"
+                                            type="button"
+                                            variant="outline"
+                                            size="sm"
+                                            class="h-8 gap-1 px-2 text-xs"
+                                            @click="startEditTime(order)"
+                                        >
+                                            <Pencil class="h-3.5 w-3.5" />
+                                            تحديد
+                                        </Button>
+                                    </div>
                                 </TableCell>
                                 <TableCell>
                                     <Badge :variant="getStatusBadgeVariant(order.status)">
@@ -499,6 +690,14 @@ function locationMapsUrl(address: string | null): string | null {
                                                 </Link>
                                             </DropdownMenuItem>
                                             <DropdownMenuItem
+                                                v-if="order.can_edit_activity_time"
+                                                @click="startEditTime(order)"
+                                            >
+                                                <Pencil class="mr-2 h-4 w-4" />
+                                                تحديد وقت الفعالية
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem
+                                                v-if="isAdmin"
                                                 @click="deleteOrder(order)"
                                                 class="text-destructive focus:text-destructive"
                                             >

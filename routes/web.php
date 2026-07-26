@@ -282,23 +282,27 @@ Route::patch('quotations/{quotation}/status', [QuotationController::class, 'upda
 
 // Orders Routes
 Route::get('orders', [OrderController::class, 'index'])
-    ->middleware(['auth', 'verified', 'admin'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager'])
     ->name('orders.index');
 
 Route::get('orders/create', [OrderController::class, 'create'])
-    ->middleware(['auth', 'verified', 'admin'])
+    ->middleware(['auth', 'verified', 'role:admin'])
     ->name('orders.create');
 
 Route::post('orders', [OrderController::class, 'store'])
-    ->middleware(['auth', 'verified', 'admin'])
+    ->middleware(['auth', 'verified', 'role:admin'])
     ->name('orders.store');
 
 Route::get('orders/{order}', [OrderController::class, 'show'])
-    ->middleware(['auth', 'verified', 'admin'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager'])
     ->name('orders.show');
 
+Route::patch('orders/{order}/activity-time', [OrderController::class, 'updateActivityTime'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager'])
+    ->name('orders.update-activity-time');
+
 Route::delete('orders/{order}', [OrderController::class, 'destroy'])
-    ->middleware(['auth', 'verified', 'admin'])
+    ->middleware(['auth', 'verified', 'role:admin'])
     ->name('orders.destroy');
 
 Route::get('worker-orders', [\App\Http\Controllers\WorkerOrderController::class, 'index'])

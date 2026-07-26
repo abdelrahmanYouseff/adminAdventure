@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Models\Order;
 use App\Models\WorkerOrder;
 use App\Support\OrderWhatsAppMessage;
+use App\Support\WorkerLatePenalty;
+use Carbon\Carbon;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -15,7 +17,7 @@ class WorkerDashboardController extends Controller
     {
         $user = auth()->user();
 
-        $assignedOrdersQuery = Order::query()
+        $installations = Order::query()
             ->assignedToWorker($user)
             ->whereHas('workerOrders')
             ->with([
@@ -31,28 +33,28 @@ class WorkerDashboardController extends Controller
             ])
             ->orderByRaw('activity_date IS NULL')
             ->orderBy('activity_date')
-            ->orderByDesc('created_at');
-
-        $installations = (clone $assignedOrdersQuery)
-            ->where(function ($query) {
-                $query->whereHas('workerOrders', fn ($q) => $q->where('status', 'pending'))
-                    ->orWhereHas('workerOrders', fn ($q) => $q
-                        ->where('status', 'completed')
-                        ->whereNull('pickup_photo'));
-            })
+            ->orderByDesc('created_at')
             ->get()
             ->map(fn (Order $order) => $this->formatInstallation($order))
             ->values()
             ->all();
 
-        $pendingCount = count($installations);
+        $currentCount = collect($installations)->where('list_status', 'current')->count();
+        $awaitingCount = collect($installations)->where('list_status', 'awaiting_approval')->count();
+        $completedCount = collect($installations)->where('list_status', 'completed')->count();
 
         return Inertia::render('Dashboard', [
             'worker' => [
                 'id' => $user->id,
                 'name' => $user->name,
             ],
-            'pendingOrdersCount' => $pendingCount,
+            'pendingOrdersCount' => $currentCount,
+            'counts' => [
+                'current' => $currentCount,
+                'awaiting_approval' => $awaitingCount,
+                'completed' => $completedCount,
+                'all' => count($installations),
+            ],
             'installations' => $installations,
         ]);
     }
@@ -67,8 +69,21 @@ class WorkerDashboardController extends Controller
         $pendingPickup = (int) ($order->pending_pickup_lines ?? 0);
         $totalLines = (int) ($order->total_lines ?? $order->workerOrders->count());
         $address = $firstLine?->customer_address ?? $order->address;
+        $isApproved = (bool) $order->work_order_approved_at;
+        $photosReady = $order->hasAllWorkerPhotos();
 
-        $phase = $pendingLines > 0 ? 'installation' : 'pickup';
+        if ($pendingLines > 0 || $pendingPickup > 0) {
+            $listStatus = 'current';
+            $phase = $pendingLines > 0 ? 'installation' : 'pickup';
+        } elseif ($photosReady && ! $isApproved) {
+            $listStatus = 'awaiting_approval';
+            $phase = 'awaiting';
+        } else {
+            $listStatus = 'completed';
+            $phase = 'done';
+        }
+
+        $rawTime = $order->getAttributes()['activity_time'] ?? null;
 
         return [
             'id' => $order->id,
@@ -76,8 +91,12 @@ class WorkerDashboardController extends Controller
             'map_url' => $this->resolveMapUrl($address),
             'customer_phone' => $order->customer_phone,
             'installation_date' => ($firstLine?->installation_date ?? $order->activity_date)?->format('Y-m-d'),
+            'activity_time' => $rawTime ? Carbon::parse($rawTime)->format('H:i') : null,
             'status' => $pendingLines > 0 ? 'pending' : 'completed',
+            'list_status' => $listStatus,
             'phase' => $phase,
+            'is_approved' => $isApproved,
+            'late_penalty' => WorkerLatePenalty::forOrder($order),
             'products_count' => $totalLines,
             'pending_count' => $pendingLines,
             'pending_pickup_count' => $pendingPickup,
