@@ -11,6 +11,8 @@ class ProductsImport
 
     protected array $errors = [];
 
+    public function __construct(private readonly int $brandId) {}
+
     /**
      * Import from file path. Supports CSV (UTF-8). For Excel, user can save as CSV.
      * Columns: A/1 = اسم المنتج, B/2 = الفئة, C/3 = السعر
@@ -86,9 +88,15 @@ class ProductsImport
 
             $category = null;
             if ($categoryName !== '') {
-                $category = Category::where('category_name', $categoryName)->first();
+                $category = Category::query()
+                    ->where('brand_id', $this->brandId)
+                    ->where('category_name', $categoryName)
+                    ->first();
                 if (! $category) {
-                    $category = Category::create(['category_name' => $categoryName]);
+                    $category = Category::create([
+                        'category_name' => $categoryName,
+                        'brand_id' => $this->brandId,
+                    ]);
                 }
             }
 
@@ -96,6 +104,7 @@ class ProductsImport
                 'product_name' => $productName,
                 'price' => $priceFloat,
                 'category_id' => $category?->id,
+                'brand_id' => $this->brandId,
                 'status' => 'active',
                 'description' => null,
             ]);
@@ -145,9 +154,15 @@ class ProductsImport
 
             $category = null;
             if ($categoryName !== '') {
-                $category = Category::where('category_name', $categoryName)->first();
+                $category = Category::query()
+                    ->where('brand_id', $this->brandId)
+                    ->where('category_name', $categoryName)
+                    ->first();
                 if (! $category) {
-                    $category = Category::create(['category_name' => $categoryName]);
+                    $category = Category::create([
+                        'category_name' => $categoryName,
+                        'brand_id' => $this->brandId,
+                    ]);
                 }
             }
 
@@ -155,6 +170,7 @@ class ProductsImport
                 'product_name' => $productName,
                 'price' => $priceFloat,
                 'category_id' => $category?->id,
+                'brand_id' => $this->brandId,
                 'status' => 'active',
                 'description' => null,
             ]);

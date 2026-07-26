@@ -3,9 +3,11 @@
 namespace App\Http\Controllers;
 
 use App\Imports\ProductsImport;
+use App\Models\Brand;
 use App\Models\Category;
 use App\Models\Product;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 
 class ProductController extends Controller
@@ -15,23 +17,47 @@ class ProductController extends Controller
      */
     public function index()
     {
-        $products = Product::with('category')->orderBy('created_at', 'desc')->get();
-        $categories = Category::all();
+        $brands = Brand::query()
+            ->withCount('products')
+            ->with([
+                'products' => fn ($query) => $query
+                    ->latest()
+                    ->limit(4)
+                    ->select(['id', 'brand_id', 'product_name', 'image']),
+            ])
+            ->orderBy('name')
+            ->get();
 
         return Inertia::render('Products/Index', [
-            'products' => $products,
-            'categories' => $categories,
+            'brands' => $brands,
+        ]);
+    }
+
+    public function brand(Brand $brand)
+    {
+        $brand->load([
+            'products' => fn ($query) => $query
+                ->with('category')
+                ->latest(),
+        ]);
+
+        return Inertia::render('Products/Brand', [
+            'brand' => $brand,
         ]);
     }
 
     /**
      * Show the form for creating a new product.
      */
-    public function create()
+    public function create(Request $request)
     {
-        $categories = Category::all();
+        $categories = Category::query()->orderBy('category_name')->get(['id', 'category_name', 'brand_id']);
+        $defaultBrandId = (int) ($request->query('brand') ?: Brand::default()->id);
+
         return Inertia::render('Products/Create', [
             'categories' => $categories,
+            'brands' => Brand::query()->where('is_active', true)->orderBy('name')->get(),
+            'defaultBrandId' => $defaultBrandId,
         ]);
     }
 
@@ -46,8 +72,16 @@ class ProductController extends Controller
             'insurance_amount' => 'nullable|numeric|min:0',
             'description' => 'nullable|string',
             'status' => 'required|in:active,inactive',
-            'category_id' => 'required|exists:categories,id',
+            'category_id' => [
+                'required',
+                Rule::exists('categories', 'id')->where(
+                    fn ($query) => $query->where('brand_id', $request->input('brand_id'))
+                ),
+            ],
+            'brand_id' => 'required|exists:brands,id',
             'image' => 'nullable|image|max:2048',
+        ], [
+            'category_id.exists' => 'الصنف المختار لا ينتمي إلى البراند المحدد.',
         ]);
 
         $data['insurance_amount'] = $data['insurance_amount'] ?? 0;
@@ -66,10 +100,12 @@ class ProductController extends Controller
      */
     public function edit(Product $product)
     {
-        $categories = Category::all();
+        $categories = Category::query()->orderBy('category_name')->get(['id', 'category_name', 'brand_id']);
+
         return Inertia::render('Products/Edit', [
             'product' => $product,
             'categories' => $categories,
+            'brands' => Brand::query()->orderBy('name')->get(),
         ]);
     }
 
@@ -98,11 +134,20 @@ class ProductController extends Controller
             'insurance_amount' => 'sometimes|nullable|numeric|min:0',
             'description' => 'sometimes|nullable|string',
             'status' => 'sometimes|required|in:active,inactive',
-            'category_id' => 'sometimes|required|exists:categories,id',
+            'category_id' => [
+                'sometimes',
+                'required',
+                Rule::exists('categories', 'id')->where(
+                    fn ($query) => $query->where('brand_id', $request->input('brand_id', $product->brand_id))
+                ),
+            ],
+            'brand_id' => 'sometimes|required|exists:brands,id',
             'image' => 'sometimes|nullable|image|max:2048',
         ];
 
-        $data = $request->validate($rules);
+        $data = $request->validate($rules, [
+            'category_id.exists' => 'الصنف المختار لا ينتمي إلى البراند المحدد.',
+        ]);
 
         if (array_key_exists('insurance_amount', $data) && $data['insurance_amount'] === null) {
             $data['insurance_amount'] = 0;
@@ -137,6 +182,7 @@ class ProductController extends Controller
     public function import(Request $request)
     {
         $request->validate([
+            'brand_id' => ['nullable', 'exists:brands,id'],
             'file' => [
                 'required',
                 'file',
@@ -156,7 +202,8 @@ class ProductController extends Controller
             $path = $file->getRealPath();
             $extension = $file->getClientOriginalExtension();
 
-            $import = new ProductsImport;
+            $brandId = (int) ($request->input('brand_id') ?: Brand::default()->id);
+            $import = new ProductsImport($brandId);
             $import->importFromPath($path, $extension);
 
             $imported = $import->getImportedCount();

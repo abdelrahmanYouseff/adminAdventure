@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\ProductController;
+use App\Http\Controllers\BrandController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\PackageController;
 use App\Http\Controllers\InvoiceController;
@@ -103,6 +104,26 @@ Route::get('products', [ProductController::class, 'index'])
     ->middleware(['auth', 'verified', 'role:admin,general_manager,manager'])
     ->name('products');
 
+Route::get('products/brand/{brand}', [ProductController::class, 'brand'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager'])
+    ->name('products.brand.show');
+
+Route::get('brands', [BrandController::class, 'index'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager'])
+    ->name('brands.index');
+
+Route::post('brands', [BrandController::class, 'store'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager'])
+    ->name('brands.store');
+
+Route::post('brands/{brand}', [BrandController::class, 'update'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager'])
+    ->name('brands.update');
+
+Route::delete('brands/{brand}', [BrandController::class, 'destroy'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager'])
+    ->name('brands.destroy');
+
 Route::get('products/create', [ProductController::class, 'create'])
     ->middleware(['auth', 'verified', 'role:admin,general_manager,manager'])
     ->name('products.create');
@@ -138,6 +159,10 @@ Route::delete('products/{product}', [ProductController::class, 'destroy'])
 Route::get('categories', [CategoryController::class, 'index'])
     ->middleware(['auth', 'verified', 'role:admin,general_manager,manager'])
     ->name('categories.index');
+
+Route::get('categories/brand/{brand}', [CategoryController::class, 'brand'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager'])
+    ->name('categories.brand.show');
 
 Route::get('categories/create', [CategoryController::class, 'create'])
     ->middleware(['auth', 'verified', 'role:admin,general_manager,manager'])

@@ -8,8 +8,10 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import {
     ArrowRight,
+    Building2,
     Calendar,
     FileSpreadsheet,
+    Layers3,
     Mail,
     MapPin,
     Package,
@@ -22,7 +24,7 @@ import {
 } from 'lucide-vue-next';
 import AppSidebarLayout from '@/layouts/app/AppSidebarLayout.vue';
 import ProductSearchCombobox from '@/components/ProductSearchCombobox.vue';
-import { formatCurrency } from '@/lib/formatNumber';
+import { formatCurrency, formatInteger } from '@/lib/formatNumber';
 import { ref, computed, watch } from 'vue';
 import type { BreadcrumbItem } from '@/types';
 
@@ -33,11 +35,22 @@ interface Product {
     price: number;
     insurance_amount?: number | string | null;
     category_id?: number | null;
+    brand_id?: number | null;
 }
 
 interface Category {
     id: number;
     category_name: string;
+    brand_id?: number | null;
+}
+
+interface Brand {
+    id: number;
+    name: string;
+    slug: string;
+    description: string | null;
+    logo_url?: string | null;
+    products_count?: number;
 }
 
 interface QuotationItem {
@@ -54,10 +67,14 @@ interface QuotationItem {
 interface Props {
     products: Product[];
     categories: Category[];
+    brands: Brand[];
+    selectedBrand: Brand | null;
 }
 
 const props = withDefaults(defineProps<Props>(), {
     categories: () => [],
+    brands: () => [],
+    selectedBrand: null,
 });
 
 const breadcrumbs: BreadcrumbItem[] = [
@@ -66,6 +83,7 @@ const breadcrumbs: BreadcrumbItem[] = [
 ];
 
 const form = useForm({
+    brand_id: (props.selectedBrand?.id ?? null) as number | null,
     customer_name: '',
     customer_email: '',
     customer_phone: '',
@@ -324,18 +342,73 @@ watch(
                     <div>
                         <h1 class="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">إنشاء عرض سعر</h1>
                         <p class="mt-1 text-sm text-muted-foreground">
-                            أدخل بيانات العميل، أضف المنتجات، ثم احفظ عرض السعر
+                            <template v-if="!selectedBrand">اختر البراند أولاً ثم أكمل بيانات عرض السعر</template>
+                            <template v-else>عرض سعر لـ {{ selectedBrand.name }} — أدخل بيانات العميل وأضف المنتجات</template>
                         </p>
                     </div>
                 </div>
-                <Button as-child variant="outline" class="shrink-0 gap-2 self-start">
-                    <Link :href="route('quotations.index')">
-                        <ArrowRight class="h-4 w-4" />
-                        العودة للقائمة
-                    </Link>
-                </Button>
+                <div class="flex flex-wrap gap-2 self-start">
+                    <Button v-if="selectedBrand" as-child variant="outline" class="shrink-0 gap-2">
+                        <Link :href="route('quotations.create')">
+                            <Building2 class="h-4 w-4" />
+                            تغيير البراند
+                        </Link>
+                    </Button>
+                    <Button as-child variant="outline" class="shrink-0 gap-2">
+                        <Link :href="route('quotations.index')">
+                            <ArrowRight class="h-4 w-4" />
+                            العودة للقائمة
+                        </Link>
+                    </Button>
+                </div>
             </div>
 
+            <!-- Brand selection first step -->
+            <div v-if="!selectedBrand" class="space-y-4">
+                <div v-if="brands.length === 0" class="rounded-2xl border border-dashed p-12 text-center">
+                    <Building2 class="mx-auto h-12 w-12 text-muted-foreground/50" />
+                    <p class="mt-3 font-semibold">لا توجد براندات نشطة</p>
+                    <Button class="mt-4" as-child>
+                        <Link :href="route('brands.index')">إدارة البراندات</Link>
+                    </Button>
+                </div>
+
+                <div v-else class="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+                    <Link
+                        v-for="brand in brands"
+                        :key="brand.id"
+                        :href="route('quotations.create', { brand: brand.id })"
+                        class="group overflow-hidden rounded-2xl border bg-card shadow-sm transition hover:-translate-y-1 hover:border-primary/30 hover:shadow-lg"
+                    >
+                        <div class="relative flex h-40 items-center justify-center overflow-hidden bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-900">
+                            <img
+                                v-if="brand.logo_url"
+                                :src="brand.logo_url"
+                                :alt="brand.name"
+                                class="h-full w-full object-contain p-6 transition duration-300 group-hover:scale-105"
+                            />
+                            <Building2 v-else class="h-14 w-14 text-muted-foreground/30" />
+                        </div>
+                        <div class="p-5">
+                            <div class="flex items-start justify-between gap-3">
+                                <div class="min-w-0">
+                                    <h2 class="truncate text-lg font-bold group-hover:text-primary">{{ brand.name }}</h2>
+                                    <p v-if="brand.description" class="mt-1 line-clamp-2 text-sm text-muted-foreground">
+                                        {{ brand.description }}
+                                    </p>
+                                </div>
+                                <div class="flex shrink-0 items-center gap-1 rounded-lg bg-muted px-2.5 py-1.5 text-sm font-semibold">
+                                    <Layers3 class="h-4 w-4" />
+                                    {{ formatInteger(brand.products_count || 0) }}
+                                </div>
+                            </div>
+                            <div class="mt-4 border-t pt-3 text-sm font-medium text-primary">إنشاء عرض سعر لهذا البراند</div>
+                        </div>
+                    </Link>
+                </div>
+            </div>
+
+            <template v-else>
             <!-- Errors -->
             <div
                 v-if="Object.keys(form.errors).length > 0"
@@ -858,6 +931,7 @@ watch(
                     </div>
                 </aside>
             </form>
+            </template>
         </div>
     </AppSidebarLayout>
 </template>

@@ -2,21 +2,48 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Brand;
 use App\Models\Category;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 
 class CategoryController extends Controller
 {
     /**
-     * Display a listing of the categories.
+     * Display brands as cards for category management.
      */
     public function index()
     {
-        $categories = Category::withCount('products')->orderBy('created_at', 'desc')->get();
+        $brands = Brand::query()
+            ->withCount('categories')
+            ->with([
+                'categories' => fn ($query) => $query
+                    ->latest()
+                    ->limit(4)
+                    ->select(['id', 'brand_id', 'category_name', 'image']),
+            ])
+            ->orderBy('name')
+            ->get();
 
         return Inertia::render('Categories/Index', [
-            'categories' => $categories,
+            'brands' => $brands,
+        ]);
+    }
+
+    /**
+     * Display categories for a specific brand.
+     */
+    public function brand(Brand $brand)
+    {
+        $brand->load([
+            'categories' => fn ($query) => $query
+                ->withCount('products')
+                ->orderByDesc('created_at'),
+        ]);
+
+        return Inertia::render('Categories/Brand', [
+            'brand' => $brand,
         ]);
     }
 
@@ -25,7 +52,7 @@ class CategoryController extends Controller
      */
     public function show(Category $category)
     {
-        $category->load('products');
+        $category->load(['products', 'brand']);
 
         return Inertia::render('Categories/Show', [
             'category' => $category,
@@ -35,9 +62,14 @@ class CategoryController extends Controller
     /**
      * Show the form for creating a new category.
      */
-    public function create()
+    public function create(Request $request)
     {
-        return Inertia::render('Categories/Create');
+        $defaultBrandId = (int) ($request->query('brand') ?: Brand::default()->id);
+
+        return Inertia::render('Categories/Create', [
+            'brands' => Brand::query()->where('is_active', true)->orderBy('name')->get(),
+            'defaultBrandId' => $defaultBrandId,
+        ]);
     }
 
     /**
@@ -46,7 +78,15 @@ class CategoryController extends Controller
     public function store(Request $request)
     {
         $data = $request->validate([
-            'category_name' => 'required|string|max:255|unique:categories,category_name',
+            'category_name' => [
+                'required',
+                'string',
+                'max:255',
+                Rule::unique('categories', 'category_name')->where(
+                    fn ($query) => $query->where('brand_id', $request->input('brand_id'))
+                ),
+            ],
+            'brand_id' => 'required|exists:brands,id',
             'image' => 'nullable|image|max:2048',
         ]);
 
@@ -54,9 +94,12 @@ class CategoryController extends Controller
             $data['image'] = $request->file('image')->store('categories', 'public');
         }
 
-        Category::create($data);
+        $category = Category::create($data);
+        $brand = Brand::find($category->brand_id);
 
-        return redirect()->route('categories.index')->with('success', 'Category created successfully!');
+        return redirect()
+            ->route('categories.brand.show', $brand)
+            ->with('success', 'تم إنشاء الصنف بنجاح');
     }
 
     /**
@@ -65,7 +108,8 @@ class CategoryController extends Controller
     public function edit(Category $category)
     {
         return Inertia::render('Categories/Edit', [
-            'category' => $category,
+            'category' => $category->load('brand'),
+            'brands' => Brand::query()->where('is_active', true)->orderBy('name')->get(),
         ]);
     }
 
@@ -75,7 +119,15 @@ class CategoryController extends Controller
     public function update(Request $request, Category $category)
     {
         $data = $request->validate([
-            'category_name' => 'required|string|max:255|unique:categories,category_name,' . $category->id,
+            'category_name' => [
+                'required',
+                'string',
+                'max:255',
+                Rule::unique('categories', 'category_name')
+                    ->where(fn ($query) => $query->where('brand_id', $request->input('brand_id')))
+                    ->ignore($category->id),
+            ],
+            'brand_id' => 'required|exists:brands,id',
             'image' => 'nullable|image|max:2048',
         ]);
 
@@ -86,8 +138,11 @@ class CategoryController extends Controller
         }
 
         $category->update($data);
+        $brand = Brand::find($category->brand_id);
 
-        return redirect()->route('categories.index')->with('success', 'Category updated successfully!');
+        return redirect()
+            ->route('categories.brand.show', $brand)
+            ->with('success', 'تم تحديث الصنف بنجاح');
     }
 
     /**
@@ -95,14 +150,20 @@ class CategoryController extends Controller
      */
     public function destroy(Category $category)
     {
-        // Check if category has products
         if ($category->products()->count() > 0) {
             return back()->with('error', 'Cannot delete category that has products. Please remove or reassign products first.');
         }
 
+        $brand = $category->brand;
         $category->delete();
 
-        return redirect()->route('categories.index')->with('success', 'Category deleted successfully!');
+        if ($brand) {
+            return redirect()
+                ->route('categories.brand.show', $brand)
+                ->with('success', 'تم حذف الصنف بنجاح');
+        }
+
+        return redirect()->route('categories.index')->with('success', 'تم حذف الصنف بنجاح');
     }
 
     /**
@@ -111,6 +172,7 @@ class CategoryController extends Controller
     public function apiIndex()
     {
         $categories = Category::orderBy('created_at', 'desc')->get();
+
         return response()->json($categories);
     }
 }

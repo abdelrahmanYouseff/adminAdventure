@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { Head, useForm, Link } from '@inertiajs/vue3';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { Button } from '@/components/ui/button';
@@ -15,10 +15,18 @@ defineOptions({
 interface Category {
     id: number;
     category_name: string;
+    brand_id: number | null;
+}
+
+interface Brand {
+    id: number;
+    name: string;
 }
 
 interface Props {
     categories: Category[];
+    brands: Brand[];
+    defaultBrandId: number;
 }
 
 const props = defineProps<Props>();
@@ -31,7 +39,21 @@ const form = useForm({
     status: 'active',
     image: null as File | null,
     category_id: null as number | null,
+    brand_id: props.defaultBrandId,
 });
+
+const brandCategories = computed(() =>
+    props.categories.filter((category) => category.brand_id === Number(form.brand_id)),
+);
+
+watch(
+    () => form.brand_id,
+    () => {
+        if (!brandCategories.value.some((category) => category.id === form.category_id)) {
+            form.category_id = null;
+        }
+    },
+);
 
 const imagePreview = ref<string | null>(null);
 
@@ -83,15 +105,32 @@ const submit = () => {
 
                                 <div class="grid sm:grid-cols-2 gap-4">
                                     <div class="space-y-2">
+                                        <Label for="brand">البراند</Label>
+                                        <select v-model="form.brand_id" id="brand" class="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm focus:border-neutral-500 focus:outline-none focus:ring-1 focus:ring-neutral-500 dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-100" required>
+                                            <option v-for="brand in props.brands" :key="brand.id" :value="brand.id">
+                                                {{ brand.name }}
+                                            </option>
+                                        </select>
+                                        <p v-if="form.errors.brand_id" class="text-sm text-rose-600">{{ form.errors.brand_id }}</p>
+                                    </div>
+                                    <div class="space-y-2">
                                         <Label for="category">الفئة</Label>
-                                        <select v-model="form.category_id" id="category" class="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm focus:border-neutral-500 focus:outline-none focus:ring-1 focus:ring-neutral-500 dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-100" required>
-                                            <option value="" disabled>اختر فئة</option>
-                                            <option v-for="cat in props.categories" :key="cat.id" :value="cat.id">
+                                        <select v-model="form.category_id" id="category" class="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm focus:border-neutral-500 focus:outline-none focus:ring-1 focus:ring-neutral-500 dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-100" required :disabled="brandCategories.length === 0">
+                                            <option :value="null" disabled>
+                                                {{ brandCategories.length === 0 ? 'لا توجد أصناف لهذا البراند' : 'اختر فئة' }}
+                                            </option>
+                                            <option v-for="cat in brandCategories" :key="cat.id" :value="cat.id">
                                                 {{ cat.category_name }}
                                             </option>
                                         </select>
+                                        <p v-if="brandCategories.length === 0" class="text-sm text-neutral-500">
+                                            <Link :href="route('categories.create', { brand: form.brand_id })" class="underline underline-offset-4">
+                                                أضف صنفاً لهذا البراند أولاً
+                                            </Link>
+                                        </p>
+                                        <p v-if="form.errors.category_id" class="text-sm text-rose-600">{{ form.errors.category_id }}</p>
                                     </div>
-                                    <div class="space-y-2">
+                                    <div class="space-y-2 sm:col-span-2">
                                         <Label for="price">السعر</Label>
                                         <div class="relative">
                                             <Input id="price" v-model.number="form.price" type="number" step="0.01" required placeholder="0.00" class="pl-12" />

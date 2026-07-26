@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Brand;
 use App\Models\Category;
 use App\Models\CompanyClient;
 use App\Models\Order;
@@ -15,6 +16,7 @@ use App\Support\QuotationPdfData;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 
 class QuotationController extends Controller
@@ -41,19 +43,42 @@ class QuotationController extends Controller
     /**
      * Show the form for creating a new resource.
      */
-    public function create()
+    public function create(Request $request)
     {
-        $products = Product::where('status', 'active')
-            ->with('category:id,category_name')
-            ->orderBy('product_name')
-            ->get(['id', 'product_name', 'description', 'price', 'insurance_amount', 'category_id']);
+        $brands = Brand::query()
+            ->where('is_active', true)
+            ->withCount([
+                'products' => fn ($query) => $query->where('status', 'active'),
+            ])
+            ->orderBy('name')
+            ->get(['id', 'name', 'slug', 'description', 'logo', 'is_active']);
 
-        $categories = Category::query()
-            ->whereHas('products', fn ($q) => $q->where('status', 'active'))
-            ->orderBy('category_name')
-            ->get(['id', 'category_name']);
+        $brandId = $request->query('brand');
+        $selectedBrand = $brandId
+            ? Brand::query()->where('is_active', true)->find($brandId)
+            : null;
+
+        $products = collect();
+        $categories = collect();
+
+        if ($selectedBrand) {
+            $products = Product::query()
+                ->where('status', 'active')
+                ->where('brand_id', $selectedBrand->id)
+                ->with('category:id,category_name')
+                ->orderBy('product_name')
+                ->get(['id', 'product_name', 'description', 'price', 'insurance_amount', 'category_id', 'brand_id']);
+
+            $categories = Category::query()
+                ->where('brand_id', $selectedBrand->id)
+                ->whereHas('products', fn ($q) => $q->where('status', 'active')->where('brand_id', $selectedBrand->id))
+                ->orderBy('category_name')
+                ->get(['id', 'category_name', 'brand_id']);
+        }
 
         return Inertia::render('Quotations/Create', [
+            'brands' => $brands,
+            'selectedBrand' => $selectedBrand,
             'products' => $products,
             'categories' => $categories,
         ]);
@@ -270,6 +295,7 @@ class QuotationController extends Controller
     public function store(Request $request)
     {
         $request->validate([
+            'brand_id' => 'required|exists:brands,id',
             'customer_name' => 'required|string|max:255',
             'customer_email' => 'nullable|email|max:255',
             'customer_phone' => 'nullable|string|max:20',
@@ -282,11 +308,18 @@ class QuotationController extends Controller
             'insurance_amount' => 'nullable|numeric|min:0',
             'notes' => 'nullable|string',
             'items' => 'required|array|min:1',
-            'items.*.product_id' => 'required|exists:products,id',
+            'items.*.product_id' => [
+                'required',
+                Rule::exists('products', 'id')->where(
+                    fn ($query) => $query->where('brand_id', $request->input('brand_id'))
+                ),
+            ],
             'items.*.quantity' => 'required|integer|min:1',
             'items.*.unit_price' => 'required|numeric|min:0',
             'items.*.discount_amount' => 'nullable|numeric|min:0|lte:items.*.unit_price',
         ], [
+            'brand_id.required' => 'يجب اختيار البراند أولاً.',
+            'brand_id.exists' => 'البراند المحدد غير موجود.',
             'customer_name.required' => 'اسم العميل مطلوب.',
             'customer_name.max' => 'اسم العميل طويل جداً.',
             'customer_email.email' => 'البريد الإلكتروني غير صالح.',
@@ -302,7 +335,7 @@ class QuotationController extends Controller
             'items.required' => 'يجب إضافة منتج واحد على الأقل.',
             'items.min' => 'يجب إضافة منتج واحد على الأقل.',
             'items.*.product_id.required' => 'المنتج مطلوب.',
-            'items.*.product_id.exists' => 'المنتج المحدد غير موجود.',
+            'items.*.product_id.exists' => 'المنتج المحدد لا ينتمي إلى البراند المختار.',
             'items.*.quantity.required' => 'الكمية مطلوبة.',
             'items.*.quantity.min' => 'الكمية يجب أن تكون 1 على الأقل.',
             'items.*.unit_price.required' => 'سعر الوحدة مطلوب.',
@@ -316,6 +349,7 @@ class QuotationController extends Controller
             DB::beginTransaction();
 
             $quotation = Quotation::create([
+                'brand_id' => $request->brand_id,
                 'customer_name' => $request->customer_name,
                 'customer_email' => $request->customer_email,
                 'customer_phone' => $request->customer_phone,

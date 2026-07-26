@@ -10,6 +10,7 @@ class Quotation extends Model
 {
     protected $fillable = [
         'quotation_number',
+        'brand_id',
         'customer_name',
         'customer_email',
         'customer_phone',
@@ -44,6 +45,11 @@ class Quotation extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function brand(): BelongsTo
+    {
+        return $this->belongsTo(Brand::class);
     }
 
     public function items(): HasMany
