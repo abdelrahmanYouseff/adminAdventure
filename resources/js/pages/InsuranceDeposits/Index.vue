@@ -142,7 +142,7 @@ function startEditAmount(deposit: Deposit) {
         Swal.fire({
             icon: 'info',
             title: 'غير متاح',
-            text: 'تعديل مبلغ الاسترداد متاح للمحاسب فقط عند مرحلة التعميد أو قبل الاسترداد.',
+            text: 'تعديل مبلغ الاسترداد متاح للمسؤول والمدير العام فقط قبل الاسترداد أو الحجز.',
             confirmButtonText: 'حسناً',
             confirmButtonColor: '#2563EB',
         });

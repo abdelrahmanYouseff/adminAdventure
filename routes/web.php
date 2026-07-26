@@ -254,7 +254,7 @@ Route::post('insurance-deposits/{order}/approve', [\App\Http\Controllers\Insuran
     ->name('insurance-deposits.approve');
 
 Route::patch('insurance-deposits/{order}/amount', [\App\Http\Controllers\InsuranceDepositController::class, 'updateAmount'])
-    ->middleware(['auth', 'verified', 'role:admin,accounts'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager'])
     ->name('insurance-deposits.update-amount');
 
 Route::post('insurance-deposits/{order}/refund', [\App\Http\Controllers\InsuranceDepositController::class, 'markRefunded'])

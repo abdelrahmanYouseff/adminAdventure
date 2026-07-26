@@ -145,7 +145,7 @@ class InsuranceDepositController extends Controller
         $user = $request->user();
 
         if (! $this->canEditRefundAmount($user, $order)) {
-            return back()->with('error', 'تعديل مبلغ الاسترداد متاح للمحاسب فقط عند مرحلة التعميد أو قبل الاسترداد.');
+            return back()->with('error', 'تعديل مبلغ الاسترداد متاح للمسؤول والمدير العام فقط قبل الاسترداد أو الحجز.');
         }
 
         $validated = $request->validate([
@@ -227,14 +227,12 @@ class InsuranceDepositController extends Controller
             return false;
         }
 
-        if (! $user->hasAnyRole(User::ROLE_ACCOUNTS, User::ROLE_ADMIN)) {
-            return false;
-        }
-
-        $next = InsuranceApprovalChain::nextPendingStep($order);
-
-        // المحاسب يعدّل عند دوره أو بعد اكتمال السلسلة وقبل الاسترداد
-        return $next === null || $next === InsuranceApprovalChain::STEP_ACCOUNTS;
+        // المسؤول والمدير العام (والأدمن) يعدّلون مبلغ الاسترداد — المحاسب لا
+        return $user->hasAnyRole(
+            User::ROLE_MANAGER,
+            User::ROLE_GENERAL_MANAGER,
+            User::ROLE_ADMIN,
+        );
     }
 
     /**
