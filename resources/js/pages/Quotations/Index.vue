@@ -10,6 +10,13 @@ import { Plus, MoreHorizontal, Eye, Edit, Download, Trash2 } from 'lucide-vue-ne
 import AppSidebarLayout from '@/layouts/app/AppSidebarLayout.vue';
 import { formatDate, formatInteger, formatPrice } from '@/lib/formatNumber';
 
+interface Brand {
+    id: number;
+    name: string;
+    slug: string;
+    quotations_count: number;
+}
+
 interface Quotation {
     id: number;
     quotation_number: string;
@@ -19,6 +26,7 @@ interface Quotation {
     status: string;
     valid_until: string;
     created_at: string;
+    brand?: Brand | null;
     user: {
         name: string;
     };
@@ -32,6 +40,8 @@ interface Props {
         per_page: number;
         total: number;
     };
+    brands: Brand[];
+    selectedBrandId: number | null;
 }
 
 const props = defineProps<Props>();
@@ -39,12 +49,24 @@ const props = defineProps<Props>();
 const page = usePage();
 const successMessage = computed(() => page.props.flash?.success as string | undefined);
 
+const selectedBrand = computed(() =>
+    props.brands.find((brand) => brand.id === props.selectedBrandId) ?? null,
+);
+
 onMounted(() => {
     const pdfId = page.props.flash?.open_pdf as number | undefined;
     if (pdfId) {
         window.open(quotationPdfUrl(pdfId), '_blank');
     }
 });
+
+function applyBrandFilter(brandId: string) {
+    router.get(
+        route('quotations.index'),
+        brandId ? { brand: brandId } : {},
+        { preserveState: true, preserveScroll: true, replace: true },
+    );
+}
 
 const getStatusBadgeVariant = (status: string) => {
     switch (status) {
@@ -164,16 +186,39 @@ function quotationPdfUrl(id: number): string {
             <!-- Quotations Table -->
             <Card>
                 <CardHeader>
-                    <CardTitle>جميع العروض</CardTitle>
-                    <CardDescription>
-                        قائمة بجميع عروض الأسعار في النظام
-                    </CardDescription>
+                    <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+                        <div>
+                            <CardTitle>
+                                {{ selectedBrand ? `عروض ${selectedBrand.name}` : 'جميع العروض' }}
+                            </CardTitle>
+                            <CardDescription>
+                                {{ selectedBrand
+                                    ? `عرض عروض الأسعار الخاصة ببراند ${selectedBrand.name}`
+                                    : 'قائمة بجميع عروض الأسعار في النظام' }}
+                            </CardDescription>
+                        </div>
+                        <div class="flex w-full flex-col gap-2 sm:w-auto sm:min-w-[14rem]">
+                            <label for="brand-filter" class="text-sm font-medium text-muted-foreground">البراند</label>
+                            <select
+                                id="brand-filter"
+                                class="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                                :value="selectedBrandId ?? ''"
+                                @change="applyBrandFilter(($event.target as HTMLSelectElement).value)"
+                            >
+                                <option value="">كل البراندات</option>
+                                <option v-for="brand in brands" :key="brand.id" :value="brand.id">
+                                    {{ brand.name }} ({{ formatInteger(brand.quotations_count) }})
+                                </option>
+                            </select>
+                        </div>
+                    </div>
                 </CardHeader>
                 <CardContent>
                     <Table>
                         <TableHeader>
                             <TableRow>
                                 <TableHead>رقم العرض</TableHead>
+                                <TableHead>البراند</TableHead>
                                 <TableHead>العميل</TableHead>
                                 <TableHead>المبلغ</TableHead>
                                 <TableHead>الحالة</TableHead>
@@ -187,6 +232,9 @@ function quotationPdfUrl(id: number): string {
                             <TableRow v-for="quotation in props.quotations.data" :key="quotation.id">
                                 <TableCell class="font-medium">
                                     {{ quotation.quotation_number }}
+                                </TableCell>
+                                <TableCell>
+                                    {{ quotation.brand?.name || '—' }}
                                 </TableCell>
                                 <TableCell>
                                     <div>
@@ -253,6 +301,11 @@ function quotationPdfUrl(id: number): string {
                                             </DropdownMenuItem>
                                         </DropdownMenuContent>
                                     </DropdownMenu>
+                                </TableCell>
+                            </TableRow>
+                            <TableRow v-if="props.quotations.data.length === 0">
+                                <TableCell colspan="9" class="h-24 text-center text-muted-foreground">
+                                    {{ selectedBrand ? 'لا توجد عروض أسعار لهذا البراند.' : 'لا توجد عروض أسعار بعد.' }}
                                 </TableCell>
                             </TableRow>
                         </TableBody>

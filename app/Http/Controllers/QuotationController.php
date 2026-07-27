@@ -24,15 +24,26 @@ class QuotationController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function index(Request $request)
     {
         try {
-            $quotations = Quotation::with(['user', 'items'])
+            $brandId = $request->query('brand');
+
+            $quotations = Quotation::with(['user', 'items', 'brand'])
+                ->when($brandId, fn ($query) => $query->where('brand_id', $brandId))
                 ->orderBy('created_at', 'desc')
-                ->paginate(10);
+                ->paginate(10)
+                ->withQueryString();
+
+            $brands = Brand::query()
+                ->withCount('quotations')
+                ->orderBy('name')
+                ->get(['id', 'name', 'slug']);
 
             return Inertia::render('Quotations/Index', [
                 'quotations' => $quotations,
+                'brands' => $brands,
+                'selectedBrandId' => $brandId ? (int) $brandId : null,
             ]);
         } catch (\Exception $e) {
             Log::error('Error in quotation index: ' . $e->getMessage());
