@@ -11,6 +11,7 @@ use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\OrderController;
 
 Route::get('categories', [CategoryController::class, 'apiIndex']);
+Route::get('products', [ProductController::class, 'apiIndex']);
 Route::get('products/by-category', [ProductController::class, 'apiByCategory']);
 Route::get('packages', [PackageController::class, 'apiIndex']);
 Route::get('products/latest', [ProductController::class, 'apiLatest']);

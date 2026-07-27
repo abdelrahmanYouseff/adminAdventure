@@ -362,11 +362,13 @@ class OrderController extends Controller
                 'items.*.quantity' => 'required_with:items|integer|min:1',
                 'items.*.price' => 'required_with:items|numeric|min:0',
                 'product_items' => 'required_without:items|array|min:1',
-                'product_items.*.product_id' => 'required_with:product_items|exists:products,id',
+                'product_items.*.product_id' => ['required_with:product_items', Product::storefrontExistsRule()],
                 'product_items.*.quantity' => 'required_with:product_items|integer|min:1',
                 'product_items.*.price' => 'required_with:product_items|numeric|min:0',
                 'notes' => 'nullable|string|max:1000',
                 'user_id' => 'nullable|exists:users,id',
+            ], [
+                'product_items.*.product_id.exists' => 'أحد المنتجات غير متاح للطلب من التطبيق.',
             ]);
 
             $itemsForOrder = $request->items;

@@ -54,8 +54,19 @@ Route::middleware(['pwa'])->prefix('worker-app')->name('pwa.')->group(function (
 });
 
 Route::get('/home', function (Request $request) {
-    $products   = \App\Models\Product::with('category')->where('status', 'active')->orderBy('created_at', 'desc')->get();
-    $categories = \App\Models\Category::orderBy('category_name')->get();
+    $storefrontBrandId = \App\Models\Brand::storefront()->id;
+
+    $products = \App\Models\Product::query()
+        ->storefront()
+        ->with('category')
+        ->orderBy('created_at', 'desc')
+        ->get();
+
+    $categories = \App\Models\Category::query()
+        ->where('brand_id', $storefrontBrandId)
+        ->whereHas('products', fn ($query) => $query->storefront())
+        ->orderBy('category_name')
+        ->get();
 
     $paymentSuccess = $request->session()->get('payment_success');
 

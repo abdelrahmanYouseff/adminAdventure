@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Brand;
 use App\Models\Category;
 use App\Models\Invoice;
 use App\Models\Order;
@@ -12,6 +13,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use App\Support\CheckoutRedirect;
@@ -23,13 +25,7 @@ class StoreController extends Controller
      */
     public function index()
     {
-        $products = Product::with('category')->where('status', 'active')->orderBy('created_at', 'desc')->get();
-        $categories = Category::orderBy('category_name')->get();
-
-        return Inertia::render('Store/Index', [
-            'products' => $products,
-            'categories' => $categories,
-        ]);
+        return Inertia::render('Store/Index', $this->storefrontCatalog());
     }
 
     /**
@@ -37,13 +33,7 @@ class StoreController extends Controller
      */
     public function allProducts()
     {
-        $products   = Product::with('category')->where('status', 'active')->orderBy('created_at', 'desc')->get();
-        $categories = Category::orderBy('category_name')->get();
-
-        return Inertia::render('Store/AllProducts', [
-            'products'   => $products,
-            'categories' => $categories,
-        ]);
+        return Inertia::render('Store/AllProducts', $this->storefrontCatalog());
     }
 
     /**
@@ -51,15 +41,10 @@ class StoreController extends Controller
      */
     public function categoryProducts(Category $category)
     {
-        $products = Product::with('category')
-            ->where('status', 'active')
-            ->orderBy('created_at', 'desc')
-            ->get();
-        $categories = Category::orderBy('category_name')->get();
+        abort_unless((int) $category->brand_id === (int) Brand::storefront()->id, 404);
 
         return Inertia::render('Store/AllProducts', [
-            'products' => $products,
-            'categories' => $categories,
+            ...$this->storefrontCatalog(),
             'activeCategoryId' => $category->id,
             'pageTitle' => $category->category_name,
         ]);
@@ -70,14 +55,15 @@ class StoreController extends Controller
      */
     public function showProduct(Product $product)
     {
-        if ($product->status !== 'active') {
+        if (! $product->isStorefrontVisible()) {
             abort(404);
         }
 
         $product->load('category');
 
-        $related = Product::with('category')
-            ->where('status', 'active')
+        $related = Product::query()
+            ->storefront()
+            ->with('category')
             ->where('id', '!=', $product->id)
             ->where('category_id', $product->category_id)
             ->limit(4)
@@ -87,6 +73,27 @@ class StoreController extends Controller
             'product' => $product,
             'related' => $related,
         ]);
+    }
+
+    /**
+     * @return array{products: \Illuminate\Support\Collection, categories: \Illuminate\Support\Collection}
+     */
+    private function storefrontCatalog(): array
+    {
+        $storefrontBrandId = Brand::storefront()->id;
+
+        return [
+            'products' => Product::query()
+                ->storefront()
+                ->with('category')
+                ->orderBy('created_at', 'desc')
+                ->get(),
+            'categories' => Category::query()
+                ->where('brand_id', $storefrontBrandId)
+                ->whereHas('products', fn ($query) => $query->storefront())
+                ->orderBy('category_name')
+                ->get(),
+        ];
     }
 
     /**
@@ -132,11 +139,20 @@ class StoreController extends Controller
                 'address' => 'required|string|max:1000',
                 'activity_date' => 'required|date|after_or_equal:today',
                 'items' => 'required|array|min:1',
-                'items.*.product_id' => 'required|exists:products,id',
+                'items.*.product_id' => [
+                    'required',
+                    Rule::exists('products', 'id')->where(
+                        fn ($query) => $query
+                            ->where('brand_id', Brand::storefront()->id)
+                            ->where('status', 'active')
+                    ),
+                ],
                 'items.*.product_name' => 'required|string|max:255',
                 'items.*.quantity' => 'required|integer|min:1',
                 'items.*.duration' => 'nullable|integer|min:1',
                 'items.*.price' => 'required|numeric|min:0',
+            ], [
+                'items.*.product_id.exists' => 'أحد المنتجات غير متاح للطلب من الموقع.',
             ]);
         } catch (\Illuminate\Validation\ValidationException $e) {
             if ($expectsJson) {

@@ -7,6 +7,8 @@ use Illuminate\Support\Str;
 
 class Brand extends Model
 {
+    public const STOREFRONT_SLUG = 'adventure-world';
+
     protected $fillable = [
         'name',
         'slug',
@@ -66,13 +68,21 @@ class Brand extends Model
     public static function default(): self
     {
         return static::query()->firstOrCreate(
-            ['slug' => 'adventure-world'],
+            ['slug' => self::STOREFRONT_SLUG],
             [
                 'name' => 'شركة عالم المغامرة',
                 'description' => 'المنتجات الخاصة بشركة عالم المغامرة',
                 'is_active' => true,
             ],
         );
+    }
+
+    /**
+     * Brand whose products appear on the public website/storefront.
+     */
+    public static function storefront(): self
+    {
+        return static::default();
     }
 
     private static function uniqueSlug(string $name): string

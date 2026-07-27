@@ -142,7 +142,18 @@ class PackageController extends Controller
      */
     public function apiIndex()
     {
-        $packages = Package::with('products')->orderBy('created_at', 'desc')->get();
+        $packages = Package::query()
+            ->where('status', 'active')
+            ->with([
+                'products' => fn ($query) => $query
+                    ->storefront()
+                    ->with('category'),
+            ])
+            ->orderBy('created_at', 'desc')
+            ->get()
+            ->filter(fn (Package $package) => $package->products->isNotEmpty())
+            ->values();
+
         return response()->json($packages);
     }
 }

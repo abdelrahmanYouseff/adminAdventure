@@ -233,7 +233,12 @@ class ProductController extends Controller
      */
     public function apiIndex()
     {
-        return response()->json(Product::active()->with('category')->get());
+        $products = Product::storefront()
+            ->with('category')
+            ->orderBy('product_name')
+            ->get();
+
+        return response()->json($products);
     }
 
     /**
@@ -241,15 +246,31 @@ class ProductController extends Controller
      */
     public function apiByCategory(Request $request)
     {
+        $categoryId = $request->query('category_id');
         $categoryName = $request->query('category_name');
-        if (!$categoryName) {
+
+        if (! $categoryId && ! $categoryName) {
             return response()->json([]);
         }
-        $category = \App\Models\Category::where('category_name', $categoryName)->first();
-        if (!$category) {
+
+        $categoryQuery = Category::query()->where('brand_id', Brand::storefront()->id);
+
+        if ($categoryId) {
+            $category = $categoryQuery->where('id', $categoryId)->first();
+        } else {
+            $category = $categoryQuery->where('category_name', $categoryName)->first();
+        }
+
+        if (! $category) {
             return response()->json([]);
         }
-        $products = Product::active()->where('category_id', $category->id)->get();
+
+        $products = Product::storefront()
+            ->with('category')
+            ->where('category_id', $category->id)
+            ->orderBy('product_name')
+            ->get();
+
         return response()->json($products);
     }
 
@@ -258,7 +279,12 @@ class ProductController extends Controller
      */
     public function apiLatest()
     {
-        $products = Product::active()->orderBy('created_at', 'desc')->limit(10)->get();
+        $products = Product::storefront()
+            ->with('category')
+            ->orderBy('created_at', 'desc')
+            ->limit(10)
+            ->get();
+
         return response()->json($products);
     }
 }

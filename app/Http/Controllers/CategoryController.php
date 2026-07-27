@@ -171,7 +171,11 @@ class CategoryController extends Controller
      */
     public function apiIndex()
     {
-        $categories = Category::orderBy('created_at', 'desc')->get();
+        $categories = Category::query()
+            ->where('brand_id', Brand::storefront()->id)
+            ->whereHas('products', fn ($query) => $query->storefront())
+            ->orderBy('category_name')
+            ->get();
 
         return response()->json($categories);
     }

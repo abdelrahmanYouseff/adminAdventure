@@ -33,10 +33,12 @@ class PaymentController extends Controller
                 'activity_date'    => 'nullable|date',
                 'currency'         => 'nullable|string|in:SAR,USD,AED,KWD,QAR,BHD,OMR,JOD,EGP',
                 'items'            => 'required|array|min:1',
-                'items.*.product_id'   => 'nullable|exists:products,id',
+                'items.*.product_id'   => ['nullable', Product::storefrontExistsRule()],
                 'items.*.product_name' => 'required|string|max:255',
                 'items.*.quantity'     => 'required|integer|min:1',
                 'items.*.price'        => 'required|numeric|min:0',
+            ], [
+                'items.*.product_id.exists' => 'أحد المنتجات غير متاح للطلب من التطبيق.',
             ])->validate();
         } catch (\Illuminate\Validation\ValidationException $e) {
             return response()->json([

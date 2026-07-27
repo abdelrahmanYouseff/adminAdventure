@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use App\Models\Category;
 use App\Models\CartItem;
 use App\Models\Rental;
@@ -36,6 +37,35 @@ class Product extends Model
     public function scopeActive($query)
     {
         return $query->where('status', 'active');
+    }
+
+    /**
+     * Scope: products visible on the public website (Adventure World brand only).
+     * Internal brands (e.g. WStation, Plate) stay admin-only.
+     */
+    public function scopeStorefront($query)
+    {
+        return $query
+            ->where('status', 'active')
+            ->where('brand_id', Brand::storefront()->id);
+    }
+
+    public function isStorefrontVisible(): bool
+    {
+        return $this->status === 'active'
+            && (int) $this->brand_id === (int) Brand::storefront()->id;
+    }
+
+    /**
+     * Validation rule: product must be active and belong to the public storefront brand.
+     */
+    public static function storefrontExistsRule(): \Illuminate\Validation\Rules\Exists
+    {
+        return Rule::exists('products', 'id')->where(
+            fn ($query) => $query
+                ->where('brand_id', Brand::storefront()->id)
+                ->where('status', 'active')
+        );
     }
 
     /**
