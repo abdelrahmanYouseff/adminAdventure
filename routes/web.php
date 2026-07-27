@@ -207,6 +207,11 @@ Route::post('customers/{type}/{id}/bank', [\App\Http\Controllers\CustomerControl
     ->where(['type' => 'individual|company', 'id' => '[0-9]+'])
     ->name('customers.update-bank');
 
+Route::delete('customers/{type}/{id}', [\App\Http\Controllers\CustomerController::class, 'destroy'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager'])
+    ->where(['type' => 'individual|company', 'id' => '[0-9]+'])
+    ->name('customers.destroy');
+
 Route::get('company-clients', [\App\Http\Controllers\CompanyClientController::class, 'index'])
     ->middleware(['auth', 'verified', 'role:admin,general_manager,manager'])
     ->name('company-clients.index');

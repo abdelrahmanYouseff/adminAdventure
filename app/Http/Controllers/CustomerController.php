@@ -188,6 +188,17 @@ class CustomerController extends Controller
             ->with('success', 'تم حفظ بيانات التواصل والحساب البنكي.');
     }
 
+    public function destroy(string $type, int $id): RedirectResponse
+    {
+        abort_unless(in_array($type, ['individual', 'company'], true), 404);
+
+        if ($type === 'individual') {
+            return $this->destroyIndividual($id);
+        }
+
+        return $this->destroyCompany($id);
+    }
+
     public function apiCheckPhone(Request $request)
     {
         $phone = $request->query('phone');
@@ -197,6 +208,55 @@ class CustomerController extends Controller
         }
 
         return response()->json(['exists' => $exists]);
+    }
+
+    private function destroyIndividual(int $id): RedirectResponse
+    {
+        $user = User::query()->findOrFail($id);
+
+        abort_unless(
+            $user->role === null || ! in_array($user->role, User::STAFF_ROLES, true),
+            404
+        );
+
+        $orders = $this->ordersForContact($user->id, $user->phone, $user->email);
+        if ($orders->isNotEmpty()) {
+            return redirect()
+                ->route('customers')
+                ->with('error', 'لا يمكن حذف العميل لأن لديه طلبات مرتبطة. احذف أو أعد تعيين الطلبات أولاً.');
+        }
+
+        if ($user->iban_image) {
+            Storage::disk('public')->delete($user->iban_image);
+        }
+
+        $user->delete();
+
+        return redirect()
+            ->route('customers')
+            ->with('success', 'تم حذف العميل بنجاح.');
+    }
+
+    private function destroyCompany(int $id): RedirectResponse
+    {
+        $client = CompanyClient::query()->findOrFail($id);
+
+        $orders = $this->ordersForContact(null, $client->phone, $client->email);
+        if ($orders->isNotEmpty()) {
+            return redirect()
+                ->route('customers')
+                ->with('error', 'لا يمكن حذف عميل الشركة لأن لديه طلبات مرتبطة. احذف أو أعد تعيين الطلبات أولاً.');
+        }
+
+        if ($client->iban_image) {
+            Storage::disk('public')->delete($client->iban_image);
+        }
+
+        $client->delete();
+
+        return redirect()
+            ->route('customers')
+            ->with('success', 'تم حذف عميل الشركة بنجاح.');
     }
 
     private function updateIndividual(Request $request, int $id): RedirectResponse

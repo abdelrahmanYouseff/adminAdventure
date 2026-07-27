@@ -53,14 +53,6 @@ class CompanyClientController extends Controller
 
     public function destroy(CompanyClient $companyClient)
     {
-        if ($companyClient->iban_image) {
-            Storage::disk('public')->delete($companyClient->iban_image);
-        }
-
-        $companyClient->delete();
-
-        return redirect()
-            ->route('customers')
-            ->with('success', 'تم حذف عميل الشركة.');
+        return app(CustomerController::class)->destroy('company', $companyClient->id);
     }
 }

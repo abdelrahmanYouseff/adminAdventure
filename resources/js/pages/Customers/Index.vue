@@ -89,6 +89,7 @@ defineOptions({ layout: AppLayout });
 
 const page = usePage();
 const successMessage = computed(() => page.props.flash?.success as string | undefined);
+const errorMessage = computed(() => page.props.flash?.error as string | undefined);
 const formOpen = ref(false);
 const formMode = ref<'create' | 'edit'>('create');
 const editingCustomer = ref<Customer | null>(null);
@@ -255,16 +256,13 @@ function submit() {
     });
 }
 
-function destroyClient(customer: Customer) {
-    if (customer.type !== 'company') {
+function destroyCustomer(customer: Customer) {
+    const label = customer.type === 'company' ? `شركة «${customer.name}»` : `عميل «${customer.name}»`;
+    if (!confirm(`هل أنت متأكد من حذف ${label}؟`)) {
         return;
     }
 
-    if (!confirm(`حذف شركة «${customer.name}»؟`)) {
-        return;
-    }
-
-    router.delete(route('company-clients.destroy', customer.id), {
+    router.delete(route('customers.destroy', { type: customer.type, id: customer.id }), {
         preserveScroll: true,
     });
 }
@@ -358,6 +356,12 @@ function quotationPdfUrl(id: number): string {
             class="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm font-medium text-green-800 dark:border-green-900/50 dark:bg-green-950/30 dark:text-green-300"
         >
             {{ successMessage }}
+        </p>
+        <p
+            v-if="errorMessage"
+            class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-800 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300"
+        >
+            {{ errorMessage }}
         </p>
 
         <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -646,16 +650,14 @@ function quotationPdfUrl(id: number): string {
                                                     <Edit class="h-4 w-4" />
                                                     تعديل
                                                 </DropdownMenuItem>
-                                                <template v-if="customer.type === 'company'">
-                                                    <DropdownMenuSeparator />
-                                                    <DropdownMenuItem
-                                                        class="cursor-pointer gap-2 text-destructive focus:bg-destructive/10 focus:text-destructive"
-                                                        @select="destroyClient(customer)"
-                                                    >
-                                                        <Trash2 class="h-4 w-4" />
-                                                        حذف
-                                                    </DropdownMenuItem>
-                                                </template>
+                                                <DropdownMenuSeparator />
+                                                <DropdownMenuItem
+                                                    class="cursor-pointer gap-2 text-destructive focus:bg-destructive/10 focus:text-destructive"
+                                                    @select="destroyCustomer(customer)"
+                                                >
+                                                    <Trash2 class="h-4 w-4" />
+                                                    حذف
+                                                </DropdownMenuItem>
                                             </DropdownMenuContent>
                                         </DropdownMenu>
                                     </td>
