@@ -13,19 +13,57 @@ class QuotationPdfData
 
     public static function fromQuotation(Quotation $quotation): self
     {
-        $quotation->load(['user', 'items']);
+        $quotation->load(['user', 'items', 'brand']);
 
         return new self($quotation);
     }
 
     public function logoPath(): string
     {
+        $brandLogo = $this->brandLogoAbsolutePath();
+
+        if ($brandLogo) {
+            return $brandLogo;
+        }
+
         return public_path('assets/logo.png');
     }
 
     public function hasLogo(): bool
     {
         return file_exists($this->logoPath());
+    }
+
+    public function logoAlt(): string
+    {
+        return $this->quotation->brand?->name ?: 'Adventure World';
+    }
+
+    private function brandLogoAbsolutePath(): ?string
+    {
+        $logo = $this->quotation->brand?->logo;
+
+        if (! $logo) {
+            return null;
+        }
+
+        if (str_starts_with($logo, 'http://') || str_starts_with($logo, 'https://')) {
+            return null;
+        }
+
+        $relative = ltrim($logo, '/');
+        $candidates = [
+            storage_path('app/public/'.$relative),
+            public_path('storage/'.$relative),
+        ];
+
+        foreach ($candidates as $path) {
+            if (is_file($path)) {
+                return $path;
+            }
+        }
+
+        return null;
     }
 
     public function quotationNumber(): string

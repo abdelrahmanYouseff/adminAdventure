@@ -5,7 +5,7 @@
     <tr>
         <td width="18%" valign="middle" align="left">
             @if($data->hasLogo())
-                <img src="{{ $data->logoPath() }}" alt="Adventure World" height="26" style="max-width: 70px;">
+                <img src="{{ $data->logoPath() }}" alt="{{ $data->logoAlt() }}" height="26" style="max-width: 70px;">
             @endif
         </td>
         <td width="54%" valign="middle" align="center" style="font-weight: bold; font-size: 7pt; line-height: 1.4;">
