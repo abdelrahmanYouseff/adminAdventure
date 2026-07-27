@@ -4,14 +4,15 @@ import NavUser from '@/components/NavUser.vue';
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar';
 import { type Auth, type NavItem, type StaffRole } from '@/types';
 import { Link, usePage } from '@inertiajs/vue3';
-import { LayoutGrid, ShoppingBag, Users, Package, FileText, FileSpreadsheet, ShoppingCart, Tags, MessageCircle, HardHat, ShieldCheck, Receipt, Building2 } from 'lucide-vue-next';
+import { LayoutGrid, ShoppingBag, Users, Package, FileText, FileSpreadsheet, ShoppingCart, Tags, MessageCircle, HardHat, ShieldCheck, Receipt, Building2, Search } from 'lucide-vue-next';
 import AppLogo from './AppLogo.vue';
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 
 type NavItemWithRoles = NavItem & { roles: StaffRole[] };
 
 const page = usePage();
 const userRole = computed(() => (page.props.auth as Auth | undefined)?.user?.role ?? null);
+const searchQuery = ref('');
 
 const allNavItems: NavItemWithRoles[] = [
     {
@@ -100,7 +101,7 @@ const allNavItems: NavItemWithRoles[] = [
     },
 ];
 
-const mainNavItems = computed(() => {
+const roleNavItems = computed(() => {
     const role = userRole.value;
     if (!role) {
         return [];
@@ -109,6 +110,15 @@ const mainNavItems = computed(() => {
     return allNavItems
         .filter((item) => item.roles.includes(role as StaffRole))
         .map(({ roles: _roles, ...item }) => item);
+});
+
+const mainNavItems = computed(() => {
+    const query = searchQuery.value.trim().toLowerCase();
+    if (!query) {
+        return roleNavItems.value;
+    }
+
+    return roleNavItems.value.filter((item) => item.title.toLowerCase().includes(query));
 });
 
 const homeHref = computed(() => {
@@ -128,25 +138,37 @@ const homeHref = computed(() => {
         side="right"
         collapsible="icon"
         variant="sidebar"
-        class="!bg-[#f5f5f5] dark:!bg-[hsl(0,0%,11%)] shadow-sm"
+        class="!bg-white dark:!bg-[hsl(0,0%,11%)] border-s border-gray-100 dark:border-neutral-800 shadow-[0_0_0_1px_rgba(0,0,0,0.02)]"
     >
-        <SidebarHeader class="p-5 pb-3 border-b border-neutral-200/80 dark:border-neutral-700/80">
+        <SidebarHeader class="gap-3 p-4 pb-2">
             <SidebarMenu>
                 <SidebarMenuItem>
-                    <SidebarMenuButton size="lg" as-child class="rounded-xl p-0 hover:bg-transparent min-h-0">
+                    <SidebarMenuButton size="lg" as-child class="min-h-0 rounded-xl p-0 hover:bg-transparent">
                         <Link :href="homeHref" class="flex items-center gap-3 py-1">
                             <AppLogo />
                         </Link>
                     </SidebarMenuButton>
                 </SidebarMenuItem>
             </SidebarMenu>
+
+            <div class="group-data-[collapsible=icon]:hidden px-0.5">
+                <label class="flex h-10 items-center gap-2.5 rounded-full border border-gray-200 bg-white px-3.5 text-gray-400 transition-colors focus-within:border-teal-300 focus-within:ring-2 focus-within:ring-teal-100 dark:border-neutral-700 dark:bg-neutral-900 dark:focus-within:border-teal-700 dark:focus-within:ring-teal-950">
+                    <Search class="size-4 shrink-0 stroke-[1.75]" />
+                    <input
+                        v-model="searchQuery"
+                        type="search"
+                        placeholder="بحث"
+                        class="w-full bg-transparent text-sm text-gray-700 outline-none placeholder:text-gray-400 dark:text-neutral-200 dark:placeholder:text-neutral-500"
+                    />
+                </label>
+            </div>
         </SidebarHeader>
 
-        <SidebarContent class="flex-1 px-0 py-4">
+        <SidebarContent class="flex-1 px-0 py-2">
             <NavMain :items="mainNavItems" />
         </SidebarContent>
 
-        <SidebarFooter class="p-4 border-t border-neutral-200 dark:border-neutral-700 bg-white/50 dark:bg-black/20">
+        <SidebarFooter class="border-t border-gray-100 bg-white p-3 dark:border-neutral-800 dark:bg-[hsl(0,0%,11%)]">
             <NavUser />
         </SidebarFooter>
     </Sidebar>

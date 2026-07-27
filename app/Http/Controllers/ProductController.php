@@ -33,16 +33,33 @@ class ProductController extends Controller
         ]);
     }
 
-    public function brand(Brand $brand)
+    public function brand(Brand $brand, Request $request)
     {
+        $categoryId = $request->query('category');
+        $categoryId = is_numeric($categoryId) ? (int) $categoryId : null;
+
+        $categories = Category::query()
+            ->where('brand_id', $brand->id)
+            ->withCount('products')
+            ->orderBy('category_name')
+            ->get(['id', 'category_name', 'brand_id']);
+
+        if ($categoryId !== null && ! $categories->contains('id', $categoryId)) {
+            $categoryId = null;
+        }
+
         $brand->load([
             'products' => fn ($query) => $query
-                ->with('category')
+                ->with('category:id,category_name')
+                ->when($categoryId, fn ($q) => $q->where('category_id', $categoryId))
                 ->latest(),
         ]);
 
         return Inertia::render('Products/Brand', [
             'brand' => $brand,
+            'categories' => $categories,
+            'selectedCategoryId' => $categoryId,
+            'totalProducts' => Product::query()->where('brand_id', $brand->id)->count(),
         ]);
     }
 

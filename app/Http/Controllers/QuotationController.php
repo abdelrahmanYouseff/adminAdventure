@@ -28,12 +28,46 @@ class QuotationController extends Controller
     {
         try {
             $brandId = $request->query('brand');
+            $search = trim((string) $request->query('search', ''));
+            $status = (string) $request->query('status', 'all');
+            $perPage = (int) $request->query('per_page', 15);
+            $perPage = in_array($perPage, [10, 15, 25, 50], true) ? $perPage : 15;
+            $allowedStatuses = ['draft', 'sent', 'accepted', 'rejected', 'expired'];
 
-            $quotations = Quotation::with(['user', 'items', 'brand'])
-                ->when($brandId, fn ($query) => $query->where('brand_id', $brandId))
-                ->orderBy('created_at', 'desc')
-                ->paginate(10)
+            $query = Quotation::with(['user', 'items', 'brand'])
+                ->when($brandId, fn ($q) => $q->where('brand_id', $brandId));
+
+            if ($search !== '') {
+                $query->where(function ($q) use ($search) {
+                    $q->where('quotation_number', 'like', "%{$search}%")
+                        ->orWhere('customer_name', 'like', "%{$search}%")
+                        ->orWhere('customer_email', 'like', "%{$search}%")
+                        ->orWhere('customer_phone', 'like', "%{$search}%")
+                        ->orWhereHas('user', function ($userQuery) use ($search) {
+                            $userQuery->where('customer_name', 'like', "%{$search}%");
+                        });
+                });
+            }
+
+            if ($status !== 'all' && in_array($status, $allowedStatuses, true)) {
+                $query->where('status', $status);
+            }
+
+            $quotations = $query->orderBy('created_at', 'desc')
+                ->paginate($perPage)
                 ->withQueryString();
+
+            $statusCountsBase = Quotation::query()
+                ->when($brandId, fn ($q) => $q->where('brand_id', $brandId));
+
+            $statusCounts = [
+                'all' => (clone $statusCountsBase)->count(),
+                'draft' => (clone $statusCountsBase)->where('status', 'draft')->count(),
+                'sent' => (clone $statusCountsBase)->where('status', 'sent')->count(),
+                'accepted' => (clone $statusCountsBase)->where('status', 'accepted')->count(),
+                'rejected' => (clone $statusCountsBase)->where('status', 'rejected')->count(),
+                'expired' => (clone $statusCountsBase)->where('status', 'expired')->count(),
+            ];
 
             $brands = Brand::query()
                 ->withCount('quotations')
@@ -44,6 +78,12 @@ class QuotationController extends Controller
                 'quotations' => $quotations,
                 'brands' => $brands,
                 'selectedBrandId' => $brandId ? (int) $brandId : null,
+                'filters' => [
+                    'search' => $search,
+                    'status' => in_array($status, array_merge(['all'], $allowedStatuses), true) ? $status : 'all',
+                    'per_page' => $perPage,
+                ],
+                'statusCounts' => $statusCounts,
             ]);
         } catch (\Exception $e) {
             Log::error('Error in quotation index: ' . $e->getMessage());

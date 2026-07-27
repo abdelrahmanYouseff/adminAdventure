@@ -2,7 +2,7 @@
 import AppLayout from '@/layouts/AppLayout.vue';
 import { type BreadcrumbItem } from '@/types';
 import { Head, Link, usePage } from '@inertiajs/vue3';
-import { Package, FileText, Box, MessageCircle, ArrowLeft, FileSpreadsheet, Globe, Users, Smartphone } from 'lucide-vue-next';
+import { MessageCircle, ArrowLeft, FileSpreadsheet, Globe, Users, Smartphone, ArrowUpRight } from 'lucide-vue-next';
 import { formatInteger } from '@/lib/formatNumber';
 import { computed } from 'vue';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -62,30 +62,30 @@ const stats = computed(() => [
     {
         label: 'إجمالي المنتجات',
         value: totalProducts.value,
-        icon: Package,
-        iconClass: 'bg-blue-100 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400',
+        unit: 'منتج',
         href: '/products',
+        hint: 'عرض المنتجات',
     },
     {
         label: 'إجمالي الفواتير',
         value: totalInvoices.value,
-        icon: FileText,
-        iconClass: 'bg-green-100 text-green-600 dark:bg-green-900/20 dark:text-green-400',
+        unit: 'فاتورة',
         href: '/invoices',
+        hint: 'عرض الفواتير',
     },
     {
         label: 'إجمالي الباقات',
         value: totalPackages.value,
-        icon: Box,
-        iconClass: 'bg-orange-100 text-orange-600 dark:bg-orange-900/20 dark:text-orange-400',
+        unit: 'باقة',
         href: '/packages',
+        hint: 'عرض الباقات',
     },
     {
         label: 'عروض الأسعار',
         value: totalQuotations.value,
-        icon: FileSpreadsheet,
-        iconClass: 'bg-purple-100 text-purple-600 dark:bg-purple-900/20 dark:text-purple-400',
+        unit: 'عرض',
         href: '/quotations',
+        hint: 'عرض الأسعار',
     },
 ]);
 </script>
@@ -105,24 +105,19 @@ const stats = computed(() => [
                     v-for="stat in stats"
                     :key="stat.label"
                     :href="stat.href"
-                    class="min-w-0 rounded-2xl border border-gray-100 bg-white p-4 shadow-sm transition active:scale-[0.98] hover:border-purple-200 hover:shadow-md dark:border-gray-700 dark:bg-gray-800 dark:hover:border-purple-900/40 sm:p-6 sm:shadow-lg"
+                    class="group flex min-w-0 flex-col rounded-2xl border border-[#E0E0E0] bg-white p-5 transition hover:border-gray-300 hover:shadow-sm active:scale-[0.99] dark:border-neutral-700 dark:bg-neutral-900 dark:hover:border-neutral-600 sm:p-6"
                 >
-                    <div class="flex items-start justify-between gap-2">
-                        <div class="min-w-0 flex-1">
-                            <p class="text-xs font-medium leading-snug text-gray-600 dark:text-gray-400 sm:text-sm">
-                                {{ stat.label }}
-                            </p>
-                            <p class="mt-1 text-2xl font-bold tabular-nums text-gray-900 dark:text-white sm:mt-2 sm:text-3xl">
-                                {{ formatInteger(stat.value) }}
-                            </p>
-                        </div>
-                        <div
-                            class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl sm:h-12 sm:w-12"
-                            :class="stat.iconClass"
-                        >
-                            <component :is="stat.icon" class="h-5 w-5 sm:h-6 sm:w-6" />
-                        </div>
-                    </div>
+                    <p class="text-[11px] font-bold uppercase tracking-[0.08em] text-gray-400 dark:text-neutral-500 sm:text-xs">
+                        {{ stat.label }}
+                    </p>
+                    <p class="mt-3 text-2xl font-extrabold tabular-nums tracking-tight text-gray-900 dark:text-white sm:text-[1.75rem]">
+                        {{ formatInteger(stat.value) }}
+                        <span class="ms-1 text-base font-bold text-gray-700 dark:text-neutral-300 sm:text-lg">{{ stat.unit }}</span>
+                    </p>
+                    <p class="mt-4 flex items-center gap-1.5 text-xs font-medium text-[#5B8A72] dark:text-teal-400/90">
+                        <ArrowUpRight class="size-3.5 shrink-0 stroke-[2.25]" />
+                        <span>{{ stat.hint }}</span>
+                    </p>
                 </Link>
             </div>
 

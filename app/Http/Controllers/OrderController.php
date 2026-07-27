@@ -20,34 +20,37 @@ class OrderController extends Controller
 {
     public function index(Request $request)
     {
+        $search = trim((string) $request->query('search', ''));
+        $status = (string) $request->query('status', 'all');
+        $currency = (string) $request->query('currency', 'all');
+        $perPage = (int) $request->query('per_page', 15);
+        $perPage = in_array($perPage, [10, 15, 25, 50], true) ? $perPage : 15;
+
         $query = Order::with(['user', 'invoice', 'products']);
 
-        // Search filter
-        if ($request->has('search') && $request->search) {
-            $search = $request->search;
+        if ($search !== '') {
             $query->where(function ($q) use ($search) {
                 $q->where('order_number', 'like', "%{$search}%")
                     ->orWhere('customer_name', 'like', "%{$search}%")
+                    ->orWhere('customer_email', 'like', "%{$search}%")
+                    ->orWhere('customer_phone', 'like', "%{$search}%")
                     ->orWhere('payment_id', 'like', "%{$search}%")
-                    ->orWhereHas('user', function ($q) use ($search) {
-                        $q->where('full_name', 'like', "%{$search}%")
-                            ->orWhere('name', 'like', "%{$search}%")
+                    ->orWhereHas('user', function ($userQuery) use ($search) {
+                        $userQuery->where('customer_name', 'like', "%{$search}%")
                             ->orWhere('email', 'like', "%{$search}%");
                     })
-                    ->orWhereHas('products', function ($q) use ($search) {
-                        $q->where('product_name', 'like', "%{$search}%");
+                    ->orWhereHas('products', function ($productQuery) use ($search) {
+                        $productQuery->where('product_name', 'like', "%{$search}%");
                     });
             });
         }
 
-        // Status filter
-        if ($request->has('status') && $request->status !== 'all') {
-            $query->where('status', $request->status);
+        if ($status !== 'all' && in_array($status, ['pending', 'processing', 'paid', 'cancelled', 'refunded'], true)) {
+            $query->where('status', $status);
         }
 
-        // Currency filter
-        if ($request->has('currency') && $request->currency !== 'all') {
-            $query->where('currency', $request->currency);
+        if ($currency !== 'all' && in_array($currency, ['SAR', 'USD', 'EUR'], true)) {
+            $query->where('currency', $currency);
         }
 
         $user = $request->user();
@@ -57,7 +60,9 @@ class OrderController extends Controller
             User::ROLE_MANAGER,
         );
 
-        $orders = $query->orderBy('created_at', 'desc')->paginate(15);
+        $orders = $query->orderBy('created_at', 'desc')
+            ->paginate($perPage)
+            ->withQueryString();
 
         $orders->getCollection()->transform(function (Order $order) use ($canEditTime) {
             $rawTime = $order->getAttributes()['activity_time'] ?? null;
@@ -73,9 +78,27 @@ class OrderController extends Controller
             return $order;
         });
 
+        $statusCountsBase = Order::query()
+            ->when($currency !== 'all' && in_array($currency, ['SAR', 'USD', 'EUR'], true), fn ($q) => $q->where('currency', $currency));
+
+        $statusCounts = [
+            'all' => (clone $statusCountsBase)->count(),
+            'pending' => (clone $statusCountsBase)->where('status', 'pending')->count(),
+            'processing' => (clone $statusCountsBase)->where('status', 'processing')->count(),
+            'paid' => (clone $statusCountsBase)->where('status', 'paid')->count(),
+            'cancelled' => (clone $statusCountsBase)->where('status', 'cancelled')->count(),
+            'refunded' => (clone $statusCountsBase)->where('status', 'refunded')->count(),
+        ];
+
         return Inertia::render('Orders/Index', [
             'orders' => $orders,
-            'filters' => $request->only(['search', 'status', 'currency']),
+            'filters' => [
+                'search' => $search,
+                'status' => in_array($status, ['all', 'pending', 'processing', 'paid', 'cancelled', 'refunded'], true) ? $status : 'all',
+                'currency' => in_array($currency, ['all', 'SAR', 'USD', 'EUR'], true) ? $currency : 'all',
+                'per_page' => $perPage,
+            ],
+            'statusCounts' => $statusCounts,
             'canManageActivityTime' => $canEditTime,
         ]);
     }

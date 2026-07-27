@@ -13,12 +13,48 @@ class PackageController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function index(Request $request)
     {
-        $packages = Package::with('products')->get();
+        $search = trim((string) $request->query('search', ''));
+        $status = (string) $request->query('status', 'all');
+        $perPage = (int) $request->query('per_page', 15);
+        $perPage = in_array($perPage, [10, 15, 25, 50], true) ? $perPage : 15;
+
+        $query = Package::with('products');
+
+        if ($search !== '') {
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                    ->orWhere('description', 'like', "%{$search}%")
+                    ->orWhere('id', 'like', "%{$search}%")
+                    ->orWhereHas('products', function ($productQuery) use ($search) {
+                        $productQuery->where('product_name', 'like', "%{$search}%");
+                    });
+            });
+        }
+
+        if ($status !== 'all' && in_array($status, ['active', 'inactive'], true)) {
+            $query->where('status', $status);
+        }
+
+        $packages = $query->orderBy('created_at', 'desc')
+            ->paginate($perPage)
+            ->withQueryString();
+
+        $statusCounts = [
+            'all' => Package::query()->count(),
+            'active' => Package::query()->where('status', 'active')->count(),
+            'inactive' => Package::query()->where('status', 'inactive')->count(),
+        ];
 
         return Inertia::render('Packages/Index', [
             'packages' => $packages,
+            'filters' => [
+                'search' => $search,
+                'status' => in_array($status, ['all', 'active', 'inactive'], true) ? $status : 'all',
+                'per_page' => $perPage,
+            ],
+            'statusCounts' => $statusCounts,
         ]);
     }
 

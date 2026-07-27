@@ -3,32 +3,27 @@ import { computed, ref, watch } from 'vue';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
+    DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import {
-    ShoppingCart,
-    Search,
-    Mail,
-    Phone,
-    MoreHorizontal,
-    Trash2,
+    ArrowUpRight,
+    Check,
     ChevronLeft,
     ChevronRight,
+    ExternalLink,
     Eye,
     MapPin,
-    ExternalLink,
-    Plus,
+    MoreVertical,
     Pencil,
-    Check,
+    Plus,
+    Search,
+    ShoppingCart,
+    Trash2,
     X,
 } from 'lucide-vue-next';
 import { formatCurrency, formatDate, formatInteger } from '@/lib/formatNumber';
@@ -40,6 +35,8 @@ interface Order {
     customer_email: string | null;
     customer_phone: string | null;
     total_amount: number;
+    amount_paid?: number | string | null;
+    remaining_amount?: number | string | null;
     currency: string;
     payment_method: string;
     status: string;
@@ -49,6 +46,8 @@ interface Order {
     address: string | null;
     created_at: string;
 }
+
+type StatusTab = 'all' | 'pending' | 'processing' | 'paid' | 'cancelled' | 'refunded';
 
 interface Props {
     orders: {
@@ -64,17 +63,24 @@ interface Props {
         search?: string;
         status?: string;
         currency?: string;
+        per_page?: number;
     };
+    statusCounts?: Record<StatusTab, number>;
     canManageActivityTime?: boolean;
 }
 
-const props = withDefaults(
-    defineProps<Props>(),
-    {
-        filters: () => ({}),
-        canManageActivityTime: false,
-    }
-);
+const props = withDefaults(defineProps<Props>(), {
+    filters: () => ({}),
+    statusCounts: () => ({
+        all: 0,
+        pending: 0,
+        processing: 0,
+        paid: 0,
+        cancelled: 0,
+        refunded: 0,
+    }),
+    canManageActivityTime: false,
+});
 
 defineOptions({ layout: AppLayout });
 
@@ -86,8 +92,10 @@ const canCreateOrders = computed(() =>
 );
 
 const searchInput = ref(props.filters?.search ?? '');
-const statusFilter = ref(props.filters?.status ?? 'all');
+const statusFilter = ref<StatusTab>((props.filters?.status as StatusTab) ?? 'all');
 const currencyFilter = ref(props.filters?.currency ?? 'all');
+const perPage = ref(props.filters?.per_page || 15);
+const selectedIds = ref<number[]>([]);
 
 const hourOptions = Array.from({ length: 12 }, (_, i) => String(i + 1));
 const minuteOptions = Array.from({ length: 12 }, (_, i) => String(i * 5).padStart(2, '0'));
@@ -106,37 +114,141 @@ const editingTime = ref<{
     saving: false,
 });
 
+const statusTabs: { key: StatusTab; label: string }[] = [
+    { key: 'all', label: 'الكل' },
+    { key: 'pending', label: 'قيد الانتظار' },
+    { key: 'processing', label: 'قيد المعالجة' },
+    { key: 'paid', label: 'مدفوع' },
+    { key: 'cancelled', label: 'ملغي' },
+    { key: 'refunded', label: 'مسترد' },
+];
+
+const summaryCards = computed(() => [
+    {
+        key: 'all' as const,
+        label: 'إجمالي الطلبات',
+        value: props.statusCounts.all,
+        unit: 'طلب',
+        hint: 'عرض كل الطلبات',
+    },
+    {
+        key: 'pending' as const,
+        label: 'قيد الانتظار',
+        value: props.statusCounts.pending,
+        unit: 'طلب',
+        hint: 'عرض قيد الانتظار',
+    },
+    {
+        key: 'paid' as const,
+        label: 'مدفوع',
+        value: props.statusCounts.paid,
+        unit: 'طلب',
+        hint: 'عرض المدفوع',
+    },
+    {
+        key: 'processing' as const,
+        label: 'قيد المعالجة',
+        value: props.statusCounts.processing,
+        unit: 'طلب',
+        hint: 'عرض قيد المعالجة',
+    },
+]);
+
+const pageNumbers = computed(() => {
+    const total = props.orders.last_page;
+    const current = props.orders.current_page;
+    if (total <= 7) {
+        return Array.from({ length: total }, (_, i) => i + 1);
+    }
+
+    const pages: Array<number | 'ellipsis'> = [1];
+    const start = Math.max(2, current - 1);
+    const end = Math.min(total - 1, current + 1);
+
+    if (start > 2) pages.push('ellipsis');
+    for (let i = start; i <= end; i += 1) pages.push(i);
+    if (end < total - 1) pages.push('ellipsis');
+    pages.push(total);
+    return pages;
+});
+
+const allVisibleSelected = computed(
+    () =>
+        props.orders.data.length > 0
+        && props.orders.data.every((order) => selectedIds.value.includes(order.id)),
+);
+
+watch(
+    () => props.filters,
+    (filters) => {
+        searchInput.value = filters?.search ?? '';
+        statusFilter.value = (filters?.status as StatusTab) ?? 'all';
+        currencyFilter.value = filters?.currency ?? 'all';
+        perPage.value = filters?.per_page || 15;
+        selectedIds.value = [];
+    },
+);
+
 function applyFilters(pageNum = 1) {
     router.get(route('orders.index'), {
-        search: searchInput.value || undefined,
+        search: searchInput.value.trim() || undefined,
         status: statusFilter.value !== 'all' ? statusFilter.value : undefined,
         currency: currencyFilter.value !== 'all' ? currencyFilter.value : undefined,
+        per_page: perPage.value !== 15 ? perPage.value : undefined,
         page: pageNum > 1 ? pageNum : undefined,
-    }, { preserveState: true });
+    }, { preserveState: true, preserveScroll: true, replace: true });
 }
 
-watch([statusFilter, currencyFilter], () => {
+function setStatusFilter(status: StatusTab) {
+    statusFilter.value = status;
     applyFilters(1);
-});
+}
 
 function onSearchSubmit() {
     applyFilters(1);
 }
 
 function goToPage(pageNum: number) {
-    if (pageNum >= 1 && pageNum <= props.orders.last_page) applyFilters(pageNum);
+    if (pageNum >= 1 && pageNum <= props.orders.last_page) {
+        applyFilters(pageNum);
+    }
 }
 
-const deleteOrder = (order: Order) => {
+function tabCount(tab: StatusTab): number {
+    return props.statusCounts?.[tab] ?? 0;
+}
+
+function toggleSelectAll() {
+    if (allVisibleSelected.value) {
+        const visible = new Set(props.orders.data.map((order) => order.id));
+        selectedIds.value = selectedIds.value.filter((id) => !visible.has(id));
+        return;
+    }
+
+    selectedIds.value = Array.from(new Set([
+        ...selectedIds.value,
+        ...props.orders.data.map((order) => order.id),
+    ]));
+}
+
+function toggleSelect(id: number) {
+    if (selectedIds.value.includes(id)) {
+        selectedIds.value = selectedIds.value.filter((item) => item !== id);
+        return;
+    }
+    selectedIds.value = [...selectedIds.value, id];
+}
+
+function deleteOrder(order: Order) {
     if (!isAdmin.value) return;
     if (confirm('هل تريد حذف هذا الطلب؟')) {
         router.delete(route('orders.destroy', order.id), {
             preserveScroll: true,
         });
     }
-};
+}
 
-const getStatusText = (status: string) => {
+function getStatusText(status: string): string {
     const map: Record<string, string> = {
         pending: 'قيد الانتظار',
         processing: 'قيد المعالجة',
@@ -145,22 +257,36 @@ const getStatusText = (status: string) => {
         refunded: 'مسترد',
     };
     return map[status] || status;
-};
+}
 
-const getStatusBadgeVariant = (status: string): 'default' | 'secondary' | 'destructive' | 'outline' => {
-    switch (status) {
-        case 'pending':
-        case 'processing':
-            return 'secondary';
-        case 'paid':
-            return 'default';
-        case 'cancelled':
-        case 'refunded':
-            return 'destructive';
-        default:
-            return 'outline';
+function statusBadgeClass(status: string): string {
+    const map: Record<string, string> = {
+        paid: 'bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-300 dark:ring-emerald-900/50',
+        pending: 'bg-amber-50 text-amber-800 ring-1 ring-inset ring-amber-100 dark:bg-amber-950/40 dark:text-amber-300 dark:ring-amber-900/50',
+        processing: 'bg-sky-50 text-sky-700 ring-1 ring-inset ring-sky-100 dark:bg-sky-950/40 dark:text-sky-300 dark:ring-sky-900/50',
+        cancelled: 'bg-red-50 text-red-700 ring-1 ring-inset ring-red-100 dark:bg-red-950/40 dark:text-red-300 dark:ring-red-900/50',
+        refunded: 'bg-violet-50 text-violet-700 ring-1 ring-inset ring-violet-100 dark:bg-violet-950/40 dark:text-violet-300 dark:ring-violet-900/50',
+    };
+    return map[status] || 'bg-gray-100 text-gray-700 ring-1 ring-inset ring-gray-200';
+}
+
+function paidAmount(order: Order): number {
+    if (order.status === 'paid') {
+        return Number(order.total_amount) || 0;
     }
-};
+    return Number(order.amount_paid ?? 0) || 0;
+}
+
+function dueAmount(order: Order): number {
+    if (order.status === 'paid' || order.status === 'cancelled' || order.status === 'refunded') {
+        return 0;
+    }
+    const remaining = Number(order.remaining_amount);
+    if (!Number.isNaN(remaining) && remaining >= 0) {
+        return remaining;
+    }
+    return Math.max(0, (Number(order.total_amount) || 0) - paidAmount(order));
+}
 
 function formatActivityTime(time: string | null): string {
     if (!time) return '—';
@@ -224,9 +350,6 @@ function saveEditTime(order: Order) {
     );
 }
 
-const pendingCount = () => props.orders.data.filter((o) => o.status === 'pending').length;
-const paidCount = () => props.orders.data.filter((o) => o.status === 'paid').length;
-
 function formatActivityDate(date: string | null): string {
     if (!date) return '—';
     return formatDate(date);
@@ -245,515 +368,372 @@ function locationMapsUrl(address: string | null): string | null {
 
 <template>
     <Head title="إدارة الطلبات" />
-    <div class="flex min-w-0 flex-1 flex-col gap-4 overflow-x-hidden p-3 pb-[max(1rem,env(safe-area-inset-bottom))] sm:gap-6 sm:p-6 sm:py-6">
-        <!-- Header -->
-        <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+
+    <div class="flex min-w-0 flex-1 flex-col gap-5 overflow-x-hidden p-3 pb-[max(1rem,env(safe-area-inset-bottom))] sm:gap-6 sm:p-6">
+        <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
-                <h1 class="text-xl font-bold tracking-tight sm:text-3xl">إدارة الطلبات</h1>
-                <p class="mt-1 text-sm text-muted-foreground sm:text-base">
+                <h1 class="flex items-center gap-2 text-xl font-bold text-gray-900 dark:text-white sm:text-2xl">
+                    <ShoppingCart class="size-6 text-blue-600" />
+                    إدارة الطلبات
+                </h1>
+                <p class="mt-1 text-sm text-gray-500 dark:text-neutral-400">
                     عرض وبحث وفلترة الطلبات، أو إضافة طلب جديد من النظام
                 </p>
             </div>
             <Link
                 v-if="canCreateOrders"
                 href="/orders/create"
-                class="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow transition hover:bg-primary/90 sm:h-11"
+                class="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 text-sm font-medium text-white shadow-sm transition hover:bg-blue-700 sm:h-11"
             >
-                <Plus class="h-4 w-4" />
+                <Plus class="size-4" />
                 إضافة طلب
             </Link>
         </div>
 
-        <!-- Stats -->
-        <div class="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3">
-            <Card class="min-w-0 shadow-sm">
-                <CardContent class="flex items-center justify-between gap-2 p-3">
-                    <div class="min-w-0">
-                        <p class="text-[11px] text-muted-foreground">إجمالي الطلبات</p>
-                        <p class="mt-0.5 text-base font-bold tabular-nums sm:text-lg">{{ formatInteger(orders.total) }}</p>
-                    </div>
-                    <ShoppingCart class="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                </CardContent>
-            </Card>
-            <Card class="min-w-0 shadow-sm">
-                <CardContent class="p-3">
-                    <p class="text-[11px] text-muted-foreground">قيد الانتظار</p>
-                    <p class="mt-0.5 text-base font-bold tabular-nums sm:text-lg">{{ formatInteger(pendingCount()) }}</p>
-                </CardContent>
-            </Card>
-            <Card class="min-w-0 shadow-sm">
-                <CardContent class="p-3">
-                    <p class="text-[11px] text-muted-foreground">مدفوع</p>
-                    <p class="mt-0.5 text-base font-bold tabular-nums sm:text-lg">{{ formatInteger(paidCount()) }}</p>
-                </CardContent>
-            </Card>
-            <Card class="min-w-0 shadow-sm">
-                <CardContent class="p-3">
-                    <p class="text-[11px] text-muted-foreground">معروض الآن</p>
-                    <p class="mt-0.5 text-base font-bold tabular-nums sm:text-lg">{{ formatInteger(orders.data.length) }}</p>
-                </CardContent>
-            </Card>
+        <div class="grid grid-cols-2 gap-3 xl:grid-cols-4 sm:gap-4">
+            <button
+                v-for="card in summaryCards"
+                :key="card.key"
+                type="button"
+                class="group flex min-w-0 flex-col rounded-2xl border bg-white p-5 text-start transition hover:border-gray-300 hover:shadow-sm active:scale-[0.99] dark:bg-neutral-900 dark:hover:border-neutral-600 sm:p-6"
+                :class="
+                    statusFilter === card.key
+                        ? 'border-blue-300 ring-1 ring-blue-100 dark:border-blue-800 dark:ring-blue-950'
+                        : 'border-[#E0E0E0] dark:border-neutral-700'
+                "
+                @click="setStatusFilter(card.key)"
+            >
+                <p class="text-[11px] font-bold uppercase tracking-[0.08em] text-gray-400 dark:text-neutral-500 sm:text-xs">
+                    {{ card.label }}
+                </p>
+                <p class="mt-3 text-2xl font-extrabold tabular-nums tracking-tight text-gray-900 dark:text-white sm:text-[1.75rem]">
+                    {{ formatInteger(card.value) }}
+                    <span class="ms-1 text-base font-bold text-gray-700 dark:text-neutral-300 sm:text-lg">{{ card.unit }}</span>
+                </p>
+                <p class="mt-4 flex items-center gap-1.5 text-xs font-medium text-[#5B8A72] dark:text-teal-400/90">
+                    <ArrowUpRight class="size-3.5 shrink-0 stroke-[2.25]" />
+                    <span>{{ card.hint }}</span>
+                </p>
+            </button>
         </div>
 
-        <!-- Filters & List -->
-        <Card class="min-w-0 shadow-sm">
-            <CardHeader class="p-4 sm:p-6">
-                <CardTitle class="text-lg sm:text-xl">قائمة الطلبات</CardTitle>
-                <CardDescription class="text-sm">
-                    استخدم البحث والفلترة لتضييق النتائج
-                </CardDescription>
-            </CardHeader>
-            <CardContent class="space-y-4 p-4 pt-0 sm:p-6 sm:pt-0">
-                <!-- Filters -->
-                <div class="space-y-3 rounded-2xl border border-border/60 bg-muted/20 p-3 sm:space-y-4 sm:p-4">
-                    <div class="flex flex-col gap-3 sm:flex-row sm:items-end">
-                        <div class="min-w-0 flex-1">
-                            <Label for="search" class="mb-1.5 block text-xs text-muted-foreground">بحث</Label>
-                            <div class="relative">
-                                <Search class="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                                <Input
-                                    id="search"
-                                    v-model="searchInput"
-                                    type="search"
-                                    placeholder="رقم الطلب، اسم العميل، البريد..."
-                                    class="h-11 pr-10"
-                                    @keydown.enter.prevent="onSearchSubmit"
+        <div class="overflow-x-auto">
+            <div class="flex min-w-max items-center gap-1 border-b border-gray-200 dark:border-neutral-700">
+                <button
+                    v-for="tab in statusTabs"
+                    :key="tab.key"
+                    type="button"
+                    class="relative px-3 py-2.5 text-sm font-medium transition-colors sm:px-4"
+                    :class="
+                        statusFilter === tab.key
+                            ? 'text-blue-700 dark:text-blue-300'
+                            : 'text-gray-500 hover:text-gray-800 dark:text-neutral-400 dark:hover:text-neutral-200'
+                    "
+                    @click="setStatusFilter(tab.key)"
+                >
+                    {{ tab.label }}
+                    <span class="ms-1.5 text-xs tabular-nums text-gray-400">({{ formatInteger(tabCount(tab.key)) }})</span>
+                    <span
+                        v-if="statusFilter === tab.key"
+                        class="absolute inset-x-0 -bottom-px h-0.5 rounded-full bg-blue-600"
+                    />
+                </button>
+            </div>
+        </div>
+
+        <div class="rounded-2xl border border-gray-200 bg-white dark:border-neutral-700 dark:bg-neutral-900">
+            <div class="flex flex-col gap-3 border-b border-gray-100 p-4 dark:border-neutral-800 sm:flex-row sm:items-center sm:justify-between">
+                <div class="flex flex-1 flex-col gap-3 sm:flex-row sm:items-center">
+                    <form class="w-full max-w-sm" @submit.prevent="onSearchSubmit">
+                        <label class="flex h-10 items-center gap-2 rounded-full border border-transparent bg-gray-100 px-3.5 text-gray-400 transition focus-within:border-blue-300 focus-within:bg-white focus-within:ring-2 focus-within:ring-blue-100 dark:bg-neutral-800 dark:focus-within:border-blue-700 dark:focus-within:bg-neutral-950 dark:focus-within:ring-blue-950">
+                            <Search class="size-4 shrink-0 stroke-[1.75]" />
+                            <input
+                                v-model="searchInput"
+                                type="search"
+                                placeholder="ابحث عن طلب..."
+                                class="w-full bg-transparent text-sm text-gray-800 outline-none placeholder:text-gray-400 dark:text-neutral-100"
+                            />
+                        </label>
+                    </form>
+
+                    <select
+                        v-model="currencyFilter"
+                        class="h-10 rounded-full border border-gray-200 bg-white px-3 text-sm font-medium text-gray-600 outline-none transition hover:bg-gray-50 focus:border-blue-300 focus:ring-2 focus:ring-blue-100 dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-300"
+                        @change="applyFilters(1)"
+                    >
+                        <option value="all">كل العملات</option>
+                        <option value="SAR">SAR</option>
+                        <option value="USD">USD</option>
+                        <option value="EUR">EUR</option>
+                    </select>
+                </div>
+
+                <div class="flex items-center gap-2 text-sm text-gray-500 dark:text-neutral-400">
+                    <span>عرض</span>
+                    <select
+                        v-model.number="perPage"
+                        class="h-8 rounded-md border border-gray-200 bg-white px-2 text-sm font-semibold text-gray-800 outline-none dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100"
+                        @change="applyFilters(1)"
+                    >
+                        <option :value="10">10</option>
+                        <option :value="15">15</option>
+                        <option :value="25">25</option>
+                        <option :value="50">50</option>
+                    </select>
+                    <span>من {{ formatInteger(orders.total) }} نتيجة</span>
+                </div>
+            </div>
+
+            <div class="overflow-x-auto">
+                <table class="w-full min-w-[1180px] border-collapse text-sm">
+                    <thead>
+                        <tr class="border-b border-gray-100 text-start dark:border-neutral-800">
+                            <th class="w-12 px-4 py-3.5">
+                                <input
+                                    type="checkbox"
+                                    class="size-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                    :checked="allVisibleSelected"
+                                    @change="toggleSelectAll"
                                 />
-                            </div>
-                        </div>
-                        <Button class="h-11 w-full touch-manipulation sm:w-auto" @click="onSearchSubmit" type="button">
-                            بحث
-                        </Button>
-                    </div>
-
-                    <div class="grid grid-cols-1 gap-3 min-[480px]:grid-cols-2">
-                        <div class="flex min-w-0 flex-col gap-1.5">
-                            <Label for="status" class="text-xs text-muted-foreground">الحالة</Label>
-                            <select
-                                id="status"
-                                v-model="statusFilter"
-                                class="flex h-11 w-full min-w-0 rounded-md border border-input bg-background px-3 py-2 text-sm shadow-xs"
-                            >
-                                <option value="all">الكل</option>
-                                <option value="pending">قيد الانتظار</option>
-                                <option value="processing">قيد المعالجة</option>
-                                <option value="paid">مدفوع</option>
-                                <option value="cancelled">ملغي</option>
-                                <option value="refunded">مسترد</option>
-                            </select>
-                        </div>
-                        <div class="flex min-w-0 flex-col gap-1.5">
-                            <Label for="currency" class="text-xs text-muted-foreground">العملة</Label>
-                            <select
-                                id="currency"
-                                v-model="currencyFilter"
-                                class="flex h-11 w-full min-w-0 rounded-md border border-input bg-background px-3 py-2 text-sm shadow-xs"
-                            >
-                                <option value="all">الكل</option>
-                                <option value="SAR">SAR</option>
-                                <option value="USD">USD</option>
-                                <option value="EUR">EUR</option>
-                            </select>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Mobile cards -->
-                <div class="space-y-3 md:hidden">
-                    <div
-                        v-if="orders.data.length === 0"
-                        class="rounded-2xl border border-dashed px-4 py-10 text-center text-sm text-muted-foreground"
-                    >
-                        لا توجد طلبات
-                    </div>
-
-                    <article
-                        v-for="order in orders.data"
-                        :key="`mobile-${order.id}`"
-                        class="overflow-hidden rounded-2xl border border-border/70 bg-card shadow-sm"
-                    >
-                        <div class="border-b border-border/60 bg-muted/20 px-4 py-3">
-                            <div class="flex items-start justify-between gap-3">
-                                <div class="min-w-0">
-                                    <p class="truncate font-mono text-sm font-bold">{{ order.order_number }}</p>
-                                    <p class="mt-0.5 text-xs text-muted-foreground">{{ formatDate(order.created_at) }}</p>
-                                </div>
-                                <Badge :variant="getStatusBadgeVariant(order.status)" class="shrink-0">
-                                    {{ getStatusText(order.status) }}
-                                </Badge>
-                            </div>
-                        </div>
-
-                        <div class="space-y-3 px-4 py-3">
-                            <div>
-                                <p class="text-xs text-muted-foreground">العميل</p>
-                                <p class="mt-0.5 font-semibold">{{ order.customer_name }}</p>
-                            </div>
-
-                            <div class="flex items-center justify-between gap-3 rounded-xl bg-muted/30 px-3 py-2.5">
-                                <div>
-                                    <p class="text-xs text-muted-foreground">المبلغ</p>
-                                    <p class="mt-0.5 text-lg font-bold text-green-600 dark:text-green-400">
-                                        {{ formatCurrency(Number(order.total_amount), order.currency) }}
-                                    </p>
-                                </div>
-                                <div class="min-w-0 text-end">
-                                    <p class="text-xs text-muted-foreground">وقت الفعالية</p>
-                                    <div class="mt-1 flex items-center justify-end gap-1.5" v-if="editingTime.id === order.id" dir="ltr">
-                                        <div class="inline-flex h-8 items-center gap-0.5 rounded-md border border-input bg-background px-1">
-                                            <select
-                                                v-model="editingTime.hour"
-                                                class="h-7 w-8 cursor-pointer appearance-none bg-transparent text-center text-xs font-medium tabular-nums outline-none"
-                                                :disabled="editingTime.saving"
-                                            >
-                                                <option v-for="hour in hourOptions" :key="`m-h-${hour}`" :value="hour">{{ hour }}</option>
-                                            </select>
-                                            <span class="text-xs text-muted-foreground">:</span>
-                                            <select
-                                                v-model="editingTime.minute"
-                                                class="h-7 w-8 cursor-pointer appearance-none bg-transparent text-center text-xs font-medium tabular-nums outline-none"
-                                                :disabled="editingTime.saving"
-                                            >
-                                                <option v-for="minute in minuteOptions" :key="`m-m-${minute}`" :value="minute">{{ minute }}</option>
-                                            </select>
-                                            <span class="mx-0.5 h-4 w-px bg-border" />
-                                            <select
-                                                v-model="editingTime.period"
-                                                class="h-7 w-9 cursor-pointer appearance-none bg-transparent text-center text-xs font-medium outline-none"
-                                                :disabled="editingTime.saving"
-                                            >
-                                                <option value="AM">AM</option>
-                                                <option value="PM">PM</option>
-                                            </select>
-                                        </div>
-                                        <Button
-                                            type="button"
-                                            size="icon"
-                                            class="h-8 w-8 shrink-0"
-                                            :disabled="editingTime.saving"
-                                            @click="saveEditTime(order)"
-                                        >
-                                            <Check class="h-3.5 w-3.5" />
-                                        </Button>
-                                        <Button
-                                            type="button"
-                                            variant="outline"
-                                            size="icon"
-                                            class="h-8 w-8 shrink-0"
-                                            :disabled="editingTime.saving"
-                                            @click="cancelEditTime"
-                                        >
-                                            <X class="h-3.5 w-3.5" />
-                                        </Button>
-                                    </div>
-                                    <div v-else class="mt-0.5 flex items-center justify-end gap-2">
-                                        <p class="text-sm font-medium" dir="ltr">{{ formatActivityTime(order.activity_time) }}</p>
-                                        <Button
-                                            v-if="order.can_edit_activity_time"
-                                            type="button"
-                                            variant="outline"
-                                            size="sm"
-                                            class="h-8 gap-1 px-2 text-xs"
-                                            @click="startEditTime(order)"
-                                        >
-                                            <Pencil class="h-3.5 w-3.5" />
-                                            تحديد
-                                        </Button>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div v-if="order.customer_email || order.customer_phone" class="space-y-1.5 text-sm">
-                                <p class="text-xs text-muted-foreground">التواصل</p>
-                                <a
-                                    v-if="order.customer_phone"
-                                    :href="`tel:${order.customer_phone}`"
-                                    class="flex min-h-10 items-center gap-2 rounded-lg border border-border/60 px-3 py-2 text-foreground transition hover:bg-muted/40"
-                                >
-                                    <Phone class="h-4 w-4 shrink-0 text-muted-foreground" />
-                                    <span dir="ltr" class="truncate">{{ order.customer_phone }}</span>
-                                </a>
-                                <a
-                                    v-if="order.customer_email"
-                                    :href="`mailto:${order.customer_email}`"
-                                    class="flex min-h-10 items-center gap-2 rounded-lg border border-border/60 px-3 py-2 text-foreground transition hover:bg-muted/40"
-                                >
-                                    <Mail class="h-4 w-4 shrink-0 text-muted-foreground" />
-                                    <span class="truncate">{{ order.customer_email }}</span>
-                                </a>
-                            </div>
-
-                            <div class="grid grid-cols-2 gap-2 text-sm">
-                                <div class="rounded-lg border border-border/60 px-3 py-2">
-                                    <p class="text-xs text-muted-foreground">تاريخ الفعالية</p>
-                                    <p class="mt-0.5 font-medium">{{ formatActivityDate(order.activity_date) }}</p>
-                                </div>
-                                <div class="rounded-lg border border-border/60 px-3 py-2">
-                                    <p class="text-xs text-muted-foreground">العملة</p>
-                                    <p class="mt-0.5 font-medium" dir="ltr">{{ order.currency }}</p>
-                                </div>
-                            </div>
-
-                            <div v-if="order.address && locationMapsUrl(order.address)">
-                                <p class="mb-1.5 text-xs text-muted-foreground">الموقع</p>
-                                <a
-                                    :href="locationMapsUrl(order.address)!"
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    class="flex min-h-10 items-start gap-2 rounded-lg border border-border/60 px-3 py-2 text-sm text-primary transition hover:bg-muted/40"
-                                >
-                                    <MapPin class="mt-0.5 h-4 w-4 shrink-0" />
-                                    <span class="line-clamp-2 min-w-0 flex-1">{{ order.address }}</span>
-                                    <ExternalLink class="mt-0.5 h-3.5 w-3.5 shrink-0 opacity-60" />
-                                </a>
-                            </div>
-                        </div>
-
-                        <div
-                            class="grid gap-2 border-t border-border/60 bg-muted/10 p-3"
-                            :class="isAdmin ? 'grid-cols-2' : 'grid-cols-1'"
+                            </th>
+                            <th class="px-3 py-3.5 text-start text-[13px] font-semibold text-gray-700 dark:text-neutral-200">الطلب</th>
+                            <th class="px-3 py-3.5 text-start text-[13px] font-semibold text-gray-700 dark:text-neutral-200">العميل</th>
+                            <th class="px-3 py-3.5 text-start text-[13px] font-semibold text-gray-700 dark:text-neutral-200">الإجمالي</th>
+                            <th class="px-3 py-3.5 text-start text-[13px] font-semibold text-gray-700 dark:text-neutral-200">المدفوع</th>
+                            <th class="px-3 py-3.5 text-start text-[13px] font-semibold text-gray-700 dark:text-neutral-200">المستحق</th>
+                            <th class="px-3 py-3.5 text-start text-[13px] font-semibold text-gray-700 dark:text-neutral-200">تاريخ الفعالية</th>
+                            <th class="px-3 py-3.5 text-start text-[13px] font-semibold text-gray-700 dark:text-neutral-200">وقت الفعالية</th>
+                            <th class="px-3 py-3.5 text-start text-[13px] font-semibold text-gray-700 dark:text-neutral-200">الحالة</th>
+                            <th class="px-4 py-3.5 text-end text-[13px] font-semibold text-gray-700 dark:text-neutral-200" />
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr v-if="orders.data.length === 0">
+                            <td colspan="10" class="px-4 py-16 text-center text-gray-500 dark:text-neutral-400">
+                                لا توجد طلبات مطابقة للبحث أو الفلتر الحالي.
+                            </td>
+                        </tr>
+                        <tr
+                            v-for="order in orders.data"
+                            :key="order.id"
+                            class="border-b border-gray-100 transition hover:bg-gray-50/70 dark:border-neutral-800 dark:hover:bg-neutral-800/40"
                         >
-                            <Button as-child variant="outline" class="h-11 touch-manipulation">
-                                <Link :href="route('orders.show', order.id)">
-                                    <Eye class="ms-2 h-4 w-4" />
-                                    عرض التفاصيل
+                            <td class="px-4 py-4">
+                                <input
+                                    type="checkbox"
+                                    class="size-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                    :checked="selectedIds.includes(order.id)"
+                                    @change="toggleSelect(order.id)"
+                                />
+                            </td>
+                            <td class="px-3 py-4">
+                                <Link :href="route('orders.show', order.id)" class="flex flex-col items-start gap-0.5">
+                                    <p class="font-semibold tabular-nums text-gray-900 dark:text-white" dir="ltr">
+                                        {{ order.order_number }}
+                                    </p>
+                                    <p class="text-xs text-gray-400">
+                                        أُنشئ في: <span dir="ltr">{{ formatDate(order.created_at) }}</span>
+                                    </p>
                                 </Link>
-                            </Button>
-                            <Button
-                                v-if="isAdmin"
-                                variant="destructive"
-                                class="h-11 touch-manipulation"
-                                @click="deleteOrder(order)"
-                            >
-                                <Trash2 class="ms-2 h-4 w-4" />
-                                حذف
-                            </Button>
-                        </div>
-                    </article>
-                </div>
-
-                <!-- Desktop table -->
-                <div class="hidden rounded-md border md:block">
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>رقم الطلب</TableHead>
-                                <TableHead>العميل</TableHead>
-                                <TableHead>التواصل</TableHead>
-                                <TableHead>تاريخ الفعالية</TableHead>
-                                <TableHead>الموقع</TableHead>
-                                <TableHead>المبلغ</TableHead>
-                                <TableHead>وقت الفعالية</TableHead>
-                                <TableHead>الحالة</TableHead>
-                                <TableHead>التاريخ</TableHead>
-                                <TableHead class="w-[50px]">إجراءات</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            <TableRow v-if="orders.data.length === 0">
-                                <TableCell colspan="10" class="h-24 text-center text-muted-foreground">
-                                    لا توجد طلبات
-                                </TableCell>
-                            </TableRow>
-                            <TableRow
-                                v-for="order in orders.data"
-                                :key="order.id"
-                                class="hover:bg-muted/50"
-                            >
-                                <TableCell class="font-mono text-sm font-medium">
-                                    {{ order.order_number }}
-                                </TableCell>
-                                <TableCell>
-                                    {{ order.customer_name }}
-                                </TableCell>
-                                <TableCell>
-                                    <div class="flex flex-col gap-0.5 text-sm text-muted-foreground">
-                                        <span v-if="order.customer_email" class="flex items-center gap-1">
-                                            <Mail class="h-3 w-3 shrink-0" />
-                                            {{ order.customer_email }}
-                                        </span>
-                                        <span v-if="order.customer_phone" class="flex items-center gap-1">
-                                            <Phone class="h-3 w-3 shrink-0" />
-                                            {{ order.customer_phone }}
-                                        </span>
-                                        <span v-if="!order.customer_email && !order.customer_phone">—</span>
-                                    </div>
-                                </TableCell>
-                                <TableCell class="whitespace-nowrap text-muted-foreground">
-                                    {{ formatActivityDate(order.activity_date) }}
-                                </TableCell>
-                                <TableCell class="max-w-[220px]">
-                                    <template v-if="order.address && locationMapsUrl(order.address)">
-                                        <a
-                                            :href="locationMapsUrl(order.address)!"
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            class="inline-flex max-w-full items-start gap-1.5 text-sm text-primary hover:underline"
-                                            :title="order.address"
+                            </td>
+                            <td class="px-3 py-4">
+                                <div class="flex min-w-0 flex-col items-start gap-1">
+                                    <p class="font-semibold text-gray-900 dark:text-white">{{ order.customer_name }}</p>
+                                    <a
+                                        v-if="order.address && locationMapsUrl(order.address)"
+                                        :href="locationMapsUrl(order.address)!"
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        class="inline-flex max-w-full items-center gap-1 text-xs text-blue-600 hover:underline dark:text-blue-400"
+                                        @click.stop
+                                    >
+                                        <MapPin class="size-3 shrink-0" />
+                                        <span class="truncate">الموقع</span>
+                                        <ExternalLink class="size-3 shrink-0 opacity-60" />
+                                    </a>
+                                </div>
+                            </td>
+                            <td class="px-3 py-4 font-semibold tabular-nums text-gray-900 dark:text-white" dir="ltr">
+                                {{ formatCurrency(Number(order.total_amount) || 0, order.currency) }}
+                            </td>
+                            <td class="px-3 py-4 tabular-nums" dir="ltr">
+                                <span
+                                    v-if="paidAmount(order) > 0"
+                                    class="font-semibold text-emerald-600 dark:text-emerald-400"
+                                >
+                                    {{ formatCurrency(paidAmount(order), order.currency) }}
+                                </span>
+                                <span v-else class="text-gray-400">-</span>
+                            </td>
+                            <td class="px-3 py-4 tabular-nums" dir="ltr">
+                                <span
+                                    v-if="dueAmount(order) > 0"
+                                    class="font-semibold text-red-600 dark:text-red-400"
+                                >
+                                    {{ formatCurrency(dueAmount(order), order.currency) }}
+                                </span>
+                                <span v-else class="text-gray-400">-</span>
+                            </td>
+                            <td class="px-3 py-4 text-gray-600 dark:text-neutral-300">
+                                {{ formatActivityDate(order.activity_date) }}
+                            </td>
+                            <td class="px-3 py-4" @click.stop>
+                                <div v-if="editingTime.id === order.id" class="flex items-center gap-1.5" dir="ltr">
+                                    <div class="inline-flex h-8 items-center gap-0.5 rounded-md border border-gray-200 bg-white px-1 dark:border-neutral-700 dark:bg-neutral-950">
+                                        <select
+                                            v-model="editingTime.hour"
+                                            class="h-7 w-8 cursor-pointer appearance-none bg-transparent text-center text-xs font-medium tabular-nums outline-none"
+                                            :disabled="editingTime.saving"
                                         >
-                                            <MapPin class="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                                            <span class="line-clamp-2 min-w-0">{{ order.address }}</span>
-                                            <ExternalLink class="mt-0.5 h-3 w-3 shrink-0 opacity-60" />
-                                        </a>
-                                    </template>
-                                    <span v-else class="text-muted-foreground">—</span>
-                                </TableCell>
-                                <TableCell>
-                                    <span class="font-semibold text-green-600 dark:text-green-400">
-                                        {{ formatCurrency(Number(order.total_amount), order.currency) }}
+                                            <option v-for="hour in hourOptions" :key="`h-${hour}`" :value="hour">{{ hour }}</option>
+                                        </select>
+                                        <span class="text-xs text-gray-400">:</span>
+                                        <select
+                                            v-model="editingTime.minute"
+                                            class="h-7 w-8 cursor-pointer appearance-none bg-transparent text-center text-xs font-medium tabular-nums outline-none"
+                                            :disabled="editingTime.saving"
+                                        >
+                                            <option v-for="minute in minuteOptions" :key="`m-${minute}`" :value="minute">{{ minute }}</option>
+                                        </select>
+                                        <span class="mx-0.5 h-4 w-px bg-gray-200 dark:bg-neutral-700" />
+                                        <select
+                                            v-model="editingTime.period"
+                                            class="h-7 w-9 cursor-pointer appearance-none bg-transparent text-center text-xs font-medium outline-none"
+                                            :disabled="editingTime.saving"
+                                        >
+                                            <option value="AM">AM</option>
+                                            <option value="PM">PM</option>
+                                        </select>
+                                    </div>
+                                    <Button
+                                        type="button"
+                                        size="icon"
+                                        class="h-8 w-8 shrink-0"
+                                        :disabled="editingTime.saving"
+                                        @click="saveEditTime(order)"
+                                    >
+                                        <Check class="size-3.5" />
+                                    </Button>
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="icon"
+                                        class="h-8 w-8 shrink-0"
+                                        :disabled="editingTime.saving"
+                                        @click="cancelEditTime"
+                                    >
+                                        <X class="size-3.5" />
+                                    </Button>
+                                </div>
+                                <div v-else class="flex items-center gap-2">
+                                    <span class="text-sm font-medium tabular-nums text-gray-700 dark:text-neutral-200" dir="ltr">
+                                        {{ formatActivityTime(order.activity_time) }}
                                     </span>
-                                </TableCell>
-                                <TableCell class="whitespace-nowrap" @click.stop>
-                                    <div v-if="editingTime.id === order.id" class="flex items-center gap-1.5" dir="ltr">
-                                        <div class="inline-flex h-8 items-center gap-0.5 rounded-md border border-input bg-background px-1">
-                                            <select
-                                                v-model="editingTime.hour"
-                                                class="h-7 w-8 cursor-pointer appearance-none bg-transparent text-center text-xs font-medium tabular-nums outline-none"
-                                                :disabled="editingTime.saving"
-                                            >
-                                                <option v-for="hour in hourOptions" :key="`d-h-${hour}`" :value="hour">{{ hour }}</option>
-                                            </select>
-                                            <span class="text-xs text-muted-foreground">:</span>
-                                            <select
-                                                v-model="editingTime.minute"
-                                                class="h-7 w-8 cursor-pointer appearance-none bg-transparent text-center text-xs font-medium tabular-nums outline-none"
-                                                :disabled="editingTime.saving"
-                                            >
-                                                <option v-for="minute in minuteOptions" :key="`d-m-${minute}`" :value="minute">{{ minute }}</option>
-                                            </select>
-                                            <span class="mx-0.5 h-4 w-px bg-border" />
-                                            <select
-                                                v-model="editingTime.period"
-                                                class="h-7 w-9 cursor-pointer appearance-none bg-transparent text-center text-xs font-medium outline-none"
-                                                :disabled="editingTime.saving"
-                                            >
-                                                <option value="AM">AM</option>
-                                                <option value="PM">PM</option>
-                                            </select>
-                                        </div>
-                                        <Button
-                                            type="button"
-                                            size="icon"
-                                            class="h-8 w-8 shrink-0"
-                                            :disabled="editingTime.saving"
-                                            title="حفظ"
-                                            @click="saveEditTime(order)"
-                                        >
-                                            <Check class="h-3.5 w-3.5" />
-                                        </Button>
-                                        <Button
-                                            type="button"
-                                            variant="outline"
-                                            size="icon"
-                                            class="h-8 w-8 shrink-0"
-                                            :disabled="editingTime.saving"
-                                            title="إلغاء"
-                                            @click="cancelEditTime"
-                                        >
-                                            <X class="h-3.5 w-3.5" />
-                                        </Button>
-                                    </div>
-                                    <div v-else class="flex items-center gap-2">
-                                        <span class="text-sm font-medium tabular-nums" dir="ltr">
-                                            {{ formatActivityTime(order.activity_time) }}
-                                        </span>
-                                        <Button
-                                            v-if="order.can_edit_activity_time"
-                                            type="button"
-                                            variant="outline"
-                                            size="sm"
-                                            class="h-8 gap-1 px-2 text-xs"
-                                            @click="startEditTime(order)"
-                                        >
-                                            <Pencil class="h-3.5 w-3.5" />
-                                            تحديد
-                                        </Button>
-                                    </div>
-                                </TableCell>
-                                <TableCell>
-                                    <Badge :variant="getStatusBadgeVariant(order.status)">
-                                        {{ getStatusText(order.status) }}
-                                    </Badge>
-                                </TableCell>
-                                <TableCell class="text-muted-foreground">
-                                    {{ formatDate(order.created_at) }}
-                                </TableCell>
-                                <TableCell>
+                                    <button
+                                        v-if="order.can_edit_activity_time"
+                                        type="button"
+                                        class="inline-flex size-7 items-center justify-center rounded-lg border border-gray-200 text-gray-500 transition hover:bg-gray-50 dark:border-neutral-700 dark:hover:bg-neutral-800"
+                                        title="تحديد وقت الفعالية"
+                                        @click="startEditTime(order)"
+                                    >
+                                        <Pencil class="size-3.5" />
+                                    </button>
+                                </div>
+                            </td>
+                            <td class="px-3 py-4">
+                                <span
+                                    class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold"
+                                    :class="statusBadgeClass(order.status)"
+                                >
+                                    {{ getStatusText(order.status) }}
+                                </span>
+                            </td>
+                            <td class="px-4 py-4">
+                                <div class="flex justify-end">
                                     <DropdownMenu>
                                         <DropdownMenuTrigger as-child>
-                                            <Button variant="ghost" class="h-8 w-8 p-0">
-                                                <MoreHorizontal class="h-4 w-4" />
-                                            </Button>
+                                            <button
+                                                type="button"
+                                                class="inline-flex size-8 items-center justify-center rounded-lg text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-neutral-800 dark:hover:text-neutral-200"
+                                            >
+                                                <MoreVertical class="size-4" />
+                                            </button>
                                         </DropdownMenuTrigger>
-                                        <DropdownMenuContent align="end">
+                                        <DropdownMenuContent align="end" class="min-w-44">
                                             <DropdownMenuItem as-child>
-                                                <Link :href="route('orders.show', order.id)">
-                                                    <Eye class="mr-2 h-4 w-4" />
+                                                <Link :href="route('orders.show', order.id)" class="flex items-center gap-2">
+                                                    <Eye class="size-4" />
                                                     عرض التفاصيل
                                                 </Link>
                                             </DropdownMenuItem>
                                             <DropdownMenuItem
                                                 v-if="order.can_edit_activity_time"
+                                                class="gap-2"
                                                 @click="startEditTime(order)"
                                             >
-                                                <Pencil class="mr-2 h-4 w-4" />
+                                                <Pencil class="size-4" />
                                                 تحديد وقت الفعالية
                                             </DropdownMenuItem>
+                                            <DropdownMenuSeparator v-if="isAdmin" />
                                             <DropdownMenuItem
                                                 v-if="isAdmin"
+                                                class="gap-2 text-red-600 focus:text-red-600"
                                                 @click="deleteOrder(order)"
-                                                class="text-destructive focus:text-destructive"
                                             >
-                                                <Trash2 class="mr-2 h-4 w-4" />
+                                                <Trash2 class="size-4" />
                                                 حذف
                                             </DropdownMenuItem>
                                         </DropdownMenuContent>
                                     </DropdownMenu>
-                                </TableCell>
-                            </TableRow>
-                        </TableBody>
-                    </Table>
-                </div>
+                                </div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
 
-                <!-- Pagination -->
-                <div
-                    v-if="orders.last_page > 1"
-                    class="flex flex-col gap-3 rounded-2xl border border-border/60 bg-muted/10 p-3 sm:flex-row sm:items-center sm:justify-between sm:p-4"
-                >
-                    <p class="text-center text-sm text-muted-foreground sm:text-start">
-                        عرض
-                        <span class="font-medium tabular-nums">{{ formatInteger(orders.from ?? 0) }}</span>
-                        إلى
-                        <span class="font-medium tabular-nums">{{ formatInteger(orders.to ?? 0) }}</span>
-                        من
-                        <span class="font-medium tabular-nums">{{ formatInteger(orders.total) }}</span>
-                        طلب
-                    </p>
-                    <div class="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
-                        <Button
-                            variant="outline"
-                            class="h-11 touch-manipulation"
-                            :disabled="orders.current_page <= 1"
-                            @click="goToPage(orders.current_page - 1)"
+            <div class="flex flex-col gap-3 border-t border-gray-100 px-4 py-4 dark:border-neutral-800 sm:flex-row sm:items-center sm:justify-between">
+                <p class="text-sm text-gray-500 dark:text-neutral-400">
+                    عرض {{ formatInteger(orders.from ?? 0) }} - {{ formatInteger(orders.to ?? 0) }} من {{ formatInteger(orders.total) }}
+                </p>
+
+                <div v-if="orders.last_page > 1" class="flex items-center justify-center gap-1.5 sm:justify-end">
+                    <button
+                        type="button"
+                        class="inline-flex size-8 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-500 transition hover:bg-gray-50 disabled:opacity-40 dark:border-neutral-700 dark:bg-neutral-900 dark:hover:bg-neutral-800"
+                        :disabled="orders.current_page <= 1"
+                        @click="goToPage(orders.current_page - 1)"
+                    >
+                        <ChevronRight class="size-4" />
+                    </button>
+
+                    <template v-for="(item, index) in pageNumbers" :key="`${item}-${index}`">
+                        <span v-if="item === 'ellipsis'" class="px-1 text-gray-400">...</span>
+                        <button
+                            v-else
+                            type="button"
+                            class="inline-flex size-8 items-center justify-center rounded-lg text-sm font-medium transition"
+                            :class="
+                                orders.current_page === item
+                                    ? 'bg-gray-100 text-gray-900 dark:bg-neutral-700 dark:text-white'
+                                    : 'text-gray-500 hover:bg-gray-50 dark:text-neutral-300 dark:hover:bg-neutral-800'
+                            "
+                            @click="goToPage(item)"
                         >
-                            <ChevronRight class="h-4 w-4" />
-                            السابق
-                        </Button>
-                        <span class="px-1 text-center text-sm font-medium tabular-nums text-muted-foreground">
-                            {{ formatInteger(orders.current_page) }} / {{ formatInteger(orders.last_page) }}
-                        </span>
-                        <Button
-                            variant="outline"
-                            class="h-11 touch-manipulation"
-                            :disabled="orders.current_page >= orders.last_page"
-                            @click="goToPage(orders.current_page + 1)"
-                        >
-                            التالي
-                            <ChevronLeft class="h-4 w-4" />
-                        </Button>
-                    </div>
+                            {{ item }}
+                        </button>
+                    </template>
+
+                    <button
+                        type="button"
+                        class="inline-flex size-8 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-500 transition hover:bg-gray-50 disabled:opacity-40 dark:border-neutral-700 dark:bg-neutral-900 dark:hover:bg-neutral-800"
+                        :disabled="orders.current_page >= orders.last_page"
+                        @click="goToPage(orders.current_page + 1)"
+                    >
+                        <ChevronLeft class="size-4" />
+                    </button>
                 </div>
-            </CardContent>
-        </Card>
+            </div>
+        </div>
     </div>
 </template>

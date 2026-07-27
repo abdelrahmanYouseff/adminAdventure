@@ -23,12 +23,16 @@ class WorkerOrderController extends Controller
     public function index(Request $request)
     {
         $status = $request->string('status')->toString() ?: 'pending';
+        $search = trim($request->string('search')->toString());
+        $dateRange = $request->string('date_range')->toString() ?: 'all';
 
         return Inertia::render('WorkerOrders/Index', [
-            'workOrders' => Inertia::defer(fn () => $this->paginatedWorkOrders($request, $status)),
+            'workOrders' => Inertia::defer(fn () => $this->paginatedWorkOrders($request, $status, $search, $dateRange)),
             'stats' => Inertia::defer(fn () => $this->workOrderStats()),
             'filters' => [
                 'status' => $status,
+                'search' => $search,
+                'date_range' => in_array($dateRange, ['all', '7', '30'], true) ? $dateRange : 'all',
             ],
         ]);
     }
@@ -367,7 +371,7 @@ class WorkerOrderController extends Controller
     /**
      * @return array<string, mixed>
      */
-    private function paginatedWorkOrders(Request $request, string $status): array
+    private function paginatedWorkOrders(Request $request, string $status, string $search = '', string $dateRange = 'all'): array
     {
         $query = Order::query()
             ->whereHas('workerOrders')
@@ -386,6 +390,27 @@ class WorkerOrderController extends Controller
         } elseif ($status === 'completed') {
             $query->whereDoesntHave('workerOrders', fn ($q) => $q->where('status', 'pending'))
                 ->whereHas('workerOrders', fn ($q) => $q->where('status', 'completed'));
+        }
+
+        if ($search !== '') {
+            $query->where(function ($q) use ($search) {
+                $q->where('order_number', 'like', "%{$search}%")
+                    ->orWhere('customer_name', 'like', "%{$search}%")
+                    ->orWhere('customer_phone', 'like', "%{$search}%")
+                    ->orWhereHas('invoice', fn ($invoice) => $invoice->where('invoice_number', 'like', "%{$search}%"))
+                    ->orWhereHas('workerOrders', function ($workerOrder) use ($search) {
+                        $workerOrder->where('customer_name', 'like', "%{$search}%")
+                            ->orWhere('customer_phone', 'like', "%{$search}%");
+                    });
+            });
+        }
+
+        if (in_array($dateRange, ['7', '30'], true)) {
+            $from = now()->subDays((int) $dateRange)->startOfDay();
+            $query->where(function ($q) use ($from) {
+                $q->whereDate('activity_date', '>=', $from)
+                    ->orWhereHas('workerOrders', fn ($workerOrder) => $workerOrder->whereDate('installation_date', '>=', $from));
+            });
         }
 
         if ($status === 'completed') {

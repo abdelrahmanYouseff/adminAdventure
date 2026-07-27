@@ -19,6 +19,8 @@ class OrderPaymentReceiptController extends Controller
     {
         $search = trim((string) $request->query('search', ''));
         $status = (string) $request->query('status', 'all');
+        $perPage = (int) $request->query('per_page', 15);
+        $perPage = in_array($perPage, [10, 15, 25, 50], true) ? $perPage : 15;
         $user = $request->user();
         $canApprove = $this->canApprove($user);
 
@@ -43,7 +45,7 @@ class OrderPaymentReceiptController extends Controller
                 $query->where('approval_status', $status);
             })
             ->latest('id')
-            ->paginate(15)
+            ->paginate($perPage)
             ->withQueryString()
             ->through(function (OrderPaymentReceipt $receipt) use ($canApprove) {
                 $order = $receipt->order;
@@ -77,18 +79,24 @@ class OrderPaymentReceiptController extends Controller
                 ];
             });
 
-        $stats = [
+        $statusCounts = [
+            'all' => OrderPaymentReceipt::query()->count(),
             'pending' => OrderPaymentReceipt::query()->where('approval_status', OrderPaymentReceipt::STATUS_PENDING)->count(),
             'approved' => OrderPaymentReceipt::query()->where('approval_status', OrderPaymentReceipt::STATUS_APPROVED)->count(),
         ];
 
         return Inertia::render('PaymentReceipts/Index', [
             'receipts' => $receipts,
-            'stats' => $stats,
+            'stats' => [
+                'pending' => $statusCounts['pending'],
+                'approved' => $statusCounts['approved'],
+            ],
+            'statusCounts' => $statusCounts,
             'canApprove' => $canApprove,
             'filters' => [
-                'search' => $search !== '' ? $search : null,
-                'status' => in_array($status, [OrderPaymentReceipt::STATUS_PENDING, OrderPaymentReceipt::STATUS_APPROVED], true) ? $status : 'all',
+                'search' => $search,
+                'status' => in_array($status, ['all', OrderPaymentReceipt::STATUS_PENDING, OrderPaymentReceipt::STATUS_APPROVED], true) ? $status : 'all',
+                'per_page' => $perPage,
             ],
         ]);
     }
