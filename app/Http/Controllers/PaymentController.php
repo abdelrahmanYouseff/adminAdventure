@@ -398,7 +398,10 @@ class PaymentController extends Controller
         }
 
         try {
+            $existingOrder = Order::where('order_number', $orderId)->with('products')->first();
+
             $invoice = Invoice::create([
+                'brand_id' => $existingOrder ? $existingOrder->resolveBrandId() : (int) \App\Models\Brand::default()->id,
                 'user_id' => $paymentSessionData['user_id'],
                 'rental_id' => null,
                 'invoice_number' => Invoice::generateInvoiceNumber(),
@@ -409,7 +412,6 @@ class PaymentController extends Controller
                 'due_date' => now()->addDays(7),
             ]);
 
-            $existingOrder = Order::where('order_number', $orderId)->first();
             if ($existingOrder) {
                 $existingOrder->update([
                     'invoice_id' => $invoice->id,
@@ -1003,6 +1005,7 @@ HTML;
                             ]);
                         } else {
                             $invoice = Invoice::create([
+                                'brand_id' => (int) \App\Models\Brand::default()->id,
                                 'user_id' => $paymentSessionData['user_id'],
                                 'rental_id' => null,
                                 'invoice_number' => Invoice::generateInvoiceNumber(),
@@ -1064,6 +1067,7 @@ HTML;
                             }
                         } else {
                             Invoice::create([
+                                'brand_id' => (int) \App\Models\Brand::default()->id,
                                 'user_id' => $paymentSessionData['user_id'],
                                 'rental_id' => null,
                                 'invoice_number' => Invoice::generateInvoiceNumber(),
@@ -1527,7 +1531,7 @@ HTML;
      */
     protected function resolveOrCreateInvoiceForOrder(Order $order, array $attributes = []): Invoice
     {
-        $order->loadMissing('invoice');
+        $order->loadMissing(['invoice', 'products']);
 
         if ($order->invoice) {
             return $order->invoice;
@@ -1543,6 +1547,7 @@ HTML;
         }
 
         $invoice = Invoice::create([
+            'brand_id' => $order->resolveBrandId(),
             'user_id' => $attributes['user_id'] ?? $order->user_id,
             'rental_id' => null,
             'invoice_number' => Invoice::generateInvoiceNumber(),

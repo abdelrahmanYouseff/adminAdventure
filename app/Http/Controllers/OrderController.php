@@ -190,8 +190,10 @@ class OrderController extends Controller
             $userId,
             $insurance,
             $insuranceTotal,
+            $productIds,
         ) {
             $invoice = Invoice::create([
+                'brand_id' => Product::resolveBrandIdForIds($productIds),
                 'invoice_number' => Invoice::generateInvoiceNumber(),
                 'amount' => $chargeAmount,
                 'status' => 'pending',
@@ -399,6 +401,7 @@ class OrderController extends Controller
             $chargeAmount = round((float) $request->total_amount + $insuranceTotal, 2);
 
             $invoiceData = [
+                'brand_id' => Product::resolveBrandIdForIds($productIds),
                 'invoice_number' => Invoice::generateInvoiceNumber(),
                 'amount' => $chargeAmount,
                 'status' => $request->status === 'paid' ? 'paid' : 'pending',

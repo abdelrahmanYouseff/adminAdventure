@@ -339,6 +339,7 @@ class StoreController extends Controller
     private function completeMockStoreCheckout(Order $order, bool $expectsJson)
     {
             $invoice = Invoice::create([
+                'brand_id' => $order->resolveBrandId(),
                 'user_id' => $order->user_id,
                 'rental_id' => null,
                 'invoice_number' => Invoice::generateInvoiceNumber(),

@@ -109,6 +109,38 @@ class Order extends Model
                     ->withTimestamps();
     }
 
+    /**
+     * Resolve brand from order products or line items JSON.
+     */
+    public function resolveBrandId(): int
+    {
+        if ($this->relationLoaded('products') && $this->products->isNotEmpty()) {
+            $brandId = $this->products->first(fn ($product) => $product->brand_id !== null)?->brand_id;
+            if ($brandId) {
+                return (int) $brandId;
+            }
+        }
+
+        $brandId = $this->products()->whereNotNull('brand_id')->value('products.brand_id');
+        if ($brandId) {
+            return (int) $brandId;
+        }
+
+        if (is_array($this->items)) {
+            $productIds = collect($this->items)
+                ->pluck('product_id')
+                ->filter()
+                ->map(fn ($id) => (int) $id)
+                ->all();
+
+            if ($productIds !== []) {
+                return Product::resolveBrandIdForIds($productIds);
+            }
+        }
+
+        return (int) Brand::default()->id;
+    }
+
     public function workerOrders()
     {
         return $this->hasMany(WorkerOrder::class);

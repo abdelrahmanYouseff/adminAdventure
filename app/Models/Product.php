@@ -50,6 +50,21 @@ class Product extends Model
             ->where('brand_id', Brand::storefront()->id);
     }
 
+    public static function resolveBrandIdForIds(array $productIds): int
+    {
+        $ids = array_values(array_filter(array_map('intval', $productIds)));
+        if ($ids === []) {
+            return (int) Brand::default()->id;
+        }
+
+        $brandId = static::query()
+            ->whereIn('id', $ids)
+            ->whereNotNull('brand_id')
+            ->value('brand_id');
+
+        return $brandId ? (int) $brandId : (int) Brand::default()->id;
+    }
+
     public function isStorefrontVisible(): bool
     {
         return $this->status === 'active'

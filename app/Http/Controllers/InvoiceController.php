@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Brand;
 use App\Models\Invoice;
 use App\Services\InvoicePdfService;
 use App\Support\InvoicePdfData;
@@ -15,12 +16,23 @@ class InvoiceController extends Controller
      */
     public function index(Request $request)
     {
-        $invoices = Invoice::with(['user'])
+        $brandId = $request->query('brand');
+
+        $invoices = Invoice::with(['user', 'brand'])
+            ->when($brandId, fn ($query) => $query->where('brand_id', $brandId))
             ->orderBy('created_at', 'desc')
-            ->paginate(15);
+            ->paginate(15)
+            ->withQueryString();
+
+        $brands = Brand::query()
+            ->withCount('invoices')
+            ->orderBy('name')
+            ->get(['id', 'name', 'slug']);
 
         return Inertia::render('Invoices/Index', [
             'invoices' => $invoices,
+            'brands' => $brands,
+            'selectedBrandId' => $brandId ? (int) $brandId : null,
         ]);
     }
 
@@ -90,6 +102,10 @@ class InvoiceController extends Controller
     public function export(Request $request)
     {
         $query = Invoice::with(['user']);
+
+        if ($request->has('brand') && $request->brand !== 'all') {
+            $query->where('brand_id', $request->brand);
+        }
 
         if ($request->has('status') && $request->status !== 'all') {
             $query->where('status', $request->status);

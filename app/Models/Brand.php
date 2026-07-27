@@ -65,6 +65,11 @@ class Brand extends Model
         return $this->hasMany(Quotation::class);
     }
 
+    public function invoices()
+    {
+        return $this->hasMany(Invoice::class);
+    }
+
     public static function default(): self
     {
         return static::query()->firstOrCreate(
