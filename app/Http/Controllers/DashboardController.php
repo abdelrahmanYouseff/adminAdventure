@@ -8,12 +8,11 @@ use App\Models\Package;
 use App\Models\Quotation;
 use App\Models\User;
 use App\Models\AppDownloadClick;
-use App\Services\SiteVisitService;
 use Inertia\Inertia;
 
 class DashboardController extends Controller
 {
-    public function index(SiteVisitService $siteVisitService)
+    public function index()
     {
         $user = auth()->user();
 
@@ -31,8 +30,6 @@ class DashboardController extends Controller
             'totalInvoices' => $totalInvoices,
             'totalPackages' => $totalPackages,
             'totalQuotations' => $totalQuotations,
-            'visitorStats' => $siteVisitService->summaryStats(),
-            'visitorsByCountry' => $siteVisitService->visitorsByCountry(),
             'appDownloadStats' => [
                 'ios' => AppDownloadClick::query()
                     ->where('platform', AppDownloadClick::PLATFORM_IOS)

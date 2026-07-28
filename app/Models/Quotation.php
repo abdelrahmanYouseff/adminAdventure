@@ -26,6 +26,7 @@ class Quotation extends Model
         'tax_amount',
         'insurance_amount',
         'total_amount',
+        'amount_paid',
         'status',
         'user_id',
     ];
@@ -40,6 +41,7 @@ class Quotation extends Model
         'tax_amount' => 'decimal:2',
         'insurance_amount' => 'decimal:2',
         'total_amount' => 'decimal:2',
+        'amount_paid' => 'decimal:2',
     ];
 
     public function user(): BelongsTo
@@ -55,6 +57,11 @@ class Quotation extends Model
     public function items(): HasMany
     {
         return $this->hasMany(QuotationItem::class);
+    }
+
+    public function order(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(Order::class);
     }
 
     protected static function boot()

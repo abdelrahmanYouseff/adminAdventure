@@ -122,12 +122,13 @@ class OrderPaymentReceiptController extends Controller
         if ($order) {
             app(WorkerOrderSyncService::class)->syncFromOrder($order);
             $workOrderReady = $order->workerOrders()->exists();
+            app(\App\Services\QuotationToOrderService::class)->markQuotationAcceptedFromOrder($order);
         }
 
         $message = 'تم اعتماد سند القبض '.$result['receipt']->receipt_number.' بنجاح.';
         if ($workOrderReady) {
             $message .= $result['released_work_order']
-                ? ' وتم إصدار أمر العمل '.$order->order_number.'.'
+                ? ' وتم تحويل العرض إلى طلب وإصدار أمر العمل '.$order->order_number.'.'
                 : ' وأمر العمل '.$order->order_number.' متاح في صفحة أوامر العمل.';
         }
 

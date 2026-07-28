@@ -16,6 +16,7 @@ class Order extends Model
         'activity_date',
         'activity_time',
         'invoice_id',
+        'quotation_id',
         'order_number',
         'location_slug',
         'total_amount',
@@ -97,6 +98,14 @@ class Order extends Model
     public function invoice()
     {
         return $this->belongsTo(Invoice::class);
+    }
+
+    /**
+     * Quotation that originated this order (if any).
+     */
+    public function quotation()
+    {
+        return $this->belongsTo(Quotation::class);
     }
 
     /**

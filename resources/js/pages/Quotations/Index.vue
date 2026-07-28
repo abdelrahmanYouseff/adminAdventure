@@ -514,11 +514,12 @@ function quotationPdfUrl(id: number): string {
                                                     عرض PDF
                                                 </a>
                                             </DropdownMenuItem>
-                                            <DropdownMenuItem as-child>
-                                                <Link :href="route('quotations.edit', quotation.id)" class="gap-2">
-                                                    <Pencil class="size-4" />
-                                                    تعديل
-                                                </Link>
+                                            <DropdownMenuItem
+                                                class="gap-2"
+                                                @click="router.visit(route('quotations.edit', quotation.id))"
+                                            >
+                                                <Pencil class="size-4" />
+                                                تعديل
                                             </DropdownMenuItem>
                                             <DropdownMenuSeparator />
                                             <DropdownMenuItem

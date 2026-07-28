@@ -357,6 +357,7 @@ class QuotationController extends Controller
             'installation_at' => 'nullable|date',
             'dismantling_at' => 'nullable|date|after_or_equal:installation_at',
             'insurance_amount' => 'nullable|numeric|min:0',
+            'amount_paid' => 'nullable|numeric|min:0',
             'notes' => 'nullable|string',
             'items' => 'required|array|min:1',
             'items.*.product_id' => [
@@ -383,6 +384,8 @@ class QuotationController extends Controller
             'dismantling_at.after_or_equal' => 'تاريخ الفك يجب أن يكون بعد أو يساوي تاريخ التركيب.',
             'insurance_amount.numeric' => 'مبلغ التأمين غير صالح.',
             'insurance_amount.min' => 'مبلغ التأمين لا يمكن أن يكون سالباً.',
+            'amount_paid.numeric' => 'المبلغ المدفوع غير صالح.',
+            'amount_paid.min' => 'المبلغ المدفوع لا يمكن أن يكون سالباً.',
             'items.required' => 'يجب إضافة منتج واحد على الأقل.',
             'items.min' => 'يجب إضافة منتج واحد على الأقل.',
             'items.*.product_id.required' => 'المنتج مطلوب.',
@@ -443,6 +446,8 @@ class QuotationController extends Controller
 
             $taxAmount = round($subtotal * 0.15, 2);
             $totalAmount = round($subtotal + $taxAmount + $insuranceAmount, 2);
+            $amountPaid = round((float) ($request->input('amount_paid') ?? 0), 2);
+            $amountPaid = max(0, min($amountPaid, $totalAmount));
 
             $quotation->update([
                 'subtotal' => $subtotal,
@@ -450,12 +455,32 @@ class QuotationController extends Controller
                 'tax_amount' => $taxAmount,
                 'insurance_amount' => $insuranceAmount,
                 'total_amount' => $totalAmount,
+                'amount_paid' => $amountPaid,
             ]);
 
             DB::commit();
 
+            $paymentSyncMessage = '';
+            if ($amountPaid > 0) {
+                try {
+                    $sync = app(\App\Services\QuotationToOrderService::class)
+                        ->syncPaymentFromQuotation($quotation->fresh(['items']), $request->user());
+
+                    if ($sync['created_receipt'] && $sync['receipt']) {
+                        $paymentSyncMessage = ' وتم إنشاء سند القبض '.$sync['receipt']->receipt_number.' بانتظار اعتماد المحاسب.';
+                    } elseif ($sync['created_order']) {
+                        $paymentSyncMessage = ' وتم تجهيز الطلب المرتبط وبانتظار اعتماد سند القبض.';
+                    }
+                } catch (\Throwable $e) {
+                    Log::error('Quotation payment sync failed on store: '.$e->getMessage(), [
+                        'quotation_id' => $quotation->id,
+                    ]);
+                    $paymentSyncMessage = ' لكن تعذر إنشاء سند القبض تلقائياً: '.$e->getMessage();
+                }
+            }
+
             return redirect()->route('quotations.index')
-                ->with('success', 'تم إنشاء عرض السعر بنجاح.')
+                ->with('success', 'تم إنشاء عرض السعر بنجاح.'.$paymentSyncMessage)
                 ->with('open_pdf', $quotation->id);
         } catch (\Exception $e) {
             DB::rollBack();
@@ -487,21 +512,33 @@ class QuotationController extends Controller
      */
     public function edit(Quotation $quotation)
     {
-        $quotation->load(['items.product']);
-        $products = Product::where('status', 'active')
+        $quotation->load(['items.product', 'brand']);
+
+        $brandId = $quotation->brand_id;
+
+        $products = Product::query()
+            ->where('status', 'active')
+            ->when($brandId, fn ($query) => $query->where('brand_id', $brandId))
             ->with('category:id,category_name')
             ->orderBy('product_name')
-            ->get(['id', 'product_name', 'description', 'price', 'insurance_amount', 'category_id']);
+            ->get(['id', 'product_name', 'description', 'price', 'insurance_amount', 'category_id', 'brand_id']);
 
         $categories = Category::query()
-            ->whereHas('products', fn ($q) => $q->where('status', 'active'))
+            ->when($brandId, fn ($query) => $query->where('brand_id', $brandId))
+            ->whereHas('products', function ($q) use ($brandId) {
+                $q->where('status', 'active');
+                if ($brandId) {
+                    $q->where('brand_id', $brandId);
+                }
+            })
             ->orderBy('category_name')
-            ->get(['id', 'category_name']);
+            ->get(['id', 'category_name', 'brand_id']);
 
         return Inertia::render('Quotations/Edit', [
             'quotation' => $quotation,
             'products' => $products,
             'categories' => $categories,
+            'selectedBrand' => $quotation->brand,
         ]);
     }
 
@@ -521,6 +558,7 @@ class QuotationController extends Controller
             'installation_at' => 'nullable|date',
             'dismantling_at' => 'nullable|date|after_or_equal:installation_at',
             'insurance_amount' => 'nullable|numeric|min:0',
+            'amount_paid' => 'nullable|numeric|min:0',
             'notes' => 'nullable|string',
             'items' => 'required|array|min:1',
             'items.*.product_id' => 'required|exists:products,id',
@@ -577,6 +615,8 @@ class QuotationController extends Controller
 
             $taxAmount = round($subtotal * 0.15, 2);
             $totalAmount = round($subtotal + $taxAmount + $insuranceAmount, 2);
+            $amountPaid = round((float) ($request->input('amount_paid') ?? 0), 2);
+            $amountPaid = max(0, min($amountPaid, $totalAmount));
 
             $quotation->update([
                 'subtotal' => $subtotal,
@@ -584,12 +624,32 @@ class QuotationController extends Controller
                 'tax_amount' => $taxAmount,
                 'insurance_amount' => $insuranceAmount,
                 'total_amount' => $totalAmount,
+                'amount_paid' => $amountPaid,
             ]);
 
             DB::commit();
 
+            $paymentSyncMessage = '';
+            if ($amountPaid > 0) {
+                try {
+                    $sync = app(\App\Services\QuotationToOrderService::class)
+                        ->syncPaymentFromQuotation($quotation->fresh(['items']), $request->user());
+
+                    if ($sync['created_receipt'] && $sync['receipt']) {
+                        $paymentSyncMessage = ' وتم إنشاء/تحديث سند القبض '.$sync['receipt']->receipt_number.' بانتظار اعتماد المحاسب.';
+                    } elseif ($sync['order']) {
+                        $paymentSyncMessage = ' وسند القبض المرتبط جاهز لاعتماد المحاسب.';
+                    }
+                } catch (\Throwable $e) {
+                    Log::error('Quotation payment sync failed on update: '.$e->getMessage(), [
+                        'quotation_id' => $quotation->id,
+                    ]);
+                    $paymentSyncMessage = ' لكن تعذر مزامنة سند القبض تلقائياً: '.$e->getMessage();
+                }
+            }
+
             return redirect()->route('quotations.index')
-                ->with('success', 'تم تحديث عرض السعر بنجاح.')
+                ->with('success', 'تم تحديث عرض السعر بنجاح.'.$paymentSyncMessage)
                 ->with('open_pdf', $quotation->id);
         } catch (\Exception $e) {
             DB::rollBack();

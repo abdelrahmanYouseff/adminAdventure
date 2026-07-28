@@ -8,10 +8,8 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import {
     ArrowRight,
-    Building2,
     Calendar,
     FileSpreadsheet,
-    Layers3,
     Mail,
     MapPin,
     Package,
@@ -24,7 +22,7 @@ import {
 } from 'lucide-vue-next';
 import AppSidebarLayout from '@/layouts/app/AppSidebarLayout.vue';
 import ProductSearchCombobox from '@/components/ProductSearchCombobox.vue';
-import { formatCurrency, formatInteger } from '@/lib/formatNumber';
+import { formatCurrency } from '@/lib/formatNumber';
 import { ref, computed, watch } from 'vue';
 import type { BreadcrumbItem } from '@/types';
 
@@ -64,50 +62,102 @@ interface QuotationItem {
     insurance_amount: number;
 }
 
+interface QuotationRecord {
+    id: number;
+    quotation_number: string;
+    brand_id: number | null;
+    customer_name: string;
+    customer_email: string | null;
+    customer_phone: string | null;
+    customer_address: string | null;
+    company_tax_number: string | null;
+    valid_until: string;
+    activity_at: string | null;
+    installation_at: string | null;
+    dismantling_at: string | null;
+    insurance_amount: number | string | null;
+    notes: string | null;
+    amount_paid?: number | string | null;
+    items: Array<{
+        product_id: number;
+        product_name: string;
+        description: string | null;
+        quantity: number;
+        unit_price: number | string;
+        discount_amount?: number | string | null;
+        total_price: number | string;
+        product?: Product | null;
+    }>;
+}
+
 interface Props {
+    quotation: QuotationRecord;
     products: Product[];
     categories: Category[];
-    brands: Brand[];
     selectedBrand: Brand | null;
 }
 
 const props = withDefaults(defineProps<Props>(), {
     categories: () => [],
-    brands: () => [],
     selectedBrand: null,
 });
 
+function toDateInput(value: string | null | undefined): string {
+    if (!value) return '';
+    return String(value).slice(0, 10);
+}
+
+function toDateTimeLocal(value: string | null | undefined): string {
+    if (!value) return '';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+        return String(value).slice(0, 16);
+    }
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'عروض الأسعار', href: route('quotations.index') },
-    { title: 'إنشاء عرض جديد', href: route('quotations.create') },
+    { title: `تعديل ${props.quotation.quotation_number}`, href: route('quotations.edit', props.quotation.id) },
 ];
 
 const form = useForm({
-    brand_id: (props.selectedBrand?.id ?? null) as number | null,
-    customer_name: '',
-    customer_email: '',
-    customer_phone: '',
-    customer_address: '',
-    company_tax_number: '',
-    valid_until: (() => {
+    brand_id: (props.quotation.brand_id ?? props.selectedBrand?.id ?? null) as number | null,
+    customer_name: props.quotation.customer_name || '',
+    customer_email: props.quotation.customer_email || '',
+    customer_phone: props.quotation.customer_phone || '',
+    customer_address: props.quotation.customer_address || '',
+    company_tax_number: props.quotation.company_tax_number || '',
+    valid_until: toDateInput(props.quotation.valid_until) || (() => {
         const date = new Date();
         date.setDate(date.getDate() + 7);
         return date.toISOString().slice(0, 10);
     })(),
-    activity_at: '',
-    installation_at: '',
-    dismantling_at: '',
-    insurance_amount: 0 as number,
-    amount_paid: 0 as number,
-    notes: '',
-    items: [] as QuotationItem[],
+    activity_at: toDateTimeLocal(props.quotation.activity_at),
+    installation_at: toDateTimeLocal(props.quotation.installation_at),
+    dismantling_at: toDateTimeLocal(props.quotation.dismantling_at),
+    insurance_amount: Number(props.quotation.insurance_amount || 0),
+    amount_paid: Number(props.quotation.amount_paid || 0),
+    notes: props.quotation.notes || '',
+    items: props.quotation.items.map((item) => ({
+        product_id: item.product_id,
+        product_name: item.product_name,
+        description: item.description || '',
+        quantity: Number(item.quantity) || 1,
+        unit_price: Number(item.unit_price) || 0,
+        discount_amount: Number(item.discount_amount || 0),
+        total_price: Number(item.total_price) || 0,
+        insurance_amount: Number(item.product?.insurance_amount || 0),
+    })) as QuotationItem[],
 });
 
 const selectedCategoryId = ref<number | ''>('');
 const selectedProductId = ref<number | null>(null);
 const selectedQuantity = ref(1);
 const selectedUnitPrice = ref(0);
-const insuranceManual = ref(false);
+const insuranceManual = ref(true);
+const skipPhoneLookup = ref(true);
 const customerLookupStatus = ref<'idle' | 'loading' | 'found' | 'not_found'>('idle');
 const customerLookupMessage = ref('');
 let phoneLookupTimer: ReturnType<typeof setTimeout> | null = null;
@@ -230,7 +280,7 @@ function resetInsuranceToSuggested() {
 }
 
 const submit = () => {
-    form.post(route('quotations.store'));
+    form.put(route('quotations.update', props.quotation.id));
 };
 
 function digitsOnly(value: string): string {
@@ -312,6 +362,11 @@ watch(selectedProductId, (newValue) => {
 watch(
     () => form.customer_phone,
     (phone) => {
+        if (skipPhoneLookup.value) {
+            skipPhoneLookup.value = false;
+            return;
+        }
+
         if (phoneLookupTimer) {
             clearTimeout(phoneLookupTimer);
             phoneLookupTimer = null;
@@ -332,7 +387,7 @@ watch(
 </script>
 
 <template>
-    <Head title="إنشاء عرض سعر" />
+    <Head :title="`تعديل ${quotation.quotation_number}`" />
 
     <AppSidebarLayout :breadcrumbs="breadcrumbs">
         <div class="flex flex-1 flex-col gap-6 p-4 sm:p-6">
@@ -343,20 +398,14 @@ watch(
                         <FileSpreadsheet class="h-6 w-6" />
                     </div>
                     <div>
-                        <h1 class="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">إنشاء عرض سعر</h1>
+                        <h1 class="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">تعديل عرض السعر</h1>
                         <p class="mt-1 text-sm text-muted-foreground">
-                            <template v-if="!selectedBrand">اختر البراند أولاً ثم أكمل بيانات عرض السعر</template>
-                            <template v-else>عرض سعر لـ {{ selectedBrand.name }} — أدخل بيانات العميل وأضف المنتجات</template>
+                            {{ quotation.quotation_number }}
+                            <template v-if="selectedBrand"> — {{ selectedBrand.name }}</template>
                         </p>
                     </div>
                 </div>
                 <div class="flex flex-wrap gap-2 self-start">
-                    <Button v-if="selectedBrand" as-child variant="outline" class="shrink-0 gap-2">
-                        <Link :href="route('quotations.create')">
-                            <Building2 class="h-4 w-4" />
-                            تغيير البراند
-                        </Link>
-                    </Button>
                     <Button as-child variant="outline" class="shrink-0 gap-2">
                         <Link :href="route('quotations.index')">
                             <ArrowRight class="h-4 w-4" />
@@ -366,52 +415,6 @@ watch(
                 </div>
             </div>
 
-            <!-- Brand selection first step -->
-            <div v-if="!selectedBrand" class="space-y-4">
-                <div v-if="brands.length === 0" class="rounded-2xl border border-dashed p-12 text-center">
-                    <Building2 class="mx-auto h-12 w-12 text-muted-foreground/50" />
-                    <p class="mt-3 font-semibold">لا توجد براندات نشطة</p>
-                    <Button class="mt-4" as-child>
-                        <Link :href="route('brands.index')">إدارة البراندات</Link>
-                    </Button>
-                </div>
-
-                <div v-else class="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
-                    <Link
-                        v-for="brand in brands"
-                        :key="brand.id"
-                        :href="route('quotations.create', { brand: brand.id })"
-                        class="group overflow-hidden rounded-2xl border bg-card shadow-sm transition hover:-translate-y-1 hover:border-primary/30 hover:shadow-lg"
-                    >
-                        <div class="relative flex h-40 items-center justify-center overflow-hidden bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-900">
-                            <img
-                                v-if="brand.logo_url"
-                                :src="brand.logo_url"
-                                :alt="brand.name"
-                                class="h-full w-full object-contain p-6 transition duration-300 group-hover:scale-105"
-                            />
-                            <Building2 v-else class="h-14 w-14 text-muted-foreground/30" />
-                        </div>
-                        <div class="p-5">
-                            <div class="flex items-start justify-between gap-3">
-                                <div class="min-w-0">
-                                    <h2 class="truncate text-lg font-bold group-hover:text-primary">{{ brand.name }}</h2>
-                                    <p v-if="brand.description" class="mt-1 line-clamp-2 text-sm text-muted-foreground">
-                                        {{ brand.description }}
-                                    </p>
-                                </div>
-                                <div class="flex shrink-0 items-center gap-1 rounded-lg bg-muted px-2.5 py-1.5 text-sm font-semibold">
-                                    <Layers3 class="h-4 w-4" />
-                                    {{ formatInteger(brand.products_count || 0) }}
-                                </div>
-                            </div>
-                            <div class="mt-4 border-t pt-3 text-sm font-medium text-primary">إنشاء عرض سعر لهذا البراند</div>
-                        </div>
-                    </Link>
-                </div>
-            </div>
-
-            <template v-else>
             <!-- Errors -->
             <div
                 v-if="Object.keys(form.errors).length > 0"
@@ -946,7 +949,7 @@ watch(
                                     :disabled="form.processing || form.items.length === 0"
                                 >
                                     <FileSpreadsheet class="h-4 w-4" />
-                                    {{ form.processing ? 'جاري الحفظ...' : 'إنشاء عرض السعر' }}
+                                    {{ form.processing ? 'جاري الحفظ...' : 'حفظ التعديلات' }}
                                 </Button>
                                 <Button
                                     type="button"
@@ -965,7 +968,6 @@ watch(
                     </div>
                 </aside>
             </form>
-            </template>
         </div>
     </AppSidebarLayout>
 </template>

@@ -64,11 +64,11 @@
         .totals-table .label {
             font-weight: bold;
             background-color: #f5f5f5;
-            text-align: right;
+            text-align: left;
             width: 65%;
         }
         .totals-table .value {
-            text-align: right;
+            text-align: left;
             font-weight: bold;
             width: 35%;
         }
