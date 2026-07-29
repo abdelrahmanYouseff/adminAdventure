@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Order;
 use App\Models\WorkerOrder;
+use App\Models\WorkerOrderNote;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -21,6 +22,8 @@ class ProductReturnController extends Controller
             ->with([
                 'workerOrders' => fn ($q) => $q->orderBy('line_index'),
                 'warehouseReturnedBy:id,customer_name',
+                'workerNotes' => fn ($q) => $q->latest(),
+                'workerNotes.user:id,customer_name,role',
             ])
             ->orderByDesc('updated_at');
 
@@ -70,7 +73,27 @@ class ProductReturnController extends Controller
             'warehouse_returned_by' => $request->user()?->id,
         ])->save();
 
-        return back()->with('success', 'تم تأكيد استرجاع منتجات الطلب '.$order->order_number.' للمستودع.');
+        return back()->with('success', 'تم تأكيد استرجاع منتجات الطلب '.$order->order_number.' للمستودع. أصبح التأمين ظاهرًا الآن في صفحة استرداد التأمين.');
+    }
+
+    public function storeNote(Request $request, Order $order): RedirectResponse
+    {
+        abort_unless($this->isEligibleReturn($order), 404);
+
+        $validated = $request->validate([
+            'body' => ['required', 'string', 'max:2000'],
+        ], [
+            'body.required' => 'يجب كتابة الملاحظة.',
+            'body.max' => 'الملاحظة يجب ألا تتجاوز 2000 حرف.',
+        ]);
+
+        WorkerOrderNote::create([
+            'order_id' => $order->id,
+            'user_id' => $request->user()->id,
+            'body' => trim($validated['body']),
+        ]);
+
+        return back()->with('success', 'تم إضافة الملاحظة.');
     }
 
     private function eligibleReturnsQuery(): Builder
@@ -112,6 +135,10 @@ class ProductReturnController extends Controller
             ->sortDesc()
             ->first();
 
+        $notes = $order->relationLoaded('workerNotes')
+            ? $order->workerNotes
+            : collect();
+
         return [
             'id' => $order->id,
             'order_number' => $order->order_number,
@@ -130,6 +157,14 @@ class ProductReturnController extends Controller
             'warehouse_returned_by_name' => $order->warehouseReturnedBy?->name,
             'is_returned' => filled($order->warehouse_returned_at),
             'can_confirm' => blank($order->warehouse_returned_at),
+            'notes' => $notes->map(fn (WorkerOrderNote $note) => [
+                'id' => $note->id,
+                'body' => $note->body,
+                'user_name' => $note->user?->name ?: 'مستخدم',
+                'user_role' => $note->user?->roleLabel() ?? 'مستخدم',
+                'created_at' => $note->created_at?->toIso8601String(),
+            ])->values()->all(),
+            'notes_count' => $notes->count(),
         ];
     }
 }

@@ -22,13 +22,14 @@ class InsuranceDepositController extends Controller
             ->with([
                 'invoice:id,invoice_number',
                 'workOrderApprovedBy:id,customer_name',
+                'warehouseReturnedBy:id,customer_name',
                 'insuranceManagerApprovedBy:id,customer_name',
                 'insuranceGmApprovedBy:id,customer_name',
                 'insuranceAccountsApprovedBy:id,customer_name',
                 'workerNotes' => fn ($q) => $q->latest(),
                 'workerNotes.user:id,customer_name,role',
             ])
-            ->orderByDesc('work_order_approved_at');
+            ->orderByDesc('warehouse_returned_at');
 
         if (in_array($status, ['pending', 'refunded', 'withheld'], true)) {
             $query->where('insurance_status', $status);
@@ -57,15 +58,12 @@ class InsuranceDepositController extends Controller
 
     public function show(Request $request, Order $order): Response
     {
-        abort_unless(
-            $order->work_order_approved_at
-            && ((float) $order->insurance_amount > 0 || (float) $order->insurance_original_amount > 0),
-            404
-        );
+        abort_unless($this->isEligibleDeposit($order), 404);
 
         $order->load([
             'invoice:id,invoice_number',
             'workOrderApprovedBy:id,customer_name',
+            'warehouseReturnedBy:id,customer_name',
             'insuranceManagerApprovedBy:id,customer_name',
             'insuranceGmApprovedBy:id,customer_name',
             'insuranceAccountsApprovedBy:id,customer_name',
@@ -97,11 +95,7 @@ class InsuranceDepositController extends Controller
 
     public function approve(Request $request, Order $order): RedirectResponse
     {
-        abort_unless(
-            $order->work_order_approved_at
-            && ((float) $order->insurance_amount > 0 || (float) $order->insurance_original_amount > 0),
-            404
-        );
+        abort_unless($this->isEligibleDeposit($order), 404);
 
         $user = $request->user();
         $next = InsuranceApprovalChain::nextPendingStep($order);
@@ -136,11 +130,7 @@ class InsuranceDepositController extends Controller
 
     public function updateAmount(Request $request, Order $order): RedirectResponse
     {
-        abort_unless(
-            $order->work_order_approved_at
-            && ((float) $order->insurance_amount > 0 || (float) $order->insurance_original_amount > 0),
-            404
-        );
+        abort_unless($this->isEligibleDeposit($order), 404);
 
         $user = $request->user();
 
@@ -170,11 +160,7 @@ class InsuranceDepositController extends Controller
 
     public function markRefunded(Request $request, Order $order): RedirectResponse
     {
-        abort_unless(
-            $order->work_order_approved_at
-            && ((float) $order->insurance_amount > 0 || (float) $order->insurance_original_amount > 0),
-            404
-        );
+        abort_unless($this->isEligibleDeposit($order), 404);
 
         if (! InsuranceApprovalChain::isFullyApproved($order)) {
             return back()->with('error', 'لا يمكن استرداد التأمين قبل اكتمال سلسلة التعميدات (مدير العمال ← المسئول ← المدير العام ← المحاسب).');
@@ -190,11 +176,7 @@ class InsuranceDepositController extends Controller
 
     public function markWithheld(Request $request, Order $order): RedirectResponse
     {
-        abort_unless(
-            $order->work_order_approved_at
-            && ((float) $order->insurance_amount > 0 || (float) $order->insurance_original_amount > 0),
-            404
-        );
+        abort_unless($this->isEligibleDeposit($order), 404);
 
         if (! InsuranceApprovalChain::isFullyApproved($order)) {
             return back()->with('error', 'لا يمكن حجز التأمين قبل اكتمال سلسلة التعميدات (مدير العمال ← المسئول ← المدير العام ← المحاسب).');
@@ -209,16 +191,24 @@ class InsuranceDepositController extends Controller
     }
 
     /**
-     * تظهر مبالغ التأمين فقط بعد تعميد مدير العمال لأمر العمل.
+     * تظهر مبالغ التأمين فقط بعد تأكيد أمين المستودع لاسترجاع المنتجات.
      */
     private function eligibleDepositsQuery(): Builder
     {
         return Order::query()
             ->whereNotNull('work_order_approved_at')
+            ->whereNotNull('warehouse_returned_at')
             ->where(function ($query) {
                 $query->where('insurance_amount', '>', 0)
                     ->orWhere('insurance_original_amount', '>', 0);
             });
+    }
+
+    private function isEligibleDeposit(Order $order): bool
+    {
+        return filled($order->work_order_approved_at)
+            && filled($order->warehouse_returned_at)
+            && ((float) $order->insurance_amount > 0 || (float) $order->insurance_original_amount > 0);
     }
 
     private function canEditRefundAmount(?User $user, Order $order): bool
@@ -262,6 +252,10 @@ class InsuranceDepositController extends Controller
             'activity_date' => $order->activity_date?->format('Y-m-d'),
             'created_at' => $order->created_at?->toIso8601String(),
             'approved_at' => $order->work_order_approved_at?->toIso8601String(),
+            'warehouse_returned_at' => $order->warehouse_returned_at?->toIso8601String(),
+            'warehouse_returned_by_name' => $order->relationLoaded('warehouseReturnedBy')
+                ? $order->warehouseReturnedBy?->name
+                : null,
             'approval_progress' => InsuranceApprovalChain::progress($order),
             'next_approval_step' => $next,
             'next_approval_label' => $next ? InsuranceApprovalChain::steps()[$next]['label'] : null,

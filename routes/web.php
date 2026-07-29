@@ -294,6 +294,10 @@ Route::post('returns/{order}/confirm', [\App\Http\Controllers\ProductReturnContr
     ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,warehouse_keeper'])
     ->name('returns.confirm');
 
+Route::post('returns/{order}/notes', [\App\Http\Controllers\ProductReturnController::class, 'storeNote'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,warehouse_keeper'])
+    ->name('returns.notes.store');
+
 Route::get('insurance-deposits/{order}', [\App\Http\Controllers\InsuranceDepositController::class, 'show'])
     ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,accounts'])
     ->name('insurance-deposits.show');

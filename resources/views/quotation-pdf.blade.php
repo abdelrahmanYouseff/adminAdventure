@@ -223,7 +223,7 @@
     </tr>
 </table>
 
-{{-- Line items table --}}
+{{-- Line items + totals --}}
 <table class="items-table" style="margin-bottom: 16px;">
     <thead>
         <tr>
@@ -257,13 +257,49 @@
                 <td align="right">SAR {{ $data->formatMoney($item['total'], 0) }}</td>
             </tr>
         @endforeach
+        <tr>
+            <td colspan="8" align="left" style="font-weight: bold; background-color: #f5f5f5;">SUBTOTAL</td>
+            <td align="left" style="font-weight: bold; background-color: #f5f5f5;">{{ $data->formatSar($data->grossSubtotal(), 0) }}</td>
+        </tr>
+        <tr>
+            <td colspan="8" align="left" style="font-weight: bold; background-color: #f5f5f5;">DISCOUNT</td>
+            <td align="left" style="font-weight: bold; background-color: #f5f5f5;">
+                {{ $data->discountTotal() > 0 ? '- '.$data->formatSar($data->discountTotal(), 2) : 'SAR -' }}
+            </td>
+        </tr>
+        <tr>
+            <td colspan="8" align="left" style="font-weight: bold; background-color: #f5f5f5;">SUBTOTAL BEFORE VAT</td>
+            <td align="left" style="font-weight: bold; background-color: #f5f5f5;">{{ $data->formatSar($data->subtotal(), 0) }}</td>
+        </tr>
+        <tr>
+            <td colspan="8" align="left" style="font-weight: bold; background-color: #f5f5f5;">VAT</td>
+            <td align="left" style="font-weight: bold; background-color: #f5f5f5;">{{ $data->formatSar($data->vatAmount(), 0) }}</td>
+        </tr>
+        @if($data->hasInsurance())
+            <tr>
+                <td colspan="8" align="left" style="font-weight: bold; background-color: #f5f5f5;">INSURANCE DEPOSIT</td>
+                <td align="left" style="font-weight: bold; background-color: #f5f5f5;">{{ $data->formatSar($data->insuranceAmount(), 2) }}</td>
+            </tr>
+        @endif
+        <tr>
+            <td colspan="8" align="left" style="font-weight: bold; background-color: #333; color: #fff;">TOTAL</td>
+            <td align="left" style="font-weight: bold; background-color: #333; color: #fff;">{{ $data->formatSar($data->total(), 2) }}</td>
+        </tr>
     </tbody>
 </table>
 
-{{-- Terms + Bank + Totals --}}
+@if($data->hasInsurance())
+    <div style="margin: -8px 0 14px 0; font-size: 6.5pt; color: #444; line-height: 1.45;">
+        {{ $data->insuranceNoteEn() }}
+        <br>
+        <span dir="rtl" style="font-family: xbriyaz, dejavusans, sans-serif;">{{ $data->insuranceNoteAr() }}</span>
+    </div>
+@endif
+
+{{-- Terms + Bank --}}
 <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom: 12px;">
     <tr>
-        <td width="58%" valign="top">
+        <td width="100%" valign="top">
             <div style="{{ $sectionTitle }}">Terms &amp; Conditions</div>
             <ul class="terms-list">
                 @foreach($data->termsAndConditions() as $term)
@@ -278,46 +314,6 @@
                 ACCT NUMBER: {{ $data->bankAccountNumber() }}<br>
                 Account Name: {{ $data->bankAccountName() }}
             </div>
-        </td>
-        <td width="4%"></td>
-        <td width="38%" valign="top">
-            <table class="totals-table">
-                <tr>
-                    <td class="label">SUBTOTAL</td>
-                    <td class="value">{{ $data->formatSar($data->grossSubtotal(), 0) }}</td>
-                </tr>
-                <tr>
-                    <td class="label">DISCOUNT</td>
-                    <td class="value">
-                        {{ $data->discountTotal() > 0 ? '- '.$data->formatSar($data->discountTotal(), 2) : 'SAR -' }}
-                    </td>
-                </tr>
-                <tr>
-                    <td class="label">SUBTOTAL BEFORE VAT</td>
-                    <td class="value">{{ $data->formatSar($data->subtotal(), 0) }}</td>
-                </tr>
-                <tr>
-                    <td class="label">VAT</td>
-                    <td class="value">{{ $data->formatSar($data->vatAmount(), 0) }}</td>
-                </tr>
-                @if($data->hasInsurance())
-                    <tr>
-                        <td class="label">INSURANCE DEPOSIT</td>
-                        <td class="value">{{ $data->formatSar($data->insuranceAmount(), 2) }}</td>
-                    </tr>
-                @endif
-                <tr class="total-row">
-                    <td class="label" style="background-color: #333; color: #fff;">TOTAL</td>
-                    <td class="value" style="background-color: #333; color: #fff;">{{ $data->formatSar($data->total(), 2) }}</td>
-                </tr>
-            </table>
-            @if($data->hasInsurance())
-                <div style="margin-top: 8px; font-size: 6.5pt; color: #444; line-height: 1.45;">
-                    {{ $data->insuranceNoteEn() }}
-                    <br>
-                    <span dir="rtl" style="font-family: xbriyaz, dejavusans, sans-serif;">{{ $data->insuranceNoteAr() }}</span>
-                </div>
-            @endif
         </td>
     </tr>
 </table>

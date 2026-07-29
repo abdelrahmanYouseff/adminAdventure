@@ -347,7 +347,7 @@ async function approveWorkOrder(item: WorkOrderItem) {
     const result = await Swal.fire({
         icon: 'question',
         title: 'تعميد مدير العمال',
-        text: `تأكيد تعميد الطلب ${item.reference_number}؟ سيظهر التأمين في صفحة الاسترداد وبانتظار تعميد المسئول ثم المدير العام ثم المحاسب.`,
+        text: `تأكيد تعميد الطلب ${item.reference_number}؟ سيظهر التأمين في صفحة الاسترداد بعد تأكيد أمين المستودع لاسترجاع المنتجات، ثم تعميد المسئول والمدير العام والمحاسب.`,
         showCancelButton: true,
         confirmButtonText: 'تعميد',
         cancelButtonText: 'إلغاء',
