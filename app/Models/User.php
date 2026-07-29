@@ -21,6 +21,8 @@ class User extends Authenticatable
 
     public const ROLE_WORKER = 'worker';
 
+    public const ROLE_WAREHOUSE_KEEPER = 'warehouse_keeper';
+
     /** @var list<string> */
     public const STAFF_ROLES = [
         self::ROLE_ADMIN,
@@ -29,6 +31,7 @@ class User extends Authenticatable
         self::ROLE_ACCOUNTS,
         self::ROLE_WORKERS_MANAGER,
         self::ROLE_WORKER,
+        self::ROLE_WAREHOUSE_KEEPER,
     ];
 
     /** @use HasFactory<\Database\Factories\UserFactory> */
@@ -172,6 +175,11 @@ class User extends Authenticatable
         return $this->role === self::ROLE_WORKER;
     }
 
+    public function isWarehouseKeeper(): bool
+    {
+        return $this->role === self::ROLE_WAREHOUSE_KEEPER;
+    }
+
     public function isStaff(): bool
     {
         return in_array($this->role, self::STAFF_ROLES, true);
@@ -200,6 +208,7 @@ class User extends Authenticatable
             self::ROLE_WORKER => 'pwa.dashboard',
             self::ROLE_WORKERS_MANAGER => 'worker-orders.index',
             self::ROLE_ACCOUNTS => 'quotations.index',
+            self::ROLE_WAREHOUSE_KEEPER => 'products',
             self::ROLE_MANAGER, self::ROLE_GENERAL_MANAGER, self::ROLE_ADMIN => 'dashboard',
             default => 'home',
         };
@@ -214,6 +223,7 @@ class User extends Authenticatable
             self::ROLE_ACCOUNTS => 'حسابات',
             self::ROLE_WORKERS_MANAGER => 'مدير العمال',
             self::ROLE_WORKER => 'عامل',
+            self::ROLE_WAREHOUSE_KEEPER => 'أمين مستودع',
             default => 'عميل',
         };
     }

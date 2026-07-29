@@ -45,6 +45,7 @@ const roleLabels: Record<StaffRole, string> = {
     accounts: 'حسابات',
     workers_manager: 'مدير العمال',
     worker: 'عامل',
+    warehouse_keeper: 'أمين مستودع',
 };
 
 const roleBadgeClass: Record<StaffRole, string> = {
@@ -54,6 +55,7 @@ const roleBadgeClass: Record<StaffRole, string> = {
     accounts: 'bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-300 dark:ring-emerald-900/50',
     workers_manager: 'bg-cyan-50 text-cyan-700 ring-1 ring-inset ring-cyan-100 dark:bg-cyan-950/40 dark:text-cyan-300 dark:ring-cyan-900/50',
     worker: 'bg-amber-50 text-amber-700 ring-1 ring-inset ring-amber-100 dark:bg-amber-950/40 dark:text-amber-300 dark:ring-amber-900/50',
+    warehouse_keeper: 'bg-orange-50 text-orange-700 ring-1 ring-inset ring-orange-100 dark:bg-orange-950/40 dark:text-orange-300 dark:ring-orange-900/50',
 };
 
 const roleTabs: { key: RoleTab; label: string }[] = [
@@ -63,6 +65,7 @@ const roleTabs: { key: RoleTab; label: string }[] = [
     { key: 'manager', label: 'مسئول' },
     { key: 'accounts', label: 'حسابات' },
     { key: 'workers_manager', label: 'مدير العمال' },
+    { key: 'warehouse_keeper', label: 'أمين مستودع' },
     { key: 'worker', label: 'عامل' },
 ];
 
@@ -639,6 +642,7 @@ function deleteUser(user: User) {
                             <option value="manager">مسئول</option>
                             <option value="accounts">حسابات</option>
                             <option value="workers_manager">مدير العمال</option>
+                            <option value="warehouse_keeper">أمين مستودع</option>
                             <option value="worker">عامل</option>
                         </select>
                         <p v-if="form.errors.role" class="text-xs text-red-500">{{ form.errors.role }}</p>

@@ -16,7 +16,7 @@ class DashboardController extends Controller
     {
         $user = auth()->user();
 
-        if ($user?->hasAnyRole(User::ROLE_WORKER, User::ROLE_ACCOUNTS)) {
+        if ($user?->hasAnyRole(User::ROLE_WORKER, User::ROLE_ACCOUNTS, User::ROLE_WAREHOUSE_KEEPER)) {
             return redirect()->route($user->homeRouteName());
         }
 

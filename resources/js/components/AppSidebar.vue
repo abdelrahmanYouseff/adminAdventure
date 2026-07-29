@@ -25,19 +25,19 @@ const allNavItems: NavItemWithRoles[] = [
         title: 'المنتجات',
         href: route('products'),
         icon: ShoppingBag,
-        roles: ['admin', 'general_manager', 'manager'],
+        roles: ['admin', 'general_manager', 'manager', 'warehouse_keeper'],
     },
     {
         title: 'الأصناف',
         href: route('categories.index'),
         icon: Tags,
-        roles: ['admin', 'general_manager', 'manager'],
+        roles: ['admin', 'general_manager', 'manager', 'warehouse_keeper'],
     },
     {
         title: 'البراندات',
         href: route('brands.index'),
         icon: Building2,
-        roles: ['admin', 'general_manager', 'manager'],
+        roles: ['admin', 'general_manager', 'manager', 'warehouse_keeper'],
     },
     {
         title: 'الباقات',
@@ -127,6 +127,8 @@ const homeHref = computed(() => {
             return route('worker-orders.index');
         case 'accounts':
             return route('quotations.index');
+        case 'warehouse_keeper':
+            return route('products');
         default:
             return route('dashboard');
     }
