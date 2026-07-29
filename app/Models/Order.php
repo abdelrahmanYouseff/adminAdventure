@@ -37,6 +37,8 @@ class Order extends Model
         'items',
         'work_order_approved_at',
         'work_order_approved_by',
+        'warehouse_returned_at',
+        'warehouse_returned_by',
         'insurance_manager_approved_at',
         'insurance_manager_approved_by',
         'insurance_gm_approved_at',
@@ -56,6 +58,7 @@ class Order extends Model
         'whatsapp_notified_at' => 'datetime',
         'insurance_refunded_at' => 'datetime',
         'work_order_approved_at' => 'datetime',
+        'warehouse_returned_at' => 'datetime',
         'insurance_manager_approved_at' => 'datetime',
         'insurance_gm_approved_at' => 'datetime',
         'insurance_accounts_approved_at' => 'datetime',
@@ -185,6 +188,11 @@ class Order extends Model
     public function workOrderApprovedBy()
     {
         return $this->belongsTo(User::class, 'work_order_approved_by');
+    }
+
+    public function warehouseReturnedBy()
+    {
+        return $this->belongsTo(User::class, 'warehouse_returned_by');
     }
 
     public function insuranceManagerApprovedBy()
