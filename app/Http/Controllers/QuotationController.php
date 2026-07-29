@@ -178,6 +178,7 @@ class QuotationController extends Controller
                     'customer_phone' => $this->normalizePhoneForForm($companyClient->phone ?: $validated['phone']),
                     'customer_address' => $companyClient->address,
                     'company_tax_number' => $companyClient->tax_number,
+                    'customer_type' => 'company',
                     'source' => 'company_client',
                 ],
             ]);
@@ -226,6 +227,7 @@ class QuotationController extends Controller
                         ?: $latestOrder?->address
                         ?: null,
                     'company_tax_number' => null,
+                    'customer_type' => 'individual',
                     'source' => 'user',
                 ],
             ]);
@@ -250,6 +252,7 @@ class QuotationController extends Controller
                     'customer_phone' => $this->normalizePhoneForForm($quotation->customer_phone),
                     'customer_address' => $quotation->customer_address,
                     'company_tax_number' => $quotation->company_tax_number,
+                    'customer_type' => filled($quotation->company_tax_number) ? 'company' : 'individual',
                     'source' => 'quotation',
                 ],
             ]);
@@ -274,6 +277,7 @@ class QuotationController extends Controller
                     'customer_phone' => $this->normalizePhoneForForm($order->customer_phone),
                     'customer_address' => $order->address,
                     'company_tax_number' => null,
+                    'customer_type' => 'individual',
                     'source' => 'order',
                 ],
             ]);

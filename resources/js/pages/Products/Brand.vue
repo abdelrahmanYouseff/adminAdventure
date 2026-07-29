@@ -12,7 +12,6 @@ interface Product {
     product_name: string;
     description: string | null;
     price: number;
-    insurance_amount: number;
     image_url: string | null;
     status: string;
     category_id?: number | null;

@@ -110,6 +110,7 @@ const selectedUnitPrice = ref(0);
 const insuranceManual = ref(false);
 const customerLookupStatus = ref<'idle' | 'loading' | 'found' | 'not_found'>('idle');
 const customerLookupMessage = ref('');
+const customerType = ref<'individual' | 'company'>('individual');
 let phoneLookupTimer: ReturnType<typeof setTimeout> | null = null;
 let phoneLookupRequestId = 0;
 
@@ -230,8 +231,18 @@ function resetInsuranceToSuggested() {
 }
 
 const submit = () => {
+    if (customerType.value !== 'company') {
+        form.company_tax_number = '';
+    }
     form.post(route('quotations.store'));
 };
+
+function setCustomerType(type: 'individual' | 'company') {
+    customerType.value = type;
+    if (type !== 'company') {
+        form.company_tax_number = '';
+    }
+}
 
 function digitsOnly(value: string): string {
     return value.replace(/\D+/g, '');
@@ -269,7 +280,7 @@ async function lookupCustomerByPhone(phone: string) {
         if (!data?.success || !data.customer) {
             customerLookupStatus.value = 'not_found';
             customerLookupMessage.value = data?.message || 'لا يوجد عميل بهذا الرقم.';
-            form.company_tax_number = '';
+            setCustomerType('individual');
             return;
         }
 
@@ -286,8 +297,15 @@ async function lookupCustomerByPhone(phone: string) {
         if (customer.customer_address) {
             form.customer_address = customer.customer_address;
         }
-        // الرقم الضريبي يُجلب فقط من بيانات الشركة المسجّلة، وإلا يبقى فاضي
-        form.company_tax_number = customer.company_tax_number || '';
+
+        const resolvedType =
+            customer.customer_type === 'company' || customer.source === 'company_client'
+                ? 'company'
+                : 'individual';
+        setCustomerType(resolvedType);
+        if (resolvedType === 'company') {
+            form.company_tax_number = customer.company_tax_number || '';
+        }
 
         customerLookupStatus.value = 'found';
         customerLookupMessage.value = data.message || 'تم تعبئة بيانات العميل تلقائياً.';
@@ -484,6 +502,39 @@ watch(
                                 </div>
 
                                 <div class="space-y-2 sm:col-span-2">
+                                    <Label class="flex items-center gap-1.5">
+                                        <Building2 class="h-3.5 w-3.5 text-muted-foreground" />
+                                        نوع العميل
+                                    </Label>
+                                    <div class="grid grid-cols-2 gap-2">
+                                        <button
+                                            type="button"
+                                            class="h-11 rounded-xl border text-sm font-medium transition"
+                                            :class="
+                                                customerType === 'individual'
+                                                    ? 'border-primary bg-primary/10 text-primary'
+                                                    : 'border-input bg-background text-muted-foreground hover:bg-muted/40'
+                                            "
+                                            @click="setCustomerType('individual')"
+                                        >
+                                            فرد
+                                        </button>
+                                        <button
+                                            type="button"
+                                            class="h-11 rounded-xl border text-sm font-medium transition"
+                                            :class="
+                                                customerType === 'company'
+                                                    ? 'border-primary bg-primary/10 text-primary'
+                                                    : 'border-input bg-background text-muted-foreground hover:bg-muted/40'
+                                            "
+                                            @click="setCustomerType('company')"
+                                        >
+                                            شركة
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div class="space-y-2 sm:col-span-2">
                                     <Label for="customer_name" class="flex items-center gap-1.5">
                                         <User class="h-3.5 w-3.5 text-muted-foreground" />
                                         اسم العميل
@@ -513,7 +564,7 @@ watch(
                                     />
                                 </div>
 
-                                <div class="space-y-2">
+                                <div v-if="customerType === 'company'" class="space-y-2">
                                     <Label for="company_tax_number" class="flex items-center gap-1.5">
                                         <Receipt class="h-3.5 w-3.5 text-muted-foreground" />
                                         الرقم الضريبي للشركة
@@ -527,7 +578,7 @@ watch(
                                         dir="rtl"
                                     />
                                     <p class="text-xs text-muted-foreground">
-                                        عند إدخال رقم هاتف شركة مسجّلة يُعبَّأ تلقائياً، وإلا يبقى فارغاً.
+                                        عند إدخال رقم هاتف شركة مسجّلة يُعبَّأ تلقائياً، وإلا يمكن إدخاله يدوياً.
                                     </p>
                                     <p v-if="form.errors.company_tax_number" class="text-xs text-rose-600">
                                         {{ form.errors.company_tax_number }}

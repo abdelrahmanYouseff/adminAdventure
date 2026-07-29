@@ -86,7 +86,6 @@ class ProductController extends Controller
         $data = $request->validate([
             'product_name' => 'required|string|max:255',
             'price' => 'required|numeric',
-            'insurance_amount' => 'nullable|numeric|min:0',
             'description' => 'nullable|string',
             'status' => 'required|in:active,inactive',
             'category_id' => [
@@ -101,7 +100,7 @@ class ProductController extends Controller
             'category_id.exists' => 'الصنف المختار لا ينتمي إلى البراند المحدد.',
         ]);
 
-        $data['insurance_amount'] = $data['insurance_amount'] ?? 0;
+        $data['insurance_amount'] = 0;
 
         if ($request->hasFile('image')) {
             $data['image'] = $request->file('image')->store('products', 'public');
@@ -148,7 +147,6 @@ class ProductController extends Controller
         $rules = [
             'product_name' => 'sometimes|required|string|max:255',
             'price' => 'sometimes|required|numeric',
-            'insurance_amount' => 'sometimes|nullable|numeric|min:0',
             'description' => 'sometimes|nullable|string',
             'status' => 'sometimes|required|in:active,inactive',
             'category_id' => [
@@ -166,9 +164,7 @@ class ProductController extends Controller
             'category_id.exists' => 'الصنف المختار لا ينتمي إلى البراند المحدد.',
         ]);
 
-        if (array_key_exists('insurance_amount', $data) && $data['insurance_amount'] === null) {
-            $data['insurance_amount'] = 0;
-        }
+        unset($data['insurance_amount']);
 
         if ($request->hasFile('image')) {
             $data['image'] = $request->file('image')->store('products', 'public');
