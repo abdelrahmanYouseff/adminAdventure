@@ -27,6 +27,7 @@ class OrderPaymentReceipt extends Model
         'approved_by',
         'notes',
         'proof_image',
+        'account_number',
     ];
 
     protected $appends = [

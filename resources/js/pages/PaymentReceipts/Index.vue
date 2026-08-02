@@ -63,6 +63,7 @@ interface ReceiptRow {
     customer: CustomerProfile | null;
     recorded_by_name?: string | null;
     proof_image_url?: string | null;
+    account_number?: string | null;
 }
 
 type StatusTab = 'all' | 'pending' | 'approved';
@@ -618,6 +619,17 @@ function statusBadgeClass(row: ReceiptRow): string {
                                                         />
                                                     </a>
                                                     <p v-else class="text-sm text-gray-400">لا توجد صورة مسجّلة</p>
+                                                </div>
+                                                <div>
+                                                    <p class="mb-1.5 text-xs text-gray-400">رقم الحساب</p>
+                                                    <p
+                                                        v-if="row.account_number"
+                                                        class="mt-0.5 break-all font-medium tabular-nums text-gray-900 dark:text-white"
+                                                        dir="ltr"
+                                                    >
+                                                        {{ row.account_number }}
+                                                    </p>
+                                                    <p v-else class="mt-0.5 text-sm text-gray-400">غير مسجّل</p>
                                                 </div>
                                                 <div>
                                                     <p class="mb-1.5 text-xs text-gray-400">صورة التحويل / إيصال الدفع</p>

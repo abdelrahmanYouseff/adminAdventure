@@ -215,6 +215,26 @@ class QuotationPdfData
         return round((float) $this->quotation->total_amount, 2);
     }
 
+    public function amountPaid(): float
+    {
+        return round((float) ($this->quotation->amount_paid ?? 0), 2);
+    }
+
+    public function amountDue(): float
+    {
+        return $this->quotation->amountDue();
+    }
+
+    public function hasAmountDue(): bool
+    {
+        return $this->amountDue() > 0.009;
+    }
+
+    public function noonPaymentUrl(): ?string
+    {
+        return $this->quotation->noonPaymentUrl();
+    }
+
     public function insuranceNoteEn(): string
     {
         return 'Insurance deposit is refundable upon product pickup/collection after the event.';

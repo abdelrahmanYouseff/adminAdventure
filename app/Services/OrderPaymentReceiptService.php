@@ -25,6 +25,7 @@ class OrderPaymentReceiptService
         string $type = 'payment',
         ?string $notes = null,
         ?string $proofImage = null,
+        ?string $accountNumber = null,
     ): OrderPaymentReceipt {
         $amount = round(max(0, $amount), 2);
 
@@ -32,7 +33,7 @@ class OrderPaymentReceiptService
             throw new RuntimeException('مبلغ السداد يجب أن يكون أكبر من صفر.');
         }
 
-        return DB::transaction(function () use ($order, $amount, $user, $paymentMethod, $type, $notes, $proofImage) {
+        return DB::transaction(function () use ($order, $amount, $user, $paymentMethod, $type, $notes, $proofImage, $accountNumber) {
             /** @var Order $locked */
             $locked = Order::query()->lockForUpdate()->findOrFail($order->id);
 
@@ -71,6 +72,7 @@ class OrderPaymentReceiptService
                 'approval_status' => OrderPaymentReceipt::STATUS_PENDING,
                 'notes' => $notes,
                 'proof_image' => $proofImage,
+                'account_number' => $accountNumber,
             ]);
         });
     }

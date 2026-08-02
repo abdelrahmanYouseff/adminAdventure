@@ -459,5 +459,9 @@ Route::match(['GET', 'POST'], 'payment/fail', [\App\Http\Controllers\PaymentCont
 Route::match(['GET', 'POST'], 'payment/cancel', [\App\Http\Controllers\PaymentController::class, 'paymentCancelPage'])
     ->name('payment.cancel');
 
+Route::get('pay/quotation/{token}', [\App\Http\Controllers\QuotationPaymentController::class, 'pay'])
+    ->where('token', '[A-Za-z0-9]+')
+    ->name('quotations.pay');
+
 require __DIR__.'/settings.php';
 require __DIR__.'/auth.php';

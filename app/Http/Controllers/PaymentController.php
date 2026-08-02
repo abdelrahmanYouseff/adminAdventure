@@ -283,6 +283,8 @@ class PaymentController extends Controller
                     'customer_name' => $data['customer_name'] ?? null,
                     'customer_phone' => $data['customer_phone'] ?? null,
                     'noon_order_id' => $noonInternalOrderId,
+                    'quotation_id' => $data['quotation_id'] ?? null,
+                    'source' => $data['source'] ?? null,
                     'created_at' => now()->toIso8601String(),
                 ];
                 Cache::put('payment_session_' . $orderId, $paymentSessionData, 3600);
@@ -1039,6 +1041,11 @@ HTML;
                         $this->markPaymentSessionUsed($orderId);
                         Cache::forget('payment_session_' . $orderId);
                     });
+
+                    $orderAfter = Order::where('order_number', $orderId)->first();
+                    if ($orderAfter?->quotation_id) {
+                        $this->finalizeQuotationNoonPayment($orderAfter, $orderId, $paymentId);
+                    }
                     break;
 
                 case 'FAILED':
@@ -1345,6 +1352,12 @@ HTML;
             }
 
             $order = Order::where('order_number', $orderId)->first();
+            if ($order && $order->quotation_id) {
+                $this->finalizeQuotationNoonPayment($order, $orderId, $noonOrderId);
+
+                return;
+            }
+
             if ($order && $order->payment_status !== 'paid') {
                 $order->update([
                     'payment_status' => 'paid',
@@ -1377,12 +1390,49 @@ HTML;
         }
 
         $order = Order::where('order_number', $orderId)->first();
+        if ($order && $order->quotation_id) {
+            $this->finalizeQuotationNoonPayment($order, $orderId, $storedNoonId);
+
+            return;
+        }
+
         if ($order && $order->payment_status !== 'paid') {
             $order->update([
                 'payment_status' => 'paid',
                 'status' => 'paid',
                 'payment_id' => $storedNoonId,
                 'payment_order_reference' => $orderId,
+            ]);
+        }
+
+        Cache::forget('payment_session_' . $orderId);
+        $this->markPaymentSessionUsed($orderId);
+    }
+
+    protected function finalizeQuotationNoonPayment(Order $order, string $orderId, ?string $noonOrderId): void
+    {
+        $cacheData = Cache::get('payment_session_' . $orderId);
+        $session = PaymentSession::where('merchant_reference', $orderId)->first();
+        $amount = round((float) (
+            (is_array($cacheData) ? ($cacheData['amount'] ?? null) : null)
+            ?? $session?->amount
+            ?? 0
+        ), 2);
+
+        if ($amount <= 0) {
+            $amount = round(max(0, (float) $order->total_amount - (float) ($order->amount_paid ?? 0)), 2);
+        }
+
+        try {
+            app(\App\Services\QuotationToOrderService::class)->applyNoonPayment(
+                $order,
+                $amount,
+                $noonOrderId
+            );
+        } catch (\Throwable $e) {
+            Log::warning('finalizeQuotationNoonPayment failed', [
+                'order_id' => $orderId,
+                'message' => $e->getMessage(),
             ]);
         }
 

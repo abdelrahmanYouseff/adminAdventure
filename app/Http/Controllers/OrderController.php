@@ -27,7 +27,11 @@ class OrderController extends Controller
         $perPage = (int) $request->query('per_page', 15);
         $perPage = in_array($perPage, [10, 15, 25, 50], true) ? $perPage : 15;
 
-        $query = Order::with(['user', 'invoice', 'products']);
+        $query = Order::with(['user', 'invoice', 'products'])
+            ->withSum([
+                'paymentReceipts as pending_payment_sum' => fn ($q) => $q
+                    ->where('approval_status', OrderPaymentReceipt::STATUS_PENDING),
+            ], 'amount');
 
         if ($search !== '') {
             $query->where(function ($q) use ($search) {
@@ -60,12 +64,13 @@ class OrderController extends Controller
             User::ROLE_GENERAL_MANAGER,
             User::ROLE_MANAGER,
         );
+        $canSettle = (bool) $canEditTime;
 
         $orders = $query->orderBy('created_at', 'desc')
             ->paginate($perPage)
             ->withQueryString();
 
-        $orders->getCollection()->transform(function (Order $order) use ($canEditTime) {
+        $orders->getCollection()->transform(function (Order $order) use ($canEditTime, $canSettle) {
             $rawTime = $order->getAttributes()['activity_time'] ?? null;
             $order->setAttribute(
                 'activity_time',
@@ -74,6 +79,19 @@ class OrderController extends Controller
             $order->setAttribute(
                 'can_edit_activity_time',
                 $canEditTime && blank($rawTime)
+            );
+
+            $pending = round((float) ($order->pending_payment_sum ?? 0), 2);
+            $available = round(max(
+                0,
+                (float) $order->total_amount - (float) ($order->amount_paid ?? 0) - $pending
+            ), 2);
+            $order->setAttribute('settle_available', $available);
+            $order->setAttribute(
+                'can_settle',
+                $canSettle
+                && $available > 0.009
+                && ! in_array($order->status, ['cancelled', 'refunded'], true)
             );
 
             return $order;
@@ -306,9 +324,14 @@ class OrderController extends Controller
             'amount' => ['required', 'numeric', 'min:0.01'],
             'payment_method' => ['nullable', 'string', 'in:credit_card,cash,bank_transfer,paypal,noon'],
             'notes' => ['nullable', 'string', 'max:1000'],
+            'account_number' => ['nullable', 'string', 'max:100'],
+            'payment_proof' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
         ], [
             'amount.required' => 'مبلغ السداد مطلوب.',
             'amount.min' => 'مبلغ السداد يجب أن يكون أكبر من صفر.',
+            'payment_proof.image' => 'مرفق التحويل يجب أن يكون صورة.',
+            'payment_proof.mimes' => 'صيغ صورة التحويل المسموحة: jpg, jpeg, png, webp.',
+            'payment_proof.max' => 'حجم صورة التحويل يجب ألا يتجاوز 5 ميجابايت.',
         ]);
 
         $pendingSum = round((float) $order->paymentReceipts()
@@ -326,6 +349,20 @@ class OrderController extends Controller
             return back()->withErrors(['amount' => 'مبلغ السداد أكبر من المتبقي غير المسجّل ('.$available.').']);
         }
 
+        $proofImage = null;
+        if ($request->hasFile('payment_proof')) {
+            $proofImage = $request->file('payment_proof')->store('payment-proofs', 'public');
+        }
+
+        $accountNumber = isset($validated['account_number'])
+            ? trim((string) $validated['account_number'])
+            : null;
+        if ($accountNumber === '') {
+            $accountNumber = null;
+        }
+
+        $notes = $validated['notes'] ?? 'سداد من قائمة الطلبات — بانتظار اعتماد المحاسب';
+
         try {
             $receipt = app(OrderPaymentReceiptService::class)->recordPayment(
                 $order,
@@ -333,9 +370,15 @@ class OrderController extends Controller
                 $request->user(),
                 $validated['payment_method'] ?? $order->payment_method,
                 'settlement',
-                $validated['notes'] ?? 'سداد من ملف العميل — بانتظار اعتماد المحاسب',
+                $notes,
+                $proofImage,
+                $accountNumber,
             );
         } catch (\Throwable $e) {
+            if ($proofImage) {
+                Storage::disk('public')->delete($proofImage);
+            }
+
             return back()->with('error', $e->getMessage());
         }
 

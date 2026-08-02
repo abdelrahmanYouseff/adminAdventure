@@ -77,6 +77,7 @@ class OrderPaymentReceiptController extends Controller
                     'customer' => $customer,
                     'recorded_by_name' => $receipt->recordedBy?->customer_name,
                     'proof_image_url' => $receipt->proof_image_url,
+                    'account_number' => $receipt->account_number,
                 ];
             });
 

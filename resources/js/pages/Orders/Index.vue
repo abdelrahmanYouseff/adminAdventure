@@ -1,8 +1,18 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
-import { Head, Link, router, usePage } from '@inertiajs/vue3';
+import { computed, onBeforeUnmount, ref, watch } from 'vue';
+import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog';
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -24,6 +34,8 @@ import {
     Search,
     ShoppingCart,
     Trash2,
+    UploadCloud,
+    Wallet,
     X,
 } from 'lucide-vue-next';
 import { formatCurrency, formatDate, formatInteger } from '@/lib/formatNumber';
@@ -37,6 +49,8 @@ interface Order {
     total_amount: number;
     amount_paid?: number | string | null;
     remaining_amount?: number | string | null;
+    settle_available?: number | string | null;
+    can_settle?: boolean;
     currency: string;
     payment_method: string;
     status: string;
@@ -96,6 +110,107 @@ const statusFilter = ref<StatusTab>((props.filters?.status as StatusTab) ?? 'all
 const currencyFilter = ref(props.filters?.currency ?? 'all');
 const perPage = ref(props.filters?.per_page || 15);
 const selectedIds = ref<number[]>([]);
+
+const settleDialogOpen = ref(false);
+const settleOrder = ref<Order | null>(null);
+const paymentProofPreview = ref<string | null>(null);
+const paymentProofInput = ref<HTMLInputElement | null>(null);
+
+const settleForm = useForm({
+    amount: '' as number | string,
+    payment_method: 'bank_transfer',
+    account_number: '',
+    payment_proof: null as File | null,
+    notes: '',
+});
+
+function clearPaymentProofPreview() {
+    if (paymentProofPreview.value) {
+        URL.revokeObjectURL(paymentProofPreview.value);
+        paymentProofPreview.value = null;
+    }
+}
+
+function openSettleDialog(order: Order) {
+    settleOrder.value = order;
+    settleForm.reset();
+    settleForm.clearErrors();
+    settleForm.amount = Number(order.settle_available ?? dueAmount(order)) || '';
+    settleForm.payment_method = order.payment_method || 'bank_transfer';
+    settleForm.account_number = '';
+    settleForm.payment_proof = null;
+    settleForm.notes = '';
+    clearPaymentProofPreview();
+    if (paymentProofInput.value) {
+        paymentProofInput.value.value = '';
+    }
+    settleDialogOpen.value = true;
+}
+
+function closeSettleDialog() {
+    settleDialogOpen.value = false;
+    settleOrder.value = null;
+    settleForm.reset();
+    settleForm.clearErrors();
+    clearPaymentProofPreview();
+    if (paymentProofInput.value) {
+        paymentProofInput.value.value = '';
+    }
+}
+
+function handleSettleProofChange(event: Event) {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0] ?? null;
+    clearPaymentProofPreview();
+    settleForm.payment_proof = file;
+    if (file) {
+        paymentProofPreview.value = URL.createObjectURL(file);
+    }
+}
+
+function removeSettleProof() {
+    clearPaymentProofPreview();
+    settleForm.payment_proof = null;
+    if (paymentProofInput.value) {
+        paymentProofInput.value.value = '';
+    }
+}
+
+function fillSettleRemaining() {
+    if (!settleOrder.value) return;
+    settleForm.amount = Number(settleOrder.value.settle_available ?? dueAmount(settleOrder.value)) || 0;
+    settleForm.clearErrors('amount');
+}
+
+function submitSettle() {
+    if (!settleOrder.value) return;
+
+    const amount = Number(settleForm.amount);
+    const available = Number(settleOrder.value.settle_available ?? dueAmount(settleOrder.value)) || 0;
+
+    if (!amount || amount <= 0) {
+        settleForm.setError('amount', 'أدخل مبلغ سداد أكبر من صفر.');
+        return;
+    }
+
+    if (amount > available + 0.009) {
+        settleForm.setError('amount', `المبلغ أكبر من المتبقي المتاح (${available}).`);
+        return;
+    }
+
+    settleForm.clearErrors('amount');
+    settleForm.amount = amount;
+
+    settleForm.post(route('orders.settle-payment', settleOrder.value.id), {
+        forceFormData: true,
+        preserveScroll: true,
+        onSuccess: () => closeSettleDialog(),
+    });
+}
+
+onBeforeUnmount(() => {
+    clearPaymentProofPreview();
+});
 
 const hourOptions = Array.from({ length: 12 }, (_, i) => String(i + 1));
 const minuteOptions = Array.from({ length: 12 }, (_, i) => String(i * 5).padStart(2, '0'));
@@ -667,6 +782,14 @@ function locationMapsUrl(address: string | null): string | null {
                                                 </Link>
                                             </DropdownMenuItem>
                                             <DropdownMenuItem
+                                                v-if="order.can_settle"
+                                                class="gap-2"
+                                                @click="openSettleDialog(order)"
+                                            >
+                                                <Wallet class="size-4" />
+                                                سداد
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem
                                                 v-if="order.can_edit_activity_time"
                                                 class="gap-2"
                                                 @click="startEditTime(order)"
@@ -735,5 +858,137 @@ function locationMapsUrl(address: string | null): string | null {
                 </div>
             </div>
         </div>
+
+        <Dialog :open="settleDialogOpen" @update:open="(open) => !open && closeSettleDialog()">
+            <DialogContent class="max-w-md sm:max-w-lg">
+                <DialogHeader>
+                    <DialogTitle>سداد الطلب</DialogTitle>
+                    <DialogDescription v-if="settleOrder">
+                        سجل دفعة للطلب
+                        <span class="font-semibold tabular-nums" dir="ltr">{{ settleOrder.order_number }}</span>
+                        —
+                        المتبقي المتاح
+                        <span class="font-semibold tabular-nums" dir="ltr">
+                            {{ formatCurrency(Number(settleOrder.settle_available ?? dueAmount(settleOrder)) || 0, settleOrder.currency) }}
+                        </span>
+                    </DialogDescription>
+                </DialogHeader>
+
+                <form class="space-y-4" @submit.prevent="submitSettle">
+                    <div class="space-y-2">
+                        <div class="flex items-center justify-between gap-2">
+                            <Label for="settle-amount">المبلغ المدفوع</Label>
+                            <button
+                                type="button"
+                                class="text-xs text-blue-600 hover:underline dark:text-blue-400"
+                                @click="fillSettleRemaining"
+                            >
+                                سداد المتبقي بالكامل
+                            </button>
+                        </div>
+                        <Input
+                            id="settle-amount"
+                            v-model="settleForm.amount"
+                            type="number"
+                            step="0.01"
+                            min="0.01"
+                            class="h-11 rounded-xl tabular-nums"
+                            dir="ltr"
+                            placeholder="0.00"
+                        />
+                        <p v-if="settleForm.errors.amount" class="text-xs text-red-600">{{ settleForm.errors.amount }}</p>
+                    </div>
+
+                    <div class="space-y-2">
+                        <Label for="settle-method">طريقة الدفع</Label>
+                        <select
+                            id="settle-method"
+                            v-model="settleForm.payment_method"
+                            class="flex h-11 w-full rounded-xl border border-input bg-background px-3 text-sm"
+                        >
+                            <option value="cash">نقدي</option>
+                            <option value="bank_transfer">تحويل بنكي</option>
+                            <option value="credit_card">بطاقة ائتمان</option>
+                            <option value="noon">Noon</option>
+                            <option value="paypal">PayPal</option>
+                        </select>
+                    </div>
+
+                    <div class="space-y-2">
+                        <Label for="settle-account">رقم الحساب</Label>
+                        <Input
+                            id="settle-account"
+                            v-model="settleForm.account_number"
+                            class="h-11 rounded-xl tabular-nums"
+                            dir="ltr"
+                            placeholder="اختياري — رقم الحساب أو الآيبان"
+                        />
+                        <p v-if="settleForm.errors.account_number" class="text-xs text-red-600">
+                            {{ settleForm.errors.account_number }}
+                        </p>
+                    </div>
+
+                    <div class="space-y-2">
+                        <Label for="settle-proof">صورة التحويل / إيصال الدفع</Label>
+                        <label
+                            for="settle-proof"
+                            class="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border bg-muted/30 px-4 py-5 text-center transition hover:bg-muted/50"
+                        >
+                            <UploadCloud class="h-5 w-5 text-muted-foreground" />
+                            <span class="text-sm font-medium">
+                                {{ settleForm.payment_proof ? settleForm.payment_proof.name : 'اختر صورة الإيصال' }}
+                            </span>
+                            <span class="text-xs text-muted-foreground">jpg, png, webp — حتى 5 ميجابايت</span>
+                            <input
+                                id="settle-proof"
+                                ref="paymentProofInput"
+                                type="file"
+                                accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp"
+                                class="hidden"
+                                @change="handleSettleProofChange"
+                            />
+                        </label>
+                        <div v-if="paymentProofPreview" class="relative overflow-hidden rounded-xl border border-border/60">
+                            <img
+                                :src="paymentProofPreview"
+                                alt="معاينة إيصال الدفع"
+                                class="max-h-40 w-full bg-muted/20 object-contain"
+                            />
+                            <Button
+                                type="button"
+                                variant="outline"
+                                class="absolute left-2 top-2 h-8 rounded-lg px-2 text-xs"
+                                @click="removeSettleProof"
+                            >
+                                إزالة
+                            </Button>
+                        </div>
+                        <p v-if="settleForm.errors.payment_proof" class="text-xs text-red-600">
+                            {{ settleForm.errors.payment_proof }}
+                        </p>
+                    </div>
+
+                    <div class="space-y-2">
+                        <Label for="settle-notes">ملاحظات</Label>
+                        <Input
+                            id="settle-notes"
+                            v-model="settleForm.notes"
+                            class="h-11 rounded-xl"
+                            placeholder="اختياري"
+                        />
+                    </div>
+
+                    <DialogFooter class="gap-2 sm:justify-start">
+                        <Button type="submit" class="h-10 gap-2 rounded-xl" :disabled="settleForm.processing">
+                            <Wallet class="size-4" />
+                            {{ settleForm.processing ? 'جاري التسجيل...' : 'تأكيد السداد' }}
+                        </Button>
+                        <Button type="button" variant="outline" class="h-10 rounded-xl" @click="closeSettleDialog">
+                            إلغاء
+                        </Button>
+                    </DialogFooter>
+                </form>
+            </DialogContent>
+        </Dialog>
     </div>
 </template>

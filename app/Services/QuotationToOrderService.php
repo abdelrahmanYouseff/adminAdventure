@@ -15,6 +15,138 @@ use RuntimeException;
 class QuotationToOrderService
 {
     /**
+     * Ensure a linked order exists for this quotation (without recording a receipt).
+     */
+    public function ensureOrder(Quotation $quotation, ?User $actor = null): Order
+    {
+        $quotation->loadMissing('items');
+
+        if ($quotation->items->isEmpty()) {
+            throw new RuntimeException('لا يمكن إنشاء طلب من عرض سعر بدون بنود.');
+        }
+
+        return DB::transaction(function () use ($quotation, $actor) {
+            $order = Order::query()
+                ->where('quotation_id', $quotation->id)
+                ->lockForUpdate()
+                ->first();
+
+            if (! $order) {
+                return $this->createOrderFromQuotation($quotation, $actor);
+            }
+
+            $this->refreshOrderTotalsFromQuotation($order, $quotation);
+
+            return $order->fresh();
+        });
+    }
+
+    /**
+     * Apply a successful Noon online payment to a quotation-linked order:
+     * approved receipt, balances, work-order sync, and quotation status.
+     */
+    public function applyNoonPayment(Order $order, float $amount, ?string $noonOrderId = null): void
+    {
+        if (! $order->quotation_id) {
+            return;
+        }
+
+        $amount = round(max(0, $amount), 2);
+        if ($amount <= 0) {
+            return;
+        }
+
+        DB::transaction(function () use ($order, $amount, $noonOrderId) {
+            /** @var Order $locked */
+            $locked = Order::query()->lockForUpdate()->findOrFail($order->id);
+
+            if ($noonOrderId) {
+                $already = $locked->paymentReceipts()
+                    ->where('notes', 'like', '%'.$noonOrderId.'%')
+                    ->exists();
+                if ($already) {
+                    return;
+                }
+            }
+
+            $service = app(OrderPaymentReceiptService::class);
+
+            try {
+                $receipt = $service->recordPayment(
+                    $locked,
+                    $amount,
+                    null,
+                    'noon',
+                    'payment',
+                    'دفع إلكتروني عبر Noon'.($noonOrderId ? ' ('.$noonOrderId.')' : ''),
+                );
+            } catch (RuntimeException $e) {
+                // Nothing left to allocate (e.g. already covered) — still refresh statuses.
+                $locked = $locked->fresh();
+                $this->refreshOrderPaymentStatus($locked);
+                $this->syncQuotationPaidFromOrder($locked);
+
+                return;
+            }
+
+            $service->approveReceipt($receipt, null);
+
+            $locked = $locked->fresh();
+            $locked->payment_method = 'noon';
+            if ($noonOrderId) {
+                $locked->payment_id = $noonOrderId;
+            }
+            $this->refreshOrderPaymentStatus($locked);
+            $locked->save();
+
+            $this->syncQuotationPaidFromOrder($locked);
+            $this->markQuotationAcceptedFromOrder($locked);
+
+            app(WorkerOrderSyncService::class)->syncFromOrder($locked->fresh());
+        });
+    }
+
+    private function refreshOrderPaymentStatus(Order $order): void
+    {
+        $total = round((float) $order->total_amount, 2);
+        $paid = round((float) ($order->amount_paid ?? 0), 2);
+        $remaining = round(max(0, $total - $paid), 2);
+
+        if ($remaining <= 0.009) {
+            $order->status = 'paid';
+            $order->payment_status = 'paid';
+        } elseif ($paid > 0) {
+            if ($order->status === 'pending') {
+                $order->status = 'processing';
+            }
+            if ($order->payment_status !== 'paid') {
+                $order->payment_status = 'pending';
+            }
+        }
+    }
+
+    private function syncQuotationPaidFromOrder(Order $order): void
+    {
+        if (! $order->quotation_id) {
+            return;
+        }
+
+        $quotation = Quotation::query()->lockForUpdate()->find($order->quotation_id);
+        if (! $quotation) {
+            return;
+        }
+
+        $approved = round((float) ($order->amount_paid ?? 0), 2);
+        $pending = round((float) $order->paymentReceipts()
+            ->where('approval_status', OrderPaymentReceipt::STATUS_PENDING)
+            ->sum('amount'), 2);
+        $committed = round($approved + $pending, 2);
+
+        $quotation->amount_paid = min(round((float) $quotation->total_amount, 2), $committed);
+        $quotation->save();
+    }
+
+    /**
      * When a quotation has amount_paid > 0, ensure a linked order exists and
      * a pending payment receipt covers the unpaid-but-recorded amount.
      * Work orders are released only after accountant approval of the receipt.

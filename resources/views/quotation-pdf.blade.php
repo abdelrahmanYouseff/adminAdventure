@@ -285,6 +285,18 @@
             <td colspan="8" align="left" style="font-weight: bold; background-color: #333; color: #fff;">TOTAL</td>
             <td align="left" style="font-weight: bold; background-color: #333; color: #fff;">{{ $data->formatSar($data->total(), 2) }}</td>
         </tr>
+        @if($data->amountPaid() > 0)
+            <tr>
+                <td colspan="8" align="left" style="font-weight: bold; background-color: #f5f5f5;">AMOUNT PAID</td>
+                <td align="left" style="font-weight: bold; background-color: #f5f5f5;">{{ $data->formatSar($data->amountPaid(), 2) }}</td>
+            </tr>
+        @endif
+        @if($data->hasAmountDue())
+            <tr>
+                <td colspan="8" align="left" style="font-weight: bold; background-color: #fff7ed;">AMOUNT DUE</td>
+                <td align="left" style="font-weight: bold; background-color: #fff7ed;">{{ $data->formatSar($data->amountDue(), 2) }}</td>
+            </tr>
+        @endif
     </tbody>
 </table>
 
@@ -314,6 +326,26 @@
                 ACCT NUMBER: {{ $data->bankAccountNumber() }}<br>
                 Account Name: {{ $data->bankAccountName() }}
             </div>
+
+            @if($data->hasAmountDue() && $data->noonPaymentUrl())
+                <div style="{{ $sectionTitle }} margin-top: 16px;">Online Payment (Noon):-</div>
+                <div style="font-size: 7.5pt; line-height: 1.7; padding: 10px; border: 1px solid #333; background-color: #f8fafc;">
+                    <strong>Pay the due amount online via Noon:</strong>
+                    {{ $data->formatSar($data->amountDue(), 2) }}
+                    <br>
+                    <a href="{{ $data->noonPaymentUrl() }}" style="color: #1d4ed8; font-weight: bold; word-break: break-all;">
+                        {{ $data->noonPaymentUrl() }}
+                    </a>
+                    <br>
+                    <span style="font-size: 6.5pt; color: #555;">
+                        Click the link above to complete payment securely with Noon Payments.
+                    </span>
+                    <br>
+                    <span dir="rtl" style="font-family: xbriyaz, dejavusans, sans-serif; font-size: 6.5pt; color: #555;">
+                        للدفع الإلكتروني عبر نون بالمبلغ المستحق، اضغط على الرابط أعلاه.
+                    </span>
+                </div>
+            @endif
         </td>
     </tr>
 </table>

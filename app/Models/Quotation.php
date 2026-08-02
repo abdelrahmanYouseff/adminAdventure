@@ -27,6 +27,7 @@ class Quotation extends Model
         'insurance_amount',
         'total_amount',
         'amount_paid',
+        'payment_token',
         'status',
         'user_id',
     ];
@@ -43,6 +44,36 @@ class Quotation extends Model
         'total_amount' => 'decimal:2',
         'amount_paid' => 'decimal:2',
     ];
+
+    public function amountDue(): float
+    {
+        $total = round((float) ($this->total_amount ?? 0), 2);
+        $paid = round((float) ($this->amount_paid ?? 0), 2);
+
+        return round(max(0, $total - $paid), 2);
+    }
+
+    public function ensurePaymentToken(): string
+    {
+        if ($this->payment_token) {
+            return $this->payment_token;
+        }
+
+        $this->forceFill([
+            'payment_token' => bin2hex(random_bytes(24)),
+        ])->save();
+
+        return (string) $this->payment_token;
+    }
+
+    public function noonPaymentUrl(): ?string
+    {
+        if ($this->amountDue() <= 0.009) {
+            return null;
+        }
+
+        return url('/pay/quotation/'.$this->ensurePaymentToken());
+    }
 
     public function user(): BelongsTo
     {
