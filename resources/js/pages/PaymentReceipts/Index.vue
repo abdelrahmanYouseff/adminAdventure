@@ -62,6 +62,7 @@ interface ReceiptRow {
     } | null;
     customer: CustomerProfile | null;
     recorded_by_name?: string | null;
+    proof_image_url?: string | null;
 }
 
 type StatusTab = 'all' | 'pending' | 'approved';
@@ -617,6 +618,24 @@ function statusBadgeClass(row: ReceiptRow): string {
                                                         />
                                                     </a>
                                                     <p v-else class="text-sm text-gray-400">لا توجد صورة مسجّلة</p>
+                                                </div>
+                                                <div>
+                                                    <p class="mb-1.5 text-xs text-gray-400">صورة التحويل / إيصال الدفع</p>
+                                                    <a
+                                                        v-if="row.proof_image_url"
+                                                        :href="row.proof_image_url"
+                                                        target="_blank"
+                                                        rel="noopener"
+                                                        class="block overflow-hidden rounded-lg border border-gray-200 dark:border-neutral-700"
+                                                        @click.stop
+                                                    >
+                                                        <img
+                                                            :src="row.proof_image_url"
+                                                            alt="صورة إيصال الدفع"
+                                                            class="max-h-48 w-full bg-gray-50 object-contain dark:bg-neutral-800"
+                                                        />
+                                                    </a>
+                                                    <p v-else class="text-sm text-gray-400">لا توجد صورة مرفقة</p>
                                                 </div>
                                             </div>
                                         </div>

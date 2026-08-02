@@ -18,12 +18,13 @@ import {
     Receipt,
     ShoppingCart,
     Trash2,
+    UploadCloud,
     User,
 } from 'lucide-vue-next';
 import AppLayout from '@/layouts/AppLayout.vue';
 import ProductSearchCombobox from '@/components/ProductSearchCombobox.vue';
 import { formatCurrency } from '@/lib/formatNumber';
-import { ref, computed, watch } from 'vue';
+import { ref, computed, watch, onBeforeUnmount } from 'vue';
 
 interface Product {
     id: number;
@@ -61,6 +62,7 @@ const form = useForm({
     payment_method: 'cash',
     status: 'processing',
     amount_paid: 0 as number,
+    payment_proof: null as File | null,
     notes: '',
     items: [] as OrderItem[],
 });
@@ -68,10 +70,37 @@ const form = useForm({
 const selectedProductId = ref<number | null>(null);
 const selectedQuantity = ref(1);
 const selectedUnitPrice = ref(0);
+const paymentProofPreview = ref<string | null>(null);
 const customerLookupStatus = ref<'idle' | 'loading' | 'found' | 'not_found'>('idle');
 const customerLookupMessage = ref('');
 let phoneLookupTimer: ReturnType<typeof setTimeout> | null = null;
 let phoneLookupRequestId = 0;
+
+function clearPaymentProofPreview() {
+    if (paymentProofPreview.value) {
+        URL.revokeObjectURL(paymentProofPreview.value);
+        paymentProofPreview.value = null;
+    }
+}
+
+function handlePaymentProofChange(event: Event) {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0] ?? null;
+    clearPaymentProofPreview();
+    form.payment_proof = file;
+    if (file) {
+        paymentProofPreview.value = URL.createObjectURL(file);
+    }
+}
+
+function removePaymentProof() {
+    clearPaymentProofPreview();
+    form.payment_proof = null;
+}
+
+onBeforeUnmount(() => {
+    clearPaymentProofPreview();
+});
 
 function roundMoney(value: number): number {
     return Math.round((value + Number.EPSILON) * 100) / 100;
@@ -150,7 +179,7 @@ function updateItemPrice(index: number) {
 }
 
 function submit() {
-    form.post(route('orders.store'));
+    form.post(route('orders.store'), { forceFormData: true });
 }
 
 function digitsOnly(value: string): string {
@@ -691,6 +720,48 @@ watch(grandTotal, (total) => {
                                     {{ formatCurrency(remainingAmount) }}
                                 </span>
                             </div>
+                        </div>
+
+                        <div v-if="amountPaid > 0" class="space-y-2 rounded-xl border border-border/60 p-4">
+                            <Label for="payment_proof" class="text-sm font-medium">صورة التحويل / إيصال الدفع</Label>
+                            <p class="text-xs text-muted-foreground">
+                                أرفق صورة التحويل البنكي أو إيصال المبلغ المدفوع لمراجعة المحاسب.
+                            </p>
+                            <label
+                                for="payment_proof"
+                                class="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border bg-muted/30 px-4 py-6 text-center transition hover:bg-muted/50"
+                            >
+                                <UploadCloud class="h-6 w-6 text-muted-foreground" />
+                                <span class="text-sm font-medium">
+                                    {{ form.payment_proof ? form.payment_proof.name : 'اختر صورة أو اسحبها هنا' }}
+                                </span>
+                                <span class="text-xs text-muted-foreground">jpg, png, webp — حتى 5 ميجابايت</span>
+                                <input
+                                    id="payment_proof"
+                                    type="file"
+                                    accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp"
+                                    class="hidden"
+                                    @change="handlePaymentProofChange"
+                                />
+                            </label>
+                            <div v-if="paymentProofPreview" class="relative overflow-hidden rounded-xl border border-border/60">
+                                <img
+                                    :src="paymentProofPreview"
+                                    alt="معاينة إيصال الدفع"
+                                    class="max-h-48 w-full object-contain bg-muted/20"
+                                />
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    class="absolute left-2 top-2 h-8 rounded-lg px-2 text-xs"
+                                    @click="removePaymentProof"
+                                >
+                                    إزالة
+                                </Button>
+                            </div>
+                            <p v-if="form.errors.payment_proof" class="text-xs text-red-600">
+                                {{ form.errors.payment_proof }}
+                            </p>
                         </div>
 
                         <p

@@ -13,6 +13,7 @@ use App\Support\OrderInsuranceCalculator;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -137,6 +138,7 @@ class OrderController extends Controller
             'payment_method' => ['required', 'string', 'in:credit_card,cash,bank_transfer,paypal,noon'],
             'status' => ['required', 'string', 'in:pending,processing,paid,cancelled'],
             'amount_paid' => ['nullable', 'numeric', 'min:0'],
+            'payment_proof' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
             'notes' => ['nullable', 'string', 'max:1000'],
             'items' => ['required', 'array', 'min:1'],
             'items.*.product_id' => ['required', 'exists:products,id'],
@@ -151,6 +153,9 @@ class OrderController extends Controller
             'payment_method.required' => 'طريقة الدفع مطلوبة.',
             'status.required' => 'حالة الطلب مطلوبة.',
             'amount_paid.min' => 'المبلغ المدفوع لا يمكن أن يكون سالباً.',
+            'payment_proof.image' => 'مرفق التحويل يجب أن يكون صورة.',
+            'payment_proof.mimes' => 'صيغ صورة التحويل المسموحة: jpg, jpeg, png, webp.',
+            'payment_proof.max' => 'حجم صورة التحويل يجب ألا يتجاوز 5 ميجابايت.',
             'items.*.discount_amount.min' => 'خصم الوحدة لا يمكن أن يكون سالباً.',
             'items.*.discount_amount.lte' => 'خصم الوحدة لا يمكن أن يتجاوز سعر الوحدة.',
         ]);
@@ -262,14 +267,28 @@ class OrderController extends Controller
         });
 
         if ($amountPaid > 0) {
-            app(OrderPaymentReceiptService::class)->recordPayment(
-                $order->fresh(),
-                $amountPaid,
-                $request->user(),
-                $validated['payment_method'],
-                'initial',
-                'سند قبض عند إنشاء الطلب — بانتظار اعتماد المحاسب',
-            );
+            $proofImage = null;
+            if ($request->hasFile('payment_proof')) {
+                $proofImage = $request->file('payment_proof')->store('payment-proofs', 'public');
+            }
+
+            try {
+                app(OrderPaymentReceiptService::class)->recordPayment(
+                    $order->fresh(),
+                    $amountPaid,
+                    $request->user(),
+                    $validated['payment_method'],
+                    'initial',
+                    'سند قبض عند إنشاء الطلب — بانتظار اعتماد المحاسب',
+                    $proofImage,
+                );
+            } catch (\Throwable $e) {
+                if ($proofImage) {
+                    Storage::disk('public')->delete($proofImage);
+                }
+
+                throw $e;
+            }
         }
 
         $successMessage = $amountPaid > 0

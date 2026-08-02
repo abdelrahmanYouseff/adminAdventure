@@ -26,6 +26,11 @@ class OrderPaymentReceipt extends Model
         'approved_at',
         'approved_by',
         'notes',
+        'proof_image',
+    ];
+
+    protected $appends = [
+        'proof_image_url',
     ];
 
     protected $casts = [
@@ -38,6 +43,19 @@ class OrderPaymentReceipt extends Model
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];
+
+    public function getProofImageUrlAttribute(): ?string
+    {
+        $path = $this->attributes['proof_image'] ?? null;
+
+        if (! $path) {
+            return null;
+        }
+
+        return str_starts_with($path, 'http')
+            ? $path
+            : asset('storage/'.ltrim($path, '/'));
+    }
 
     public function isApproved(): bool
     {
