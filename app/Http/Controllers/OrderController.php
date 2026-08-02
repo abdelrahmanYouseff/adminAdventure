@@ -101,6 +101,7 @@ class OrderController extends Controller
                 'can_edit',
                 $canEditTime && ! in_array($order->status, ['cancelled', 'refunded'], true)
             );
+            $order->setAttribute('can_delete', $canEditTime);
 
             // Expose grand total (subtotal + VAT + insurance) so Index matches Edit.
             $order->setAttribute('total_amount', $grandTotal);
@@ -1155,12 +1156,19 @@ class OrderController extends Controller
      */
     public function destroy(Order $order)
     {
+        $user = request()->user();
+        if (! $user || ! $user->hasAnyRole(User::ROLE_ADMIN, User::ROLE_GENERAL_MANAGER, User::ROLE_MANAGER)) {
+            abort(403);
+        }
+
         try {
             $order->delete();
 
-            return redirect()->back()->with('success', 'تم حذف الطلب بنجاح');
+            return redirect()
+                ->route('orders.index')
+                ->with('success', 'تم حذف الطلب '.$order->order_number.' بنجاح');
         } catch (\Exception $e) {
-            return redirect()->back()->with('error', 'فشل حذف الطلب: ' . $e->getMessage());
+            return redirect()->back()->with('error', 'فشل حذف الطلب: '.$e->getMessage());
         }
     }
 

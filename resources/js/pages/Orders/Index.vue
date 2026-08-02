@@ -55,6 +55,7 @@ interface Order {
     tax_amount?: number | string | null;
     can_settle?: boolean;
     can_edit?: boolean;
+    can_delete?: boolean;
     currency: string;
     payment_method: string;
     status: string;
@@ -104,10 +105,10 @@ defineOptions({ layout: AppLayout });
 
 const page = usePage();
 const userRole = computed(() => (page.props.auth as { user?: { role?: string } } | undefined)?.user?.role ?? null);
-const isAdmin = computed(() => userRole.value === 'admin');
 const canCreateOrders = computed(() =>
     ['admin', 'general_manager', 'manager'].includes(userRole.value ?? ''),
 );
+const canDeleteOrders = computed(() => canCreateOrders.value);
 
 const searchInput = ref(props.filters?.search ?? '');
 const statusFilter = ref<StatusTab>((props.filters?.status as StatusTab) ?? 'all');
@@ -363,9 +364,19 @@ function toggleSelect(id: number) {
     selectedIds.value = [...selectedIds.value, id];
 }
 
+function canDeleteOrder(order: Order): boolean {
+    if (order.can_delete === true) return true;
+    if (order.can_delete === false) return false;
+    return canDeleteOrders.value;
+}
+
 function deleteOrder(order: Order) {
-    if (!isAdmin.value) return;
-    if (confirm('هل تريد حذف هذا الطلب؟')) {
+    if (!canDeleteOrder(order)) return;
+    if (
+        confirm(
+            `هل تريد حذف الطلب ${order.order_number}؟\nلا يمكن التراجع عن هذا الإجراء.`,
+        )
+    ) {
         router.delete(route('orders.destroy', order.id), {
             preserveScroll: true,
         });
@@ -840,14 +851,14 @@ function locationMapsUrl(address: string | null): string | null {
                                                 <Pencil class="size-4" />
                                                 تحديد وقت الفعالية
                                             </DropdownMenuItem>
-                                            <DropdownMenuSeparator v-if="isAdmin" />
+                                            <DropdownMenuSeparator v-if="canDeleteOrder(order)" />
                                             <DropdownMenuItem
-                                                v-if="isAdmin"
+                                                v-if="canDeleteOrder(order)"
                                                 class="gap-2 text-red-600 focus:text-red-600"
                                                 @click="deleteOrder(order)"
                                             >
                                                 <Trash2 class="size-4" />
-                                                حذف
+                                                حذف الطلب
                                             </DropdownMenuItem>
                                         </DropdownMenuContent>
                                     </DropdownMenu>

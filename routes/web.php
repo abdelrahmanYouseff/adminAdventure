@@ -363,7 +363,7 @@ Route::patch('orders/{order}/activity-time', [OrderController::class, 'updateAct
     ->name('orders.update-activity-time');
 
 Route::delete('orders/{order}', [OrderController::class, 'destroy'])
-    ->middleware(['auth', 'verified', 'role:admin'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager'])
     ->name('orders.destroy');
 
 Route::post('orders/{order}/settle-payment', [OrderController::class, 'settlePayment'])
