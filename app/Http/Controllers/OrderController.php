@@ -82,9 +82,11 @@ class OrderController extends Controller
             );
 
             $pending = round((float) ($order->pending_payment_sum ?? 0), 2);
+            $breakdown = $this->orderChargeBreakdown($order);
+            $grandTotal = $breakdown['grand'];
             $due = round(max(
                 0,
-                (float) $order->total_amount - (float) ($order->amount_paid ?? 0)
+                $grandTotal - (float) ($order->amount_paid ?? 0)
             ), 2);
             $available = round(max(0, $due - $pending), 2);
             $order->setAttribute('settle_available', $available);
@@ -100,15 +102,10 @@ class OrderController extends Controller
                 $canEditTime && ! in_array($order->status, ['cancelled', 'refunded'], true)
             );
 
-            $taxAmount = round((float) ($order->tax_amount ?? 0), 2);
-            if ($taxAmount <= 0) {
-                $net = round(max(
-                    0,
-                    (float) $order->total_amount - (float) ($order->insurance_amount ?? 0)
-                ), 2);
-                $taxAmount = round($net * 0.15, 2);
-            }
-            $order->setAttribute('vat_amount', $taxAmount);
+            // Expose grand total (subtotal + VAT + insurance) so Index matches Edit.
+            $order->setAttribute('total_amount', $grandTotal);
+            $order->setAttribute('vat_amount', $breakdown['tax']);
+            $order->setAttribute('tax_amount', $breakdown['tax']);
 
             return $order;
         });
@@ -142,6 +139,14 @@ class OrderController extends Controller
     public function show(Order $order)
     {
         $order->load(['user', 'invoice', 'products']);
+
+        $breakdown = $this->orderChargeBreakdown($order);
+        $order->setAttribute('total_amount', $breakdown['grand']);
+        $order->setAttribute('tax_amount', $breakdown['tax']);
+        $order->setAttribute(
+            'remaining_amount',
+            round(max(0, $breakdown['grand'] - (float) ($order->amount_paid ?? 0)), 2)
+        );
 
         return Inertia::render('Orders/Show', [
             'order' => $order,
@@ -216,6 +221,10 @@ class OrderController extends Controller
         }
 
         $rawTime = $order->getAttributes()['activity_time'] ?? null;
+        $breakdown = $this->orderChargeBreakdown($order);
+        $pendingSum = round((float) $order->paymentReceipts()
+            ->where('approval_status', OrderPaymentReceipt::STATUS_PENDING)
+            ->sum('amount'), 2);
 
         return Inertia::render('Orders/Edit', [
             'order' => [
@@ -232,16 +241,14 @@ class OrderController extends Controller
                 'status' => $order->status,
                 'notes' => $order->notes,
                 'amount_paid' => (float) ($order->amount_paid ?? 0),
-                'tax_amount' => (float) ($order->tax_amount ?? 0),
-                'insurance_amount' => (float) ($order->insurance_amount ?? 0),
-                'total_amount' => (float) $order->total_amount,
+                'tax_amount' => $breakdown['tax'],
+                'insurance_amount' => $breakdown['insurance'],
+                'total_amount' => $breakdown['grand'],
                 'settle_available' => round(max(
                     0,
-                    (float) $order->total_amount
+                    $breakdown['grand']
                     - (float) ($order->amount_paid ?? 0)
-                    - (float) $order->paymentReceipts()
-                        ->where('approval_status', OrderPaymentReceipt::STATUS_PENDING)
-                        ->sum('amount')
+                    - $pendingSum
                 ), 2),
                 'items' => $items,
             ],
@@ -661,7 +668,8 @@ class OrderController extends Controller
             ->where('approval_status', OrderPaymentReceipt::STATUS_PENDING)
             ->sum('amount'), 2);
         $committed = round((float) ($order->amount_paid ?? 0) + $pendingSum, 2);
-        $available = round(max(0, (float) $order->total_amount - $committed), 2);
+        $grandTotal = $this->orderChargeBreakdown($order)['grand'];
+        $available = round(max(0, $grandTotal - $committed), 2);
         $amount = round((float) $validated['amount'], 2);
 
         if ($available <= 0) {
@@ -1154,6 +1162,67 @@ class OrderController extends Controller
         } catch (\Exception $e) {
             return redirect()->back()->with('error', 'فشل حذف الطلب: ' . $e->getMessage());
         }
+    }
+
+    /**
+     * Charge breakdown matching Orders/Edit: subtotal + 15% VAT + insurance.
+     *
+     * @return array{subtotal: float, tax: float, insurance: float, grand: float}
+     */
+    private function orderChargeBreakdown(Order $order): array
+    {
+        $subtotal = 0.0;
+
+        if ($order->relationLoaded('products') && $order->products->isNotEmpty()) {
+            foreach ($order->products as $product) {
+                $qty = (int) ($product->pivot->quantity ?? 0);
+                $price = (float) ($product->pivot->price ?? 0);
+                $discount = (float) ($product->pivot->discount_amount ?? 0);
+                $subtotal += $qty * max(0, $price - $discount);
+            }
+        } elseif (is_array($order->items)) {
+            foreach ($order->items as $item) {
+                if (isset($item['amount'])) {
+                    $subtotal += (float) $item['amount'];
+                } else {
+                    $qty = (int) ($item['quantity'] ?? 0);
+                    $price = (float) ($item['price'] ?? $item['unit_price'] ?? 0);
+                    $discount = (float) ($item['discount_amount'] ?? 0);
+                    $subtotal += $qty * max(0, $price - $discount);
+                }
+            }
+        }
+
+        $subtotal = round($subtotal, 2);
+        $insurance = round((float) ($order->insurance_amount ?? 0), 2);
+        $tax = round((float) ($order->tax_amount ?? 0), 2);
+
+        if ($tax <= 0.009 && $subtotal > 0) {
+            $tax = round($subtotal * 0.15, 2);
+        }
+
+        $storedTotal = round((float) $order->total_amount, 2);
+        $netPlusInsurance = round($subtotal + $insurance, 2);
+        $grandFromParts = round($subtotal + $tax + $insurance, 2);
+
+        if ($subtotal <= 0.009) {
+            $grand = $storedTotal;
+        } elseif (abs($storedTotal - $netPlusInsurance) <= 0.05) {
+            // Stored total is net only (tax omitted) — add VAT like Edit.
+            $grand = $grandFromParts;
+        } elseif (abs($storedTotal - $grandFromParts) <= 0.05) {
+            $grand = $storedTotal;
+        } else {
+            // Prefer the higher coherent charge so due/settle are not understated.
+            $grand = max($storedTotal, $grandFromParts);
+        }
+
+        return [
+            'subtotal' => $subtotal,
+            'tax' => $tax,
+            'insurance' => $insurance,
+            'grand' => round($grand, 2),
+        ];
     }
 }
 
