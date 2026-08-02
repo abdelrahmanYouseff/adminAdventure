@@ -16,15 +16,15 @@ import {
     Phone,
     Plus,
     Receipt,
+    Save,
     ShoppingCart,
     Trash2,
-    UploadCloud,
     User,
 } from 'lucide-vue-next';
 import AppLayout from '@/layouts/AppLayout.vue';
 import ProductSearchCombobox from '@/components/ProductSearchCombobox.vue';
 import { formatCurrency } from '@/lib/formatNumber';
-import { ref, computed, watch, onBeforeUnmount } from 'vue';
+import { ref, computed, watch } from 'vue';
 
 interface Product {
     id: number;
@@ -46,6 +46,25 @@ interface OrderItem {
 
 interface Props {
     products: Product[];
+    order: {
+        id: number;
+        order_number: string;
+        customer_name: string;
+        customer_email: string | null;
+        customer_phone: string | null;
+        address: string | null;
+        activity_date: string | null;
+        activity_time: string | null;
+        currency: string;
+        payment_method: string;
+        status: string;
+        notes: string | null;
+        amount_paid: number;
+        tax_amount: number;
+        insurance_amount: number;
+        total_amount: number;
+        items: OrderItem[];
+    };
 }
 
 const props = defineProps<Props>();
@@ -53,54 +72,26 @@ const props = defineProps<Props>();
 defineOptions({ layout: AppLayout });
 
 const form = useForm({
-    customer_name: '',
-    customer_email: '',
-    customer_phone: '',
-    address: '',
-    activity_date: '',
-    currency: 'SAR',
-    payment_method: 'cash',
-    status: 'processing',
-    amount_paid: 0 as number,
-    payment_proof: null as File | null,
-    notes: '',
-    items: [] as OrderItem[],
+    customer_name: props.order.customer_name || '',
+    customer_email: props.order.customer_email || '',
+    customer_phone: props.order.customer_phone || '',
+    address: props.order.address || '',
+    activity_date: props.order.activity_date || '',
+    activity_time: props.order.activity_time || '',
+    currency: props.order.currency || 'SAR',
+    payment_method: props.order.payment_method || 'cash',
+    status: props.order.status || 'processing',
+    notes: props.order.notes || '',
+    items: (props.order.items || []).map((item) => ({ ...item })) as OrderItem[],
 });
 
 const selectedProductId = ref<number | null>(null);
 const selectedQuantity = ref(1);
 const selectedUnitPrice = ref(0);
-const paymentProofPreview = ref<string | null>(null);
 const customerLookupStatus = ref<'idle' | 'loading' | 'found' | 'not_found'>('idle');
 const customerLookupMessage = ref('');
 let phoneLookupTimer: ReturnType<typeof setTimeout> | null = null;
 let phoneLookupRequestId = 0;
-
-function clearPaymentProofPreview() {
-    if (paymentProofPreview.value) {
-        URL.revokeObjectURL(paymentProofPreview.value);
-        paymentProofPreview.value = null;
-    }
-}
-
-function handlePaymentProofChange(event: Event) {
-    const input = event.target as HTMLInputElement;
-    const file = input.files?.[0] ?? null;
-    clearPaymentProofPreview();
-    form.payment_proof = file;
-    if (file) {
-        paymentProofPreview.value = URL.createObjectURL(file);
-    }
-}
-
-function removePaymentProof() {
-    clearPaymentProofPreview();
-    form.payment_proof = null;
-}
-
-onBeforeUnmount(() => {
-    clearPaymentProofPreview();
-});
 
 function roundMoney(value: number): number {
     return Math.round((value + Number.EPSILON) * 100) / 100;
@@ -125,8 +116,8 @@ const insuranceTotal = computed(() =>
 );
 const vatAmount = computed(() => roundMoney(subtotal.value * 0.15));
 const grandTotal = computed(() => roundMoney(subtotal.value + vatAmount.value + insuranceTotal.value));
-const amountPaid = computed(() => Math.max(0, Number(form.amount_paid) || 0));
-const remainingAmount = computed(() => roundMoney(Math.max(0, grandTotal.value - amountPaid.value)));
+const approvedPaid = computed(() => Math.max(0, Number(props.order.amount_paid) || 0));
+const remainingAmount = computed(() => roundMoney(Math.max(0, grandTotal.value - approvedPaid.value)));
 const itemsCount = computed(() =>
     form.items.reduce((sum, item) => sum + Number(item.quantity || 0), 0),
 );
@@ -180,7 +171,7 @@ function updateItemPrice(index: number) {
 }
 
 function submit() {
-    form.post(route('orders.store'), { forceFormData: true });
+    form.put(route('orders.update', props.order.id));
 }
 
 function digitsOnly(value: string): string {
@@ -274,16 +265,10 @@ watch(
         }, 450);
     },
 );
-
-watch(grandTotal, (total) => {
-    if (Number(form.amount_paid) > total) {
-        form.amount_paid = total;
-    }
-});
 </script>
 
 <template>
-    <Head title="إضافة طلب" />
+    <Head title="تعديل طلب" />
 
     <div class="flex flex-1 flex-col gap-6 p-4 sm:p-6">
         <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -292,16 +277,17 @@ watch(grandTotal, (total) => {
                     <ShoppingCart class="h-6 w-6" />
                 </div>
                 <div>
-                    <h1 class="text-2xl font-bold tracking-tight sm:text-3xl">إضافة طلب جديد</h1>
+                    <h1 class="text-2xl font-bold tracking-tight sm:text-3xl">تعديل الطلب</h1>
                     <p class="mt-1 text-sm text-muted-foreground">
-                        أدخل بيانات العميل، أضف المنتجات، ثم احفظ الطلب من النظام
+                        تعديل بيانات الطلب
+                        <span class="font-semibold tabular-nums" dir="ltr">{{ order.order_number }}</span>
                     </p>
                 </div>
             </div>
             <Button as-child variant="outline" class="shrink-0 gap-2 self-start">
-                <Link :href="route('orders.index')">
+                <Link :href="route('orders.show', order.id)">
                     <ArrowRight class="h-4 w-4" />
-                    العودة للطلبات
+                    العودة للتفاصيل
                 </Link>
             </Button>
         </div>
@@ -440,6 +426,7 @@ watch(grandTotal, (total) => {
                                 >
                                     <option value="pending">قيد الانتظار</option>
                                     <option value="processing">قيد المعالجة</option>
+                                    <option v-if="order.status === 'paid'" value="paid">مدفوع</option>
                                 </select>
                             </div>
 
@@ -700,22 +687,14 @@ watch(grandTotal, (total) => {
                             </span>
                         </div>
 
-                        <div class="space-y-2 rounded-xl border border-border/60 p-4">
-                            <Label for="amount_paid" class="text-sm font-medium">المبلغ المدفوع</Label>
-                            <Input
-                                id="amount_paid"
-                                v-model="form.amount_paid"
-                                type="number"
-                                step="0.01"
-                                min="0"
-                                :max="grandTotal"
-                                class="h-11 rounded-xl tabular-nums"
-                                dir="ltr"
-                            />
-                            <p v-if="form.errors.amount_paid" class="text-xs text-red-600">
-                                {{ form.errors.amount_paid }}
-                            </p>
-                            <div class="flex items-center justify-between pt-1 text-sm">
+                        <div class="space-y-2 rounded-xl border border-border/60 p-4 text-sm">
+                            <div class="flex items-center justify-between">
+                                <span class="text-muted-foreground">المدفوع المعتمد</span>
+                                <span class="font-semibold tabular-nums text-emerald-600" dir="ltr">
+                                    {{ formatCurrency(approvedPaid) }}
+                                </span>
+                            </div>
+                            <div class="flex items-center justify-between">
                                 <span class="text-muted-foreground">المتبقي على العميل</span>
                                 <span
                                     class="font-bold tabular-nums"
@@ -725,61 +704,16 @@ watch(grandTotal, (total) => {
                                     {{ formatCurrency(remainingAmount) }}
                                 </span>
                             </div>
-                        </div>
-
-                        <div v-if="amountPaid > 0" class="space-y-2 rounded-xl border border-border/60 p-4">
-                            <Label for="payment_proof" class="text-sm font-medium">صورة التحويل / إيصال الدفع</Label>
-                            <p class="text-xs text-muted-foreground">
-                                أرفق صورة التحويل البنكي أو إيصال المبلغ المدفوع لمراجعة المحاسب.
-                            </p>
-                            <label
-                                for="payment_proof"
-                                class="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border bg-muted/30 px-4 py-6 text-center transition hover:bg-muted/50"
-                            >
-                                <UploadCloud class="h-6 w-6 text-muted-foreground" />
-                                <span class="text-sm font-medium">
-                                    {{ form.payment_proof ? form.payment_proof.name : 'اختر صورة أو اسحبها هنا' }}
-                                </span>
-                                <span class="text-xs text-muted-foreground">jpg, png, webp — حتى 5 ميجابايت</span>
-                                <input
-                                    id="payment_proof"
-                                    type="file"
-                                    accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp"
-                                    class="hidden"
-                                    @change="handlePaymentProofChange"
-                                />
-                            </label>
-                            <div v-if="paymentProofPreview" class="relative overflow-hidden rounded-xl border border-border/60">
-                                <img
-                                    :src="paymentProofPreview"
-                                    alt="معاينة إيصال الدفع"
-                                    class="max-h-48 w-full object-contain bg-muted/20"
-                                />
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    class="absolute left-2 top-2 h-8 rounded-lg px-2 text-xs"
-                                    @click="removePaymentProof"
-                                >
-                                    إزالة
-                                </Button>
-                            </div>
-                            <p v-if="form.errors.payment_proof" class="text-xs text-red-600">
-                                {{ form.errors.payment_proof }}
+                            <p class="pt-1 text-xs text-muted-foreground">
+                                لتسجيل دفعة جديدة استخدم «سداد» من قائمة الطلبات.
                             </p>
                         </div>
 
                         <p
-                            v-if="amountPaid > 0"
-                            class="rounded-xl bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-800 dark:bg-amber-950/30 dark:text-amber-200"
+                            v-if="form.errors.items"
+                            class="rounded-xl bg-red-50 px-3 py-2 text-xs leading-relaxed text-red-700"
                         >
-                            سيُسجَّل المبلغ المدفوع كسند قبض بانتظار اعتماد المحاسب. عند اعتماد أول مبلغ من صفحة «سندات القبض» يصدر أمر العمل تلقائياً — ولو كان الدفع جزئياً.
-                        </p>
-                        <p
-                            v-else
-                            class="rounded-xl bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-800 dark:bg-amber-950/30 dark:text-amber-200"
-                        >
-                            لم يُسجَّل أي مبلغ بعد — سيصدر أمر العمل بعد تسجيل الدفعة واعتمادها من المحاسب.
+                            {{ form.errors.items }}
                         </p>
 
                         <div class="space-y-2">
@@ -788,11 +722,11 @@ watch(grandTotal, (total) => {
                                 class="h-11 w-full gap-2 rounded-xl text-base font-semibold"
                                 :disabled="form.processing || form.items.length === 0"
                             >
-                                <ShoppingCart class="h-4 w-4" />
-                                {{ form.processing ? 'جاري الحفظ...' : 'إنشاء الطلب' }}
+                                <Save class="h-4 w-4" />
+                                {{ form.processing ? 'جاري الحفظ...' : 'حفظ التعديلات' }}
                             </Button>
                             <Button as-child type="button" variant="outline" class="h-11 w-full rounded-xl">
-                                <Link :href="route('orders.index')">إلغاء</Link>
+                                <Link :href="route('orders.show', order.id)">إلغاء</Link>
                             </Button>
                         </div>
                     </div>

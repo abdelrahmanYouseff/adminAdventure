@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { ArrowRight, User, Mail, Phone, CreditCard, FileText, Calendar, Package, HardHat } from 'lucide-vue-next';
+import { ArrowRight, User, Mail, Phone, CreditCard, FileText, Calendar, Package, HardHat, Pencil } from 'lucide-vue-next';
 import { formatCurrency, formatDate, formatInteger } from '@/lib/formatNumber';
 
 interface OrderItem {
@@ -181,6 +181,17 @@ const orderItems = () => {
                 </div>
             </div>
             <div class="flex flex-wrap items-center gap-2">
+                <Button
+                    v-if="order.status !== 'cancelled' && order.status !== 'refunded'"
+                    as-child
+                    variant="outline"
+                    class="h-10 gap-2"
+                >
+                    <Link :href="route('orders.edit', order.id)">
+                        <Pencil class="h-4 w-4" />
+                        تعديل الطلب
+                    </Link>
+                </Button>
                 <Button
                     v-if="isPaid"
                     as-child

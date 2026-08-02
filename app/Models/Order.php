@@ -21,6 +21,7 @@ class Order extends Model
         'location_slug',
         'total_amount',
         'discount_total',
+        'tax_amount',
         'amount_paid',
         'insurance_amount',
         'insurance_original_amount',
@@ -50,6 +51,7 @@ class Order extends Model
     protected $casts = [
         'total_amount' => 'decimal:2',
         'discount_total' => 'decimal:2',
+        'tax_amount' => 'decimal:2',
         'amount_paid' => 'decimal:2',
         'insurance_amount' => 'decimal:2',
         'insurance_original_amount' => 'decimal:2',

@@ -50,7 +50,11 @@ interface Order {
     amount_paid?: number | string | null;
     remaining_amount?: number | string | null;
     settle_available?: number | string | null;
+    due_amount?: number | string | null;
+    vat_amount?: number | string | null;
+    tax_amount?: number | string | null;
     can_settle?: boolean;
+    can_edit?: boolean;
     currency: string;
     payment_method: string;
     status: string;
@@ -185,16 +189,23 @@ function fillSettleRemaining() {
 function submitSettle() {
     if (!settleOrder.value) return;
 
-    const amount = Number(settleForm.amount);
-    const available = Number(settleOrder.value.settle_available ?? dueAmount(settleOrder.value)) || 0;
+    const available = Number(settleOrder.value.settle_available ?? 0) || 0;
+    if (available <= 0.009) {
+        settleForm.setError(
+            'amount',
+            'يوجد سند قبض بانتظار اعتماد المحاسب يغطي المتبقي. انتظر الاعتماد قبل تسجيل سداد جديد.',
+        );
+        return;
+    }
 
+    const amount = Number(settleForm.amount);
     if (!amount || amount <= 0) {
         settleForm.setError('amount', 'أدخل مبلغ سداد أكبر من صفر.');
         return;
     }
 
     if (amount > available + 0.009) {
-        settleForm.setError('amount', `المبلغ أكبر من المتبقي المتاح (${available}).`);
+        settleForm.setError('amount', `المبلغ أكبر من المتبقي المتاح للتسجيل (${available}).`);
         return;
     }
 
@@ -396,11 +407,29 @@ function dueAmount(order: Order): number {
     if (order.status === 'paid' || order.status === 'cancelled' || order.status === 'refunded') {
         return 0;
     }
+    const due = Number(order.due_amount);
+    if (!Number.isNaN(due) && due >= 0) {
+        return due;
+    }
     const remaining = Number(order.remaining_amount);
     if (!Number.isNaN(remaining) && remaining >= 0) {
         return remaining;
     }
     return Math.max(0, (Number(order.total_amount) || 0) - paidAmount(order));
+}
+
+function vatAmount(order: Order): number {
+    const vat = Number(order.vat_amount ?? order.tax_amount ?? 0);
+    if (!Number.isNaN(vat) && vat > 0) {
+        return vat;
+    }
+    return 0;
+}
+
+function canSettleOrder(order: Order): boolean {
+    if (order.can_settle === true) return true;
+    if (order.can_settle === false) return false;
+    return dueAmount(order) > 0.009;
 }
 
 function formatActivityTime(time: string | null): string {
@@ -614,6 +643,7 @@ function locationMapsUrl(address: string | null): string | null {
                             <th class="px-3 py-3.5 text-start text-[13px] font-semibold text-gray-700 dark:text-neutral-200">الطلب</th>
                             <th class="px-3 py-3.5 text-start text-[13px] font-semibold text-gray-700 dark:text-neutral-200">العميل</th>
                             <th class="px-3 py-3.5 text-start text-[13px] font-semibold text-gray-700 dark:text-neutral-200">الإجمالي</th>
+                            <th class="px-3 py-3.5 text-start text-[13px] font-semibold text-gray-700 dark:text-neutral-200">الضريبة 15%</th>
                             <th class="px-3 py-3.5 text-start text-[13px] font-semibold text-gray-700 dark:text-neutral-200">المدفوع</th>
                             <th class="px-3 py-3.5 text-start text-[13px] font-semibold text-gray-700 dark:text-neutral-200">المستحق</th>
                             <th class="px-3 py-3.5 text-start text-[13px] font-semibold text-gray-700 dark:text-neutral-200">تاريخ الفعالية</th>
@@ -624,7 +654,7 @@ function locationMapsUrl(address: string | null): string | null {
                     </thead>
                     <tbody>
                         <tr v-if="orders.data.length === 0">
-                            <td colspan="10" class="px-4 py-16 text-center text-gray-500 dark:text-neutral-400">
+                            <td colspan="11" class="px-4 py-16 text-center text-gray-500 dark:text-neutral-400">
                                 لا توجد طلبات مطابقة للبحث أو الفلتر الحالي.
                             </td>
                         </tr>
@@ -670,6 +700,12 @@ function locationMapsUrl(address: string | null): string | null {
                             </td>
                             <td class="px-3 py-4 font-semibold tabular-nums text-gray-900 dark:text-white" dir="ltr">
                                 {{ formatCurrency(Number(order.total_amount) || 0, order.currency) }}
+                            </td>
+                            <td class="px-3 py-4 tabular-nums text-gray-700 dark:text-neutral-200" dir="ltr">
+                                <span v-if="vatAmount(order) > 0">
+                                    {{ formatCurrency(vatAmount(order), order.currency) }}
+                                </span>
+                                <span v-else class="text-gray-400">-</span>
                             </td>
                             <td class="px-3 py-4 tabular-nums" dir="ltr">
                                 <span
@@ -782,7 +818,16 @@ function locationMapsUrl(address: string | null): string | null {
                                                 </Link>
                                             </DropdownMenuItem>
                                             <DropdownMenuItem
-                                                v-if="order.can_settle"
+                                                v-if="order.can_edit"
+                                                as-child
+                                            >
+                                                <Link :href="route('orders.edit', order.id)" class="flex items-center gap-2">
+                                                    <Pencil class="size-4" />
+                                                    تعديل الطلب
+                                                </Link>
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem
+                                                v-if="canSettleOrder(order)"
                                                 class="gap-2"
                                                 @click="openSettleDialog(order)"
                                             >

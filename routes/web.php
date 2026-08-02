@@ -346,6 +346,14 @@ Route::post('orders', [OrderController::class, 'store'])
     ->middleware(['auth', 'verified', 'role:admin,general_manager,manager'])
     ->name('orders.store');
 
+Route::get('orders/{order}/edit', [OrderController::class, 'edit'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager'])
+    ->name('orders.edit');
+
+Route::put('orders/{order}', [OrderController::class, 'update'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager'])
+    ->name('orders.update');
+
 Route::get('orders/{order}', [OrderController::class, 'show'])
     ->middleware(['auth', 'verified', 'role:admin,general_manager,manager'])
     ->name('orders.show');

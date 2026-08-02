@@ -82,17 +82,33 @@ class OrderController extends Controller
             );
 
             $pending = round((float) ($order->pending_payment_sum ?? 0), 2);
-            $available = round(max(
+            $due = round(max(
                 0,
-                (float) $order->total_amount - (float) ($order->amount_paid ?? 0) - $pending
+                (float) $order->total_amount - (float) ($order->amount_paid ?? 0)
             ), 2);
+            $available = round(max(0, $due - $pending), 2);
             $order->setAttribute('settle_available', $available);
+            $order->setAttribute('due_amount', $due);
             $order->setAttribute(
                 'can_settle',
                 $canSettle
-                && $available > 0.009
+                && $due > 0.009
                 && ! in_array($order->status, ['cancelled', 'refunded'], true)
             );
+            $order->setAttribute(
+                'can_edit',
+                $canEditTime && ! in_array($order->status, ['cancelled', 'refunded'], true)
+            );
+
+            $taxAmount = round((float) ($order->tax_amount ?? 0), 2);
+            if ($taxAmount <= 0) {
+                $net = round(max(
+                    0,
+                    (float) $order->total_amount - (float) ($order->insurance_amount ?? 0)
+                ), 2);
+                $taxAmount = round($net * 0.15, 2);
+            }
+            $order->setAttribute('vat_amount', $taxAmount);
 
             return $order;
         });
@@ -142,6 +158,243 @@ class OrderController extends Controller
         return Inertia::render('Orders/Create', [
             'products' => $products,
         ]);
+    }
+
+    public function edit(Order $order)
+    {
+        $user = request()->user();
+        if (! $user || ! $user->hasAnyRole(User::ROLE_ADMIN, User::ROLE_GENERAL_MANAGER, User::ROLE_MANAGER)) {
+            abort(403);
+        }
+
+        if (in_array($order->status, ['cancelled', 'refunded'], true)) {
+            return redirect()
+                ->route('orders.show', $order)
+                ->with('error', 'لا يمكن تعديل طلب ملغي أو مسترد.');
+        }
+
+        $order->load(['products']);
+
+        $products = Product::query()
+            ->active()
+            ->orderBy('product_name')
+            ->get(['id', 'product_name', 'description', 'price', 'image', 'insurance_amount']);
+
+        $items = [];
+        if ($order->products->isNotEmpty()) {
+            foreach ($order->products as $product) {
+                $qty = (int) ($product->pivot->quantity ?? 0);
+                $price = round((float) ($product->pivot->price ?? 0), 2);
+                $discount = round((float) ($product->pivot->discount_amount ?? 0), 2);
+                $items[] = [
+                    'product_id' => $product->id,
+                    'product_name' => $product->product_name,
+                    'description' => $product->description ?? '',
+                    'quantity' => $qty,
+                    'unit_price' => $price,
+                    'discount_amount' => $discount,
+                    'total_price' => round($qty * max(0, $price - $discount), 2),
+                ];
+            }
+        } elseif (is_array($order->items)) {
+            foreach ($order->items as $item) {
+                $qty = (int) ($item['quantity'] ?? 0);
+                $price = round((float) ($item['price'] ?? $item['unit_price'] ?? 0), 2);
+                $discount = round((float) ($item['discount_amount'] ?? 0), 2);
+                $items[] = [
+                    'product_id' => (int) ($item['product_id'] ?? 0),
+                    'product_name' => (string) ($item['name'] ?? $item['product_name'] ?? 'منتج'),
+                    'description' => (string) ($item['description'] ?? ''),
+                    'quantity' => $qty,
+                    'unit_price' => $price,
+                    'discount_amount' => $discount,
+                    'total_price' => isset($item['amount'])
+                        ? round((float) $item['amount'], 2)
+                        : round($qty * max(0, $price - $discount), 2),
+                ];
+            }
+        }
+
+        $rawTime = $order->getAttributes()['activity_time'] ?? null;
+
+        return Inertia::render('Orders/Edit', [
+            'order' => [
+                'id' => $order->id,
+                'order_number' => $order->order_number,
+                'customer_name' => $order->customer_name,
+                'customer_email' => $order->customer_email,
+                'customer_phone' => $order->customer_phone,
+                'address' => $order->address,
+                'activity_date' => $order->activity_date?->format('Y-m-d'),
+                'activity_time' => $rawTime ? \Carbon\Carbon::parse($rawTime)->format('H:i') : null,
+                'currency' => $order->currency ?: 'SAR',
+                'payment_method' => $order->payment_method ?: 'cash',
+                'status' => $order->status,
+                'notes' => $order->notes,
+                'amount_paid' => (float) ($order->amount_paid ?? 0),
+                'tax_amount' => (float) ($order->tax_amount ?? 0),
+                'insurance_amount' => (float) ($order->insurance_amount ?? 0),
+                'total_amount' => (float) $order->total_amount,
+                'items' => $items,
+            ],
+            'products' => $products,
+        ]);
+    }
+
+    public function update(Request $request, Order $order)
+    {
+        $user = $request->user();
+        if (! $user || ! $user->hasAnyRole(User::ROLE_ADMIN, User::ROLE_GENERAL_MANAGER, User::ROLE_MANAGER)) {
+            abort(403);
+        }
+
+        if (in_array($order->status, ['cancelled', 'refunded'], true)) {
+            return back()->with('error', 'لا يمكن تعديل طلب ملغي أو مسترد.');
+        }
+
+        $validated = $request->validate([
+            'customer_name' => ['required', 'string', 'max:255'],
+            'customer_email' => ['nullable', 'email', 'max:255'],
+            'customer_phone' => ['nullable', 'string', 'max:20'],
+            'address' => ['nullable', 'string', 'max:1000'],
+            'activity_date' => ['nullable', 'date'],
+            'activity_time' => ['nullable', 'date_format:H:i'],
+            'currency' => ['required', 'string', 'in:SAR,USD,EUR'],
+            'payment_method' => ['required', 'string', 'in:credit_card,cash,bank_transfer,paypal,noon'],
+            'status' => ['required', 'string', 'in:pending,processing,paid,cancelled'],
+            'notes' => ['nullable', 'string', 'max:1000'],
+            'items' => ['required', 'array', 'min:1'],
+            'items.*.product_id' => ['required', 'exists:products,id'],
+            'items.*.quantity' => ['required', 'integer', 'min:1'],
+            'items.*.unit_price' => ['required', 'numeric', 'min:0'],
+            'items.*.discount_amount' => ['nullable', 'numeric', 'min:0', 'lte:items.*.unit_price'],
+        ], [
+            'customer_name.required' => 'اسم العميل مطلوب.',
+            'items.required' => 'يجب إضافة منتج واحد على الأقل.',
+            'items.min' => 'يجب إضافة منتج واحد على الأقل.',
+            'items.*.product_id.exists' => 'أحد المنتجات المحددة غير موجود.',
+            'payment_method.required' => 'طريقة الدفع مطلوبة.',
+            'status.required' => 'حالة الطلب مطلوبة.',
+            'items.*.discount_amount.min' => 'خصم الوحدة لا يمكن أن يكون سالباً.',
+            'items.*.discount_amount.lte' => 'خصم الوحدة لا يمكن أن يتجاوز سعر الوحدة.',
+        ]);
+
+        $productIds = collect($validated['items'])->pluck('product_id')->all();
+        $products = Product::whereIn('id', $productIds)->pluck('product_name', 'id');
+        $insurance = OrderInsuranceCalculator::fromLines($validated['items']);
+        $insuranceTotal = $insurance['total'];
+
+        $itemsForOrder = [];
+        $totalAmount = 0;
+        $discountTotal = 0;
+
+        foreach ($validated['items'] as $item) {
+            $qty = (int) $item['quantity'];
+            $price = round((float) $item['unit_price'], 2);
+            $discountAmount = round((float) ($item['discount_amount'] ?? 0), 2);
+            $lineTotal = round($qty * ($price - $discountAmount), 2);
+            $totalAmount += $lineTotal;
+            $discountTotal += round($qty * $discountAmount, 2);
+
+            $itemsForOrder[] = [
+                'product_id' => (int) $item['product_id'],
+                'name' => $products[$item['product_id']] ?? 'Product #'.$item['product_id'],
+                'quantity' => $qty,
+                'price' => $price,
+                'discount_amount' => $discountAmount,
+                'amount' => $lineTotal,
+                'insurance_amount' => (float) ($insurance['unit_by_product'][(int) $item['product_id']] ?? 0),
+            ];
+        }
+
+        $chargeSubtotal = round($totalAmount, 2);
+        $taxAmount = round($chargeSubtotal * 0.15, 2);
+        $chargeAmount = round($chargeSubtotal + $taxAmount + $insuranceTotal, 2);
+
+        $pendingSum = round((float) $order->paymentReceipts()
+            ->where('approval_status', OrderPaymentReceipt::STATUS_PENDING)
+            ->sum('amount'), 2);
+        $committed = round((float) ($order->amount_paid ?? 0) + $pendingSum, 2);
+
+        if ($chargeAmount + 0.009 < $committed) {
+            return back()
+                ->withInput()
+                ->withErrors([
+                    'items' => 'إجمالي الطلب الجديد ('.$chargeAmount.') أقل من المبالغ المسجّلة/المعتمدة ('.$committed.').',
+                ]);
+        }
+
+        DB::transaction(function () use (
+            $order,
+            $validated,
+            $itemsForOrder,
+            $chargeAmount,
+            $discountTotal,
+            $taxAmount,
+            $insurance,
+            $insuranceTotal,
+            $productIds,
+            $committed,
+        ) {
+            $order->fill([
+                'customer_name' => $validated['customer_name'],
+                'customer_email' => $validated['customer_email'] ?? null,
+                'customer_phone' => $validated['customer_phone'] ?? null,
+                'address' => $validated['address'] ?? null,
+                'activity_date' => $validated['activity_date'] ?? null,
+                'activity_time' => $validated['activity_time'] ?? $order->activity_time,
+                'total_amount' => $chargeAmount,
+                'discount_total' => $discountTotal,
+                'tax_amount' => $taxAmount,
+                'insurance_amount' => $insuranceTotal,
+                'insurance_status' => $insuranceTotal > 0
+                    ? ($order->insurance_status === 'none' ? 'pending' : $order->insurance_status)
+                    : 'none',
+                'currency' => $validated['currency'],
+                'payment_method' => $validated['payment_method'],
+                'items' => $itemsForOrder,
+                'notes' => $validated['notes'] ?? null,
+            ]);
+
+            if ($validated['status'] === 'cancelled') {
+                $order->status = 'cancelled';
+            } elseif ($order->status !== 'paid') {
+                $remaining = round(max(0, $chargeAmount - (float) ($order->amount_paid ?? 0)), 2);
+                if ($remaining <= 0.009 && (float) ($order->amount_paid ?? 0) > 0) {
+                    $order->status = 'paid';
+                    $order->payment_status = 'paid';
+                } elseif ($committed > 0 || (float) ($order->amount_paid ?? 0) > 0) {
+                    $order->status = 'processing';
+                } else {
+                    $order->status = $validated['status'] === 'processing' ? 'processing' : 'pending';
+                }
+            }
+
+            $order->save();
+
+            if ($order->invoice_id) {
+                Invoice::query()->whereKey($order->invoice_id)->update([
+                    'amount' => $chargeAmount,
+                    'brand_id' => Product::resolveBrandIdForIds($productIds),
+                    'payment_method' => $validated['payment_method'],
+                ]);
+            }
+
+            $order->products()->detach();
+            foreach ($validated['items'] as $item) {
+                $productId = (int) $item['product_id'];
+                $order->products()->attach($productId, [
+                    'quantity' => (int) $item['quantity'],
+                    'price' => (float) $item['unit_price'],
+                    'discount_amount' => (float) ($item['discount_amount'] ?? 0),
+                    'insurance_amount' => (float) ($insurance['unit_by_product'][$productId] ?? 0),
+                ]);
+            }
+        });
+
+        return redirect()
+            ->route('orders.show', $order)
+            ->with('success', 'تم تحديث الطلب بنجاح.');
     }
 
     public function store(Request $request)
@@ -206,7 +459,9 @@ class OrderController extends Controller
             ];
         }
 
-        $chargeAmount = round($totalAmount + $insuranceTotal, 2);
+        $chargeSubtotal = round($totalAmount, 2);
+        $taxAmount = round($chargeSubtotal * 0.15, 2);
+        $chargeAmount = round($chargeSubtotal + $taxAmount + $insuranceTotal, 2);
         $amountPaid = array_key_exists('amount_paid', $validated) && $validated['amount_paid'] !== null
             ? round((float) $validated['amount_paid'], 2)
             : ($validated['status'] === 'paid' ? $chargeAmount : 0.0);
@@ -232,6 +487,7 @@ class OrderController extends Controller
             $itemsForOrder,
             $chargeAmount,
             $discountTotal,
+            $taxAmount,
             $initialStatus,
             $userId,
             $insurance,
@@ -259,6 +515,7 @@ class OrderController extends Controller
                 'order_number' => Order::generateOrderNumber(),
                 'total_amount' => $chargeAmount,
                 'discount_total' => $discountTotal,
+                'tax_amount' => $taxAmount,
                 'amount_paid' => 0,
                 'insurance_amount' => $insuranceTotal,
                 'insurance_status' => $insuranceTotal > 0 ? 'pending' : 'none',
