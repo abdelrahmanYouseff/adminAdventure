@@ -19,12 +19,13 @@ import {
     Save,
     ShoppingCart,
     Trash2,
+    UploadCloud,
     User,
 } from 'lucide-vue-next';
 import AppLayout from '@/layouts/AppLayout.vue';
 import ProductSearchCombobox from '@/components/ProductSearchCombobox.vue';
 import { formatCurrency } from '@/lib/formatNumber';
-import { ref, computed, watch } from 'vue';
+import { ref, computed, watch, onBeforeUnmount } from 'vue';
 
 interface Product {
     id: number;
@@ -63,6 +64,7 @@ interface Props {
         tax_amount: number;
         insurance_amount: number;
         total_amount: number;
+        settle_available?: number;
         items: OrderItem[];
     };
 }
@@ -82,16 +84,46 @@ const form = useForm({
     payment_method: props.order.payment_method || 'cash',
     status: props.order.status || 'processing',
     notes: props.order.notes || '',
+    amount_paid: 0 as number,
+    account_number: '',
+    payment_proof: null as File | null,
     items: (props.order.items || []).map((item) => ({ ...item })) as OrderItem[],
 });
 
 const selectedProductId = ref<number | null>(null);
 const selectedQuantity = ref(1);
 const selectedUnitPrice = ref(0);
+const paymentProofPreview = ref<string | null>(null);
 const customerLookupStatus = ref<'idle' | 'loading' | 'found' | 'not_found'>('idle');
 const customerLookupMessage = ref('');
 let phoneLookupTimer: ReturnType<typeof setTimeout> | null = null;
 let phoneLookupRequestId = 0;
+
+function clearPaymentProofPreview() {
+    if (paymentProofPreview.value) {
+        URL.revokeObjectURL(paymentProofPreview.value);
+        paymentProofPreview.value = null;
+    }
+}
+
+function handlePaymentProofChange(event: Event) {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0] ?? null;
+    clearPaymentProofPreview();
+    form.payment_proof = file;
+    if (file) {
+        paymentProofPreview.value = URL.createObjectURL(file);
+    }
+}
+
+function removePaymentProof() {
+    clearPaymentProofPreview();
+    form.payment_proof = null;
+}
+
+onBeforeUnmount(() => {
+    clearPaymentProofPreview();
+});
 
 function roundMoney(value: number): number {
     return Math.round((value + Number.EPSILON) * 100) / 100;
@@ -117,7 +149,19 @@ const insuranceTotal = computed(() =>
 const vatAmount = computed(() => roundMoney(subtotal.value * 0.15));
 const grandTotal = computed(() => roundMoney(subtotal.value + vatAmount.value + insuranceTotal.value));
 const approvedPaid = computed(() => Math.max(0, Number(props.order.amount_paid) || 0));
-const remainingAmount = computed(() => roundMoney(Math.max(0, grandTotal.value - approvedPaid.value)));
+const settleAvailable = computed(() => {
+    const fromServer = Number(props.order.settle_available);
+    if (!Number.isNaN(fromServer) && fromServer >= 0) {
+        // Recompute against possibly-edited grand total while keeping pending commitment.
+        const committedApprox = Math.max(0, (Number(props.order.total_amount) || 0) - fromServer);
+        return roundMoney(Math.max(0, grandTotal.value - committedApprox));
+    }
+    return roundMoney(Math.max(0, grandTotal.value - approvedPaid.value));
+});
+const newPayment = computed(() => Math.max(0, Number(form.amount_paid) || 0));
+const remainingAmount = computed(() =>
+    roundMoney(Math.max(0, grandTotal.value - approvedPaid.value - newPayment.value)),
+);
 const itemsCount = computed(() =>
     form.items.reduce((sum, item) => sum + Number(item.quantity || 0), 0),
 );
@@ -171,8 +215,22 @@ function updateItemPrice(index: number) {
 }
 
 function submit() {
-    form.put(route('orders.update', props.order.id));
+    const payment = Number(form.amount_paid) || 0;
+    if (payment > settleAvailable.value + 0.009) {
+        form.setError('amount_paid', `المبلغ أكبر من المتبقي المتاح (${settleAvailable.value}).`);
+        return;
+    }
+    form.clearErrors('amount_paid');
+    form.put(route('orders.update', props.order.id), {
+        forceFormData: true,
+    });
 }
+
+watch(settleAvailable, (available) => {
+    if (Number(form.amount_paid) > available) {
+        form.amount_paid = available;
+    }
+});
 
 function digitsOnly(value: string): string {
     return value.replace(/\D+/g, '');
@@ -695,19 +753,102 @@ watch(
                                 </span>
                             </div>
                             <div class="flex items-center justify-between">
-                                <span class="text-muted-foreground">المتبقي على العميل</span>
-                                <span
-                                    class="font-bold tabular-nums"
-                                    :class="remainingAmount > 0 ? 'text-amber-600' : 'text-emerald-600'"
-                                    dir="ltr"
-                                >
-                                    {{ formatCurrency(remainingAmount) }}
+                                <span class="text-muted-foreground">المتبقي المتاح للسداد</span>
+                                <span class="font-semibold tabular-nums text-amber-600" dir="ltr">
+                                    {{ formatCurrency(settleAvailable) }}
                                 </span>
                             </div>
-                            <p class="pt-1 text-xs text-muted-foreground">
-                                لتسجيل دفعة جديدة استخدم «سداد» من قائمة الطلبات.
-                            </p>
                         </div>
+
+                        <div v-if="settleAvailable > 0" class="space-y-3 rounded-xl border border-border/60 p-4">
+                            <div class="space-y-2">
+                                <Label for="amount_paid" class="text-sm font-medium">مبلغ سداد جديد</Label>
+                                <Input
+                                    id="amount_paid"
+                                    v-model="form.amount_paid"
+                                    type="number"
+                                    step="0.01"
+                                    min="0"
+                                    :max="settleAvailable"
+                                    class="h-11 rounded-xl tabular-nums"
+                                    dir="ltr"
+                                    placeholder="0.00"
+                                />
+                                <p v-if="form.errors.amount_paid" class="text-xs text-red-600">
+                                    {{ form.errors.amount_paid }}
+                                </p>
+                                <div class="flex items-center justify-between pt-1 text-sm">
+                                    <span class="text-muted-foreground">المتبقي بعد هذا السداد</span>
+                                    <span
+                                        class="font-bold tabular-nums"
+                                        :class="remainingAmount > 0 ? 'text-amber-600' : 'text-emerald-600'"
+                                        dir="ltr"
+                                    >
+                                        {{ formatCurrency(remainingAmount) }}
+                                    </span>
+                                </div>
+                            </div>
+
+                            <div v-if="newPayment > 0" class="space-y-2">
+                                <Label for="account_number" class="text-sm font-medium">رقم الحساب</Label>
+                                <Input
+                                    id="account_number"
+                                    v-model="form.account_number"
+                                    class="h-11 rounded-xl tabular-nums"
+                                    dir="ltr"
+                                    placeholder="اختياري — رقم الحساب أو الآيبان"
+                                />
+                            </div>
+
+                            <div v-if="newPayment > 0" class="space-y-2">
+                                <Label for="payment_proof" class="text-sm font-medium">صورة التحويل / إيصال الدفع</Label>
+                                <label
+                                    for="payment_proof"
+                                    class="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border bg-muted/30 px-4 py-5 text-center transition hover:bg-muted/50"
+                                >
+                                    <UploadCloud class="h-5 w-5 text-muted-foreground" />
+                                    <span class="text-sm font-medium">
+                                        {{ form.payment_proof ? form.payment_proof.name : 'اختر صورة الإيصال' }}
+                                    </span>
+                                    <span class="text-xs text-muted-foreground">jpg, png, webp — حتى 5 ميجابايت</span>
+                                    <input
+                                        id="payment_proof"
+                                        type="file"
+                                        accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp"
+                                        class="hidden"
+                                        @change="handlePaymentProofChange"
+                                    />
+                                </label>
+                                <div v-if="paymentProofPreview" class="relative overflow-hidden rounded-xl border border-border/60">
+                                    <img
+                                        :src="paymentProofPreview"
+                                        alt="معاينة إيصال الدفع"
+                                        class="max-h-40 w-full bg-muted/20 object-contain"
+                                    />
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        class="absolute left-2 top-2 h-8 rounded-lg px-2 text-xs"
+                                        @click="removePaymentProof"
+                                    >
+                                        إزالة
+                                    </Button>
+                                </div>
+                                <p v-if="form.errors.payment_proof" class="text-xs text-red-600">
+                                    {{ form.errors.payment_proof }}
+                                </p>
+                                <p class="text-xs text-amber-700 dark:text-amber-300">
+                                    سيُسجَّل المبلغ كسند قبض بانتظار اعتماد المحاسب.
+                                </p>
+                            </div>
+                        </div>
+
+                        <p
+                            v-else
+                            class="rounded-xl bg-muted/40 px-3 py-2 text-xs leading-relaxed text-muted-foreground"
+                        >
+                            لا يوجد مبلغ متاح للسداد حالياً (مسدد بالكامل أو توجد سندات بانتظار الاعتماد).
+                        </p>
 
                         <p
                             v-if="form.errors.items"

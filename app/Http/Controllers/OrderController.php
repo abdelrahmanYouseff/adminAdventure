@@ -235,6 +235,14 @@ class OrderController extends Controller
                 'tax_amount' => (float) ($order->tax_amount ?? 0),
                 'insurance_amount' => (float) ($order->insurance_amount ?? 0),
                 'total_amount' => (float) $order->total_amount,
+                'settle_available' => round(max(
+                    0,
+                    (float) $order->total_amount
+                    - (float) ($order->amount_paid ?? 0)
+                    - (float) $order->paymentReceipts()
+                        ->where('approval_status', OrderPaymentReceipt::STATUS_PENDING)
+                        ->sum('amount')
+                ), 2),
                 'items' => $items,
             ],
             'products' => $products,
@@ -263,6 +271,9 @@ class OrderController extends Controller
             'payment_method' => ['required', 'string', 'in:credit_card,cash,bank_transfer,paypal,noon'],
             'status' => ['required', 'string', 'in:pending,processing,paid,cancelled'],
             'notes' => ['nullable', 'string', 'max:1000'],
+            'amount_paid' => ['nullable', 'numeric', 'min:0'],
+            'account_number' => ['nullable', 'string', 'max:100'],
+            'payment_proof' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
             'items' => ['required', 'array', 'min:1'],
             'items.*.product_id' => ['required', 'exists:products,id'],
             'items.*.quantity' => ['required', 'integer', 'min:1'],
@@ -275,6 +286,10 @@ class OrderController extends Controller
             'items.*.product_id.exists' => 'أحد المنتجات المحددة غير موجود.',
             'payment_method.required' => 'طريقة الدفع مطلوبة.',
             'status.required' => 'حالة الطلب مطلوبة.',
+            'amount_paid.min' => 'المبلغ المدفوع لا يمكن أن يكون سالباً.',
+            'payment_proof.image' => 'مرفق التحويل يجب أن يكون صورة.',
+            'payment_proof.mimes' => 'صيغ صورة التحويل المسموحة: jpg, jpeg, png, webp.',
+            'payment_proof.max' => 'حجم صورة التحويل يجب ألا يتجاوز 5 ميجابايت.',
             'items.*.discount_amount.min' => 'خصم الوحدة لا يمكن أن يكون سالباً.',
             'items.*.discount_amount.lte' => 'خصم الوحدة لا يمكن أن يتجاوز سعر الوحدة.',
         ]);
@@ -311,6 +326,10 @@ class OrderController extends Controller
         $taxAmount = round($chargeSubtotal * 0.15, 2);
         $chargeAmount = round($chargeSubtotal + $taxAmount + $insuranceTotal, 2);
 
+        $newPayment = array_key_exists('amount_paid', $validated) && $validated['amount_paid'] !== null
+            ? round((float) $validated['amount_paid'], 2)
+            : 0.0;
+
         $pendingSum = round((float) $order->paymentReceipts()
             ->where('approval_status', OrderPaymentReceipt::STATUS_PENDING)
             ->sum('amount'), 2);
@@ -321,6 +340,15 @@ class OrderController extends Controller
                 ->withInput()
                 ->withErrors([
                     'items' => 'إجمالي الطلب الجديد ('.$chargeAmount.') أقل من المبالغ المسجّلة/المعتمدة ('.$committed.').',
+                ]);
+        }
+
+        $availableAfterUpdate = round(max(0, $chargeAmount - $committed), 2);
+        if ($newPayment > $availableAfterUpdate + 0.009) {
+            return back()
+                ->withInput()
+                ->withErrors([
+                    'amount_paid' => 'مبلغ السداد أكبر من المتبقي غير المسجّل ('.$availableAfterUpdate.').',
                 ]);
         }
 
@@ -392,9 +420,47 @@ class OrderController extends Controller
             }
         });
 
+        $successMessage = 'تم تحديث الطلب بنجاح.';
+
+        if ($newPayment > 0.009) {
+            $proofImage = null;
+            if ($request->hasFile('payment_proof')) {
+                $proofImage = $request->file('payment_proof')->store('payment-proofs', 'public');
+            }
+
+            $accountNumber = isset($validated['account_number'])
+                ? trim((string) $validated['account_number'])
+                : null;
+            if ($accountNumber === '') {
+                $accountNumber = null;
+            }
+
+            try {
+                $receipt = app(OrderPaymentReceiptService::class)->recordPayment(
+                    $order->fresh(),
+                    $newPayment,
+                    $request->user(),
+                    $validated['payment_method'],
+                    'settlement',
+                    'سداد من تعديل الطلب — بانتظار اعتماد المحاسب',
+                    $proofImage,
+                    $accountNumber,
+                );
+                $successMessage = 'تم تحديث الطلب وتسجيل السداد في سند القبض '.$receipt->receipt_number.' وبانتظار اعتماد المحاسب.';
+            } catch (\Throwable $e) {
+                if ($proofImage) {
+                    Storage::disk('public')->delete($proofImage);
+                }
+
+                return redirect()
+                    ->route('orders.edit', $order)
+                    ->with('error', 'تم حفظ التعديلات لكن فشل تسجيل السداد: '.$e->getMessage());
+            }
+        }
+
         return redirect()
             ->route('orders.show', $order)
-            ->with('success', 'تم تحديث الطلب بنجاح.');
+            ->with('success', $successMessage);
     }
 
     public function store(Request $request)
