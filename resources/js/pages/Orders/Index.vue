@@ -123,7 +123,6 @@ const paymentProofInput = ref<HTMLInputElement | null>(null);
 const settleForm = useForm({
     amount: '' as number | string,
     payment_method: 'bank_transfer',
-    account_number: '',
     payment_proof: null as File | null,
     notes: '',
 });
@@ -141,7 +140,6 @@ function openSettleDialog(order: Order) {
     settleForm.clearErrors();
     settleForm.amount = Number(order.settle_available ?? dueAmount(order)) || '';
     settleForm.payment_method = order.payment_method || 'bank_transfer';
-    settleForm.account_number = '';
     settleForm.payment_proof = null;
     settleForm.notes = '';
     clearPaymentProofPreview();
@@ -957,20 +955,6 @@ function locationMapsUrl(address: string | null): string | null {
                             <option value="noon">Noon</option>
                             <option value="paypal">PayPal</option>
                         </select>
-                    </div>
-
-                    <div class="space-y-2">
-                        <Label for="settle-account">رقم الحساب</Label>
-                        <Input
-                            id="settle-account"
-                            v-model="settleForm.account_number"
-                            class="h-11 rounded-xl tabular-nums"
-                            dir="ltr"
-                            placeholder="اختياري — رقم الحساب أو الآيبان"
-                        />
-                        <p v-if="settleForm.errors.account_number" class="text-xs text-red-600">
-                            {{ settleForm.errors.account_number }}
-                        </p>
                     </div>
 
                     <div class="space-y-2">

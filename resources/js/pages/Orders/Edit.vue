@@ -25,7 +25,7 @@ import {
 import AppLayout from '@/layouts/AppLayout.vue';
 import ProductSearchCombobox from '@/components/ProductSearchCombobox.vue';
 import { formatCurrency } from '@/lib/formatNumber';
-import { ref, computed, watch, onBeforeUnmount } from 'vue';
+import { ref, computed, watch, onBeforeUnmount, onMounted } from 'vue';
 
 interface Product {
     id: number;
@@ -85,7 +85,6 @@ const form = useForm({
     status: props.order.status || 'processing',
     notes: props.order.notes || '',
     amount_paid: 0 as number,
-    account_number: '',
     payment_proof: null as File | null,
     items: (props.order.items || []).map((item) => ({ ...item })) as OrderItem[],
 });
@@ -221,9 +220,21 @@ function submit() {
         return;
     }
     form.clearErrors('amount_paid');
-    form.put(route('orders.update', props.order.id), {
-        forceFormData: true,
-    });
+
+    // PHP does not populate request body for multipart PUT. Always spoof as POST + _method.
+    const hasProof = form.payment_proof instanceof File;
+    form
+        .transform((data) => ({
+            ...data,
+            _method: 'put',
+            amount_paid: Number(data.amount_paid) || 0,
+        }))
+        .post(route('orders.update', props.order.id), {
+            forceFormData: hasProof,
+            onFinish: () => {
+                form.transform((data) => data);
+            },
+        });
 }
 
 watch(settleAvailable, (available) => {
@@ -240,7 +251,18 @@ function isLookupReady(phone: string): boolean {
     return digitsOnly(phone).length >= 9;
 }
 
+const allowPhoneLookup = ref(false);
+onMounted(() => {
+    // Avoid auto-lookup overwriting existing order customer data on first paint.
+    window.setTimeout(() => {
+        allowPhoneLookup.value = true;
+    }, 800);
+});
+
 async function lookupCustomerByPhone(phone: string) {
+    if (!allowPhoneLookup.value) {
+        return;
+    }
     const requestId = ++phoneLookupRequestId;
     customerLookupStatus.value = 'loading';
     customerLookupMessage.value = 'جاري البحث عن العميل...';
@@ -306,6 +328,10 @@ watch(selectedProductId, (newValue) => {
 watch(
     () => form.customer_phone,
     (phone) => {
+        if (!allowPhoneLookup.value) {
+            return;
+        }
+
         if (phoneLookupTimer) {
             clearTimeout(phoneLookupTimer);
             phoneLookupTimer = null;
@@ -787,17 +813,6 @@ watch(
                                         {{ formatCurrency(remainingAmount) }}
                                     </span>
                                 </div>
-                            </div>
-
-                            <div v-if="newPayment > 0" class="space-y-2">
-                                <Label for="account_number" class="text-sm font-medium">رقم الحساب</Label>
-                                <Input
-                                    id="account_number"
-                                    v-model="form.account_number"
-                                    class="h-11 rounded-xl tabular-nums"
-                                    dir="ltr"
-                                    placeholder="اختياري — رقم الحساب أو الآيبان"
-                                />
                             </div>
 
                             <div v-if="newPayment > 0" class="space-y-2">
