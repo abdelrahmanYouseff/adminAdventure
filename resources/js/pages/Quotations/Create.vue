@@ -148,7 +148,7 @@ const suggestedInsurance = computed(() => {
 });
 
 const taxAmount = computed(() => subtotal.value * 0.15);
-const totalAmount = computed(() => subtotal.value + taxAmount.value + Number(form.insurance_amount || 0));
+const totalAmount = computed(() => subtotal.value + taxAmount.value);
 const amountPaid = computed(() => Math.max(0, Number(form.amount_paid || 0)));
 const remainingAmount = computed(() => Math.max(0, totalAmount.value - amountPaid.value));
 const itemsCount = computed(() => form.items.reduce((sum, item) => sum + Number(item.quantity || 0), 0));
@@ -1141,7 +1141,7 @@ watch(
                                         <span class="font-medium tabular-nums" dir="ltr">{{ formatCurrency(taxAmount) }}</span>
                                     </div>
                                     <div class="mt-2 flex items-center justify-between text-sm">
-                                        <span class="text-muted-foreground">مبلغ التأمين</span>
+                                        <span class="text-muted-foreground">مبلغ التأمين <span class="text-[11px]">(لا يُحسب بالإجمالي)</span></span>
                                         <span class="font-medium tabular-nums" dir="ltr">{{ formatCurrency(form.insurance_amount || 0) }}</span>
                                     </div>
                                 </div>

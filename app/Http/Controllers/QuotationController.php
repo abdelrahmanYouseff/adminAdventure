@@ -473,7 +473,7 @@ class QuotationController extends Controller
                 : OrderInsuranceCalculator::fromLines($request->items)['total'];
 
             $taxAmount = round($subtotal * 0.15, 2);
-            $totalAmount = round($subtotal + $taxAmount + $insuranceAmount, 2);
+            $totalAmount = round($subtotal + $taxAmount, 2);
             $amountPaid = round((float) ($request->input('amount_paid') ?? 0), 2);
             $amountPaid = max(0, min($amountPaid, $totalAmount));
 
@@ -673,7 +673,7 @@ class QuotationController extends Controller
                 : OrderInsuranceCalculator::fromLines($request->items)['total'];
 
             $taxAmount = round($subtotal * 0.15, 2);
-            $totalAmount = round($subtotal + $taxAmount + $insuranceAmount, 2);
+            $totalAmount = round($subtotal + $taxAmount, 2);
             $amountPaid = round((float) ($request->input('amount_paid') ?? 0), 2);
             $amountPaid = max(0, min($amountPaid, $totalAmount));
 

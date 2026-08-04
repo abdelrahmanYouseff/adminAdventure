@@ -243,9 +243,6 @@
             <tr>
                 <td align="left">
                     <strong>{{ $item['name'] }}</strong>
-                    @if($item['description'])
-                        <br><span style="font-size: 6pt; color: #444; line-height: 1.5;">{{ $item['description'] }}</span>
-                    @endif
                     @if(!empty($item['statement']))
                         <br><span style="font-size: 6pt; color: #666; line-height: 1.5;">البيان: {{ $item['statement'] }}</span>
                     @endif

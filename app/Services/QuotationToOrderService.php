@@ -390,11 +390,11 @@ class QuotationToOrderService
             }
         }
 
-        // Keep order total aligned with quotation total (includes VAT + insurance)
-        // so the amount_paid entered on the quotation matches receipt available balance.
+        // Keep order total aligned with quotation total (subtotal + VAT; insurance is stored separately).
         $totalAmount = round((float) $quotation->total_amount, 2);
         if ($totalAmount <= 0) {
-            $totalAmount = round($subtotal + $insuranceAmount, 2);
+            $tax = round((float) ($quotation->tax_amount ?? ($subtotal * 0.15)), 2);
+            $totalAmount = round($subtotal + $tax, 2);
         }
 
         $activityDate = null;

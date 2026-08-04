@@ -600,9 +600,9 @@ function quotationPdfUrl(id: number): string {
                 </div>
             </div>
 
-            <div class="overflow-x-auto">
+                    <div class="overflow-x-auto">
                 <table class="w-full min-w-[980px] border-collapse text-sm">
-                    <thead>
+                            <thead>
                         <tr class="border-b border-gray-100 text-start dark:border-neutral-800">
                             <th class="w-12 px-4 py-3.5">
                                 <input
@@ -621,9 +621,9 @@ function quotationPdfUrl(id: number): string {
                             <th class="px-3 py-3.5 text-start text-[13px] font-semibold text-gray-700 dark:text-neutral-200">عروض الأسعار</th>
                             <th class="px-3 py-3.5 text-start text-[13px] font-semibold text-gray-700 dark:text-neutral-200">التاريخ</th>
                             <th class="px-4 py-3.5 text-end text-[13px] font-semibold text-gray-700 dark:text-neutral-200">إجراءات</th>
-                        </tr>
-                    </thead>
-                    <tbody>
+                                </tr>
+                            </thead>
+                            <tbody>
                         <tr v-if="paginatedCustomers.length === 0">
                             <td colspan="10" class="px-4 py-16 text-center text-gray-500 dark:text-neutral-400">
                                 لا يوجد عملاء مطابقون للبحث أو الفلتر الحالي.
@@ -728,8 +728,8 @@ function quotationPdfUrl(id: number): string {
                                             <Trash2 class="size-3.5 stroke-[1.75]" />
                                         </button>
                                     </div>
-                                </td>
-                            </tr>
+                                    </td>
+                                </tr>
 
                             <tr v-if="customer.type === 'company' && expandedKey === customer.key">
                                 <td colspan="10" class="border-b border-gray-100 bg-gray-50/70 px-4 py-4 dark:border-neutral-800 dark:bg-neutral-800/20 sm:px-6">
@@ -875,10 +875,10 @@ function quotationPdfUrl(id: number): string {
                                                                 <td class="px-3 py-2 tabular-nums text-gray-600 dark:text-neutral-300" dir="ltr">{{ formatInteger(item.quantity) }}</td>
                                                                 <td class="px-3 py-2 tabular-nums text-gray-600 dark:text-neutral-300" dir="ltr">{{ formatPrice(item.unit_price) }}</td>
                                                                 <td class="px-3 py-2 tabular-nums font-medium text-gray-900 dark:text-white" dir="ltr">{{ formatPrice(item.total_price) }}</td>
-                                                            </tr>
-                                                        </tbody>
-                                                    </table>
-                                                </div>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
 
                                                 <div class="mt-3 flex flex-col items-end gap-1 text-sm">
                                                     <div class="flex gap-6">
