@@ -561,24 +561,14 @@ class OrderController extends Controller
             $insuranceTotal,
             $productIds,
         ) {
-            $invoice = Invoice::create([
-                'brand_id' => Product::resolveBrandIdForIds($productIds),
-                'invoice_number' => Invoice::generateInvoiceNumber(),
-                'amount' => $chargeAmount,
-                'status' => 'pending',
-                'payment_method' => $validated['payment_method'],
-                'issued_at' => now(),
-                'due_date' => now()->addDays(30),
-                'user_id' => $userId,
-            ]);
-
+            // Invoice is issued only after the order is fully paid (via receipt approval).
             $order = Order::create([
                 'customer_name' => $validated['customer_name'],
                 'customer_email' => $validated['customer_email'] ?? null,
                 'customer_phone' => $validated['customer_phone'] ?? null,
                 'address' => $validated['address'] ?? null,
                 'activity_date' => $validated['activity_date'] ?? null,
-                'invoice_id' => $invoice->id,
+                'invoice_id' => null,
                 'order_number' => Order::generateOrderNumber(),
                 'total_amount' => $chargeAmount,
                 'discount_total' => $discountTotal,
