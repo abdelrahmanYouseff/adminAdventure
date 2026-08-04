@@ -36,13 +36,15 @@ interface Product {
 }
 
 interface OrderItem {
-    product_id: number;
+    product_id: number | null;
     product_name: string;
     description: string;
+    statement?: string;
     quantity: number;
     unit_price: number;
     discount_amount: number;
     total_price: number;
+    is_custom?: boolean;
 }
 
 interface Props {
@@ -86,12 +88,23 @@ const form = useForm({
     notes: props.order.notes || '',
     amount_paid: 0 as number,
     payment_proof: null as File | null,
-    items: (props.order.items || []).map((item) => ({ ...item })) as OrderItem[],
+    items: (props.order.items || []).map((item) => ({
+        ...item,
+        statement: item.statement || '',
+        is_custom: item.is_custom ?? item.product_id == null,
+    })) as OrderItem[],
 });
 
 const selectedProductId = ref<number | null>(null);
 const selectedQuantity = ref(1);
 const selectedUnitPrice = ref(0);
+const itemAddMode = ref<'catalog' | 'custom'>('catalog');
+const customItem = ref({
+    product_name: '',
+    description: '',
+    statement: '',
+    unit_price: 0 as number,
+});
 const paymentProofPreview = ref<string | null>(null);
 const customerLookupStatus = ref<'idle' | 'loading' | 'found' | 'not_found'>('idle');
 const customerLookupMessage = ref('');
@@ -174,7 +187,9 @@ function addItem() {
     if (selectedProductId.value == null || !selectedProduct.value) return;
 
     const product = selectedProduct.value;
-    const existing = form.items.find((item) => item.product_id === product.id);
+    const existing = form.items.find(
+        (item) => !item.is_custom && item.product_id === product.id,
+    );
 
     if (existing) {
         existing.quantity += Number(selectedQuantity.value) || 1;
@@ -187,16 +202,43 @@ function addItem() {
             product_id: product.id,
             product_name: product.product_name,
             description: product.description || '',
+            statement: '',
             quantity: Number(selectedQuantity.value) || 1,
             unit_price: Number(selectedUnitPrice.value) || 0,
             discount_amount: 0,
             total_price: (Number(selectedQuantity.value) || 1) * (Number(selectedUnitPrice.value) || 0),
+            is_custom: false,
         });
     }
 
     selectedProductId.value = null;
     selectedQuantity.value = 1;
     selectedUnitPrice.value = 0;
+}
+
+function addCustomItem() {
+    const name = customItem.value.product_name.trim();
+    const price = Math.max(0, Number(customItem.value.unit_price) || 0);
+    if (!name) return;
+
+    form.items.push({
+        product_id: null,
+        product_name: name,
+        description: customItem.value.description.trim(),
+        statement: customItem.value.statement.trim(),
+        quantity: 1,
+        unit_price: price,
+        discount_amount: 0,
+        total_price: price,
+        is_custom: true,
+    });
+
+    customItem.value = {
+        product_name: '',
+        description: '',
+        statement: '',
+        unit_price: 0,
+    };
 }
 
 function removeItem(index: number) {
@@ -573,50 +615,139 @@ watch(
 
                     <div class="space-y-5 p-5 sm:p-6">
                         <div class="rounded-xl border border-dashed border-border bg-muted/20 p-4 sm:p-5">
-                            <p class="mb-4 text-sm font-medium">إضافة منتج للطلب</p>
-                            <div class="grid gap-3 sm:grid-cols-12 sm:items-end">
-                                <div class="space-y-2 sm:col-span-5">
-                                    <Label class="text-xs text-muted-foreground">المنتج</Label>
-                                    <ProductSearchCombobox
-                                        v-model="selectedProductId"
-                                        :products="products"
-                                        input-id="product-search"
-                                    />
-                                </div>
-                                <div class="space-y-2 sm:col-span-2">
-                                    <Label for="quantity" class="text-xs text-muted-foreground">الكمية</Label>
-                                    <Input
-                                        id="quantity"
-                                        v-model="selectedQuantity"
-                                        type="number"
-                                        min="1"
-                                        class="h-11 rounded-xl tabular-nums"
-                                    />
-                                </div>
-                                <div class="space-y-2 sm:col-span-3">
-                                    <Label for="unit_price" class="text-xs text-muted-foreground">سعر الوحدة</Label>
-                                    <Input
-                                        id="unit_price"
-                                        v-model="selectedUnitPrice"
-                                        type="number"
-                                        step="0.01"
-                                        min="0"
-                                        class="h-11 rounded-xl tabular-nums"
-                                        dir="ltr"
-                                    />
-                                </div>
-                                <div class="sm:col-span-2">
-                                    <Button
-                                        type="button"
-                                        class="h-11 w-full gap-2 rounded-xl"
-                                        :disabled="selectedProductId == null"
-                                        @click="addItem"
-                                    >
-                                        <Plus class="h-4 w-4" />
-                                        إضافة
-                                    </Button>
-                                </div>
+                            <div class="mb-4 flex flex-wrap gap-2">
+                                <button
+                                    type="button"
+                                    class="rounded-lg px-3 py-1.5 text-sm font-medium transition"
+                                    :class="
+                                        itemAddMode === 'catalog'
+                                            ? 'bg-primary text-primary-foreground'
+                                            : 'bg-background text-muted-foreground ring-1 ring-border hover:text-foreground'
+                                    "
+                                    @click="itemAddMode = 'catalog'"
+                                >
+                                    منتج من النظام
+                                </button>
+                                <button
+                                    type="button"
+                                    class="rounded-lg px-3 py-1.5 text-sm font-medium transition"
+                                    :class="
+                                        itemAddMode === 'custom'
+                                            ? 'bg-primary text-primary-foreground'
+                                            : 'bg-background text-muted-foreground ring-1 ring-border hover:text-foreground'
+                                    "
+                                    @click="itemAddMode = 'custom'"
+                                >
+                                    صنف غير موجود
+                                </button>
                             </div>
+
+                            <template v-if="itemAddMode === 'catalog'">
+                                <p class="mb-4 text-sm font-medium">إضافة منتج للطلب</p>
+                                <div class="grid gap-3 sm:grid-cols-12 sm:items-end">
+                                    <div class="space-y-2 sm:col-span-5">
+                                        <Label class="text-xs text-muted-foreground">المنتج</Label>
+                                        <ProductSearchCombobox
+                                            v-model="selectedProductId"
+                                            :products="products"
+                                            input-id="product-search"
+                                        />
+                                    </div>
+                                    <div class="space-y-2 sm:col-span-2">
+                                        <Label for="quantity" class="text-xs text-muted-foreground">الكمية</Label>
+                                        <Input
+                                            id="quantity"
+                                            v-model="selectedQuantity"
+                                            type="number"
+                                            min="1"
+                                            class="h-11 rounded-xl tabular-nums"
+                                        />
+                                    </div>
+                                    <div class="space-y-2 sm:col-span-3">
+                                        <Label for="unit_price" class="text-xs text-muted-foreground">سعر الوحدة</Label>
+                                        <Input
+                                            id="unit_price"
+                                            v-model="selectedUnitPrice"
+                                            type="number"
+                                            step="0.01"
+                                            min="0"
+                                            class="h-11 rounded-xl tabular-nums"
+                                            dir="ltr"
+                                        />
+                                    </div>
+                                    <div class="sm:col-span-2">
+                                        <Button
+                                            type="button"
+                                            class="h-11 w-full gap-2 rounded-xl"
+                                            :disabled="selectedProductId == null"
+                                            @click="addItem"
+                                        >
+                                            <Plus class="h-4 w-4" />
+                                            إضافة
+                                        </Button>
+                                    </div>
+                                </div>
+                            </template>
+
+                            <template v-else>
+                                <p class="mb-4 text-sm font-medium">إضافة صنف غير موجود في النظام</p>
+                                <div class="grid gap-3 sm:grid-cols-2">
+                                    <div class="space-y-2 sm:col-span-2">
+                                        <Label for="custom_product_name" class="text-xs text-muted-foreground">اسم الصنف</Label>
+                                        <Input
+                                            id="custom_product_name"
+                                            v-model="customItem.product_name"
+                                            type="text"
+                                            class="h-11 rounded-xl"
+                                            placeholder="اسم الصنف"
+                                        />
+                                    </div>
+                                    <div class="space-y-2">
+                                        <Label for="custom_description" class="text-xs text-muted-foreground">الوصف</Label>
+                                        <Input
+                                            id="custom_description"
+                                            v-model="customItem.description"
+                                            type="text"
+                                            class="h-11 rounded-xl"
+                                            placeholder="الوصف"
+                                        />
+                                    </div>
+                                    <div class="space-y-2">
+                                        <Label for="custom_statement" class="text-xs text-muted-foreground">البيان</Label>
+                                        <Input
+                                            id="custom_statement"
+                                            v-model="customItem.statement"
+                                            type="text"
+                                            class="h-11 rounded-xl"
+                                            placeholder="البيان"
+                                        />
+                                    </div>
+                                    <div class="space-y-2">
+                                        <Label for="custom_unit_price" class="text-xs text-muted-foreground">السعر</Label>
+                                        <Input
+                                            id="custom_unit_price"
+                                            v-model="customItem.unit_price"
+                                            type="number"
+                                            step="0.01"
+                                            min="0"
+                                            class="h-11 rounded-xl tabular-nums"
+                                            dir="ltr"
+                                            placeholder="0.00"
+                                        />
+                                    </div>
+                                    <div class="flex items-end">
+                                        <Button
+                                            type="button"
+                                            class="h-11 w-full gap-2 rounded-xl"
+                                            :disabled="!customItem.product_name.trim()"
+                                            @click="addCustomItem"
+                                        >
+                                            <Plus class="h-4 w-4" />
+                                            إضافة الصنف
+                                        </Button>
+                                    </div>
+                                </div>
+                            </template>
                         </div>
 
                         <div v-if="form.items.length > 0" class="overflow-hidden rounded-xl border border-border/60">
@@ -632,8 +763,33 @@ watch(
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                    <TableRow v-for="(item, index) in form.items" :key="item.product_id">
-                                        <TableCell class="font-medium">{{ item.product_name }}</TableCell>
+                                    <TableRow v-for="(item, index) in form.items" :key="`${item.product_id ?? 'c'}-${index}`">
+                                        <TableCell class="font-medium">
+                                            <div class="space-y-0.5">
+                                                <div class="flex flex-wrap items-center gap-2">
+                                                    <span>{{ item.product_name }}</span>
+                                                    <Badge
+                                                        v-if="item.is_custom"
+                                                        variant="secondary"
+                                                        class="text-[10px]"
+                                                    >
+                                                        مخصص
+                                                    </Badge>
+                                                </div>
+                                                <p
+                                                    v-if="item.description"
+                                                    class="text-xs font-normal text-muted-foreground"
+                                                >
+                                                    {{ item.description }}
+                                                </p>
+                                                <p
+                                                    v-if="item.statement"
+                                                    class="text-xs font-normal text-muted-foreground"
+                                                >
+                                                    البيان: {{ item.statement }}
+                                                </p>
+                                            </div>
+                                        </TableCell>
                                         <TableCell>
                                             <Input
                                                 v-model="item.quantity"

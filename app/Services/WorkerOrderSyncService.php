@@ -19,30 +19,36 @@ class WorkerOrderSyncService
 
         $order->loadMissing('products');
 
-        if ($order->products->isNotEmpty()) {
-            foreach ($order->products as $index => $product) {
-                $this->upsertWorkerOrder($order, $index, $product->id, $product->product_name, $product->image);
+        $items = is_array($order->items) ? $order->items : [];
+
+        // Prefer items JSON so custom lines are not dropped when pivot products exist.
+        if ($items !== []) {
+            foreach ($items as $index => $item) {
+                $productId = isset($item['product_id']) ? (int) $item['product_id'] : null;
+                if ($productId !== null && $productId <= 0) {
+                    $productId = null;
+                }
+                $productName = $item['product_name'] ?? $item['name'] ?? 'منتج';
+                $image = null;
+
+                if ($productId) {
+                    $product = Product::query()->find($productId);
+                    $image = $product?->image;
+                    if ($product && ($productName === 'منتج' || $productName === '')) {
+                        $productName = $product->product_name;
+                    }
+                }
+
+                $this->upsertWorkerOrder($order, $index, $productId, $productName, $image);
             }
 
             return;
         }
 
-        $items = is_array($order->items) ? $order->items : [];
-
-        foreach ($items as $index => $item) {
-            $productId = isset($item['product_id']) ? (int) $item['product_id'] : null;
-            $productName = $item['product_name'] ?? $item['name'] ?? 'منتج';
-            $image = null;
-
-            if ($productId) {
-                $product = Product::query()->find($productId);
-                $image = $product?->image;
-                if ($product && ($productName === 'منتج' || $productName === '')) {
-                    $productName = $product->product_name;
-                }
+        if ($order->products->isNotEmpty()) {
+            foreach ($order->products as $index => $product) {
+                $this->upsertWorkerOrder($order, $index, $product->id, $product->product_name, $product->image);
             }
-
-            $this->upsertWorkerOrder($order, $index, $productId, $productName, $image);
         }
     }
 
