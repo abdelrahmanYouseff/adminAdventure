@@ -269,8 +269,67 @@ const submit = () => {
     if (customerType.value !== 'company') {
         form.company_tax_number = '';
     }
-    form.post(route('quotations.store'));
+    form.post(route('quotations.store'), {
+        preserveScroll: true,
+        onError: () => {
+            requestAnimationFrame(() => {
+                document.getElementById('quotation-form-errors')?.scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'center',
+                });
+            });
+        },
+    });
 };
+
+const fieldLabels: Record<string, string> = {
+    brand_id: 'البراند',
+    customer_name: 'اسم العميل',
+    customer_email: 'البريد الإلكتروني',
+    customer_phone: 'رقم الجوال',
+    customer_address: 'العنوان',
+    company_tax_number: 'الرقم الضريبي',
+    valid_until: 'تاريخ الصلاحية',
+    activity_at: 'تاريخ الفعالية',
+    installation_at: 'تاريخ التركيب',
+    dismantling_at: 'تاريخ الفك',
+    insurance_amount: 'مبلغ التأمين',
+    amount_paid: 'المبلغ المدفوع',
+    notes: 'الملاحظات',
+    items: 'بنود العرض',
+    error: 'خطأ عام',
+};
+
+const itemFieldLabels: Record<string, string> = {
+    product_id: 'المنتج',
+    product_name: 'اسم الصنف',
+    description: 'الوصف',
+    statement: 'البيان',
+    quantity: 'الكمية',
+    unit_price: 'سعر الوحدة',
+    discount_amount: 'الخصم',
+};
+
+function errorFieldLabel(key: string): string {
+    const itemMatch = key.match(/^items\.(\d+)\.(.+)$/);
+    if (itemMatch) {
+        const index = Number(itemMatch[1]) + 1;
+        const field = itemMatch[2];
+        return `البند ${index} — ${itemFieldLabels[field] || field}`;
+    }
+    if (key.startsWith('items.')) {
+        return 'بنود العرض';
+    }
+    return fieldLabels[key] || key;
+}
+
+const formErrorEntries = computed(() =>
+    Object.entries(form.errors).map(([key, message]) => ({
+        key,
+        label: errorFieldLabel(key),
+        message: Array.isArray(message) ? message.join('، ') : String(message),
+    })),
+);
 
 function setCustomerType(type: 'individual' | 'company') {
     customerType.value = type;
@@ -467,12 +526,21 @@ watch(
             <template v-else>
             <!-- Errors -->
             <div
-                v-if="Object.keys(form.errors).length > 0"
-                class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300"
+                v-if="formErrorEntries.length > 0"
+                id="quotation-form-errors"
+                class="rounded-xl border border-red-300 bg-red-50 px-4 py-4 text-sm text-red-800 shadow-sm dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-200"
+                role="alert"
             >
-                <p class="mb-1 font-semibold">يرجى تصحيح الأخطاء التالية:</p>
-                <ul class="list-inside list-disc space-y-0.5">
-                    <li v-for="(error, key) in form.errors" :key="key">{{ error }}</li>
+                <p class="mb-2 text-base font-bold">فشل حفظ عرض السعر — تفاصيل الأخطاء:</p>
+                <ul class="space-y-2">
+                    <li
+                        v-for="entry in formErrorEntries"
+                        :key="entry.key"
+                        class="rounded-lg border border-red-200/80 bg-white/70 px-3 py-2 dark:border-red-900/40 dark:bg-red-950/30"
+                    >
+                        <span class="font-semibold">{{ entry.label }}:</span>
+                        <span class="ms-1">{{ entry.message }}</span>
+                    </li>
                 </ul>
             </div>
 

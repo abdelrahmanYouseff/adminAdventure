@@ -397,6 +397,9 @@ class QuotationController extends Controller
             'items.required' => 'يجب إضافة منتج واحد على الأقل.',
             'items.min' => 'يجب إضافة منتج واحد على الأقل.',
             'items.*.product_id.exists' => 'المنتج المحدد لا ينتمي إلى البراند المختار.',
+            'items.*.product_name.max' => 'اسم الصنف طويل جداً.',
+            'items.*.description.max' => 'الوصف طويل جداً.',
+            'items.*.statement.max' => 'البيان طويل جداً.',
             'items.*.quantity.required' => 'الكمية مطلوبة.',
             'items.*.quantity.min' => 'الكمية يجب أن تكون 1 على الأقل.',
             'items.*.unit_price.required' => 'سعر الوحدة مطلوب.',
@@ -509,7 +512,17 @@ class QuotationController extends Controller
                 ->with('open_pdf', $quotation->id);
         } catch (\Exception $e) {
             DB::rollBack();
-            return back()->withErrors(['error' => 'فشل إنشاء عرض السعر.']);
+            Log::error('Quotation store failed: '.$e->getMessage(), [
+                'exception' => $e::class,
+                'trace' => $e->getTraceAsString(),
+                'user_id' => auth()->id(),
+            ]);
+
+            return back()
+                ->withInput()
+                ->withErrors([
+                    'error' => 'فشل إنشاء عرض السعر: '.$e->getMessage(),
+                ]);
         }
     }
 
