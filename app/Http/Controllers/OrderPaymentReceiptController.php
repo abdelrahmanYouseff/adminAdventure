@@ -106,7 +106,7 @@ class OrderPaymentReceiptController extends Controller
     public function approve(Request $request, OrderPaymentReceipt $receipt): RedirectResponse
     {
         if (! $this->canApprove($request->user())) {
-            return back()->with('error', 'اعتماد سندات القبض متاح للمحاسب والمسؤول فقط.');
+            return back()->with('error', 'اعتماد سندات القبض متاح للمحاسب فقط.');
         }
 
         if ($receipt->isApproved()) {
@@ -139,7 +139,7 @@ class OrderPaymentReceiptController extends Controller
 
     private function canApprove(?User $user): bool
     {
-        return $user !== null && ($user->isAccounts() || $user->hasAdminAccess());
+        return $user !== null && $user->canApproveFinancial();
     }
 
     /**

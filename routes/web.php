@@ -311,11 +311,11 @@ Route::patch('insurance-deposits/{order}/amount', [\App\Http\Controllers\Insuran
     ->name('insurance-deposits.update-amount');
 
 Route::post('insurance-deposits/{order}/refund', [\App\Http\Controllers\InsuranceDepositController::class, 'markRefunded'])
-    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,accounts'])
+    ->middleware(['auth', 'verified', 'role:admin,accounts'])
     ->name('insurance-deposits.refund');
 
 Route::post('insurance-deposits/{order}/withhold', [\App\Http\Controllers\InsuranceDepositController::class, 'markWithheld'])
-    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,accounts'])
+    ->middleware(['auth', 'verified', 'role:admin,accounts'])
     ->name('insurance-deposits.withhold');
 
 // Quotations Routes
@@ -375,7 +375,7 @@ Route::get('payment-receipts', [\App\Http\Controllers\OrderPaymentReceiptControl
     ->name('payment-receipts.index');
 
 Route::post('payment-receipts/{receipt}/approve', [\App\Http\Controllers\OrderPaymentReceiptController::class, 'approve'])
-    ->middleware(['auth', 'verified', 'role:admin,manager,accounts'])
+    ->middleware(['auth', 'verified', 'role:admin,accounts'])
     ->name('payment-receipts.approve');
 
 Route::get('orders/{order}/payment-receipt', [OrderController::class, 'latestPaymentReceiptPdf'])

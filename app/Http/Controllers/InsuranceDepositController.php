@@ -162,6 +162,10 @@ class InsuranceDepositController extends Controller
     {
         abort_unless($this->isEligibleDeposit($order), 404);
 
+        if (! $request->user()?->canApproveFinancial()) {
+            return back()->with('error', 'استرداد التأمين متاح للمحاسب فقط.');
+        }
+
         if (! InsuranceApprovalChain::isFullyApproved($order)) {
             return back()->with('error', 'لا يمكن استرداد التأمين قبل اكتمال سلسلة التعميدات (مدير العمال ← المسئول ← المدير العام ← المحاسب).');
         }
@@ -177,6 +181,10 @@ class InsuranceDepositController extends Controller
     public function markWithheld(Request $request, Order $order): RedirectResponse
     {
         abort_unless($this->isEligibleDeposit($order), 404);
+
+        if (! $request->user()?->canApproveFinancial()) {
+            return back()->with('error', 'حجز التأمين متاح للمحاسب فقط.');
+        }
 
         if (! InsuranceApprovalChain::isFullyApproved($order)) {
             return back()->with('error', 'لا يمكن حجز التأمين قبل اكتمال سلسلة التعميدات (مدير العمال ← المسئول ← المدير العام ← المحاسب).');
@@ -261,7 +269,9 @@ class InsuranceDepositController extends Controller
             'next_approval_label' => $next ? InsuranceApprovalChain::steps()[$next]['label'] : null,
             'can_approve_next' => $canApproveNext,
             'is_fully_approved' => $fullyApproved,
-            'can_refund_or_withhold' => $fullyApproved && $order->insurance_status === 'pending',
+            'can_refund_or_withhold' => $fullyApproved
+                && $order->insurance_status === 'pending'
+                && ($user?->canApproveFinancial() ?? false),
             'can_edit_amount' => $this->canEditRefundAmount($user, $order),
             'notes' => $order->relationLoaded('workerNotes')
                 ? $order->workerNotes->map(fn ($note) => [

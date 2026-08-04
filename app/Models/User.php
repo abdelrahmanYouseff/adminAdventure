@@ -151,11 +151,20 @@ class User extends Authenticatable
     }
 
     /**
-     * Full dashboard powers: admin and مسئول (manager) share the same access.
+     * Full dashboard powers: admin and مسئول (manager) share the same access,
+     * except financial approvals which stay with accountants.
      */
     public function hasAdminAccess(): bool
     {
         return $this->isAdmin() || $this->isManager();
+    }
+
+    /**
+     * Financial approvals (payment receipts, insurance refund/withhold finalization).
+     */
+    public function canApproveFinancial(): bool
+    {
+        return $this->isAccounts() || $this->isAdmin();
     }
 
     public function isGeneralManager(): bool
