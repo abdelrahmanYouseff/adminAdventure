@@ -43,7 +43,6 @@ interface OrderItem {
     unit_price: number;
     discount_amount: number;
     total_price: number;
-    is_custom?: boolean;
 }
 
 interface Props {
@@ -66,20 +65,18 @@ const form = useForm({
     amount_paid: 0 as number,
     payment_proof: null as File | null,
     notes: '',
-    insurance_amount: 0 as number,
     items: [] as OrderItem[],
 });
 
 const selectedProductId = ref<number | null>(null);
 const selectedQuantity = ref(1);
 const selectedUnitPrice = ref(0);
-const itemAddMode = ref<'catalog' | 'custom'>('catalog');
-const customItem = ref({
-    product_name: '',
-    description: '',
-    statement: '',
-    unit_price: 0 as number,
-});
+const addMode = ref<'catalog' | 'custom'>('catalog');
+const customName = ref('');
+const customDescription = ref('');
+const customStatement = ref('');
+const customPrice = ref(0);
+const customQuantity = ref(1);
 const paymentProofPreview = ref<string | null>(null);
 const customerLookupStatus = ref<'idle' | 'loading' | 'found' | 'not_found'>('idle');
 const customerLookupMessage = ref('');
@@ -126,14 +123,14 @@ const discountTotal = computed(() =>
     ),
 );
 const grossSubtotal = computed(() => roundMoney(subtotal.value + discountTotal.value));
-const productsInsurance = computed(() =>
+const insuranceTotal = computed(() =>
     form.items.reduce((sum, item) => {
+        if (!item.product_id) return sum;
         const product = props.products.find((p) => p.id === item.product_id);
         const unitInsurance = Number(product?.insurance_amount ?? 0) || 0;
         return sum + unitInsurance * Number(item.quantity || 0);
     }, 0),
 );
-const insuranceTotal = computed(() => roundMoney(Math.max(0, Number(form.insurance_amount) || 0)));
 const vatAmount = computed(() => roundMoney(subtotal.value * 0.15));
 const grandTotal = computed(() => roundMoney(subtotal.value + vatAmount.value + insuranceTotal.value));
 const amountPaid = computed(() => Math.max(0, Number(form.amount_paid) || 0));
@@ -151,9 +148,7 @@ function addItem() {
     if (selectedProductId.value == null || !selectedProduct.value) return;
 
     const product = selectedProduct.value;
-    const existing = form.items.find(
-        (item) => !item.is_custom && item.product_id === product.id,
-    );
+    const existing = form.items.find((item) => item.product_id === product.id);
 
     if (existing) {
         existing.quantity += Number(selectedQuantity.value) || 1;
@@ -171,7 +166,6 @@ function addItem() {
             unit_price: Number(selectedUnitPrice.value) || 0,
             discount_amount: 0,
             total_price: (Number(selectedQuantity.value) || 1) * (Number(selectedUnitPrice.value) || 0),
-            is_custom: false,
         });
     }
 
@@ -181,28 +175,28 @@ function addItem() {
 }
 
 function addCustomItem() {
-    const name = customItem.value.product_name.trim();
-    const price = Math.max(0, Number(customItem.value.unit_price) || 0);
-    if (!name || price < 0) return;
+    const name = customName.value.trim();
+    if (!name) return;
+
+    const quantity = Math.max(1, Number(customQuantity.value) || 1);
+    const unitPrice = Math.max(0, Number(customPrice.value) || 0);
 
     form.items.push({
         product_id: null,
         product_name: name,
-        description: customItem.value.description.trim(),
-        statement: customItem.value.statement.trim(),
-        quantity: 1,
-        unit_price: price,
+        description: customDescription.value.trim(),
+        statement: customStatement.value.trim(),
+        quantity,
+        unit_price: unitPrice,
         discount_amount: 0,
-        total_price: price,
-        is_custom: true,
+        total_price: quantity * unitPrice,
     });
 
-    customItem.value = {
-        product_name: '',
-        description: '',
-        statement: '',
-        unit_price: 0,
-    };
+    customName.value = '';
+    customDescription.value = '';
+    customStatement.value = '';
+    customPrice.value = 0;
+    customQuantity.value = 1;
 }
 
 function removeItem(index: number) {
@@ -319,11 +313,6 @@ watch(grandTotal, (total) => {
     if (Number(form.amount_paid) > total) {
         form.amount_paid = total;
     }
-});
-
-watch(productsInsurance, (value) => {
-    // اقتراح مبلغ التأمين من منتجات النظام — يمكن تعديله يدوياً
-    form.insurance_amount = roundMoney(value);
 });
 </script>
 
@@ -548,33 +537,27 @@ watch(productsInsurance, (value) => {
                     <div class="space-y-5 p-5 sm:p-6">
                         <div class="rounded-xl border border-dashed border-border bg-muted/20 p-4 sm:p-5">
                             <div class="mb-4 flex flex-wrap gap-2">
-                                <button
+                                <Button
                                     type="button"
-                                    class="rounded-lg px-3 py-1.5 text-sm font-medium transition"
-                                    :class="
-                                        itemAddMode === 'catalog'
-                                            ? 'bg-primary text-primary-foreground'
-                                            : 'bg-background text-muted-foreground ring-1 ring-border hover:text-foreground'
-                                    "
-                                    @click="itemAddMode = 'catalog'"
+                                    size="sm"
+                                    :variant="addMode === 'catalog' ? 'default' : 'outline'"
+                                    class="rounded-lg"
+                                    @click="addMode = 'catalog'"
                                 >
                                     منتج من النظام
-                                </button>
-                                <button
+                                </Button>
+                                <Button
                                     type="button"
-                                    class="rounded-lg px-3 py-1.5 text-sm font-medium transition"
-                                    :class="
-                                        itemAddMode === 'custom'
-                                            ? 'bg-primary text-primary-foreground'
-                                            : 'bg-background text-muted-foreground ring-1 ring-border hover:text-foreground'
-                                    "
-                                    @click="itemAddMode = 'custom'"
+                                    size="sm"
+                                    :variant="addMode === 'custom' ? 'default' : 'outline'"
+                                    class="rounded-lg"
+                                    @click="addMode = 'custom'"
                                 >
-                                    صنف غير موجود
-                                </button>
+                                    منتج غير موجود بالنظام
+                                </Button>
                             </div>
 
-                            <template v-if="itemAddMode === 'catalog'">
+                            <div v-if="addMode === 'catalog'">
                                 <p class="mb-4 text-sm font-medium">إضافة منتج للطلب</p>
                                 <div class="grid gap-3 sm:grid-cols-12 sm:items-end">
                                     <div class="space-y-2 sm:col-span-5">
@@ -619,67 +602,72 @@ watch(productsInsurance, (value) => {
                                         </Button>
                                     </div>
                                 </div>
-                            </template>
+                            </div>
 
-                            <template v-else>
-                                <p class="mb-4 text-sm font-medium">إضافة صنف غير موجود في النظام</p>
+                            <div v-else class="space-y-3">
+                                <p class="text-sm font-medium">إضافة منتج مخصص</p>
                                 <div class="grid gap-3 sm:grid-cols-2">
                                     <div class="space-y-2 sm:col-span-2">
-                                        <Label for="custom_product_name" class="text-xs text-muted-foreground">اسم الصنف</Label>
+                                        <Label for="custom_name" class="text-xs text-muted-foreground">اسم الصنف</Label>
                                         <Input
-                                            id="custom_product_name"
-                                            v-model="customItem.product_name"
+                                            id="custom_name"
+                                            v-model="customName"
                                             type="text"
                                             class="h-11 rounded-xl"
-                                            placeholder="اسم الصنف"
+                                            placeholder="مثال: طاولة إضافية"
                                         />
                                     </div>
                                     <div class="space-y-2">
                                         <Label for="custom_description" class="text-xs text-muted-foreground">الوصف</Label>
                                         <Input
                                             id="custom_description"
-                                            v-model="customItem.description"
+                                            v-model="customDescription"
                                             type="text"
                                             class="h-11 rounded-xl"
-                                            placeholder="الوصف"
                                         />
                                     </div>
                                     <div class="space-y-2">
                                         <Label for="custom_statement" class="text-xs text-muted-foreground">البيان</Label>
                                         <Input
                                             id="custom_statement"
-                                            v-model="customItem.statement"
+                                            v-model="customStatement"
                                             type="text"
                                             class="h-11 rounded-xl"
-                                            placeholder="البيان"
                                         />
                                     </div>
                                     <div class="space-y-2">
-                                        <Label for="custom_unit_price" class="text-xs text-muted-foreground">السعر</Label>
+                                        <Label for="custom_quantity" class="text-xs text-muted-foreground">الكمية</Label>
                                         <Input
-                                            id="custom_unit_price"
-                                            v-model="customItem.unit_price"
+                                            id="custom_quantity"
+                                            v-model="customQuantity"
+                                            type="number"
+                                            min="1"
+                                            class="h-11 rounded-xl tabular-nums"
+                                        />
+                                    </div>
+                                    <div class="space-y-2">
+                                        <Label for="custom_price" class="text-xs text-muted-foreground">السعر</Label>
+                                        <Input
+                                            id="custom_price"
+                                            v-model="customPrice"
                                             type="number"
                                             step="0.01"
                                             min="0"
                                             class="h-11 rounded-xl tabular-nums"
                                             dir="ltr"
-                                            placeholder="0.00"
                                         />
                                     </div>
-                                    <div class="flex items-end">
-                                        <Button
-                                            type="button"
-                                            class="h-11 w-full gap-2 rounded-xl"
-                                            :disabled="!customItem.product_name.trim()"
-                                            @click="addCustomItem"
-                                        >
-                                            <Plus class="h-4 w-4" />
-                                            إضافة الصنف
-                                        </Button>
-                                    </div>
                                 </div>
-                            </template>
+                                <Button
+                                    type="button"
+                                    class="h-11 gap-2 rounded-xl"
+                                    :disabled="!customName.trim()"
+                                    @click="addCustomItem"
+                                >
+                                    <Plus class="h-4 w-4" />
+                                    إضافة الصنف المخصص
+                                </Button>
+                            </div>
                         </div>
 
                         <div v-if="form.items.length > 0" class="overflow-hidden rounded-xl border border-border/60">
@@ -697,30 +685,10 @@ watch(productsInsurance, (value) => {
                                 <TableBody>
                                     <TableRow v-for="(item, index) in form.items" :key="`${item.product_id ?? 'c'}-${index}`">
                                         <TableCell class="font-medium">
-                                            <div class="space-y-0.5">
-                                                <div class="flex flex-wrap items-center gap-2">
-                                                    <span>{{ item.product_name }}</span>
-                                                    <Badge
-                                                        v-if="item.is_custom"
-                                                        variant="secondary"
-                                                        class="text-[10px]"
-                                                    >
-                                                        مخصص
-                                                    </Badge>
-                                                </div>
-                                                <p
-                                                    v-if="item.description"
-                                                    class="text-xs font-normal text-muted-foreground"
-                                                >
-                                                    {{ item.description }}
-                                                </p>
-                                                <p
-                                                    v-if="item.statement"
-                                                    class="text-xs font-normal text-muted-foreground"
-                                                >
-                                                    البيان: {{ item.statement }}
-                                                </p>
-                                            </div>
+                                            <div>{{ item.product_name }}</div>
+                                            <div v-if="!item.product_id" class="mt-0.5 text-[11px] text-amber-700">صنف مخصص</div>
+                                            <div v-if="item.description" class="mt-0.5 text-xs text-muted-foreground">{{ item.description }}</div>
+                                            <div v-if="item.statement" class="mt-0.5 text-xs text-muted-foreground">البيان: {{ item.statement }}</div>
                                         </TableCell>
                                         <TableCell>
                                             <Input
@@ -788,9 +756,7 @@ watch(productsInsurance, (value) => {
                         >
                             <ShoppingCart class="mb-3 h-8 w-8 text-muted-foreground" />
                             <p class="font-medium">لا توجد منتجات بعد</p>
-                            <p class="mt-1 text-sm text-muted-foreground">
-                                اختر منتجاً من النظام أو أضف صنفاً غير موجود
-                            </p>
+                            <p class="mt-1 text-sm text-muted-foreground">اختر منتجاً من البحث وأضفه للطلب</p>
                         </div>
                     </div>
                 </section>
@@ -834,28 +800,9 @@ watch(productsInsurance, (value) => {
                                 <span class="text-muted-foreground">ضريبة القيمة المضافة (15%)</span>
                                 <span class="font-medium tabular-nums" dir="ltr">{{ formatCurrency(vatAmount) }}</span>
                             </div>
-                            <div class="space-y-2 border-t border-border/50 pt-3">
-                                <Label for="insurance_amount" class="text-muted-foreground">مبلغ التأمين</Label>
-                                <Input
-                                    id="insurance_amount"
-                                    v-model="form.insurance_amount"
-                                    type="number"
-                                    step="0.01"
-                                    min="0"
-                                    class="h-10 rounded-xl tabular-nums"
-                                    dir="ltr"
-                                    placeholder="0.00"
-                                />
-                                <p
-                                    v-if="productsInsurance > 0"
-                                    class="text-[11px] text-muted-foreground"
-                                >
-                                    مقترح من المنتجات:
-                                    <span class="tabular-nums" dir="ltr">{{ formatCurrency(productsInsurance) }}</span>
-                                </p>
-                                <p v-if="form.errors.insurance_amount" class="text-xs text-red-600">
-                                    {{ form.errors.insurance_amount }}
-                                </p>
+                            <div v-if="insuranceTotal > 0" class="flex justify-between">
+                                <span class="text-muted-foreground">التأمين</span>
+                                <span class="font-medium tabular-nums" dir="ltr">{{ formatCurrency(insuranceTotal) }}</span>
                             </div>
                             <div class="flex justify-between border-t border-border/60 pt-3">
                                 <span class="text-muted-foreground">طريقة الدفع</span>

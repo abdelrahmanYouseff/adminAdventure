@@ -54,9 +54,10 @@ interface Brand {
 }
 
 interface QuotationItem {
-    product_id: number;
+    product_id: number | null;
     product_name: string;
     description: string;
+    statement: string;
     quantity: number;
     unit_price: number;
     discount_amount: number;
@@ -107,6 +108,12 @@ const selectedCategoryId = ref<number | ''>('');
 const selectedProductId = ref<number | null>(null);
 const selectedQuantity = ref(1);
 const selectedUnitPrice = ref(0);
+const addMode = ref<'catalog' | 'custom'>('catalog');
+const customName = ref('');
+const customDescription = ref('');
+const customStatement = ref('');
+const customPrice = ref(0);
+const customQuantity = ref(1);
 const insuranceManual = ref(false);
 const customerLookupStatus = ref<'idle' | 'loading' | 'found' | 'not_found'>('idle');
 const customerLookupMessage = ref('');
@@ -191,6 +198,7 @@ const addItem = () => {
             product_id: product.id,
             product_name: product.product_name,
             description: product.description,
+            statement: '',
             quantity: quantityToAdd,
             unit_price: unitPrice,
             discount_amount: 0,
@@ -202,6 +210,33 @@ const addItem = () => {
     selectedProductId.value = null;
     selectedQuantity.value = 1;
     selectedUnitPrice.value = 0;
+    syncInsuranceFromItems();
+};
+
+const addCustomItem = () => {
+    const name = customName.value.trim();
+    if (!name) return;
+
+    const quantity = Math.max(1, Number(customQuantity.value) || 1);
+    const unitPrice = Math.max(0, Number(customPrice.value) || 0);
+
+    form.items.push({
+        product_id: null,
+        product_name: name,
+        description: customDescription.value.trim(),
+        statement: customStatement.value.trim(),
+        quantity,
+        unit_price: unitPrice,
+        discount_amount: 0,
+        total_price: quantity * unitPrice,
+        insurance_amount: 0,
+    });
+
+    customName.value = '';
+    customDescription.value = '';
+    customStatement.value = '';
+    customPrice.value = 0;
+    customQuantity.value = 1;
     syncInsuranceFromItems();
 };
 
@@ -724,77 +759,165 @@ watch(
                         <div class="space-y-5 p-5 sm:p-6">
                             <!-- Add item bar -->
                             <div class="rounded-xl border border-dashed border-border bg-muted/20 p-4 sm:p-5">
-                                <p class="mb-4 text-sm font-medium text-foreground">إضافة منتج للعرض</p>
-                                <div class="grid gap-3 sm:grid-cols-12 sm:items-end">
-                                    <div class="space-y-2 sm:col-span-3">
-                                        <Label for="category-filter" class="text-xs text-muted-foreground">الصنف</Label>
-                                        <select
-                                            id="category-filter"
-                                            v-model="selectedCategoryId"
-                                            class="flex h-11 w-full rounded-xl border border-input bg-background px-3 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
-                                        >
-                                            <option value="">كل الأصناف</option>
-                                            <option
-                                                v-for="category in categories"
-                                                :key="category.id"
-                                                :value="category.id"
-                                            >
-                                                {{ category.category_name }}
-                                            </option>
-                                        </select>
-                                    </div>
-                                    <div class="space-y-2 sm:col-span-4">
-                                        <Label for="product-search" class="text-xs text-muted-foreground">المنتج</Label>
-                                        <ProductSearchCombobox
-                                            v-model="selectedProductId"
-                                            :products="filteredProducts"
-                                            input-id="product-search"
-                                        />
-                                    </div>
-                                    <div class="space-y-2 sm:col-span-1">
-                                        <Label for="quantity" class="text-xs text-muted-foreground">الكمية</Label>
-                                        <Input
-                                            id="quantity"
-                                            v-model="selectedQuantity"
-                                            type="number"
-                                            min="1"
-                                            class="h-11 rounded-xl tabular-nums"
-                                        />
-                                    </div>
-                                    <div class="space-y-2 sm:col-span-2">
-                                        <Label for="unit_price" class="text-xs text-muted-foreground">سعر الوحدة (ر.س)</Label>
-                                        <Input
-                                            id="unit_price"
-                                            v-model="selectedUnitPrice"
-                                            type="number"
-                                            step="0.01"
-                                            min="0"
-                                            class="h-11 rounded-xl tabular-nums"
-                                            dir="ltr"
-                                        />
-                                    </div>
-                                    <div class="sm:col-span-2">
-                                        <Button
-                                            type="button"
-                                            class="h-11 w-full gap-2 rounded-xl"
-                                            :disabled="selectedProductId == null"
-                                            @click="addItem"
-                                        >
-                                            <Plus class="h-4 w-4" />
-                                            إضافة
-                                        </Button>
-                                    </div>
+                                <div class="mb-4 flex flex-wrap gap-2">
+                                    <Button
+                                        type="button"
+                                        size="sm"
+                                        :variant="addMode === 'catalog' ? 'default' : 'outline'"
+                                        class="rounded-lg"
+                                        @click="addMode = 'catalog'"
+                                    >
+                                        منتج من النظام
+                                    </Button>
+                                    <Button
+                                        type="button"
+                                        size="sm"
+                                        :variant="addMode === 'custom' ? 'default' : 'outline'"
+                                        class="rounded-lg"
+                                        @click="addMode = 'custom'"
+                                    >
+                                        منتج غير موجود بالنظام
+                                    </Button>
                                 </div>
-                                <p v-if="selectedProduct" class="mt-3 text-xs text-muted-foreground">
-                                    السعر الافتراضي:
-                                    <span class="font-medium tabular-nums text-foreground" dir="ltr">{{ formatCurrency(selectedProduct.price) }}</span>
-                                    <span v-if="form.items.some((i) => i.product_id === selectedProduct.id)" class="ms-2 text-amber-600">
-                                        · موجود في العرض — سيتم زيادة الكمية
-                                    </span>
-                                </p>
-                                <p v-else-if="selectedCategoryId !== '' && !filteredProducts.length" class="mt-3 text-xs text-amber-600">
-                                    لا توجد منتجات في هذا الصنف.
-                                </p>
+
+                                <div v-if="addMode === 'catalog'">
+                                    <p class="mb-4 text-sm font-medium text-foreground">إضافة منتج للعرض</p>
+                                    <div class="grid gap-3 sm:grid-cols-12 sm:items-end">
+                                        <div class="space-y-2 sm:col-span-3">
+                                            <Label for="category-filter" class="text-xs text-muted-foreground">الصنف</Label>
+                                            <select
+                                                id="category-filter"
+                                                v-model="selectedCategoryId"
+                                                class="flex h-11 w-full rounded-xl border border-input bg-background px-3 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                                            >
+                                                <option value="">كل الأصناف</option>
+                                                <option
+                                                    v-for="category in categories"
+                                                    :key="category.id"
+                                                    :value="category.id"
+                                                >
+                                                    {{ category.category_name }}
+                                                </option>
+                                            </select>
+                                        </div>
+                                        <div class="space-y-2 sm:col-span-4">
+                                            <Label for="product-search" class="text-xs text-muted-foreground">المنتج</Label>
+                                            <ProductSearchCombobox
+                                                v-model="selectedProductId"
+                                                :products="filteredProducts"
+                                                input-id="product-search"
+                                            />
+                                        </div>
+                                        <div class="space-y-2 sm:col-span-1">
+                                            <Label for="quantity" class="text-xs text-muted-foreground">الكمية</Label>
+                                            <Input
+                                                id="quantity"
+                                                v-model="selectedQuantity"
+                                                type="number"
+                                                min="1"
+                                                class="h-11 rounded-xl tabular-nums"
+                                            />
+                                        </div>
+                                        <div class="space-y-2 sm:col-span-2">
+                                            <Label for="unit_price" class="text-xs text-muted-foreground">سعر الوحدة (ر.س)</Label>
+                                            <Input
+                                                id="unit_price"
+                                                v-model="selectedUnitPrice"
+                                                type="number"
+                                                step="0.01"
+                                                min="0"
+                                                class="h-11 rounded-xl tabular-nums"
+                                                dir="ltr"
+                                            />
+                                        </div>
+                                        <div class="sm:col-span-2">
+                                            <Button
+                                                type="button"
+                                                class="h-11 w-full gap-2 rounded-xl"
+                                                :disabled="selectedProductId == null"
+                                                @click="addItem"
+                                            >
+                                                <Plus class="h-4 w-4" />
+                                                إضافة
+                                            </Button>
+                                        </div>
+                                    </div>
+                                    <p v-if="selectedProduct" class="mt-3 text-xs text-muted-foreground">
+                                        السعر الافتراضي:
+                                        <span class="font-medium tabular-nums text-foreground" dir="ltr">{{ formatCurrency(selectedProduct.price) }}</span>
+                                        <span v-if="form.items.some((i) => i.product_id === selectedProduct.id)" class="ms-2 text-amber-600">
+                                            · موجود في العرض — سيتم زيادة الكمية
+                                        </span>
+                                    </p>
+                                    <p v-else-if="selectedCategoryId !== '' && !filteredProducts.length" class="mt-3 text-xs text-amber-600">
+                                        لا توجد منتجات في هذا الصنف.
+                                    </p>
+                                </div>
+
+                                <div v-else class="space-y-3">
+                                    <p class="text-sm font-medium text-foreground">إضافة منتج مخصص</p>
+                                    <div class="grid gap-3 sm:grid-cols-2">
+                                        <div class="space-y-2 sm:col-span-2">
+                                            <Label for="custom_name" class="text-xs text-muted-foreground">اسم الصنف</Label>
+                                            <Input
+                                                id="custom_name"
+                                                v-model="customName"
+                                                type="text"
+                                                class="h-11 rounded-xl"
+                                                placeholder="مثال: طاولة إضافية"
+                                            />
+                                        </div>
+                                        <div class="space-y-2">
+                                            <Label for="custom_description" class="text-xs text-muted-foreground">الوصف</Label>
+                                            <Input
+                                                id="custom_description"
+                                                v-model="customDescription"
+                                                type="text"
+                                                class="h-11 rounded-xl"
+                                            />
+                                        </div>
+                                        <div class="space-y-2">
+                                            <Label for="custom_statement" class="text-xs text-muted-foreground">البيان</Label>
+                                            <Input
+                                                id="custom_statement"
+                                                v-model="customStatement"
+                                                type="text"
+                                                class="h-11 rounded-xl"
+                                            />
+                                        </div>
+                                        <div class="space-y-2">
+                                            <Label for="custom_quantity" class="text-xs text-muted-foreground">الكمية</Label>
+                                            <Input
+                                                id="custom_quantity"
+                                                v-model="customQuantity"
+                                                type="number"
+                                                min="1"
+                                                class="h-11 rounded-xl tabular-nums"
+                                            />
+                                        </div>
+                                        <div class="space-y-2">
+                                            <Label for="custom_price" class="text-xs text-muted-foreground">السعر</Label>
+                                            <Input
+                                                id="custom_price"
+                                                v-model="customPrice"
+                                                type="number"
+                                                step="0.01"
+                                                min="0"
+                                                class="h-11 rounded-xl tabular-nums"
+                                                dir="ltr"
+                                            />
+                                        </div>
+                                    </div>
+                                    <Button
+                                        type="button"
+                                        class="h-11 gap-2 rounded-xl"
+                                        :disabled="!customName.trim()"
+                                        @click="addCustomItem"
+                                    >
+                                        <Plus class="h-4 w-4" />
+                                        إضافة الصنف المخصص
+                                    </Button>
+                                </div>
                             </div>
 
                             <!-- Items table -->
@@ -819,8 +942,12 @@ watch(
                                         >
                                             <TableCell>
                                                 <div class="font-medium text-foreground">{{ item.product_name }}</div>
+                                                <div v-if="!item.product_id" class="mt-0.5 text-[11px] text-amber-700">صنف مخصص</div>
                                                 <div class="mt-0.5 line-clamp-1 text-xs text-muted-foreground md:hidden">
                                                     {{ item.description }}
+                                                </div>
+                                                <div v-if="item.statement" class="mt-0.5 text-xs text-muted-foreground">
+                                                    البيان: {{ item.statement }}
                                                 </div>
                                             </TableCell>
                                             <TableCell class="hidden max-w-[200px] truncate text-sm text-muted-foreground md:table-cell">

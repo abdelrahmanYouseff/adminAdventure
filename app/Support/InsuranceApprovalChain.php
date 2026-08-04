@@ -70,7 +70,7 @@ class InsuranceApprovalChain
             return false;
         }
 
-        if ($user->isAdmin()) {
+        if ($user->hasAdminAccess()) {
             return true;
         }
 

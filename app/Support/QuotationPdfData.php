@@ -167,6 +167,7 @@ class QuotationPdfData
             return [
                 'name' => $item->product_name,
                 'description' => $item->description && trim($item->description) !== '' ? trim($item->description) : null,
+                'statement' => $item->statement && trim((string) $item->statement) !== '' ? trim((string) $item->statement) : null,
                 'quantity' => (int) $item->quantity,
                 'unit_price' => $unitEx,
                 'discount_amount' => $discount,

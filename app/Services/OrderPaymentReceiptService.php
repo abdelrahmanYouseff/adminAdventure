@@ -132,10 +132,6 @@ class OrderPaymentReceiptService
 
             $locked->save();
 
-            if ($remainingAfter <= 0.009) {
-                app(OrderInvoiceService::class)->issueIfFullyPaid($locked);
-            }
-
             return [
                 'receipt' => $lockedReceipt,
                 'released_work_order' => ! $hadApprovedBefore,

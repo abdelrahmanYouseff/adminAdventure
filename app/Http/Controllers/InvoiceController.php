@@ -12,33 +12,26 @@ use Inertia\Inertia;
 class InvoiceController extends Controller
 {
     /**
-     * Display paid invoices only (issued after the order is fully settled).
+     * Display a listing of invoices
      */
     public function index(Request $request)
     {
         $brandId = $request->query('brand');
         $search = trim((string) $request->query('search', ''));
+        $status = (string) $request->query('status', 'all');
         $perPage = (int) $request->query('per_page', 15);
         $perPage = in_array($perPage, [10, 15, 25, 50], true) ? $perPage : 15;
 
-        $baseQuery = Invoice::query()->where('status', 'paid');
-
-        $invoices = (clone $baseQuery)
-            ->with([
-                'user:id,customer_name,email,phone',
-                'brand:id,name,slug',
-                'order:id,invoice_id,order_number,customer_name,customer_email,customer_phone,amount_paid,total_amount,currency',
-            ])
+        $invoices = Invoice::with([
+            'user:id,customer_name,email,phone',
+            'brand:id,name,slug',
+            'order:id,invoice_id,amount_paid,total_amount,currency',
+        ])
             ->when($brandId, fn ($query) => $query->where('brand_id', $brandId))
+            ->when($status !== 'all' && in_array($status, ['pending', 'paid', 'cancelled', 'overdue'], true), fn ($query) => $query->where('status', $status))
             ->when($search !== '', function ($query) use ($search) {
                 $query->where(function ($inner) use ($search) {
                     $inner->where('invoice_number', 'like', "%{$search}%")
-                        ->orWhereHas('order', function ($order) use ($search) {
-                            $order->where('customer_name', 'like', "%{$search}%")
-                                ->orWhere('customer_email', 'like', "%{$search}%")
-                                ->orWhere('customer_phone', 'like', "%{$search}%")
-                                ->orWhere('order_number', 'like', "%{$search}%");
-                        })
                         ->orWhereHas('user', function ($user) use ($search) {
                             $user->where('customer_name', 'like', "%{$search}%")
                                 ->orWhere('email', 'like', "%{$search}%")
@@ -51,23 +44,18 @@ class InvoiceController extends Controller
             ->paginate($perPage)
             ->withQueryString();
 
-        $invoices->getCollection()->transform(function (Invoice $invoice) {
-            $customerName = $invoice->order?->customer_name
-                ?: $invoice->user?->customer_name
-                ?: $invoice->user?->name
-                ?: '—';
-
-            $invoice->setAttribute('customer_name', $customerName);
-            $invoice->setAttribute('order_number', $invoice->order?->order_number);
-            $invoice->setAttribute('currency', $invoice->order?->currency ?: 'SAR');
-
-            return $invoice;
-        });
-
         $brands = Brand::query()
-            ->withCount(['invoices' => fn ($q) => $q->where('status', 'paid')])
+            ->withCount('invoices')
             ->orderBy('name')
             ->get(['id', 'name', 'slug']);
+
+        $statusCounts = [
+            'all' => Invoice::query()->when($brandId, fn ($q) => $q->where('brand_id', $brandId))->count(),
+            'pending' => Invoice::query()->when($brandId, fn ($q) => $q->where('brand_id', $brandId))->where('status', 'pending')->count(),
+            'paid' => Invoice::query()->when($brandId, fn ($q) => $q->where('brand_id', $brandId))->where('status', 'paid')->count(),
+            'overdue' => Invoice::query()->when($brandId, fn ($q) => $q->where('brand_id', $brandId))->where('status', 'overdue')->count(),
+            'cancelled' => Invoice::query()->when($brandId, fn ($q) => $q->where('brand_id', $brandId))->where('status', 'cancelled')->count(),
+        ];
 
         return Inertia::render('Invoices/Index', [
             'invoices' => $invoices,
@@ -75,9 +63,10 @@ class InvoiceController extends Controller
             'selectedBrandId' => $brandId ? (int) $brandId : null,
             'filters' => [
                 'search' => $search,
+                'status' => in_array($status, ['all', 'pending', 'paid', 'cancelled', 'overdue'], true) ? $status : 'all',
                 'per_page' => $perPage,
             ],
-            'totalCount' => (clone $baseQuery)->when($brandId, fn ($q) => $q->where('brand_id', $brandId))->count(),
+            'statusCounts' => $statusCounts,
         ]);
     }
 
@@ -146,11 +135,14 @@ class InvoiceController extends Controller
      */
     public function export(Request $request)
     {
-        $query = Invoice::with(['user', 'order'])
-            ->where('status', 'paid');
+        $query = Invoice::with(['user']);
 
         if ($request->has('brand') && $request->brand !== 'all') {
             $query->where('brand_id', $request->brand);
+        }
+
+        if ($request->has('status') && $request->status !== 'all') {
+            $query->where('status', $request->status);
         }
 
         if ($request->has('date_from')) {
@@ -163,36 +155,38 @@ class InvoiceController extends Controller
 
         $invoices = $query->orderBy('created_at', 'desc')->get();
 
+        // Return CSV data
         $headers = [
             'Content-Type' => 'text/csv',
             'Content-Disposition' => 'attachment; filename="invoices.csv"',
         ];
 
-        $callback = function () use ($invoices) {
+        $callback = function() use ($invoices) {
             $file = fopen('php://output', 'w');
 
+            // Add headers
             fputcsv($file, [
                 'Invoice Number',
                 'Customer Name',
                 'Amount',
                 'Currency',
+                'Status',
                 'Payment Method',
                 'Created Date',
+                'Due Date'
             ]);
 
+            // Add data
             foreach ($invoices as $invoice) {
-                $customerName = $invoice->order?->customer_name
-                    ?: $invoice->user?->customer_name
-                    ?: $invoice->user?->name
-                    ?: 'N/A';
-
                 fputcsv($file, [
                     $invoice->invoice_number,
-                    $customerName,
+                    $invoice->user->full_name ?? $invoice->user->name,
                     $invoice->amount,
-                    $invoice->order?->currency ?: 'SAR',
+                    'SAR',
+                    ucfirst($invoice->status),
                     ucfirst($invoice->payment_method ?? 'N/A'),
                     $invoice->created_at->format('Y-m-d H:i:s'),
+                    $invoice->due_date ? $invoice->due_date->format('Y-m-d') : 'N/A'
                 ]);
             }
 

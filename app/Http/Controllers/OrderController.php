@@ -189,16 +189,13 @@ class OrderController extends Controller
         $items = [];
         if (is_array($order->items) && $order->items !== []) {
             foreach ($order->items as $item) {
-                $productId = isset($item['product_id']) ? (int) $item['product_id'] : 0;
-                if ($productId <= 0) {
-                    $productId = null;
-                }
                 $qty = (int) ($item['quantity'] ?? 0);
                 $price = round((float) ($item['price'] ?? $item['unit_price'] ?? 0), 2);
                 $discount = round((float) ($item['discount_amount'] ?? 0), 2);
+                $productId = ! empty($item['product_id']) ? (int) $item['product_id'] : null;
                 $items[] = [
                     'product_id' => $productId,
-                    'product_name' => (string) ($item['name'] ?? $item['product_name'] ?? 'منتج'),
+                    'product_name' => (string) ($item['name'] ?? $item['product_name'] ?? 'صنف مخصص'),
                     'description' => (string) ($item['description'] ?? ''),
                     'statement' => (string) ($item['statement'] ?? ''),
                     'quantity' => $qty,
@@ -207,7 +204,6 @@ class OrderController extends Controller
                     'total_price' => isset($item['amount'])
                         ? round((float) $item['amount'], 2)
                         : round($qty * max(0, $price - $discount), 2),
-                    'is_custom' => (bool) ($item['is_custom'] ?? $productId === null),
                 ];
             }
         } elseif ($order->products->isNotEmpty()) {
@@ -224,7 +220,6 @@ class OrderController extends Controller
                     'unit_price' => $price,
                     'discount_amount' => $discount,
                     'total_price' => round($qty * max(0, $price - $discount), 2),
-                    'is_custom' => false,
                 ];
             }
         }
@@ -295,7 +290,6 @@ class OrderController extends Controller
             'items.*.product_name' => ['nullable', 'string', 'max:255'],
             'items.*.description' => ['nullable', 'string', 'max:2000'],
             'items.*.statement' => ['nullable', 'string', 'max:2000'],
-            'items.*.is_custom' => ['nullable', 'boolean'],
             'items.*.quantity' => ['required', 'integer', 'min:1'],
             'items.*.unit_price' => ['required', 'numeric', 'min:0'],
             'items.*.discount_amount' => ['nullable', 'numeric', 'min:0', 'lte:items.*.unit_price'],
@@ -314,17 +308,63 @@ class OrderController extends Controller
             'items.*.discount_amount.lte' => 'خصم الوحدة لا يمكن أن يتجاوز سعر الوحدة.',
         ]);
 
-        $lineBuild = $this->buildOrderLineItems($validated['items']);
-        if ($lineBuild instanceof \Illuminate\Http\RedirectResponse) {
-            return $lineBuild;
+        foreach ($validated['items'] as $index => $item) {
+            $hasCatalog = ! empty($item['product_id']);
+            $hasCustomName = filled($item['product_name'] ?? null);
+            if (! $hasCatalog && ! $hasCustomName) {
+                return back()
+                    ->withInput()
+                    ->withErrors([
+                        "items.{$index}.product_name" => 'اسم الصنف مطلوب للمنتجات غير الموجودة في النظام.',
+                    ]);
+            }
         }
 
-        $productIds = $lineBuild['product_ids'];
-        $insurance = $lineBuild['insurance'];
-        $insuranceTotal = $lineBuild['insurance_total'];
-        $itemsForOrder = $lineBuild['items'];
-        $totalAmount = $lineBuild['subtotal'];
-        $discountTotal = $lineBuild['discount_total'];
+        $productIds = collect($validated['items'])
+            ->pluck('product_id')
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+        $products = $productIds === []
+            ? collect()
+            : Product::whereIn('id', $productIds)->get(['id', 'product_name'])->keyBy('id');
+        $insurance = OrderInsuranceCalculator::fromLines($validated['items']);
+        $insuranceTotal = $insurance['total'];
+
+        $itemsForOrder = [];
+        $totalAmount = 0;
+        $discountTotal = 0;
+
+        foreach ($validated['items'] as $item) {
+            $qty = (int) $item['quantity'];
+            $price = round((float) $item['unit_price'], 2);
+            $discountAmount = round((float) ($item['discount_amount'] ?? 0), 2);
+            $lineTotal = round($qty * ($price - $discountAmount), 2);
+            $totalAmount += $lineTotal;
+            $discountTotal += round($qty * $discountAmount, 2);
+
+            $productId = ! empty($item['product_id']) ? (int) $item['product_id'] : null;
+            $catalog = $productId ? ($products[$productId] ?? null) : null;
+            $name = $catalog
+                ? (string) $catalog->product_name
+                : trim((string) ($item['product_name'] ?? 'صنف مخصص'));
+
+            $itemsForOrder[] = [
+                'product_id' => $productId,
+                'name' => $name,
+                'description' => trim((string) ($item['description'] ?? '')),
+                'statement' => trim((string) ($item['statement'] ?? '')),
+                'quantity' => $qty,
+                'price' => $price,
+                'discount_amount' => $discountAmount,
+                'amount' => $lineTotal,
+                'insurance_amount' => $productId
+                    ? (float) ($insurance['unit_by_product'][$productId] ?? 0)
+                    : 0.0,
+            ];
+        }
 
         $chargeSubtotal = round($totalAmount, 2);
         $taxAmount = round($chargeSubtotal * 0.15, 2);
@@ -414,8 +454,8 @@ class OrderController extends Controller
 
             $order->products()->detach();
             foreach ($validated['items'] as $item) {
-                $productId = (int) ($item['product_id'] ?? 0);
-                if ($productId <= 0) {
+                $productId = ! empty($item['product_id']) ? (int) $item['product_id'] : null;
+                if (! $productId) {
                     continue;
                 }
                 $order->products()->attach($productId, [
@@ -482,7 +522,6 @@ class OrderController extends Controller
             'payment_method' => ['required', 'string', 'in:credit_card,cash,bank_transfer,paypal,noon'],
             'status' => ['required', 'string', 'in:pending,processing,paid,cancelled'],
             'amount_paid' => ['nullable', 'numeric', 'min:0'],
-            'insurance_amount' => ['nullable', 'numeric', 'min:0'],
             'payment_proof' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
             'notes' => ['nullable', 'string', 'max:1000'],
             'items' => ['required', 'array', 'min:1'],
@@ -490,7 +529,6 @@ class OrderController extends Controller
             'items.*.product_name' => ['nullable', 'string', 'max:255'],
             'items.*.description' => ['nullable', 'string', 'max:2000'],
             'items.*.statement' => ['nullable', 'string', 'max:2000'],
-            'items.*.is_custom' => ['nullable', 'boolean'],
             'items.*.quantity' => ['required', 'integer', 'min:1'],
             'items.*.unit_price' => ['required', 'numeric', 'min:0'],
             'items.*.discount_amount' => ['nullable', 'numeric', 'min:0', 'lte:items.*.unit_price'],
@@ -502,7 +540,6 @@ class OrderController extends Controller
             'payment_method.required' => 'طريقة الدفع مطلوبة.',
             'status.required' => 'حالة الطلب مطلوبة.',
             'amount_paid.min' => 'المبلغ المدفوع لا يمكن أن يكون سالباً.',
-            'insurance_amount.min' => 'مبلغ التأمين لا يمكن أن يكون سالباً.',
             'payment_proof.image' => 'مرفق التحويل يجب أن يكون صورة.',
             'payment_proof.mimes' => 'صيغ صورة التحويل المسموحة: jpg, jpeg, png, webp.',
             'payment_proof.max' => 'حجم صورة التحويل يجب ألا يتجاوز 5 ميجابايت.',
@@ -510,21 +547,63 @@ class OrderController extends Controller
             'items.*.discount_amount.lte' => 'خصم الوحدة لا يمكن أن يتجاوز سعر الوحدة.',
         ]);
 
-        $lineBuild = $this->buildOrderLineItems($validated['items']);
-        if ($lineBuild instanceof \Illuminate\Http\RedirectResponse) {
-            return $lineBuild;
+        foreach ($validated['items'] as $index => $item) {
+            $hasCatalog = ! empty($item['product_id']);
+            $hasCustomName = filled($item['product_name'] ?? null);
+            if (! $hasCatalog && ! $hasCustomName) {
+                return back()
+                    ->withInput()
+                    ->withErrors([
+                        "items.{$index}.product_name" => 'اسم الصنف مطلوب للمنتجات غير الموجودة في النظام.',
+                    ]);
+            }
         }
 
-        $productIds = $lineBuild['product_ids'];
-        $insurance = $lineBuild['insurance'];
-        $itemsForOrder = $lineBuild['items'];
-        $totalAmount = $lineBuild['subtotal'];
-        $discountTotal = $lineBuild['discount_total'];
+        $productIds = collect($validated['items'])
+            ->pluck('product_id')
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+        $products = $productIds === []
+            ? collect()
+            : Product::whereIn('id', $productIds)->get(['id', 'product_name'])->keyBy('id');
+        $insurance = OrderInsuranceCalculator::fromLines($validated['items']);
+        $insuranceTotal = $insurance['total'];
 
-        // Manual insurance from the form wins; otherwise fall back to product-based total.
-        $insuranceTotal = array_key_exists('insurance_amount', $validated) && $validated['insurance_amount'] !== null
-            ? round((float) $validated['insurance_amount'], 2)
-            : $lineBuild['insurance_total'];
+        $itemsForOrder = [];
+        $totalAmount = 0;
+        $discountTotal = 0;
+
+        foreach ($validated['items'] as $item) {
+            $qty = (int) $item['quantity'];
+            $price = round((float) $item['unit_price'], 2);
+            $discountAmount = round((float) ($item['discount_amount'] ?? 0), 2);
+            $lineTotal = round($qty * ($price - $discountAmount), 2);
+            $totalAmount += $lineTotal;
+            $discountTotal += round($qty * $discountAmount, 2);
+
+            $productId = ! empty($item['product_id']) ? (int) $item['product_id'] : null;
+            $catalog = $productId ? ($products[$productId] ?? null) : null;
+            $name = $catalog
+                ? (string) $catalog->product_name
+                : trim((string) ($item['product_name'] ?? 'صنف مخصص'));
+
+            $itemsForOrder[] = [
+                'product_id' => $productId,
+                'name' => $name,
+                'description' => trim((string) ($item['description'] ?? '')),
+                'statement' => trim((string) ($item['statement'] ?? '')),
+                'quantity' => $qty,
+                'price' => $price,
+                'discount_amount' => $discountAmount,
+                'amount' => $lineTotal,
+                'insurance_amount' => $productId
+                    ? (float) ($insurance['unit_by_product'][$productId] ?? 0)
+                    : 0.0,
+            ];
+        }
 
         $chargeSubtotal = round($totalAmount, 2);
         $taxAmount = round($chargeSubtotal * 0.15, 2);
@@ -561,14 +640,24 @@ class OrderController extends Controller
             $insuranceTotal,
             $productIds,
         ) {
-            // Invoice is issued only after the order is fully paid (via receipt approval).
+            $invoice = Invoice::create([
+                'brand_id' => Product::resolveBrandIdForIds($productIds),
+                'invoice_number' => Invoice::generateInvoiceNumber(),
+                'amount' => $chargeAmount,
+                'status' => 'pending',
+                'payment_method' => $validated['payment_method'],
+                'issued_at' => now(),
+                'due_date' => now()->addDays(30),
+                'user_id' => $userId,
+            ]);
+
             $order = Order::create([
                 'customer_name' => $validated['customer_name'],
                 'customer_email' => $validated['customer_email'] ?? null,
                 'customer_phone' => $validated['customer_phone'] ?? null,
                 'address' => $validated['address'] ?? null,
                 'activity_date' => $validated['activity_date'] ?? null,
-                'invoice_id' => null,
+                'invoice_id' => $invoice->id,
                 'order_number' => Order::generateOrderNumber(),
                 'total_amount' => $chargeAmount,
                 'discount_total' => $discountTotal,
@@ -586,8 +675,8 @@ class OrderController extends Controller
             ]);
 
             foreach ($validated['items'] as $item) {
-                $productId = (int) ($item['product_id'] ?? 0);
-                if ($productId <= 0) {
+                $productId = ! empty($item['product_id']) ? (int) $item['product_id'] : null;
+                if (! $productId) {
                     continue;
                 }
                 $order->products()->attach($productId, [
@@ -1159,107 +1248,6 @@ class OrderController extends Controller
     }
 
     /**
-     * Build order line items from catalog and/or custom (non-catalog) rows.
-     *
-     * @param  array<int, array<string, mixed>>  $items
-     * @return array{
-     *     items: array<int, array<string, mixed>>,
-     *     product_ids: array<int, int>,
-     *     insurance: array{total: float, unit_by_product: array<int, float>},
-     *     insurance_total: float,
-     *     subtotal: float,
-     *     discount_total: float
-     * }|\Illuminate\Http\RedirectResponse
-     */
-    private function buildOrderLineItems(array $items): array|\Illuminate\Http\RedirectResponse
-    {
-        $catalogIds = collect($items)
-            ->pluck('product_id')
-            ->filter(fn ($id) => filled($id) && (int) $id > 0)
-            ->map(fn ($id) => (int) $id)
-            ->unique()
-            ->values()
-            ->all();
-
-        $productNames = $catalogIds === []
-            ? collect()
-            : Product::whereIn('id', $catalogIds)->pluck('product_name', 'id');
-
-        $insurance = OrderInsuranceCalculator::fromLines(
-            collect($items)
-                ->filter(fn ($item) => (int) ($item['product_id'] ?? 0) > 0)
-                ->values()
-                ->all()
-        );
-
-        $itemsForOrder = [];
-        $subtotal = 0.0;
-        $discountTotal = 0.0;
-
-        foreach ($items as $index => $item) {
-            $productId = isset($item['product_id']) && $item['product_id'] !== '' && $item['product_id'] !== null
-                ? (int) $item['product_id']
-                : 0;
-            $isCustom = (bool) ($item['is_custom'] ?? false) || $productId <= 0;
-            $name = trim((string) ($item['product_name'] ?? $item['name'] ?? ''));
-
-            if ($isCustom) {
-                if ($name === '') {
-                    return back()
-                        ->withInput()
-                        ->withErrors([
-                            "items.{$index}.product_name" => 'اسم الصنف مطلوب للأصناف غير الموجودة في النظام.',
-                        ]);
-                }
-                $productId = null;
-            } else {
-                if ($productId <= 0 || ! $productNames->has($productId)) {
-                    return back()
-                        ->withInput()
-                        ->withErrors([
-                            "items.{$index}.product_id" => 'أحد المنتجات المحددة غير موجود.',
-                        ]);
-                }
-                $name = (string) $productNames[$productId];
-            }
-
-            $qty = (int) $item['quantity'];
-            $price = round((float) $item['unit_price'], 2);
-            $discountAmount = round((float) ($item['discount_amount'] ?? 0), 2);
-            $lineTotal = round($qty * ($price - $discountAmount), 2);
-            $subtotal += $lineTotal;
-            $discountTotal += round($qty * $discountAmount, 2);
-
-            $line = [
-                'product_id' => $productId,
-                'name' => $name,
-                'product_name' => $name,
-                'description' => trim((string) ($item['description'] ?? '')),
-                'statement' => trim((string) ($item['statement'] ?? '')),
-                'quantity' => $qty,
-                'price' => $price,
-                'discount_amount' => $discountAmount,
-                'amount' => $lineTotal,
-                'insurance_amount' => $productId
-                    ? (float) ($insurance['unit_by_product'][$productId] ?? 0)
-                    : 0.0,
-                'is_custom' => $isCustom,
-            ];
-
-            $itemsForOrder[] = $line;
-        }
-
-        return [
-            'items' => $itemsForOrder,
-            'product_ids' => $catalogIds,
-            'insurance' => $insurance,
-            'insurance_total' => $insurance['total'],
-            'subtotal' => round($subtotal, 2),
-            'discount_total' => round($discountTotal, 2),
-        ];
-    }
-
-    /**
      * Charge breakdown matching Orders/Edit: subtotal + 15% VAT + insurance.
      *
      * @return array{subtotal: float, tax: float, insurance: float, grand: float}
@@ -1268,7 +1256,7 @@ class OrderController extends Controller
     {
         $subtotal = 0.0;
 
-        // Prefer items JSON so custom (non-catalog) lines are included.
+        // Prefer JSON line items so custom (non-catalog) products are included.
         if (is_array($order->items) && $order->items !== []) {
             foreach ($order->items as $item) {
                 if (isset($item['amount'])) {
@@ -1304,10 +1292,12 @@ class OrderController extends Controller
         if ($subtotal <= 0.009) {
             $grand = $storedTotal;
         } elseif (abs($storedTotal - $netPlusInsurance) <= 0.05) {
+            // Stored total is net only (tax omitted) — add VAT like Edit.
             $grand = $grandFromParts;
         } elseif (abs($storedTotal - $grandFromParts) <= 0.05) {
             $grand = $storedTotal;
         } else {
+            // Prefer the higher coherent charge so due/settle are not understated.
             $grand = max($storedTotal, $grandFromParts);
         }
 

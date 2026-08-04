@@ -365,11 +365,15 @@ class QuotationController extends Controller
             'notes' => 'nullable|string',
             'items' => 'required|array|min:1',
             'items.*.product_id' => [
-                'required',
+                'nullable',
+                'integer',
                 Rule::exists('products', 'id')->where(
                     fn ($query) => $query->where('brand_id', $request->input('brand_id'))
                 ),
             ],
+            'items.*.product_name' => 'nullable|string|max:255',
+            'items.*.description' => 'nullable|string|max:2000',
+            'items.*.statement' => 'nullable|string|max:2000',
             'items.*.quantity' => 'required|integer|min:1',
             'items.*.unit_price' => 'required|numeric|min:0',
             'items.*.discount_amount' => 'nullable|numeric|min:0|lte:items.*.unit_price',
@@ -392,7 +396,6 @@ class QuotationController extends Controller
             'amount_paid.min' => 'المبلغ المدفوع لا يمكن أن يكون سالباً.',
             'items.required' => 'يجب إضافة منتج واحد على الأقل.',
             'items.min' => 'يجب إضافة منتج واحد على الأقل.',
-            'items.*.product_id.required' => 'المنتج مطلوب.',
             'items.*.product_id.exists' => 'المنتج المحدد لا ينتمي إلى البراند المختار.',
             'items.*.quantity.required' => 'الكمية مطلوبة.',
             'items.*.quantity.min' => 'الكمية يجب أن تكون 1 على الأقل.',
@@ -402,6 +405,18 @@ class QuotationController extends Controller
             'items.*.discount_amount.min' => 'مبلغ الخصم لا يمكن أن يكون سالباً.',
             'items.*.discount_amount.lte' => 'خصم الوحدة لا يمكن أن يتجاوز سعر الوحدة.',
         ]);
+
+        foreach ($request->items as $index => $item) {
+            $hasCatalog = ! empty($item['product_id']);
+            $hasCustomName = filled($item['product_name'] ?? null);
+            if (! $hasCatalog && ! $hasCustomName) {
+                return back()
+                    ->withInput()
+                    ->withErrors([
+                        "items.{$index}.product_name" => 'اسم الصنف مطلوب للمنتجات غير الموجودة في النظام.',
+                    ]);
+            }
+        }
 
         try {
             DB::beginTransaction();
@@ -424,7 +439,8 @@ class QuotationController extends Controller
             $subtotal = 0;
             $discountTotal = 0;
             foreach ($request->items as $item) {
-                $product = Product::find($item['product_id']);
+                $productId = ! empty($item['product_id']) ? (int) $item['product_id'] : null;
+                $product = $productId ? Product::find($productId) : null;
                 $quantity = (int) $item['quantity'];
                 $unitPrice = round((float) $item['unit_price'], 2);
                 $discountAmount = round((float) ($item['discount_amount'] ?? 0), 2);
@@ -434,9 +450,14 @@ class QuotationController extends Controller
 
                 QuotationItem::create([
                     'quotation_id' => $quotation->id,
-                    'product_id' => $item['product_id'],
-                    'product_name' => $product->product_name,
-                    'description' => $product->description,
+                    'product_id' => $productId,
+                    'product_name' => $product
+                        ? $product->product_name
+                        : trim((string) ($item['product_name'] ?? 'صنف مخصص')),
+                    'description' => $product
+                        ? $product->description
+                        : ($item['description'] ?? null),
+                    'statement' => trim((string) ($item['statement'] ?? '')) ?: null,
                     'quantity' => $quantity,
                     'unit_price' => $unitPrice,
                     'discount_amount' => $discountAmount,
@@ -565,11 +586,26 @@ class QuotationController extends Controller
             'amount_paid' => 'nullable|numeric|min:0',
             'notes' => 'nullable|string',
             'items' => 'required|array|min:1',
-            'items.*.product_id' => 'required|exists:products,id',
+            'items.*.product_id' => 'nullable|integer|exists:products,id',
+            'items.*.product_name' => 'nullable|string|max:255',
+            'items.*.description' => 'nullable|string|max:2000',
+            'items.*.statement' => 'nullable|string|max:2000',
             'items.*.quantity' => 'required|integer|min:1',
             'items.*.unit_price' => 'required|numeric|min:0',
             'items.*.discount_amount' => 'nullable|numeric|min:0|lte:items.*.unit_price',
         ]);
+
+        foreach ($request->items as $index => $item) {
+            $hasCatalog = ! empty($item['product_id']);
+            $hasCustomName = filled($item['product_name'] ?? null);
+            if (! $hasCatalog && ! $hasCustomName) {
+                return back()
+                    ->withInput()
+                    ->withErrors([
+                        "items.{$index}.product_name" => 'اسم الصنف مطلوب للمنتجات غير الموجودة في النظام.',
+                    ]);
+            }
+        }
 
         try {
             DB::beginTransaction();
@@ -593,7 +629,8 @@ class QuotationController extends Controller
             $subtotal = 0;
             $discountTotal = 0;
             foreach ($request->items as $item) {
-                $product = Product::find($item['product_id']);
+                $productId = ! empty($item['product_id']) ? (int) $item['product_id'] : null;
+                $product = $productId ? Product::find($productId) : null;
                 $quantity = (int) $item['quantity'];
                 $unitPrice = round((float) $item['unit_price'], 2);
                 $discountAmount = round((float) ($item['discount_amount'] ?? 0), 2);
@@ -603,9 +640,14 @@ class QuotationController extends Controller
 
                 QuotationItem::create([
                     'quotation_id' => $quotation->id,
-                    'product_id' => $item['product_id'],
-                    'product_name' => $product->product_name,
-                    'description' => $product->description,
+                    'product_id' => $productId,
+                    'product_name' => $product
+                        ? $product->product_name
+                        : trim((string) ($item['product_name'] ?? 'صنف مخصص')),
+                    'description' => $product
+                        ? $product->description
+                        : ($item['description'] ?? null),
+                    'statement' => trim((string) ($item['statement'] ?? '')) ?: null,
                     'quantity' => $quantity,
                     'unit_price' => $unitPrice,
                     'discount_amount' => $discountAmount,

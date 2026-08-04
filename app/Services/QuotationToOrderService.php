@@ -237,7 +237,17 @@ class QuotationToOrderService
         $built = $this->buildOrderPayload($quotation);
         $userId = $actor?->id ?? $quotation->user_id ?? auth()->id() ?? 1;
 
-        // Invoice is issued only after the order is fully paid (via receipt approval).
+        $invoice = Invoice::create([
+            'brand_id' => $quotation->brand_id ?: Product::resolveBrandIdForIds($built['product_ids']),
+            'invoice_number' => Invoice::generateInvoiceNumber(),
+            'amount' => $built['total_amount'],
+            'status' => 'pending',
+            'payment_method' => 'bank_transfer',
+            'issued_at' => now(),
+            'due_date' => now()->addDays(30),
+            'user_id' => $userId,
+        ]);
+
         $order = Order::create([
             'quotation_id' => $quotation->id,
             'customer_name' => $quotation->customer_name,
@@ -246,7 +256,7 @@ class QuotationToOrderService
             'address' => $quotation->customer_address,
             'activity_date' => $built['activity_date'],
             'activity_time' => $built['activity_time'],
-            'invoice_id' => null,
+            'invoice_id' => $invoice->id,
             'order_number' => Order::generateOrderNumber(),
             'total_amount' => $built['total_amount'],
             'discount_total' => $built['discount_total'],
@@ -324,6 +334,9 @@ class QuotationToOrderService
 
         $lines = [];
         foreach ($quotation->items as $item) {
+            if (! $item->product_id) {
+                continue;
+            }
             $lines[] = [
                 'product_id' => (int) $item->product_id,
                 'quantity' => (int) $item->quantity,
@@ -342,31 +355,39 @@ class QuotationToOrderService
         $discountTotal = 0.0;
 
         foreach ($quotation->items as $item) {
-            $productId = (int) $item->product_id;
+            $productId = $item->product_id ? (int) $item->product_id : null;
             $qty = (int) $item->quantity;
             $price = round((float) $item->unit_price, 2);
             $discount = round((float) ($item->discount_amount ?? 0), 2);
             $lineTotal = round((float) $item->total_price, 2);
             $subtotal += $lineTotal;
             $discountTotal += round($qty * $discount, 2);
-            $productIds[] = $productId;
+            if ($productId) {
+                $productIds[] = $productId;
+            }
 
             $itemsForOrder[] = [
                 'product_id' => $productId,
                 'name' => $item->product_name,
+                'description' => $item->description,
+                'statement' => $item->statement,
                 'quantity' => $qty,
                 'price' => $price,
                 'discount_amount' => $discount,
                 'amount' => $lineTotal,
-                'insurance_amount' => (float) ($insurance['unit_by_product'][$productId] ?? 0),
+                'insurance_amount' => $productId
+                    ? (float) ($insurance['unit_by_product'][$productId] ?? 0)
+                    : 0.0,
             ];
 
-            $attach[$productId] = [
-                'quantity' => $qty,
-                'price' => $price,
-                'discount_amount' => $discount,
-                'insurance_amount' => (float) ($insurance['unit_by_product'][$productId] ?? 0),
-            ];
+            if ($productId) {
+                $attach[$productId] = [
+                    'quantity' => $qty,
+                    'price' => $price,
+                    'discount_amount' => $discount,
+                    'insurance_amount' => (float) ($insurance['unit_by_product'][$productId] ?? 0),
+                ];
+            }
         }
 
         // Keep order total aligned with quotation total (includes VAT + insurance)
