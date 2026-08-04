@@ -12,7 +12,7 @@ class EnsureUserIsAdmin
     {
         $user = $request->user();
 
-        if (! $user?->isAdmin()) {
+        if (! $user?->hasAdminAccess()) {
             if ($user?->isWorker()) {
                 return redirect()->route('pwa.dashboard');
             }

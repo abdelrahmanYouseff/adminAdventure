@@ -139,7 +139,7 @@ class OrderPaymentReceiptController extends Controller
 
     private function canApprove(?User $user): bool
     {
-        return $user !== null && ($user->isAccounts() || $user->isAdmin());
+        return $user !== null && ($user->isAccounts() || $user->hasAdminAccess());
     }
 
     /**

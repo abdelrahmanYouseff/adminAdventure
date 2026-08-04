@@ -93,7 +93,7 @@ const page = usePage();
 const flash = computed(() => (page.props.flash as { success?: string; error?: string } | undefined) ?? {});
 const authRole = computed(() => (page.props.auth as { user?: { role?: string } } | undefined)?.user?.role ?? null);
 const canApproveOrders = computed(() =>
-    ['admin', 'workers_manager'].includes(authRole.value || ''),
+    ['admin', 'manager', 'workers_manager'].includes(authRole.value || ''),
 );
 
 watch(

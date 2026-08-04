@@ -153,7 +153,7 @@ const canAssignWorkers = computed(() =>
     ['admin', 'general_manager', 'manager', 'workers_manager'].includes(authRole.value || ''),
 );
 const canApproveOrder = computed(() =>
-    ['admin', 'workers_manager'].includes(authRole.value || ''),
+    ['admin', 'manager', 'workers_manager'].includes(authRole.value || ''),
 );
 const remainingAmount = computed(() => Number(props.workOrder.remaining_amount ?? 0));
 const hasRemainingBalance = computed(() => remainingAmount.value > 0.009);

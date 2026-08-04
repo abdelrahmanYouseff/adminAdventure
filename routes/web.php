@@ -375,7 +375,7 @@ Route::get('payment-receipts', [\App\Http\Controllers\OrderPaymentReceiptControl
     ->name('payment-receipts.index');
 
 Route::post('payment-receipts/{receipt}/approve', [\App\Http\Controllers\OrderPaymentReceiptController::class, 'approve'])
-    ->middleware(['auth', 'verified', 'role:admin,accounts'])
+    ->middleware(['auth', 'verified', 'role:admin,manager,accounts'])
     ->name('payment-receipts.approve');
 
 Route::get('orders/{order}/payment-receipt', [OrderController::class, 'latestPaymentReceiptPdf'])
@@ -409,7 +409,7 @@ Route::post('worker-orders/lines/{workerOrder}/pickup', [\App\Http\Controllers\W
     ->name('worker-orders.pickup');
 
 Route::post('worker-orders/{workOrderKey}/approve', [\App\Http\Controllers\WorkerOrderController::class, 'approve'])
-    ->middleware(['auth', 'verified', 'role:admin,workers_manager'])
+    ->middleware(['auth', 'verified', 'role:admin,manager,workers_manager'])
     ->where('workOrderKey', '[A-Za-z0-9\-_/]+')
     ->name('worker-orders.approve');
 

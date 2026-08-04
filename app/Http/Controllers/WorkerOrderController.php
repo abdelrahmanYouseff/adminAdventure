@@ -184,9 +184,9 @@ class WorkerOrderController extends Controller
     {
         $user = $request->user();
         abort_unless(
-            $user?->hasAnyRole(User::ROLE_ADMIN, User::ROLE_WORKERS_MANAGER),
+            $user?->hasAnyRole(User::ROLE_ADMIN, User::ROLE_MANAGER, User::ROLE_WORKERS_MANAGER),
             403,
-            'تعميد أمر العمل مخصص لمدير العمال فقط.',
+            'تعميد أمر العمل مخصص لمدير العمال والمسئول فقط.',
         );
 
         $order = $this->resolveWorkOrder($workOrderKey, $syncService);

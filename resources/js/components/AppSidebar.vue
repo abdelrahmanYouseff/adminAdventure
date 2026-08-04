@@ -49,7 +49,7 @@ const allNavItems: NavItemWithRoles[] = [
         title: 'الباقات',
         href: '/packages',
         icon: Package,
-        roles: ['admin'],
+        roles: ['admin', 'manager'],
     },
     {
         title: 'الطلبات',
@@ -79,7 +79,7 @@ const allNavItems: NavItemWithRoles[] = [
         title: 'المستخدمين',
         href: '/users',
         icon: Users,
-        roles: ['admin'],
+        roles: ['admin', 'manager'],
     },
     {
         title: 'الفواتير',
@@ -103,7 +103,7 @@ const allNavItems: NavItemWithRoles[] = [
         title: 'إعدادات واتساب',
         href: '/settings/whatsapp',
         icon: MessageCircle,
-        roles: ['admin'],
+        roles: ['admin', 'manager'],
     },
 ];
 

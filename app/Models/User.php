@@ -150,6 +150,14 @@ class User extends Authenticatable
         return $this->role === self::ROLE_ADMIN;
     }
 
+    /**
+     * Full dashboard powers: admin and مسئول (manager) share the same access.
+     */
+    public function hasAdminAccess(): bool
+    {
+        return $this->isAdmin() || $this->isManager();
+    }
+
     public function isGeneralManager(): bool
     {
         return $this->role === self::ROLE_GENERAL_MANAGER;
