@@ -9,7 +9,7 @@
 <html lang="en" dir="ltr">
 <head>
     <meta charset="UTF-8">
-    <title>Proposal {{ $data->quotationNumber() }}</title>
+    <title>Quotation {{ $data->quotationNumber() }}</title>
     <style>
         body {
             font-family: dejavusans, sans-serif;
@@ -24,7 +24,7 @@
             font-weight: bold;
             letter-spacing: 0.3px;
         }
-        .proposal-title {
+        .quotation-title {
             font-size: 16pt;
             font-weight: bold;
             text-align: center;
@@ -140,9 +140,9 @@
     </tr>
 </table>
 
-<div class="proposal-title">Proposal</div>
+<div class="quotation-title">Quotation</div>
 
-{{-- Company info + date / proposal no --}}
+{{-- Company info + date / quotation no --}}
 <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom: 18px;">
     <tr>
         <td width="58%" valign="top" class="company-block">
@@ -157,7 +157,7 @@
         <td width="4%"></td>
         <td width="38%" valign="top" align="right" class="meta-block">
             <div><span class="meta-label">Date:</span> {{ $data->issueDateLong() }}</div>
-            <div><span class="meta-label">Proposal No:</span> {{ $data->quotationNumber() }}</div>
+            <div><span class="meta-label">Quotation No:</span> {{ $data->quotationNumber() }}</div>
             <div><span class="meta-label">Valid Until:</span> {{ $data->validUntilLong() }}</div>
         </td>
     </tr>
@@ -327,23 +327,15 @@
                 Account Name: {{ $data->bankAccountName() }}
             </div>
 
-            @if($data->hasAmountDue() && $data->noonPaymentUrl())
-                <div style="{{ $sectionTitle }} margin-top: 16px;">Online Payment (Noon):-</div>
+            @if($data->hasAmountDue() && $data->paymentUrl())
+                <div style="{{ $sectionTitle }} margin-top: 16px;">Online Payment:-</div>
                 <div style="font-size: 7.5pt; line-height: 1.7; padding: 10px; border: 1px solid #333; background-color: #f8fafc;">
-                    <strong>Pay the due amount online via Noon:</strong>
+                    <strong>Pay the due amount online:</strong>
                     {{ $data->formatSar($data->amountDue(), 2) }}
                     <br>
-                    <a href="{{ $data->noonPaymentUrl() }}" style="color: #1d4ed8; font-weight: bold; word-break: break-all;">
-                        {{ $data->noonPaymentUrl() }}
+                    <a href="{{ $data->paymentUrl() }}" style="color: #1d4ed8; font-weight: bold;">
+                        Payment Link
                     </a>
-                    <br>
-                    <span style="font-size: 6.5pt; color: #555;">
-                        Click the link above to complete payment securely with Noon Payments.
-                    </span>
-                    <br>
-                    <span dir="rtl" style="font-family: xbriyaz, dejavusans, sans-serif; font-size: 6.5pt; color: #555;">
-                        للدفع الإلكتروني عبر نون بالمبلغ المستحق، اضغط على الرابط أعلاه.
-                    </span>
                 </div>
             @endif
         </td>

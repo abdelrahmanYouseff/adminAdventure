@@ -471,6 +471,10 @@ Route::get('pay/quotation/{token}', [\App\Http\Controllers\QuotationPaymentContr
     ->where('token', '[A-Za-z0-9]+')
     ->name('quotations.pay');
 
+Route::get('q/{token}', [\App\Http\Controllers\QuotationPaymentController::class, 'pay'])
+    ->where('token', '[A-Za-z0-9]+')
+    ->name('quotations.pay.short');
+
 Route::get('pay/order/{token}', [\App\Http\Controllers\OrderPaymentController::class, 'pay'])
     ->where('token', '[A-Za-z0-9]+')
     ->name('orders.pay');

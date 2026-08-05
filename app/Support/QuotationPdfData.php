@@ -231,9 +231,9 @@ class QuotationPdfData
         return $this->amountDue() > 0.009;
     }
 
-    public function noonPaymentUrl(): ?string
+    public function paymentUrl(): ?string
     {
-        return $this->quotation->noonPaymentUrl();
+        return $this->quotation->paymentUrl();
     }
 
     public function insuranceNoteEn(): string

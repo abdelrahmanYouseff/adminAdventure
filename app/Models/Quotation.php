@@ -66,13 +66,18 @@ class Quotation extends Model
         return (string) $this->payment_token;
     }
 
-    public function noonPaymentUrl(): ?string
+    public function paymentUrl(): ?string
     {
         if ($this->amountDue() <= 0.009) {
             return null;
         }
 
-        return url('/pay/quotation/'.$this->ensurePaymentToken());
+        return url('/q/'.$this->ensurePaymentToken());
+    }
+
+    public function noonPaymentUrl(): ?string
+    {
+        return $this->paymentUrl();
     }
 
     public function user(): BelongsTo

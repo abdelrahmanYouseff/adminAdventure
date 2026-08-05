@@ -15,7 +15,7 @@
             </div>
         </td>
         <td width="28%" valign="middle" align="right" style="font-size: 6.5pt; line-height: 1.5;">
-            <span style="font-weight: bold;">Proposal No:</span><br>
+            <span style="font-weight: bold;">Quotation No:</span><br>
             <span style="font-weight: bold;">{{ $data->quotationNumber() }}</span>
         </td>
     </tr>
