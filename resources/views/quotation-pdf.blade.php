@@ -110,7 +110,7 @@
         </td>
         <td width="35%" align="right" valign="top">
             @if($data->hasLogo())
-                <img src="{{ $data->logoPath() }}" alt="{{ $data->logoAlt() }}" height="{{ round(56 * $scale) }}" style="max-width: {{ round(130 * $scale) }}px;">
+                <img src="{{ $data->logoPath() }}" alt="{{ $data->logoAlt() }}" height="{{ round(78 * $scale) }}" style="max-width: {{ round(180 * $scale) }}px;">
             @endif
         </td>
     </tr>
