@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Models\Brand;
 use App\Models\Category;
-use App\Models\Invoice;
 use App\Models\Order;
 use App\Models\Product;
 use App\Models\User;
@@ -338,25 +337,14 @@ class StoreController extends Controller
      */
     private function completeMockStoreCheckout(Order $order, bool $expectsJson)
     {
-            $invoice = Invoice::create([
-                'brand_id' => $order->resolveBrandId(),
-                'user_id' => $order->user_id,
-                'rental_id' => null,
-                'invoice_number' => Invoice::generateInvoiceNumber(),
-                'amount' => $order->total_amount,
-                'status' => 'paid',
-                'payment_method' => 'mock',
-                'issued_at' => now(),
-                'due_date' => now()->addDays(7),
-            ]);
-
         $order->update([
-            'invoice_id' => $invoice->id,
+            'amount_paid' => $order->total_amount,
             'status' => 'paid',
             'payment_status' => 'paid',
             'payment_method' => 'mock',
             'payment_id' => 'MOCK-' . Str::upper(Str::random(8)),
         ]);
+        app(\App\Services\OrderInvoiceService::class)->ensureFinalInvoice($order);
 
         $redirectUrl = CheckoutRedirect::homeAfterPayment($order->order_number);
 

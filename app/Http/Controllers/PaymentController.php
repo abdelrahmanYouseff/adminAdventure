@@ -401,33 +401,30 @@ class PaymentController extends Controller
 
         try {
             $existingOrder = Order::where('order_number', $orderId)->with('products')->first();
-
-            $invoice = Invoice::create([
-                'brand_id' => $existingOrder ? $existingOrder->resolveBrandId() : (int) \App\Models\Brand::default()->id,
-                'user_id' => $paymentSessionData['user_id'],
-                'rental_id' => null,
-                'invoice_number' => Invoice::generateInvoiceNumber(),
-                'amount' => $paymentSessionData['amount'],
-                'status' => 'paid',
-                'payment_method' => 'noon',
-                'issued_at' => now(),
-                'due_date' => now()->addDays(7),
-            ]);
+            $paymentAmount = round((float) $paymentSessionData['amount'], 2);
 
             if ($existingOrder) {
+                $total = round((float) $existingOrder->total_amount, 2);
+                $paidAfter = round(min(
+                    $total,
+                    (float) ($existingOrder->amount_paid ?? 0) + $paymentAmount
+                ), 2);
+                $fullyPaid = ($total - $paidAfter) <= 0.009;
+
                 $existingOrder->update([
-                    'invoice_id' => $invoice->id,
-                    'status' => 'paid',
-                    'payment_status' => 'paid',
+                    'amount_paid' => $paidAfter,
+                    'status' => $fullyPaid ? 'paid' : 'processing',
+                    'payment_status' => $fullyPaid ? 'paid' : 'pending',
                     'payment_method' => 'noon',
                     'payment_id' => $paymentId,
                 ]);
+                app(\App\Services\OrderInvoiceService::class)->ensureFinalInvoice($existingOrder);
             } else {
-                Order::create([
+                $existingOrder = Order::create([
                     'user_id' => $paymentSessionData['user_id'],
-                    'invoice_id' => $invoice->id,
                     'order_number' => Order::generateOrderNumber(),
-                    'total_amount' => $paymentSessionData['amount'],
+                    'total_amount' => $paymentAmount,
+                    'amount_paid' => $paymentAmount,
                     'currency' => $paymentSessionData['currency'] ?? 'SAR',
                     'status' => 'paid',
                     'payment_status' => 'paid',
@@ -437,11 +434,12 @@ class PaymentController extends Controller
                     'items' => [
                         [
                             'name' => $paymentSessionData['description'] ?? 'دفع حجز مغامرة',
-                            'amount' => $paymentSessionData['amount'],
+                            'amount' => $paymentAmount,
                             'quantity' => 1,
                         ],
                     ],
                 ]);
+                app(\App\Services\OrderInvoiceService::class)->ensureFinalInvoice($existingOrder);
             }
 
             Cache::forget('payment_session_' . $orderId);
@@ -516,22 +514,15 @@ class PaymentController extends Controller
             if ($noonOrderId && $this->verifyNoonOrderStatus($noonOrderId, 'CAPTURED')) {
                 DB::transaction(function () use ($order, $orderId, $noonOrderId) {
                     if ($order && $order->payment_status !== 'paid') {
-                        $invoice = $this->resolveOrCreateInvoiceForOrder($order, [
-                            'amount' => $order->total_amount,
-                            'status' => 'paid',
-                            'payment_method' => 'noon',
-                        ]);
-                        if ($invoice->status !== 'paid') {
-                            $invoice->update(['status' => 'paid']);
-                        }
-
                         $order->update([
+                            'amount_paid'             => $order->total_amount,
                             'payment_status'          => 'paid',
                             'status'                  => 'paid',
+                            'payment_method'          => 'noon',
                             'payment_id'              => $noonOrderId,
                             'payment_order_reference' => $orderId,
-                            'invoice_id'              => $invoice->id,
                         ]);
+                        app(\App\Services\OrderInvoiceService::class)->ensureFinalInvoice($order);
                     }
                     $this->markPaymentSessionUsed($orderId);
                     Cache::forget('payment_session_' . $orderId);
@@ -986,6 +977,17 @@ HTML;
             switch ($paymentStatus) {
                 case 'CAPTURED':
                 case 'AUTHORIZED':
+                    if (($paymentSessionData['source'] ?? null) === 'order_payment_link') {
+                        $this->finalizeOrderPaymentLink($orderId, $paymentId);
+                        break;
+                    }
+
+                    $quotationOrder = Order::where('order_number', $orderId)->first();
+                    if ($quotationOrder?->quotation_id) {
+                        $this->finalizeQuotationNoonPayment($quotationOrder, $orderId, $paymentId);
+                        break;
+                    }
+
                     if ($this->isPaymentProcessed($orderId)) {
                         Log::info('Noon Webhook idempotent skip', ['order_id' => $orderId]);
                         return response()->json(['success' => true]);
@@ -1015,7 +1017,7 @@ HTML;
                                 'status' => 'paid',
                                 'payment_method' => 'noon',
                                 'issued_at' => now(),
-                                'due_date' => now()->addDays(7),
+                                'due_date' => null,
                             ]);
                         }
 
@@ -1024,8 +1026,10 @@ HTML;
                         }
 
                         if ($existingOrder) {
+                            $total = round((float) $existingOrder->total_amount, 2);
                             $existingOrder->update([
                                 'invoice_id'              => $invoice->id,
+                                'amount_paid'             => $total,
                                 'status'                  => 'paid',
                                 'payment_status'          => 'paid',
                                 'payment_method'          => 'noon',
@@ -1051,18 +1055,17 @@ HTML;
                 case 'FAILED':
                 case 'CANCELLED':
                 case 'DECLINED':
+                    if (($paymentSessionData['source'] ?? null) === 'order_payment_link') {
+                        $this->markPaymentSessionUsed($orderId);
+                        Cache::forget('payment_session_'.$orderId);
+                        break;
+                    }
+
                     DB::transaction(function () use ($orderId, $paymentSessionData) {
                         $existingOrder = Order::where('order_number', $orderId)->lockForUpdate()->first();
 
                         if ($existingOrder) {
-                            if (! $existingOrder->invoice_id) {
-                                $this->resolveOrCreateInvoiceForOrder($existingOrder, [
-                                    'amount' => $paymentSessionData['amount'],
-                                    'status' => 'cancelled',
-                                    'payment_method' => 'noon',
-                                    'user_id' => $paymentSessionData['user_id'],
-                                ]);
-                            } elseif ($existingOrder->invoice && $existingOrder->invoice->status !== 'paid') {
+                            if ($existingOrder->invoice && $existingOrder->invoice->status !== 'paid') {
                                 $existingOrder->invoice->update(['status' => 'cancelled']);
                             }
 
@@ -1072,18 +1075,6 @@ HTML;
                                     'status'         => 'cancelled',
                                 ]);
                             }
-                        } else {
-                            Invoice::create([
-                                'brand_id' => (int) \App\Models\Brand::default()->id,
-                                'user_id' => $paymentSessionData['user_id'],
-                                'rental_id' => null,
-                                'invoice_number' => Invoice::generateInvoiceNumber(),
-                                'amount' => $paymentSessionData['amount'],
-                                'status' => 'cancelled',
-                                'payment_method' => 'noon',
-                                'issued_at' => now(),
-                                'due_date' => now()->addDays(7),
-                            ]);
                         }
 
                         $this->markPaymentSessionUsed($orderId);
@@ -1342,6 +1333,19 @@ HTML;
         $noonConfirmed = in_array($noonStatus, ['CAPTURED', 'AUTHORIZED'], true);
 
         if ($noonConfirmed) {
+            if ($this->isOrderPaymentLinkSession($orderId)) {
+                $this->finalizeOrderPaymentLink($orderId, $noonOrderId);
+
+                return;
+            }
+
+            $order = Order::where('order_number', $orderId)->first();
+            if ($order?->quotation_id) {
+                $this->finalizeQuotationNoonPayment($order, $orderId, $noonOrderId);
+
+                return;
+            }
+
             try {
                 $this->processPaymentSuccess($orderId, $noonOrderId);
             } catch (\Throwable $e) {
@@ -1352,11 +1356,6 @@ HTML;
             }
 
             $order = Order::where('order_number', $orderId)->first();
-            if ($order && $order->quotation_id) {
-                $this->finalizeQuotationNoonPayment($order, $orderId, $noonOrderId);
-
-                return;
-            }
 
             if ($order && $order->payment_status !== 'paid') {
                 $order->update([
@@ -1380,6 +1379,19 @@ HTML;
             return;
         }
 
+        if ($this->isOrderPaymentLinkSession($orderId)) {
+            $this->finalizeOrderPaymentLink($orderId, $storedNoonId);
+
+            return;
+        }
+
+        $order = Order::where('order_number', $orderId)->first();
+        if ($order?->quotation_id) {
+            $this->finalizeQuotationNoonPayment($order, $orderId, $storedNoonId);
+
+            return;
+        }
+
         try {
             $this->processPaymentSuccess($orderId, $storedNoonId);
         } catch (\Throwable $e) {
@@ -1390,11 +1402,6 @@ HTML;
         }
 
         $order = Order::where('order_number', $orderId)->first();
-        if ($order && $order->quotation_id) {
-            $this->finalizeQuotationNoonPayment($order, $orderId, $storedNoonId);
-
-            return;
-        }
 
         if ($order && $order->payment_status !== 'paid') {
             $order->update([
@@ -1406,6 +1413,81 @@ HTML;
         }
 
         Cache::forget('payment_session_' . $orderId);
+        $this->markPaymentSessionUsed($orderId);
+    }
+
+    private function isOrderPaymentLinkSession(string $orderId): bool
+    {
+        $cacheData = Cache::get('payment_session_'.$orderId);
+        if (is_array($cacheData) && ($cacheData['source'] ?? null) === 'order_payment_link') {
+            return true;
+        }
+
+        $payload = PaymentSession::where('merchant_reference', $orderId)->value('payload');
+
+        return is_array($payload) && ($payload['source'] ?? null) === 'order_payment_link';
+    }
+
+    private function finalizeOrderPaymentLink(string $orderId, ?string $noonOrderId): void
+    {
+        $order = Order::where('order_number', $orderId)->first();
+        if (! $order) {
+            return;
+        }
+
+        $cacheData = Cache::get('payment_session_'.$orderId);
+        $session = PaymentSession::where('merchant_reference', $orderId)->first();
+        $amount = round((float) (
+            (is_array($cacheData) ? ($cacheData['amount'] ?? null) : null)
+            ?? $session?->amount
+            ?? 0
+        ), 2);
+
+        if ($amount <= 0.009) {
+            return;
+        }
+
+        try {
+            DB::transaction(function () use ($order, $amount, $noonOrderId, $orderId) {
+                /** @var Order $locked */
+                $locked = Order::query()->lockForUpdate()->findOrFail($order->id);
+
+                if ($noonOrderId && $locked->paymentReceipts()
+                    ->where('notes', 'like', '%'.$noonOrderId.'%')
+                    ->exists()) {
+                    return;
+                }
+
+                $service = app(\App\Services\OrderPaymentReceiptService::class);
+                $receipt = $service->recordPayment(
+                    $locked,
+                    $amount,
+                    null,
+                    'noon',
+                    'payment',
+                    'دفع إلكتروني عبر رابط الطلب'.($noonOrderId ? ' ('.$noonOrderId.')' : ''),
+                );
+                $service->approveReceipt($receipt, null);
+
+                $locked = $locked->fresh();
+                $locked->forceFill([
+                    'payment_method' => 'noon',
+                    'payment_id' => $noonOrderId ?: $locked->payment_id,
+                    'payment_order_reference' => $orderId,
+                ])->save();
+
+                app(\App\Services\WorkerOrderSyncService::class)->syncFromOrder($locked);
+            });
+        } catch (\Throwable $e) {
+            Log::error('finalizeOrderPaymentLink failed', [
+                'order_id' => $orderId,
+                'message' => $e->getMessage(),
+            ]);
+
+            return;
+        }
+
+        Cache::forget('payment_session_'.$orderId);
         $this->markPaymentSessionUsed($orderId);
     }
 
@@ -1605,7 +1687,7 @@ HTML;
             'status' => $attributes['status'] ?? 'paid',
             'payment_method' => $attributes['payment_method'] ?? 'noon',
             'issued_at' => now(),
-            'due_date' => now()->addDays(7),
+            'due_date' => null,
         ]);
 
         $order->update(['invoice_id' => $invoice->id]);

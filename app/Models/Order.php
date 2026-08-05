@@ -23,6 +23,7 @@ class Order extends Model
         'discount_total',
         'tax_amount',
         'amount_paid',
+        'payment_token',
         'insurance_amount',
         'insurance_original_amount',
         'insurance_status',
@@ -78,6 +79,31 @@ class Order extends Model
         $paid = (float) ($this->attributes['amount_paid'] ?? 0);
 
         return round(max(0, $total - $paid), 2);
+    }
+
+    public function ensurePaymentToken(): string
+    {
+        if ($this->payment_token) {
+            return $this->payment_token;
+        }
+
+        $this->forceFill([
+            'payment_token' => bin2hex(random_bytes(24)),
+        ])->save();
+
+        return (string) $this->payment_token;
+    }
+
+    public function noonPaymentUrl(): ?string
+    {
+        if (
+            $this->remaining_amount <= 0.009
+            || in_array($this->status, ['cancelled', 'refunded'], true)
+        ) {
+            return null;
+        }
+
+        return url('/pay/order/'.$this->ensurePaymentToken());
     }
 
     protected static function booted(): void

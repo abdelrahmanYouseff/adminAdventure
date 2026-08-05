@@ -237,17 +237,6 @@ class QuotationToOrderService
         $built = $this->buildOrderPayload($quotation);
         $userId = $actor?->id ?? $quotation->user_id ?? auth()->id() ?? 1;
 
-        $invoice = Invoice::create([
-            'brand_id' => $quotation->brand_id ?: Product::resolveBrandIdForIds($built['product_ids']),
-            'invoice_number' => Invoice::generateInvoiceNumber(),
-            'amount' => $built['total_amount'],
-            'status' => 'pending',
-            'payment_method' => 'bank_transfer',
-            'issued_at' => now(),
-            'due_date' => now()->addDays(30),
-            'user_id' => $userId,
-        ]);
-
         $order = Order::create([
             'quotation_id' => $quotation->id,
             'customer_name' => $quotation->customer_name,
@@ -256,7 +245,6 @@ class QuotationToOrderService
             'address' => $quotation->customer_address,
             'activity_date' => $built['activity_date'],
             'activity_time' => $built['activity_time'],
-            'invoice_id' => $invoice->id,
             'order_number' => Order::generateOrderNumber(),
             'total_amount' => $built['total_amount'],
             'discount_total' => $built['discount_total'],

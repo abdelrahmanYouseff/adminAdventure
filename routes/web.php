@@ -471,5 +471,9 @@ Route::get('pay/quotation/{token}', [\App\Http\Controllers\QuotationPaymentContr
     ->where('token', '[A-Za-z0-9]+')
     ->name('quotations.pay');
 
+Route::get('pay/order/{token}', [\App\Http\Controllers\OrderPaymentController::class, 'pay'])
+    ->where('token', '[A-Za-z0-9]+')
+    ->name('orders.pay');
+
 require __DIR__.'/settings.php';
 require __DIR__.'/auth.php';

@@ -18,17 +18,22 @@ class InvoiceController extends Controller
     {
         $brandId = $request->query('brand');
         $search = trim((string) $request->query('search', ''));
-        $status = (string) $request->query('status', 'all');
         $perPage = (int) $request->query('per_page', 15);
         $perPage = in_array($perPage, [10, 15, 25, 50], true) ? $perPage : 15;
 
         $invoices = Invoice::with([
             'user:id,customer_name,email,phone',
             'brand:id,name,slug',
-            'order:id,invoice_id,amount_paid,total_amount,currency',
+            'order:id,invoice_id,status,payment_status',
         ])
+            ->where('status', 'paid')
+            ->where(function ($query) {
+                $query->whereDoesntHave('order')
+                    ->orWhereHas('order', fn ($order) => $order
+                        ->where('status', 'paid')
+                        ->where('payment_status', 'paid'));
+            })
             ->when($brandId, fn ($query) => $query->where('brand_id', $brandId))
-            ->when($status !== 'all' && in_array($status, ['pending', 'paid', 'cancelled', 'overdue'], true), fn ($query) => $query->where('status', $status))
             ->when($search !== '', function ($query) use ($search) {
                 $query->where(function ($inner) use ($search) {
                     $inner->where('invoice_number', 'like', "%{$search}%")
@@ -45,17 +50,11 @@ class InvoiceController extends Controller
             ->withQueryString();
 
         $brands = Brand::query()
-            ->withCount('invoices')
+            ->withCount([
+                'invoices' => fn ($query) => $query->where('status', 'paid'),
+            ])
             ->orderBy('name')
             ->get(['id', 'name', 'slug']);
-
-        $statusCounts = [
-            'all' => Invoice::query()->when($brandId, fn ($q) => $q->where('brand_id', $brandId))->count(),
-            'pending' => Invoice::query()->when($brandId, fn ($q) => $q->where('brand_id', $brandId))->where('status', 'pending')->count(),
-            'paid' => Invoice::query()->when($brandId, fn ($q) => $q->where('brand_id', $brandId))->where('status', 'paid')->count(),
-            'overdue' => Invoice::query()->when($brandId, fn ($q) => $q->where('brand_id', $brandId))->where('status', 'overdue')->count(),
-            'cancelled' => Invoice::query()->when($brandId, fn ($q) => $q->where('brand_id', $brandId))->where('status', 'cancelled')->count(),
-        ];
 
         return Inertia::render('Invoices/Index', [
             'invoices' => $invoices,
@@ -63,10 +62,8 @@ class InvoiceController extends Controller
             'selectedBrandId' => $brandId ? (int) $brandId : null,
             'filters' => [
                 'search' => $search,
-                'status' => in_array($status, ['all', 'pending', 'paid', 'cancelled', 'overdue'], true) ? $status : 'all',
                 'per_page' => $perPage,
             ],
-            'statusCounts' => $statusCounts,
         ]);
     }
 
@@ -76,6 +73,7 @@ class InvoiceController extends Controller
     public function show(Invoice $invoice)
     {
         $invoice->load(['user', 'rental.product', 'order']);
+        abort_unless($this->isFinalInvoice($invoice), 404);
 
         return Inertia::render('Invoices/Show', [
             'invoice' => $invoice,
@@ -87,6 +85,9 @@ class InvoiceController extends Controller
      */
     public function generatePdf(Invoice $invoice, InvoicePdfService $pdfService)
     {
+        $invoice->loadMissing('order');
+        abort_unless($this->isFinalInvoice($invoice), 404);
+
         $data = InvoicePdfData::fromInvoice($invoice);
         $content = $pdfService->render($data);
         $filename = 'invoice-'.$invoice->invoice_number.'.pdf';
@@ -104,15 +105,7 @@ class InvoiceController extends Controller
      */
     public function updateStatus(Request $request, Invoice $invoice)
     {
-        $request->validate([
-            'status' => 'required|in:pending,paid,cancelled,overdue',
-        ]);
-
-        $invoice->update([
-            'status' => $request->status,
-        ]);
-
-        return back()->with('success', 'Invoice status updated successfully.');
+        abort(403, 'حالة الفاتورة النهائية تُحدّث تلقائياً بعد اكتمال السداد.');
     }
 
     /**
@@ -135,14 +128,10 @@ class InvoiceController extends Controller
      */
     public function export(Request $request)
     {
-        $query = Invoice::with(['user']);
+        $query = Invoice::with(['user'])->where('status', 'paid');
 
         if ($request->has('brand') && $request->brand !== 'all') {
             $query->where('brand_id', $request->brand);
-        }
-
-        if ($request->has('status') && $request->status !== 'all') {
-            $query->where('status', $request->status);
         }
 
         if ($request->has('date_from')) {
@@ -172,8 +161,7 @@ class InvoiceController extends Controller
                 'Currency',
                 'Status',
                 'Payment Method',
-                'Created Date',
-                'Due Date'
+                'Created Date'
             ]);
 
             // Add data
@@ -185,8 +173,7 @@ class InvoiceController extends Controller
                     'SAR',
                     ucfirst($invoice->status),
                     ucfirst($invoice->payment_method ?? 'N/A'),
-                    $invoice->created_at->format('Y-m-d H:i:s'),
-                    $invoice->due_date ? $invoice->due_date->format('Y-m-d') : 'N/A'
+                    $invoice->created_at->format('Y-m-d H:i:s')
                 ]);
             }
 
@@ -194,5 +181,18 @@ class InvoiceController extends Controller
         };
 
         return response()->stream($callback, 200, $headers);
+    }
+
+    private function isFinalInvoice(Invoice $invoice): bool
+    {
+        if ($invoice->status !== 'paid') {
+            return false;
+        }
+
+        return ! $invoice->order
+            || (
+                $invoice->order->status === 'paid'
+                && $invoice->order->payment_status === 'paid'
+            );
     }
 }

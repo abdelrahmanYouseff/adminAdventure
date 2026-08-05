@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { Head, Link, router } from '@inertiajs/vue3';
+import { Head, Link } from '@inertiajs/vue3';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import { ArrowRight, Check, Download, Mail, Printer, RefreshCw, X } from 'lucide-vue-next';
+import { ArrowRight, Download, Mail, Printer } from 'lucide-vue-next';
 import { formatCurrency, formatDate as formatDateValue, formatDateTime as formatDateTimeValue } from '@/lib/formatNumber';
 import type { BreadcrumbItem } from '@/types';
 
@@ -30,7 +30,6 @@ interface Invoice {
     payment_method?: string | null;
     created_at: string;
     updated_at: string;
-    due_date?: string | null;
     user?: InvoiceUser | null;
     rental?: InvoiceRental | null;
 }
@@ -44,10 +43,6 @@ const breadcrumbs: BreadcrumbItem[] = [
     { title: 'الفواتير', href: '/invoices' },
     { title: `فاتورة ${props.invoice.invoice_number}`, href: route('invoices.show', props.invoice.id) },
 ];
-
-function updateStatus(status: string) {
-    router.patch(route('invoices.update-status', props.invoice.id), { status });
-}
 
 function printInvoice() {
     window.open(route('invoices.pdf', props.invoice.id), '_blank');
@@ -164,10 +159,6 @@ function getStatusBadgeClass(status: string) {
                                     <Label class="text-sm text-gray-500">تاريخ الإصدار</Label>
                                     <p class="text-lg" dir="ltr">{{ formatDate(invoice.created_at) }}</p>
                                 </div>
-                                <div>
-                                    <Label class="text-sm text-gray-500">تاريخ الاستحقاق</Label>
-                                    <p class="text-lg" dir="ltr">{{ formatDate(invoice.due_date) }}</p>
-                                </div>
                             </div>
 
                             <div class="mt-8 border-t border-gray-200 pt-8 dark:border-gray-700">
@@ -219,35 +210,6 @@ function getStatusBadgeClass(status: string) {
                             <CardTitle>إجراءات</CardTitle>
                         </CardHeader>
                         <CardContent class="space-y-3">
-                            <Button
-                                v-if="invoice.status === 'pending'"
-                                class="w-full gap-2"
-                                @click="updateStatus('paid')"
-                            >
-                                <Check class="h-4 w-4" />
-                                تعليم كمدفوعة
-                            </Button>
-
-                            <Button
-                                v-if="invoice.status === 'pending'"
-                                variant="destructive"
-                                class="w-full gap-2"
-                                @click="updateStatus('cancelled')"
-                            >
-                                <X class="h-4 w-4" />
-                                إلغاء الفاتورة
-                            </Button>
-
-                            <Button
-                                v-if="invoice.status === 'paid'"
-                                variant="outline"
-                                class="w-full gap-2"
-                                @click="updateStatus('pending')"
-                            >
-                                <RefreshCw class="h-4 w-4" />
-                                إرجاع لقيد الانتظار
-                            </Button>
-
                             <Button variant="outline" class="w-full gap-2" @click="resendInvoice">
                                 <Mail class="h-4 w-4" />
                                 إرسال بالبريد

@@ -171,9 +171,6 @@
         <td width="38%" valign="top" align="right" class="meta-block">
             <div><span class="meta-label">Date:</span> {{ $data->issueDateLong() }}</div>
             <div><span class="meta-label">Invoice No:</span> {{ $data->invoiceNumber() }}</div>
-            @if($data->dueDateLong())
-                <div><span class="meta-label">Due Date:</span> {{ $data->dueDateLong() }}</div>
-            @endif
             <div style="margin-top: 6px;">
                 <span class="meta-label">Status:</span>
                 <span class="status-pill">{{ $data->statusLabelEn() }}</span>
@@ -198,9 +195,6 @@
             <div style="font-size: 7.5pt; line-height: 1.65;">
                 <div><span class="meta-label">Payment Method:</span> {{ $data->paymentMethodLabelEn() }}</div>
                 <div style="margin-top: 5px;"><span class="meta-label">Status:</span> {{ $data->statusLabelEn() }}</div>
-                @if($data->dueDateLong())
-                    <div style="margin-top: 5px;"><span class="meta-label">Due Date:</span> {{ $data->dueDateLong() }}</div>
-                @endif
                 @if($data->activityDateLong())
                     <div style="margin-top: 5px;"><span class="meta-label">Event Date:</span> {{ $data->activityDateLong() }}</div>
                 @endif

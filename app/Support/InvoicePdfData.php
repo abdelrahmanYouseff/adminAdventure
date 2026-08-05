@@ -414,19 +414,14 @@ class InvoicePdfData
     public function termsAndConditions(): array
     {
         $terms = [
+            'Payment for this invoice has been received in full. Thank you.',
             'This is an Invoice issued in accordance with ZATCA regulations.',
             'VAT is calculated at 15% on the taxable value of the services.',
-            'Payment is due according to the due date stated on this invoice.',
-            'Please include the invoice number as a reference for bank transfers.',
             'For any inquiries regarding this invoice, contact '.$this->companyEmail().'.',
         ];
 
         if ($this->hasInsurance()) {
             $terms[] = $this->insuranceNoteEn().' / '.$this->insuranceNoteAr();
-        }
-
-        if ($this->invoice->status === 'paid') {
-            array_unshift($terms, 'Payment for this invoice has been received in full. Thank you.');
         }
 
         if ($this->notes()) {

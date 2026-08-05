@@ -25,6 +25,7 @@ import {
     Check,
     ChevronLeft,
     ChevronRight,
+    Copy,
     ExternalLink,
     Eye,
     MapPin,
@@ -56,6 +57,7 @@ interface Order {
     can_settle?: boolean;
     can_edit?: boolean;
     can_delete?: boolean;
+    payment_url?: string | null;
     currency: string;
     payment_method: string;
     status: string;
@@ -220,6 +222,7 @@ function submitSettle() {
 
 onBeforeUnmount(() => {
     clearPaymentProofPreview();
+    window.clearTimeout(copiedPaymentLinkTimer);
 });
 
 const hourOptions = Array.from({ length: 12 }, (_, i) => String(i + 1));
@@ -381,6 +384,32 @@ function deleteOrder(order: Order) {
             preserveScroll: true,
         });
     }
+}
+
+const copiedPaymentLinkId = ref<number | null>(null);
+let copiedPaymentLinkTimer: number | undefined;
+
+async function copyPaymentLink(order: Order) {
+    if (!order.payment_url) return;
+
+    try {
+        await navigator.clipboard.writeText(order.payment_url);
+    } catch {
+        const input = document.createElement('textarea');
+        input.value = order.payment_url;
+        input.style.position = 'fixed';
+        input.style.opacity = '0';
+        document.body.appendChild(input);
+        input.select();
+        document.execCommand('copy');
+        input.remove();
+    }
+
+    copiedPaymentLinkId.value = order.id;
+    window.clearTimeout(copiedPaymentLinkTimer);
+    copiedPaymentLinkTimer = window.setTimeout(() => {
+        copiedPaymentLinkId.value = null;
+    }, 2500);
 }
 
 function getStatusText(status: string): string {
@@ -809,7 +838,20 @@ function locationMapsUrl(address: string | null): string | null {
                                 </span>
                             </td>
                             <td class="px-4 py-4">
-                                <div class="flex justify-end">
+                                <div class="flex items-center justify-end gap-1">
+                                    <button
+                                        v-if="order.payment_url"
+                                        type="button"
+                                        :title="copiedPaymentLinkId === order.id ? 'تم نسخ رابط الدفع' : 'نسخ رابط الدفع'"
+                                        class="inline-flex size-8 items-center justify-center rounded-lg text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-neutral-800 dark:hover:text-neutral-200"
+                                        @click="copyPaymentLink(order)"
+                                    >
+                                        <Check
+                                            v-if="copiedPaymentLinkId === order.id"
+                                            class="size-4 text-emerald-600"
+                                        />
+                                        <Copy v-else class="size-4" />
+                                    </button>
                                     <DropdownMenu>
                                         <DropdownMenuTrigger as-child>
                                             <button
@@ -834,6 +876,18 @@ function locationMapsUrl(address: string | null): string | null {
                                                     <Pencil class="size-4" />
                                                     تعديل الطلب
                                                 </Link>
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem
+                                                v-if="order.payment_url"
+                                                class="gap-2"
+                                                @select.prevent="copyPaymentLink(order)"
+                                            >
+                                                <Check
+                                                    v-if="copiedPaymentLinkId === order.id"
+                                                    class="size-4 text-emerald-600"
+                                                />
+                                                <Copy v-else class="size-4" />
+                                                {{ copiedPaymentLinkId === order.id ? 'تم نسخ الرابط' : 'نسخ رابط الدفع' }}
                                             </DropdownMenuItem>
                                             <DropdownMenuItem
                                                 v-if="canSettleOrder(order)"

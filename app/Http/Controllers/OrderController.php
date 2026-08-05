@@ -102,6 +102,12 @@ class OrderController extends Controller
                 $canEditTime && ! in_array($order->status, ['cancelled', 'refunded'], true)
             );
             $order->setAttribute('can_delete', $canEditTime);
+            $order->setAttribute(
+                'payment_url',
+                $due > 0.009 && ! in_array($order->status, ['cancelled', 'refunded'], true)
+                    ? url('/pay/order/'.$order->ensurePaymentToken())
+                    : null
+            );
 
             // Expose grand total (subtotal + VAT + insurance) so Index matches Edit.
             $order->setAttribute('total_amount', $grandTotal);
@@ -148,6 +154,7 @@ class OrderController extends Controller
             'remaining_amount',
             round(max(0, $breakdown['grand'] - (float) ($order->amount_paid ?? 0)), 2)
         );
+        $order->setAttribute('payment_url', $order->noonPaymentUrl());
 
         return Inertia::render('Orders/Show', [
             'order' => $order,
@@ -465,6 +472,8 @@ class OrderController extends Controller
                     'insurance_amount' => (float) ($insurance['unit_by_product'][$productId] ?? 0),
                 ]);
             }
+
+            app(\App\Services\OrderInvoiceService::class)->ensureFinalInvoice($order);
         });
 
         $successMessage = 'تم تحديث الطلب بنجاح.';
@@ -638,26 +647,13 @@ class OrderController extends Controller
             $userId,
             $insurance,
             $insuranceTotal,
-            $productIds,
         ) {
-            $invoice = Invoice::create([
-                'brand_id' => Product::resolveBrandIdForIds($productIds),
-                'invoice_number' => Invoice::generateInvoiceNumber(),
-                'amount' => $chargeAmount,
-                'status' => 'pending',
-                'payment_method' => $validated['payment_method'],
-                'issued_at' => now(),
-                'due_date' => now()->addDays(30),
-                'user_id' => $userId,
-            ]);
-
             $order = Order::create([
                 'customer_name' => $validated['customer_name'],
                 'customer_email' => $validated['customer_email'] ?? null,
                 'customer_phone' => $validated['customer_phone'] ?? null,
                 'address' => $validated['address'] ?? null,
                 'activity_date' => $validated['activity_date'] ?? null,
-                'invoice_id' => $invoice->id,
                 'order_number' => Order::generateOrderNumber(),
                 'total_amount' => $chargeAmount,
                 'discount_total' => $discountTotal,
@@ -892,34 +888,22 @@ class OrderController extends Controller
 
             $chargeAmount = round((float) $request->total_amount + $insuranceTotal, 2);
 
-            $invoiceData = [
-                'brand_id' => Product::resolveBrandIdForIds($productIds),
-                'invoice_number' => Invoice::generateInvoiceNumber(),
-                'amount' => $chargeAmount,
-                'status' => $request->status === 'paid' ? 'paid' : 'pending',
-                'payment_method' => $request->payment_method,
-                'issued_at' => now(),
-                'due_date' => now()->addDays(30),
-                'user_id' => $request->user_id ?? 1,
-            ];
-
-            $invoice = Invoice::create($invoiceData);
-
             $orderData = [
                 'customer_name' => $request->customer_name,
                 'customer_email' => $request->customer_email,
                 'customer_phone' => $request->customer_phone,
                 'address' => $request->address,
                 'activity_date' => $request->activity_date,
-                'invoice_id' => $invoice->id,
                 'order_number' => Order::generateOrderNumber(),
                 'total_amount' => $chargeAmount,
+                'amount_paid' => $request->status === 'paid' ? $chargeAmount : 0,
                 'insurance_amount' => $insuranceTotal,
                 'insurance_status' => $insuranceTotal > 0 ? 'pending' : 'none',
                 'currency' => $request->currency,
                 'payment_method' => $request->payment_method,
                 'payment_id' => $request->payment_id,
                 'status' => $request->status ?? 'pending',
+                'payment_status' => $request->status === 'paid' ? 'paid' : 'pending',
                 'items' => $itemsForOrder,
                 'notes' => $request->notes,
                 'user_id' => $request->user_id ?? 1,
@@ -938,9 +922,15 @@ class OrderController extends Controller
                 }
             }
 
+            $invoice = $request->status === 'paid'
+                ? app(\App\Services\OrderInvoiceService::class)->ensureFinalInvoice($order)
+                : null;
+
             return response()->json([
                 'success' => true,
-                'message' => 'تم إنشاء الطلب والفاتورة بنجاح',
+                'message' => $invoice
+                    ? 'تم إنشاء الطلب والفاتورة النهائية بنجاح'
+                    : 'تم إنشاء الطلب بنجاح، وستصدر الفاتورة بعد السداد الكامل',
                 'data' => [
                     'order' => $order->load(['user', 'invoice', 'products']),
                     'invoice' => $invoice,
@@ -1103,24 +1093,22 @@ class OrderController extends Controller
                 'status' => 'required|in:pending,processing,paid,cancelled,refunded',
             ]);
 
+            if ($request->status === 'paid' && $order->remaining_amount > 0.009) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'لا يمكن اعتبار الطلب مدفوعاً قبل سداد كامل المبلغ المستحق.',
+                ], 422);
+            }
+
             $order->update([
                 'status' => $request->status,
+                'payment_status' => $request->status === 'paid'
+                    ? 'paid'
+                    : $order->payment_status,
             ]);
 
-            // Update invoice status if invoice exists
-            if ($order->invoice_id) {
-                $invoice = Invoice::find($order->invoice_id);
-                if ($invoice) {
-                    $invoiceStatus = 'pending';
-
-                    if ($request->status === 'paid') {
-                        $invoiceStatus = 'paid';
-                    } elseif (in_array($request->status, ['cancelled', 'refunded'])) {
-                        $invoiceStatus = 'cancelled';
-                    }
-
-                    $invoice->update(['status' => $invoiceStatus]);
-                }
+            if ($request->status === 'paid') {
+                app(\App\Services\OrderInvoiceService::class)->ensureFinalInvoice($order);
             }
 
             return response()->json([
@@ -1203,24 +1191,21 @@ class OrderController extends Controller
             'status' => 'required|in:pending,processing,paid,cancelled,refunded',
         ]);
 
+        if ($request->status === 'paid' && $order->remaining_amount > 0.009) {
+            return back()->withErrors([
+                'status' => 'لا يمكن اعتبار الطلب مدفوعاً قبل سداد كامل المبلغ المستحق.',
+            ]);
+        }
+
         $order->update([
             'status' => $request->status,
+            'payment_status' => $request->status === 'paid'
+                ? 'paid'
+                : $order->payment_status,
         ]);
 
-        // Update invoice status if invoice exists
-        if ($order->invoice_id) {
-            $invoice = Invoice::find($order->invoice_id);
-            if ($invoice) {
-                $invoiceStatus = 'pending';
-
-                if ($request->status === 'paid') {
-                    $invoiceStatus = 'paid';
-                } elseif (in_array($request->status, ['cancelled', 'refunded'])) {
-                    $invoiceStatus = 'cancelled';
-                }
-
-                $invoice->update(['status' => $invoiceStatus]);
-            }
+        if ($request->status === 'paid') {
+            app(\App\Services\OrderInvoiceService::class)->ensureFinalInvoice($order);
         }
 
         return redirect()->back()->with('success', 'Order status updated successfully');

@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import { Head, Link, usePage } from '@inertiajs/vue3';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { ArrowRight, User, Mail, Phone, CreditCard, FileText, Calendar, Package, HardHat, Pencil } from 'lucide-vue-next';
+import { ArrowRight, User, Mail, Phone, CreditCard, FileText, Calendar, Package, HardHat, Pencil, Copy, Check } from 'lucide-vue-next';
 import { formatCurrency, formatDate, formatInteger } from '@/lib/formatNumber';
 
 interface OrderItem {
@@ -50,6 +50,7 @@ interface Order {
     currency: string;
     payment_method: string;
     payment_status?: string | null;
+    payment_url?: string | null;
     payment_id: string | null;
     status: string;
     activity_date?: string | null;
@@ -75,6 +76,29 @@ defineOptions({ layout: AppLayout });
 const page = usePage();
 const successMessage = computed(() => (page.props.flash as { success?: string } | undefined)?.success);
 const isPaid = computed(() => props.order.status === 'paid' || props.order.payment_status === 'paid');
+const paymentLinkCopied = ref(false);
+
+async function copyPaymentLink() {
+    if (!props.order.payment_url) return;
+
+    try {
+        await navigator.clipboard.writeText(props.order.payment_url);
+    } catch {
+        const input = document.createElement('textarea');
+        input.value = props.order.payment_url;
+        input.style.position = 'fixed';
+        input.style.opacity = '0';
+        document.body.appendChild(input);
+        input.select();
+        document.execCommand('copy');
+        input.remove();
+    }
+
+    paymentLinkCopied.value = true;
+    window.setTimeout(() => {
+        paymentLinkCopied.value = false;
+    }, 2500);
+}
 
 const getStatusText = (status: string) => {
     const map: Record<string, string> = {
@@ -254,6 +278,17 @@ const orderItems = () => {
                             {{ formatCurrency(Number(order.total_amount), order.currency) }}
                         </span>
                     </p>
+                    <Button
+                        v-if="order.payment_url"
+                        type="button"
+                        variant="outline"
+                        class="w-full gap-2"
+                        @click="copyPaymentLink"
+                    >
+                        <Check v-if="paymentLinkCopied" class="h-4 w-4 text-emerald-600" />
+                        <Copy v-else class="h-4 w-4" />
+                        {{ paymentLinkCopied ? 'تم نسخ رابط الدفع' : 'نسخ رابط دفع المبلغ المستحق' }}
+                    </Button>
                     <p v-if="order.invoice" class="flex justify-between text-sm">
                         <span class="text-muted-foreground">الفاتورة</span>
                         <span class="font-mono">{{ order.invoice.invoice_number }}</span>
