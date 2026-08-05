@@ -1,8 +1,13 @@
 @php
     /** @var \App\Support\QuotationPdfData $data */
     /** @var float $scale */
+    /** @var float $bottomMargin page bottom margin in mm, reserved for the footer */
     $scale = $scale ?? 1.0;
+    $bottomMargin = $bottomMargin ?? 16;
     $pt = fn (float $size) => round($size * $scale, 2).'pt';
+
+    // Height of the pinned acknowledgment box, in unscaled pt.
+    $ackReservedHeight = 100;
 
     $border = 'border: 1px solid #333;';
     $sectionTitle = 'font-size: '.$pt(8).'; font-weight: bold; color: #1a1a1a; margin: 0 0 '.$pt(4).' 0; text-transform: uppercase; letter-spacing: 0.3px;';
@@ -63,10 +68,14 @@
             margin-bottom: {{ $pt(2.5) }};
         }
         .ack-box {
+            position: absolute;
+            bottom: {{ $bottomMargin }}mm;
+            left: 0;
+            right: 0;
             border: 1px solid #333;
             padding: {{ $pt(6) }} {{ $pt(9) }};
-            margin-top: {{ $pt(7) }};
             font-size: {{ $pt(7.5) }};
+            background-color: #fff;
         }
         .ack-line {
             border-bottom: 1px solid #999;
@@ -280,6 +289,10 @@
         </td>
     </tr>
 </table>
+
+{{-- Reserves the flow space taken by the acknowledgment box, which is pinned
+     to the bottom of the page and therefore no longer part of the flow. --}}
+<div style="height: {{ $pt($ackReservedHeight) }};"></div>
 
 {{-- Client Acknowledgment --}}
 <div class="ack-box">

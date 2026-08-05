@@ -41,13 +41,15 @@ class QuotationPdfService
             mkdir($tempDir, 0755, true);
         }
 
+        $bottomMargin = round(16 * $scale, 2);
+
         $mpdf = new Mpdf([
             'mode' => 'utf-8',
             'format' => 'A4',
             'margin_left' => round(14 * $scale, 2),
             'margin_right' => round(14 * $scale, 2),
             'margin_top' => round(12 * $scale, 2),
-            'margin_bottom' => round(16 * $scale, 2),
+            'margin_bottom' => $bottomMargin,
             'margin_header' => 4,
             'margin_footer' => round(6 * $scale, 2),
             'default_font' => 'dejavusans',
@@ -68,6 +70,7 @@ class QuotationPdfService
         $mpdf->WriteHTML(View::make('quotation-pdf', [
             'data' => $data,
             'scale' => $scale,
+            'bottomMargin' => $bottomMargin,
         ])->render());
 
         return [$mpdf->Output('', Destination::STRING_RETURN), $mpdf->page];
