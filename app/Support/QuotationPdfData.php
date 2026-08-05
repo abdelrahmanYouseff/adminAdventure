@@ -329,11 +329,13 @@ class QuotationPdfData
     public function termsAndConditions(): array
     {
         $terms = [
-            'You may request to cancel your booking for a full refund, up to 48 hours before the date of the event.',
-            'Payment terms: 100% payment in advance to confirm the booking.',
-            'The final Tax Invoice will be provided upon completion of the event.',
-            'Kindly provide your confirmation within 48 hours of receiving this proposal.',
-            'Non-advance payment: please note that in case of a last-minute cancellation, charges will apply according to the terms outlined in this proposal.',
+            '100% of the amount is payable upon approval, and the transfer receipt must be attached.',
+            'A refundable security deposit of 40% of the order value is to be transferred by the client through a separate receipt, and it is refunded after confirming that all games delivered to the client are undamaged.',
+            'Supply and installation of the games take place after the security deposit has been transferred.',
+            'If the client delays the return of the games, a penalty of 120% is charged for each day of delay in delivery.',
+            'If the client cancels the event, the amount is not refunded; it is recorded as a credit balance with the company, and the client may use it outside of seasons and official holidays.',
+            'Any technical malfunction resulting from misuse of the games after their delivery by the company is the full responsibility of the client.',
+            'The client bears the full cost and responsibility if the site details differ from the actual description (including with regard to installation).',
         ];
 
         if ($this->notes()) {
