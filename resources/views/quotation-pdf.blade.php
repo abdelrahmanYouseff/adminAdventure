@@ -254,41 +254,38 @@
     </div>
 @endif
 
-{{-- Terms + Bank + Payment --}}
-<table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom: {{ $pt(5) }};">
-    <tr>
-        <td width="58%" valign="top">
-            <div style="{{ $sectionTitle }}">Terms &amp; Conditions</div>
-            <ul class="terms-list">
-                @foreach($data->termsAndConditions() as $term)
-                    <li>{{ $term }}</li>
-                @endforeach
-            </ul>
-        </td>
-        <td width="4%"></td>
-        <td width="38%" valign="top">
-            <div style="{{ $sectionTitle }}">Bank Details</div>
-            <div style="font-size: {{ $pt(7.5) }}; line-height: 1.45;">
-                <strong>{{ $data->bankName() }}</strong><br>
-                IBAN: {{ $data->bankIban() }}<br>
-                ACCT NUMBER: {{ $data->bankAccountNumber() }}<br>
-                Account Name: {{ $data->bankAccountName() }}
-            </div>
+{{-- Terms --}}
+<div style="margin-bottom: {{ $pt(6) }};">
+    <div style="{{ $sectionTitle }}">Terms &amp; Conditions</div>
+    <ul class="terms-list">
+        @foreach($data->termsAndConditions() as $term)
+            <li>{{ $term }}</li>
+        @endforeach
+    </ul>
+</div>
 
-            @if($data->hasAmountDue() && $data->paymentUrl())
-                <div style="{{ $sectionTitle }} margin-top: {{ $pt(7) }};">Online Payment</div>
-                <div style="font-size: {{ $pt(7.5) }}; line-height: 1.45; padding: {{ $pt(5) }}; border: 1px solid #333; background-color: #f8fafc;">
-                    <strong>Pay the due amount online:</strong>
-                    {{ $data->formatSar($data->amountDue(), 2) }}
-                    <br>
-                    <a href="{{ $data->paymentUrl() }}" style="color: #1d4ed8; font-weight: bold;">
-                        Payment Link
-                    </a>
-                </div>
-            @endif
-        </td>
-    </tr>
-</table>
+{{-- Bank + Payment --}}
+<div style="margin-bottom: {{ $pt(5) }};">
+    <div style="{{ $sectionTitle }}">Bank Details</div>
+    <div style="font-size: {{ $pt(7.5) }}; line-height: 1.45;">
+        <strong>{{ $data->bankName() }}</strong><br>
+        IBAN: {{ $data->bankIban() }}<br>
+        ACCT NUMBER: {{ $data->bankAccountNumber() }}<br>
+        Account Name: {{ $data->bankAccountName() }}
+    </div>
+
+    @if($data->hasAmountDue() && $data->paymentUrl())
+        <div style="{{ $sectionTitle }} margin-top: {{ $pt(7) }};">Online Payment</div>
+        <div style="font-size: {{ $pt(7.5) }}; line-height: 1.45; padding: {{ $pt(5) }}; border: 1px solid #333; background-color: #f8fafc;">
+            <strong>Pay the due amount online:</strong>
+            {{ $data->formatSar($data->amountDue(), 2) }}
+            <br>
+            <a href="{{ $data->paymentUrl() }}" style="color: #1d4ed8; font-weight: bold;">
+                Payment Link
+            </a>
+        </div>
+    @endif
+</div>
 
 {{-- Reserves the flow space taken by the acknowledgment box, which is pinned
      to the bottom of the page and therefore no longer part of the flow. --}}
