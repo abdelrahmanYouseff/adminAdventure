@@ -110,7 +110,7 @@
         </td>
         <td width="35%" align="right" valign="top">
             @if($data->hasLogo())
-                <img src="{{ $data->logoPath() }}" alt="{{ $data->logoAlt() }}" height="{{ round(40 * $scale) }}" style="max-width: {{ round(96 * $scale) }}px;">
+                <img src="{{ $data->logoPath() }}" alt="{{ $data->logoAlt() }}" height="{{ round(56 * $scale) }}" style="max-width: {{ round(130 * $scale) }}px;">
             @endif
         </td>
     </tr>
@@ -189,9 +189,6 @@
             <tr>
                 <td align="left">
                     <strong>{{ $item['name'] }}</strong>
-                    @if(!empty($item['statement']))
-                        <br><span style="font-size: {{ $pt(6) }}; color: #666;">البيان: {{ $item['statement'] }}</span>
-                    @endif
                 </td>
                 <td align="center">{{ $item['quantity'] }}</td>
                 <td align="right">{{ $data->formatMoney($item['unit_price'], 4) }}</td>

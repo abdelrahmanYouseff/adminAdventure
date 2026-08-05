@@ -8,7 +8,7 @@
     <tr>
         <td width="18%" valign="middle" align="left">
             @if($data->hasLogo())
-                <img src="{{ $data->logoPath() }}" alt="{{ $data->logoAlt() }}" height="{{ round(22 * $scale) }}" style="max-width: {{ round(62 * $scale) }}px;">
+                <img src="{{ $data->logoPath() }}" alt="{{ $data->logoAlt() }}" height="{{ round(28 * $scale) }}" style="max-width: {{ round(78 * $scale) }}px;">
             @endif
         </td>
         <td width="54%" valign="middle" align="center" style="font-weight: bold; font-size: {{ $pt(7) }}; line-height: 1.3;">
