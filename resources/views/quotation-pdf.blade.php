@@ -1,9 +1,11 @@
 @php
     /** @var \App\Support\QuotationPdfData $data */
+    /** @var float $scale */
+    $scale = $scale ?? 1.0;
+    $pt = fn (float $size) => round($size * $scale, 2).'pt';
+
     $border = 'border: 1px solid #333;';
-    $th = $border.' padding: 7px 6px; background-color: #f0f0f0; font-weight: bold; font-size: 6.5pt;';
-    $td = $border.' padding: 7px 6px; font-size: 6.5pt; vertical-align: top;';
-    $sectionTitle = 'font-size: 8pt; font-weight: bold; color: #1a1a1a; margin: 0 0 8px 0; text-transform: uppercase; letter-spacing: 0.3px;';
+    $sectionTitle = 'font-size: '.$pt(8).'; font-weight: bold; color: #1a1a1a; margin: 0 0 '.$pt(4).' 0; text-transform: uppercase; letter-spacing: 0.3px;';
 @endphp
 <!DOCTYPE html>
 <html lang="en" dir="ltr">
@@ -13,22 +15,22 @@
     <style>
         body {
             font-family: dejavusans, sans-serif;
-            font-size: 7.5pt;
+            font-size: {{ $pt(7.5) }};
             color: #1a1a1a;
             margin: 0;
             padding: 0;
-            line-height: 1.55;
+            line-height: 1.35;
         }
         .company-name {
-            font-size: 11pt;
+            font-size: {{ $pt(11) }};
             font-weight: bold;
             letter-spacing: 0.3px;
         }
         .quotation-title {
-            font-size: 16pt;
+            font-size: {{ $pt(15) }};
             font-weight: bold;
             text-align: center;
-            margin: 16px 0 20px 0;
+            margin: {{ $pt(6) }} 0 {{ $pt(8) }} 0;
             letter-spacing: 0.8px;
         }
         .meta-label {
@@ -38,103 +40,68 @@
         .items-table {
             border-collapse: collapse;
             width: 100%;
-            font-size: 6.5pt;
+            font-size: {{ $pt(6.5) }};
         }
         .items-table th,
         .items-table td {
             border: 1px solid #333;
-            padding: 7px 6px;
-            line-height: 1.45;
+            padding: {{ $pt(3.5) }} {{ $pt(4) }};
+            line-height: 1.25;
         }
         .items-table th {
             background-color: #e8e8e8;
             font-weight: bold;
             text-align: center;
         }
-        .totals-table {
-            border-collapse: collapse;
-            width: 100%;
-            font-size: 7.5pt;
-        }
-        .totals-table td {
-            padding: 7px 10px;
-            border: 1px solid #333;
-            line-height: 1.5;
-        }
-        .totals-table .label {
-            font-weight: bold;
-            background-color: #f5f5f5;
-            text-align: left;
-            width: 65%;
-        }
-        .totals-table .value {
-            text-align: left;
-            font-weight: bold;
-            width: 35%;
-        }
-        .totals-table .total-row td {
-            background-color: #333;
-            color: #fff;
-            font-size: 8pt;
-        }
         .terms-list {
             margin: 0;
-            padding-left: 14px;
-            font-size: 7pt;
-            line-height: 1.65;
+            padding-left: {{ $pt(10) }};
+            font-size: {{ $pt(7) }};
+            line-height: 1.35;
         }
         .terms-list li {
-            margin-bottom: 6px;
+            margin-bottom: {{ $pt(2.5) }};
         }
         .ack-box {
             border: 1px solid #333;
-            padding: 12px 14px;
-            margin-top: 14px;
-            font-size: 7.5pt;
+            padding: {{ $pt(6) }} {{ $pt(9) }};
+            margin-top: {{ $pt(7) }};
+            font-size: {{ $pt(7.5) }};
         }
         .ack-line {
             border-bottom: 1px solid #999;
-            height: 20px;
-            margin-top: 8px;
+            height: {{ $pt(13) }};
+            margin-top: {{ $pt(4) }};
         }
         .section-box {
             {{ $border }}
-            padding: 12px 14px;
-            margin-bottom: 16px;
+            padding: {{ $pt(6) }} {{ $pt(9) }};
         }
         .company-block {
-            font-size: 7.5pt;
-            line-height: 1.65;
-        }
-        .company-block .name {
-            font-weight: bold;
-            font-size: 8.5pt;
-            margin-bottom: 6px;
+            font-size: {{ $pt(7.5) }};
+            line-height: 1.4;
         }
         .meta-block {
-            font-size: 7.5pt;
-            line-height: 1.75;
-        }
-        .meta-block div {
-            margin-bottom: 3px;
+            font-size: {{ $pt(7.5) }};
+            line-height: 1.45;
         }
     </style>
 </head>
 <body>
 
 {{-- Top header: company + logo --}}
-<table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom: 8px;">
+<table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom: {{ $pt(4) }};">
     <tr>
         <td width="65%" valign="top">
             <div class="company-name">{{ $data->companyLegalNameEn() }}</div>
-            <div style="font-size: 7pt; margin-top: 5px; line-height: 1.5;">
+            <div style="font-size: {{ $pt(7) }}; margin-top: {{ $pt(2) }};">
                 CR. No. {{ $data->commercialRegister() }}
                 <span dir="rtl" style="font-family: xbriyaz, dejavusans, sans-serif;"> سجل تجاري</span>
             </div>
         </td>
         <td width="35%" align="right" valign="top">
             @if($data->hasLogo())
-                <img src="{{ $data->logoPath() }}" alt="{{ $data->logoAlt() }}" height="46" style="max-width: 110px;">
+                <img src="{{ $data->logoPath() }}" alt="{{ $data->logoAlt() }}" height="{{ round(40 * $scale) }}" style="max-width: {{ round(96 * $scale) }}px;">
             @endif
         </td>
     </tr>
@@ -143,16 +110,13 @@
 <div class="quotation-title">Quotation</div>
 
 {{-- Company info + date / quotation no --}}
-<table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom: 18px;">
+<table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom: {{ $pt(7) }};">
     <tr>
         <td width="58%" valign="top" class="company-block">
-            <div class="name">{{ $data->companyLegalNameEn() }}</div>
-            <div dir="rtl" style="font-family: xbriyaz, dejavusans, sans-serif; margin-bottom: 6px;">{{ $data->companyLegalNameAr() }}</div>
+            <div dir="rtl" style="font-family: xbriyaz, dejavusans, sans-serif; font-weight: bold;">{{ $data->companyLegalNameAr() }}</div>
             <div>{{ $data->companyAddress() }}</div>
-            <div>Tel: {{ $data->companyPhone() }}</div>
-            <div>Email: {{ $data->companyEmail() }}</div>
-            <div>Website: {{ $data->companyWebsite() }}</div>
-            <div>VAT Number: {{ $data->vatNumber() }}</div>
+            <div>Tel: {{ $data->companyPhone() }} &nbsp;|&nbsp; Email: {{ $data->companyEmail() }}</div>
+            <div>Website: {{ $data->companyWebsite() }} &nbsp;|&nbsp; VAT Number: {{ $data->vatNumber() }}</div>
         </td>
         <td width="4%"></td>
         <td width="38%" valign="top" align="right" class="meta-block">
@@ -163,68 +127,41 @@
     </tr>
 </table>
 
-{{-- BILL TO --}}
-<table width="100%" cellpadding="0" cellspacing="0">
+{{-- BILL TO + QUOTATION DETAILS --}}
+<table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom: {{ $pt(7) }};">
     <tr>
-        <td class="section-box">
+        <td width="48%" valign="top" class="section-box">
             <div style="{{ $sectionTitle }}">Bill To</div>
-            <div style="font-weight: bold; font-size: 8.5pt; margin-bottom: 4px;">{{ $data->customerName() }}</div>
+            <div style="font-weight: bold; font-size: {{ $pt(8.5) }};">{{ $data->customerName() }}</div>
             @if($data->customerAddress())
-                <div style="margin-top: 5px;">{{ $data->customerAddress() }}</div>
+                <div style="margin-top: {{ $pt(2) }};">{{ $data->customerAddress() }}</div>
             @endif
             @if($data->companyTaxNumber())
-                <div style="margin-top: 5px;"><span class="meta-label">VAT No:</span> {{ $data->companyTaxNumber() }}</div>
-                <div style="margin-top: 2px;" dir="rtl"><span class="meta-label">الرقم الضريبي:</span> {{ $data->companyTaxNumber() }}</div>
+                <div style="margin-top: {{ $pt(2) }};"><span class="meta-label">VAT No:</span> {{ $data->companyTaxNumber() }}</div>
             @endif
-            <div style="margin-top: 6px; font-size: 7pt;">
+            <div style="margin-top: {{ $pt(2) }}; font-size: {{ $pt(7) }};">
                 Email / Contact No: {{ $data->customerEmail() }} / {{ $data->customerPhone() }}
             </div>
         </td>
-    </tr>
-</table>
-
-{{-- QUOTATION DETAILS --}}
-<table width="100%" cellpadding="0" cellspacing="0">
-    <tr>
-        <td class="section-box">
+        <td width="4%"></td>
+        <td width="48%" valign="top" class="section-box">
             <div style="{{ $sectionTitle }}">Quotation Details</div>
-            <table width="100%" cellpadding="0" cellspacing="0" style="font-size: 7.5pt; line-height: 1.65;">
-                <tr>
-                    <td width="50%" valign="top">
-                        <div><span class="meta-label">Prepared By:</span> {{ $data->preparedBy() }}</div>
-                        <div style="margin-top: 5px;"><span class="meta-label">Valid Until:</span> {{ $data->validUntilLong() }}</div>
-                        @if($data->activityAt())
-                            <div style="margin-top: 5px;"><span class="meta-label">Event Date:</span> {{ $data->activityAt() }}</div>
-                        @endif
-                        @if($data->installationAt())
-                            <div style="margin-top: 5px;"><span class="meta-label">Installation:</span> {{ $data->installationAt() }}</div>
-                        @endif
-                        @if($data->dismantlingAt())
-                            <div style="margin-top: 5px;"><span class="meta-label">Dismantling:</span> {{ $data->dismantlingAt() }}</div>
-                        @endif
-                    </td>
-                    <td width="50%" valign="top">
-                        @if($data->customerAddress())
-                            <div><span class="meta-label">Location:</span> {{ $data->customerAddress() }}</div>
-                        @endif
-                        @if($data->activityAt())
-                            <div style="margin-top: 5px;" dir="rtl"><span class="meta-label">تاريخ الفعالية:</span> {{ $data->activityAt() }}</div>
-                        @endif
-                        @if($data->installationAt())
-                            <div style="margin-top: 5px;" dir="rtl"><span class="meta-label">تاريخ التركيب:</span> {{ $data->installationAt() }}</div>
-                        @endif
-                        @if($data->dismantlingAt())
-                            <div style="margin-top: 5px;" dir="rtl"><span class="meta-label">تاريخ الفك:</span> {{ $data->dismantlingAt() }}</div>
-                        @endif
-                    </td>
-                </tr>
-            </table>
+            <div><span class="meta-label">Prepared By:</span> {{ $data->preparedBy() }}</div>
+            @if($data->activityAt())
+                <div style="margin-top: {{ $pt(2) }};"><span class="meta-label">Event Date:</span> {{ $data->activityAt() }}</div>
+            @endif
+            @if($data->installationAt())
+                <div style="margin-top: {{ $pt(2) }};"><span class="meta-label">Installation:</span> {{ $data->installationAt() }}</div>
+            @endif
+            @if($data->dismantlingAt())
+                <div style="margin-top: {{ $pt(2) }};"><span class="meta-label">Dismantling:</span> {{ $data->dismantlingAt() }}</div>
+            @endif
         </td>
     </tr>
 </table>
 
 {{-- Line items + totals --}}
-<table class="items-table" style="margin-bottom: 16px;">
+<table class="items-table" style="margin-bottom: {{ $pt(7) }};">
     <thead>
         <tr>
             <th width="23%" align="left">Description</th>
@@ -244,7 +181,7 @@
                 <td align="left">
                     <strong>{{ $item['name'] }}</strong>
                     @if(!empty($item['statement']))
-                        <br><span style="font-size: 6pt; color: #666; line-height: 1.5;">البيان: {{ $item['statement'] }}</span>
+                        <br><span style="font-size: {{ $pt(6) }}; color: #666;">البيان: {{ $item['statement'] }}</span>
                     @endif
                 </td>
                 <td align="center">{{ $item['quantity'] }}</td>
@@ -301,26 +238,28 @@
 </table>
 
 @if($data->hasInsurance())
-    <div style="margin: -8px 0 14px 0; font-size: 6.5pt; color: #444; line-height: 1.45;">
+    <div style="margin: -{{ $pt(4) }} 0 {{ $pt(6) }} 0; font-size: {{ $pt(6.5) }}; color: #444; line-height: 1.3;">
         {{ $data->insuranceNoteEn() }}
         <br>
         <span dir="rtl" style="font-family: xbriyaz, dejavusans, sans-serif;">{{ $data->insuranceNoteAr() }}</span>
     </div>
 @endif
 
-{{-- Terms + Bank --}}
-<table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom: 12px;">
+{{-- Terms + Bank + Payment --}}
+<table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom: {{ $pt(5) }};">
     <tr>
-        <td width="100%" valign="top">
+        <td width="58%" valign="top">
             <div style="{{ $sectionTitle }}">Terms &amp; Conditions</div>
             <ul class="terms-list">
                 @foreach($data->termsAndConditions() as $term)
                     <li>{{ $term }}</li>
                 @endforeach
             </ul>
-
-            <div style="{{ $sectionTitle }} margin-top: 16px;">Bank details:-</div>
-            <div style="font-size: 7.5pt; line-height: 1.7;">
+        </td>
+        <td width="4%"></td>
+        <td width="38%" valign="top">
+            <div style="{{ $sectionTitle }}">Bank Details</div>
+            <div style="font-size: {{ $pt(7.5) }}; line-height: 1.45;">
                 <strong>{{ $data->bankName() }}</strong><br>
                 IBAN: {{ $data->bankIban() }}<br>
                 ACCT NUMBER: {{ $data->bankAccountNumber() }}<br>
@@ -328,8 +267,8 @@
             </div>
 
             @if($data->hasAmountDue() && $data->paymentUrl())
-                <div style="{{ $sectionTitle }} margin-top: 16px;">Online Payment:-</div>
-                <div style="font-size: 7.5pt; line-height: 1.7; padding: 10px; border: 1px solid #333; background-color: #f8fafc;">
+                <div style="{{ $sectionTitle }} margin-top: {{ $pt(7) }};">Online Payment</div>
+                <div style="font-size: {{ $pt(7.5) }}; line-height: 1.45; padding: {{ $pt(5) }}; border: 1px solid #333; background-color: #f8fafc;">
                     <strong>Pay the due amount online:</strong>
                     {{ $data->formatSar($data->amountDue(), 2) }}
                     <br>
@@ -344,20 +283,20 @@
 
 {{-- Client Acknowledgment --}}
 <div class="ack-box">
-    <div style="font-weight: bold; font-size: 8.5pt; margin-bottom: 10px;">Client Acknowledgment</div>
-    <table width="100%" cellpadding="0" cellspacing="0" style="font-size: 7.5pt;">
+    <div style="font-weight: bold; font-size: {{ $pt(8.5) }}; margin-bottom: {{ $pt(4) }};">Client Acknowledgment</div>
+    <table width="100%" cellpadding="0" cellspacing="0" style="font-size: {{ $pt(7.5) }};">
         <tr>
             <td width="50%" valign="bottom">
                 Company &amp; Client Name:
                 <div class="ack-line"></div>
             </td>
-            <td width="50%" valign="bottom" style="padding-left: 16px;">
+            <td width="50%" valign="bottom" style="padding-left: {{ $pt(10) }};">
                 Contact:
                 <div class="ack-line"></div>
             </td>
         </tr>
         <tr>
-            <td colspan="2" valign="bottom" style="padding-top: 12px;">
+            <td colspan="2" valign="bottom" style="padding-top: {{ $pt(6) }};">
                 Signature:
                 <div class="ack-line" style="width: 60%;"></div>
             </td>
