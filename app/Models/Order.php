@@ -87,11 +87,17 @@ class Order extends Model
             return $this->payment_token;
         }
 
-        $this->forceFill([
-            'payment_token' => bin2hex(random_bytes(24)),
-        ])->save();
+        $token = bin2hex(random_bytes(24));
 
-        return (string) $this->payment_token;
+        // Persist through the query builder: list/detail screens decorate the
+        // model with computed attributes that are not real columns, and save()
+        // would try to write them.
+        static::query()->whereKey($this->getKey())->update(['payment_token' => $token]);
+
+        $this->attributes['payment_token'] = $token;
+        $this->syncOriginalAttribute('payment_token');
+
+        return $token;
     }
 
     public function noonPaymentUrl(): ?string
