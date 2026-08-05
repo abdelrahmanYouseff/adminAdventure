@@ -315,7 +315,7 @@
             <div style="{{ $sectionTitle }}">Terms &amp; Conditions</div>
             <ul class="terms-list">
                 @foreach($data->termsAndConditions() as $term)
-                    <li>-: {{ $term }}</li>
+                    <li>{{ $term }}</li>
                 @endforeach
             </ul>
 
