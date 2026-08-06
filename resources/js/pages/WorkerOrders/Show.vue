@@ -22,11 +22,9 @@ import {
     Trash2,
     Users,
     MessageSquareText,
-    PackageOpen,
     CircleDot,
     LayoutDashboard,
     Wrench,
-    Truck,
     Gamepad2,
     History,
     MoreHorizontal,
@@ -37,9 +35,8 @@ import {
 import { formatCurrency, formatDate, formatDateTime } from '@/lib/formatNumber';
 import Swal from 'sweetalert2';
 
-type TabKey = 'overview' | 'installation' | 'pickup' | 'games' | 'notes' | 'timeline';
-type EventStatus = 'pending' | 'in_progress' | 'pickup' | 'completed';
-type PickupCondition = 'excellent' | 'good' | 'damaged' | 'broken';
+type TabKey = 'overview' | 'installation' | 'games' | 'notes' | 'timeline';
+type EventStatus = 'pending' | 'in_progress' | 'completed';
 
 interface CompletedByUser {
     id: number;
@@ -54,10 +51,6 @@ interface WorkOrderLine {
     installation_photo_url: string | null;
     completed_at: string | null;
     completed_by_user?: CompletedByUser | null;
-    pickup_photo_url?: string | null;
-    pickup_at?: string | null;
-    pickup_by_user?: CompletedByUser | null;
-    pickup_condition?: PickupCondition | null;
 }
 
 interface WorkOrderAssembler {
@@ -121,8 +114,7 @@ interface WorkOrder {
     notes?: WorkOrderNote[];
     timeline?: TimelineItem[];
     installation_progress?: Progress;
-    pickup_progress?: Progress;
-    photo_stats?: { installation: number; pickup: number };
+    photo_stats?: { installation: number };
     delivery_note_url: string;
     photos_ready?: boolean;
     is_approved?: boolean;
@@ -204,27 +196,20 @@ const assemblers = computed(() => props.workOrder.assemblers ?? []);
 const notes = computed(() => props.workOrder.notes ?? []);
 const timeline = computed(() => props.workOrder.timeline ?? []);
 const assignedWorkers = computed(() => props.workOrder.assigned_workers ?? assemblers.value.map((a) => a.worker_name));
-const installedLines = computed(() => props.workOrder.lines.filter((line) => line.status === 'completed'));
 const installProgress = computed(() => props.workOrder.installation_progress ?? {
     done: props.workOrder.completed_count,
     total: props.workOrder.products_count,
 });
-const pickupProgress = computed(() => props.workOrder.pickup_progress ?? {
-    done: installedLines.value.filter((l) => l.pickup_photo_url).length,
-    total: installedLines.value.length,
-});
 const photoStats = computed(() => props.workOrder.photo_stats ?? {
     installation: props.workOrder.lines.filter((l) => l.installation_photo_url).length,
-    pickup: installedLines.value.filter((l) => l.pickup_photo_url).length,
 });
-const eventStatus = computed<EventStatus>(() => props.workOrder.event_status ?? (props.workOrder.status === 'completed' ? 'pickup' : 'pending'));
+const eventStatus = computed<EventStatus>(() => props.workOrder.event_status ?? (props.workOrder.status === 'completed' ? 'completed' : 'pending'));
 const displayAddress = computed(() => props.workOrder.address?.trim() || props.workOrder.customer_address?.trim() || null);
 const primaryWorker = computed(() => assignedWorkers.value[0] || 'غير معيّن');
 
 const tabs: { key: TabKey; label: string; icon: typeof LayoutDashboard }[] = [
     { key: 'overview', label: 'نظرة عامة', icon: LayoutDashboard },
     { key: 'installation', label: 'التركيب', icon: Wrench },
-    { key: 'pickup', label: 'الاستلام', icon: Truck },
     { key: 'games', label: 'الألعاب', icon: Gamepad2 },
     { key: 'notes', label: 'الملاحظات', icon: MessageSquareText },
     { key: 'timeline', label: 'الجدول الزمني', icon: History },
@@ -234,21 +219,12 @@ const statusMeta = computed(() => {
     switch (eventStatus.value) {
         case 'completed':
             return { label: 'مكتمل', class: 'bg-[#22C55E]/10 text-[#15803D] ring-[#22C55E]/20' };
-        case 'pickup':
-            return { label: 'بانتظار الاستلام', class: 'bg-[#F59E0B]/10 text-[#B45309] ring-[#F59E0B]/20' };
         case 'in_progress':
             return { label: 'جاري التركيب', class: 'bg-[#2563EB]/10 text-[#1D4ED8] ring-[#2563EB]/20' };
         default:
             return { label: 'قيد الانتظار', class: 'bg-slate-100 text-slate-600 ring-slate-200' };
     }
 });
-
-const conditionLabels: Record<PickupCondition, { label: string; class: string }> = {
-    excellent: { label: 'ممتاز', class: 'bg-emerald-50 text-emerald-700 ring-emerald-200' },
-    good: { label: 'جيد', class: 'bg-sky-50 text-sky-700 ring-sky-200' },
-    damaged: { label: 'تالف', class: 'bg-amber-50 text-amber-700 ring-amber-200' },
-    broken: { label: 'مكسور', class: 'bg-rose-50 text-rose-700 ring-rose-200' },
-};
 
 const selectedLine = ref<WorkOrderLine | null>(null);
 const photoPreview = ref<string | null>(null);
@@ -258,16 +234,6 @@ const photoError = ref<string | null>(null);
 const completeForm = useForm({
     installation_photo: null as File | null,
     redirect_to_show: true,
-});
-
-const selectedPickupLine = ref<WorkOrderLine | null>(null);
-const pickupPhotoPreview = ref<string | null>(null);
-const pickupDialogOpen = ref(false);
-const pickupPhotoInputRef = ref<HTMLInputElement | null>(null);
-const pickupPhotoError = ref<string | null>(null);
-const pickupForm = useForm({
-    pickup_photo: null as File | null,
-    pickup_condition: 'good' as PickupCondition,
 });
 
 const assemblerFormOpen = ref(false);
@@ -371,7 +337,7 @@ async function approveWorkOrder() {
             title: 'لا يمكن التعميد الآن',
             text: props.workOrder.photos_ready
                 ? 'تعميد أمر العمل مخصص لمدير العمال فقط.'
-                : 'يجب أن يرفع العامل صور التركيب وصور الاستلام لجميع المنتجات أولاً.',
+                : 'يجب أن يرفع العامل صور التركيب لجميع المنتجات أولاً.',
             confirmButtonText: 'حسناً',
             confirmButtonColor: '#2563EB',
         });
@@ -450,50 +416,6 @@ function submitCompletion() {
     });
 }
 
-function openPickupDialog(line: WorkOrderLine) {
-    selectedPickupLine.value = line;
-    pickupForm.reset();
-    pickupForm.pickup_condition = 'good';
-    pickupForm.clearErrors();
-    pickupPhotoError.value = null;
-    pickupPhotoPreview.value = null;
-    if (pickupPhotoInputRef.value) pickupPhotoInputRef.value.value = '';
-    pickupDialogOpen.value = true;
-}
-
-function closePickupDialog() {
-    pickupDialogOpen.value = false;
-    selectedPickupLine.value = null;
-    pickupForm.reset();
-    pickupForm.clearErrors();
-    pickupPhotoError.value = null;
-    if (pickupPhotoPreview.value) URL.revokeObjectURL(pickupPhotoPreview.value);
-    pickupPhotoPreview.value = null;
-    if (pickupPhotoInputRef.value) pickupPhotoInputRef.value.value = '';
-}
-
-function handlePickupPhotoChange(event: Event) {
-    const file = (event.target as HTMLInputElement).files?.[0] ?? null;
-    if (pickupPhotoPreview.value) URL.revokeObjectURL(pickupPhotoPreview.value);
-    pickupForm.pickup_photo = file;
-    pickupPhotoPreview.value = file ? URL.createObjectURL(file) : null;
-    pickupPhotoError.value = null;
-    pickupForm.clearErrors('pickup_photo');
-}
-
-function submitPickup() {
-    if (!selectedPickupLine.value) return;
-    if (!pickupForm.pickup_photo) {
-        pickupPhotoError.value = 'يجب إرفاق صورة عند الاستلام والفك قبل الإرسال.';
-        return;
-    }
-    pickupForm.post(`/worker-orders/lines/${selectedPickupLine.value.id}/pickup`, {
-        forceFormData: true,
-        preserveScroll: true,
-        onSuccess: () => closePickupDialog(),
-    });
-}
-
 function openAssemblerForm() {
     assemblerForm.reset();
     assemblerForm.clearErrors();
@@ -543,7 +465,6 @@ function deleteNote(note: WorkOrderNote) {
 }
 
 watch(dialogOpen, (isOpen) => { if (!isOpen) closeCompleteDialog(); });
-watch(pickupDialogOpen, (isOpen) => { if (!isOpen) closePickupDialog(); });
 </script>
 
 <template>
@@ -600,7 +521,7 @@ watch(pickupDialogOpen, (isOpen) => { if (!isOpen) closePickupDialog(); });
                                 ? 'تم التعميد'
                                 : workOrder.can_approve
                                     ? 'تعميد أمر العمل'
-                                    : 'يلزم رفع صور التركيب والاستلام أولاً'"
+                                    : 'يلزم رفع صور التركيب أولاً'"
                             @click="approveWorkOrder"
                         >
                             <ShieldCheck class="ms-1.5 h-4 w-4" />
@@ -688,14 +609,14 @@ watch(pickupDialogOpen, (isOpen) => { if (!isOpen) closePickupDialog(); });
 
                 <article class="group rounded-2xl bg-white p-5 shadow-[0_8px_30px_rgb(15,23,42,0.05)] transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_12px_40px_rgb(15,23,42,0.08)]">
                     <div class="mb-4 flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-500/10 text-emerald-600">
-                        <Truck class="h-5 w-5" />
+                        <Camera class="h-5 w-5" />
                     </div>
-                    <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">موعد الاستلام</p>
+                    <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">صور التركيب</p>
                     <p class="mt-1 text-lg font-bold text-slate-900">
-                        {{ pickupProgress.done ? formatWhen(installedLines.find((l) => l.pickup_at)?.pickup_at) : 'بعد انتهاء الفعالية' }}
+                        {{ photoStats.installation }}/{{ installProgress.total }}
                     </p>
                     <p class="mt-1 text-sm text-slate-500">
-                        {{ pickupProgress.done }}/{{ pickupProgress.total || installProgress.total }} تم استلامها
+                        {{ percent(photoStats.installation, installProgress.total) }}% مرفوعة
                     </p>
                 </article>
             </section>
@@ -781,7 +702,7 @@ watch(pickupDialogOpen, (isOpen) => { if (!isOpen) closePickupDialog(); });
                 <p v-else class="mt-4 text-sm text-slate-500">لم يُعيَّن عامل تركيب بعد.</p>
             </section>
 
-            <!-- Photo review for workers manager (approve after viewing install + pickup photos) -->
+            <!-- Photo review for workers manager -->
             <section
                 v-if="isPhotoReviewer"
                 class="rounded-2xl bg-white p-5 shadow-[0_8px_30px_rgb(15,23,42,0.05)] sm:p-6"
@@ -790,7 +711,7 @@ watch(pickupDialogOpen, (isOpen) => { if (!isOpen) closePickupDialog(); });
                     <div>
                         <h2 class="flex items-center gap-2 text-lg font-bold text-slate-900">
                             <Camera class="h-5 w-5 text-slate-500" />
-                            مراجعة صور التركيب والاستلام
+                            مراجعة صور التركيب
                         </h2>
                         <p class="mt-1 text-sm text-slate-500">
                             اطّلع على الصور قبل التعميد. اضغط على أي صورة لتكبيرها.
@@ -828,64 +749,33 @@ watch(pickupDialogOpen, (isOpen) => { if (!isOpen) closePickupDialog(); });
                             </div>
                             <div class="min-w-0 flex-1">
                                 <h3 class="truncate font-semibold text-slate-900">{{ line.product_name }}</h3>
-                                <p v-if="line.pickup_condition" class="text-xs text-slate-500">
-                                    حالة الاستلام: {{ conditionLabels[line.pickup_condition].label }}
-                                </p>
                             </div>
                         </div>
 
-                        <div class="grid gap-4 p-4 sm:grid-cols-2">
-                            <div>
-                                <p class="mb-2 text-xs font-semibold text-slate-500">صورة التركيب</p>
-                                <button
-                                    v-if="line.installation_photo_url"
-                                    type="button"
-                                    class="group relative block w-full overflow-hidden rounded-xl bg-slate-100 ring-1 ring-slate-200"
-                                    @click="openLightbox(line.installation_photo_url!, `تركيب · ${line.product_name}`)"
-                                >
-                                    <img
-                                        :src="line.installation_photo_url"
-                                        :alt="`تركيب ${line.product_name}`"
-                                        class="aspect-[4/3] w-full object-cover transition group-hover:scale-[1.02]"
-                                    />
-                                </button>
-                                <div
-                                    v-else
-                                    class="flex aspect-[4/3] items-center justify-center rounded-xl border border-dashed border-slate-200 bg-white text-sm text-slate-400"
-                                >
-                                    لا توجد صورة
-                                </div>
-                                <p v-if="line.completed_at" class="mt-2 text-xs text-slate-400">
-                                    {{ formatWhen(line.completed_at) }}
-                                    <span v-if="line.completed_by_user?.name"> · {{ line.completed_by_user.name }}</span>
-                                </p>
+                        <div class="p-4">
+                            <p class="mb-2 text-xs font-semibold text-slate-500">صورة التركيب</p>
+                            <button
+                                v-if="line.installation_photo_url"
+                                type="button"
+                                class="group relative block w-full max-w-md overflow-hidden rounded-xl bg-slate-100 ring-1 ring-slate-200"
+                                @click="openLightbox(line.installation_photo_url!, `تركيب · ${line.product_name}`)"
+                            >
+                                <img
+                                    :src="line.installation_photo_url"
+                                    :alt="`تركيب ${line.product_name}`"
+                                    class="aspect-[4/3] w-full object-cover transition group-hover:scale-[1.02]"
+                                />
+                            </button>
+                            <div
+                                v-else
+                                class="flex aspect-[4/3] max-w-md items-center justify-center rounded-xl border border-dashed border-slate-200 bg-white text-sm text-slate-400"
+                            >
+                                لا توجد صورة
                             </div>
-
-                            <div>
-                                <p class="mb-2 text-xs font-semibold text-slate-500">صورة الاستلام والفك</p>
-                                <button
-                                    v-if="line.pickup_photo_url"
-                                    type="button"
-                                    class="group relative block w-full overflow-hidden rounded-xl bg-slate-100 ring-1 ring-slate-200"
-                                    @click="openLightbox(line.pickup_photo_url!, `استلام · ${line.product_name}`)"
-                                >
-                                    <img
-                                        :src="line.pickup_photo_url"
-                                        :alt="`استلام ${line.product_name}`"
-                                        class="aspect-[4/3] w-full object-cover transition group-hover:scale-[1.02]"
-                                    />
-                                </button>
-                                <div
-                                    v-else
-                                    class="flex aspect-[4/3] items-center justify-center rounded-xl border border-dashed border-slate-200 bg-white text-sm text-slate-400"
-                                >
-                                    لا توجد صورة
-                                </div>
-                                <p v-if="line.pickup_at" class="mt-2 text-xs text-slate-400">
-                                    {{ formatWhen(line.pickup_at) }}
-                                    <span v-if="line.pickup_by_user?.name"> · {{ line.pickup_by_user.name }}</span>
-                                </p>
-                            </div>
+                            <p v-if="line.completed_at" class="mt-2 text-xs text-slate-400">
+                                {{ formatWhen(line.completed_at) }}
+                                <span v-if="line.completed_by_user?.name"> · {{ line.completed_by_user.name }}</span>
+                            </p>
                         </div>
                     </article>
                 </div>
@@ -932,18 +822,6 @@ watch(pickupDialogOpen, (isOpen) => { if (!isOpen) closePickupDialog(); });
                                 <div
                                     class="h-full rounded-full bg-[#2563EB] transition-all duration-500"
                                     :style="{ width: `${percent(installProgress.done, installProgress.total)}%` }"
-                                />
-                            </div>
-                        </div>
-                        <div>
-                            <div class="mb-2 flex items-center justify-between text-sm">
-                                <span class="text-slate-500">تقدم الاستلام</span>
-                                <span class="font-semibold tabular-nums text-slate-800">{{ percent(pickupProgress.done, pickupProgress.total || 1) }}%</span>
-                            </div>
-                            <div class="h-2.5 overflow-hidden rounded-full bg-slate-100">
-                                <div
-                                    class="h-full rounded-full bg-[#22C55E] transition-all duration-500"
-                                    :style="{ width: `${percent(pickupProgress.done, pickupProgress.total || 1)}%` }"
                                 />
                             </div>
                         </div>
@@ -1035,17 +913,10 @@ watch(pickupDialogOpen, (isOpen) => { if (!isOpen) closePickupDialog(); });
 
                 <article class="rounded-2xl bg-white p-6 shadow-[0_8px_30px_rgb(15,23,42,0.05)]">
                     <p class="text-sm font-semibold text-slate-900">إحصائيات الصور</p>
-                    <div class="mt-5 grid grid-cols-2 gap-3">
-                        <div class="rounded-2xl bg-slate-50 p-4">
-                            <Camera class="h-4 w-4 text-[#2563EB]" />
-                            <p class="mt-3 text-2xl font-bold text-slate-900">{{ photoStats.installation }}</p>
-                            <p class="text-xs text-slate-500">صور تركيب</p>
-                        </div>
-                        <div class="rounded-2xl bg-slate-50 p-4">
-                            <PackageOpen class="h-4 w-4 text-emerald-600" />
-                            <p class="mt-3 text-2xl font-bold text-slate-900">{{ photoStats.pickup }}</p>
-                            <p class="text-xs text-slate-500">صور استلام</p>
-                        </div>
+                    <div class="mt-5 rounded-2xl bg-slate-50 p-4">
+                        <Camera class="h-4 w-4 text-[#2563EB]" />
+                        <p class="mt-3 text-2xl font-bold text-slate-900">{{ photoStats.installation }}</p>
+                        <p class="text-xs text-slate-500">صور تركيب مرفوعة</p>
                     </div>
                 </article>
 
@@ -1179,111 +1050,6 @@ watch(pickupDialogOpen, (isOpen) => { if (!isOpen) closePickupDialog(); });
                 </div>
             </section>
 
-            <!-- PICKUP -->
-            <section v-else-if="activeTab === 'pickup'" class="space-y-4">
-                <article class="rounded-2xl bg-white p-6 shadow-[0_8px_30px_rgb(15,23,42,0.05)]">
-                    <div class="flex flex-wrap items-center justify-between gap-3">
-                        <div>
-                            <h2 class="text-lg font-bold text-slate-900">الاستلام والفك</h2>
-                            <p class="mt-1 text-sm text-slate-500">
-                                {{ isPhotoReviewer
-                                    ? 'راجع صور الاستلام وحالة المنتج قبل التعميد.'
-                                    : 'وثّق حالة المنتج عند الاستلام من العميل (كسر / تلف / سليم).' }}
-                            </p>
-                        </div>
-                        <span class="rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700 ring-1 ring-amber-200">
-                            {{ pickupProgress.done }}/{{ installedLines.length }} مستلم
-                        </span>
-                    </div>
-                </article>
-
-                <div
-                    v-if="!installedLines.length"
-                    class="rounded-2xl border border-dashed border-slate-200 bg-white px-6 py-16 text-center shadow-sm"
-                >
-                    <PackageOpen class="mx-auto h-10 w-10 text-slate-300" />
-                    <p class="mt-4 font-semibold text-slate-700">لا توجد منتجات مركّبة بعد</p>
-                    <p class="mt-1 text-sm text-slate-400">ارفع صور التركيب أولاً لتظهر هنا مرحلة الاستلام.</p>
-                    <Button class="mt-5 rounded-xl bg-[#2563EB]" @click="activeTab = 'installation'">
-                        الذهاب للتركيب
-                    </Button>
-                </div>
-
-                <div v-else class="grid gap-4 md:grid-cols-2">
-                    <article
-                        v-for="line in installedLines"
-                        :key="`pickup-${line.id}`"
-                        class="rounded-2xl bg-white p-5 shadow-[0_8px_30px_rgb(15,23,42,0.05)] transition hover:-translate-y-0.5 hover:shadow-[0_12px_40px_rgb(15,23,42,0.08)]"
-                    >
-                        <div class="flex gap-4">
-                            <div class="h-20 w-20 shrink-0 overflow-hidden rounded-2xl bg-slate-100">
-                                <img
-                                    v-if="line.product_image_url"
-                                    :src="line.product_image_url"
-                                    :alt="line.product_name"
-                                    class="h-full w-full object-cover"
-                                />
-                                <div v-else class="flex h-full w-full items-center justify-center text-slate-300">
-                                    <ImageIcon class="h-7 w-7" />
-                                </div>
-                            </div>
-                            <div class="min-w-0 flex-1">
-                                <div class="flex items-start justify-between gap-2">
-                                    <h3 class="font-bold text-slate-900">{{ line.product_name }}</h3>
-                                    <span
-                                        v-if="line.pickup_condition"
-                                        class="rounded-full px-2.5 py-0.5 text-[11px] font-semibold ring-1 ring-inset"
-                                        :class="conditionLabels[line.pickup_condition].class"
-                                    >
-                                        {{ conditionLabels[line.pickup_condition].label }}
-                                    </span>
-                                    <span
-                                        v-else
-                                        class="rounded-full bg-amber-50 px-2.5 py-0.5 text-[11px] font-semibold text-amber-700"
-                                    >
-                                        بانتظار الفك
-                                    </span>
-                                </div>
-                                <p class="mt-2 text-xs text-slate-500">
-                                    {{ line.pickup_by_user?.name || '—' }} · {{ formatWhen(line.pickup_at) }}
-                                </p>
-                                <div class="mt-4 flex flex-wrap items-center gap-2">
-                                    <button
-                                        v-if="line.pickup_photo_url"
-                                        type="button"
-                                        class="group relative overflow-hidden rounded-xl ring-1 ring-slate-200"
-                                        :class="isPhotoReviewer ? 'w-full max-w-xs' : 'h-16 w-16'"
-                                        @click="openLightbox(line.pickup_photo_url!, `فك · ${line.product_name}`)"
-                                    >
-                                        <img
-                                            :src="line.pickup_photo_url"
-                                            alt="صورة الفك"
-                                            class="object-cover transition duration-300 group-hover:scale-110"
-                                            :class="isPhotoReviewer ? 'aspect-[4/3] w-full' : 'h-full w-full'"
-                                        />
-                                    </button>
-                                    <Button
-                                        v-if="canUploadPhotos && !line.pickup_photo_url"
-                                        size="sm"
-                                        class="h-9 rounded-xl bg-[#2563EB] hover:bg-[#1D4ED8]"
-                                        @click="openPickupDialog(line)"
-                                    >
-                                        <Camera class="ms-1.5 h-4 w-4" />
-                                        رفع صورة الفك
-                                    </Button>
-                                    <span v-else-if="line.pickup_photo_url" class="text-xs font-medium text-emerald-600">
-                                        صورة مرفوعة ✓ — اضغط للتكبير
-                                    </span>
-                                    <span v-else-if="!canUploadPhotos" class="text-xs font-medium text-amber-600">
-                                        بانتظار رفع العامل للصورة
-                                    </span>
-                                </div>
-                            </div>
-                        </div>
-                    </article>
-                </div>
-            </section>
-
             <!-- GAMES -->
             <section v-else-if="activeTab === 'games'" class="space-y-4">
                 <div class="flex flex-wrap items-center justify-between gap-3">
@@ -1322,19 +1088,6 @@ watch(pickupDialogOpen, (isOpen) => { if (!isOpen) closePickupDialog(); });
                                 >
                                     تركيب: {{ line.status === 'completed' ? 'مكتمل' : 'قيد الانتظار' }}
                                 </span>
-                                <span
-                                    class="rounded-full px-2.5 py-0.5 text-[11px] font-semibold"
-                                    :class="line.pickup_photo_url ? 'bg-sky-50 text-sky-700' : 'bg-slate-100 text-slate-500'"
-                                >
-                                    استلام: {{ line.pickup_photo_url ? 'مكتمل' : '—' }}
-                                </span>
-                                <span
-                                    v-if="line.pickup_condition"
-                                    class="rounded-full px-2.5 py-0.5 text-[11px] font-semibold ring-1 ring-inset"
-                                    :class="conditionLabels[line.pickup_condition].class"
-                                >
-                                    {{ conditionLabels[line.pickup_condition].label }}
-                                </span>
                             </div>
                             <div class="flex gap-2 pt-1">
                                 <Button
@@ -1344,14 +1097,6 @@ watch(pickupDialogOpen, (isOpen) => { if (!isOpen) closePickupDialog(); });
                                     @click="openCompleteDialog(line)"
                                 >
                                     رفع تركيب
-                                </Button>
-                                <Button
-                                    v-else-if="canUploadPhotos && !line.pickup_photo_url"
-                                    size="sm"
-                                    class="h-9 flex-1 rounded-xl bg-[#2563EB]"
-                                    @click="openPickupDialog(line)"
-                                >
-                                    رفع استلام
                                 </Button>
                                 <Button
                                     v-else
@@ -1436,7 +1181,7 @@ watch(pickupDialogOpen, (isOpen) => { if (!isOpen) closePickupDialog(); });
             <section v-else-if="activeTab === 'timeline'">
                 <article class="rounded-2xl bg-white p-6 shadow-[0_8px_30px_rgb(15,23,42,0.05)] sm:p-8">
                     <h2 class="text-lg font-bold text-slate-900">الجدول الزمني للفعالية</h2>
-                    <p class="mt-1 text-sm text-slate-500">تتبع كل مرحلة من الإنشاء حتى اكتمال الاستلام</p>
+                    <p class="mt-1 text-sm text-slate-500">تتبع كل مرحلة من الإنشاء حتى اكتمال التركيب</p>
 
                     <ol class="relative mt-8 space-y-0 border-s-2 border-slate-100 ms-3">
                         <li
@@ -1513,73 +1258,6 @@ watch(pickupDialogOpen, (isOpen) => { if (!isOpen) closePickupDialog(); });
                     <Button variant="outline" class="h-11 rounded-xl" @click="closeCompleteDialog">إلغاء</Button>
                     <Button class="h-11 rounded-xl bg-[#2563EB]" :disabled="completeForm.processing" @click="submitCompletion">
                         {{ completeForm.processing ? 'جاري الإرسال...' : 'إرسال' }}
-                    </Button>
-                </div>
-            </div>
-        </div>
-    </Teleport>
-
-    <!-- Pickup dialog -->
-    <Teleport to="body">
-        <div
-            v-if="pickupDialogOpen && selectedPickupLine"
-            class="fixed inset-0 z-[200] flex items-end justify-center p-0 sm:items-center sm:p-4"
-            role="dialog"
-            aria-modal="true"
-        >
-            <button type="button" class="absolute inset-0 bg-slate-900/50 backdrop-blur-[2px]" aria-label="إغلاق" @click="closePickupDialog" />
-            <div class="relative z-10 flex max-h-[92vh] w-full max-w-lg flex-col overflow-hidden rounded-t-3xl bg-white shadow-2xl sm:rounded-3xl" dir="rtl">
-                <div class="flex items-start justify-between gap-3 border-b border-slate-100 px-5 py-4">
-                    <div>
-                        <h2 class="text-lg font-bold text-slate-900">رفع صورة الاستلام والفك</h2>
-                        <p class="mt-1 text-sm text-slate-500">وثّق حالة المنتج عند الاستلام</p>
-                    </div>
-                    <button type="button" class="flex h-9 w-9 items-center justify-center rounded-full bg-slate-50 text-slate-500" @click="closePickupDialog">
-                        <X class="h-4 w-4" />
-                    </button>
-                </div>
-                <div class="space-y-4 overflow-y-auto px-5 py-4">
-                    <div class="rounded-2xl bg-slate-50 p-3 text-sm font-semibold text-slate-800">{{ selectedPickupLine.product_name }}</div>
-
-                    <div class="space-y-2">
-                        <Label>حالة المنتج</Label>
-                        <div class="grid grid-cols-2 gap-2">
-                            <button
-                                v-for="(meta, key) in conditionLabels"
-                                :key="key"
-                                type="button"
-                                class="rounded-xl px-3 py-2.5 text-sm font-semibold ring-1 transition"
-                                :class="pickupForm.pickup_condition === key
-                                    ? meta.class + ' ring-2'
-                                    : 'bg-white text-slate-600 ring-slate-200 hover:bg-slate-50'"
-                                @click="pickupForm.pickup_condition = key as PickupCondition"
-                            >
-                                {{ meta.label }}
-                            </button>
-                        </div>
-                        <p v-if="pickupForm.errors.pickup_condition" class="text-sm text-rose-600">
-                            {{ pickupForm.errors.pickup_condition }}
-                        </p>
-                    </div>
-
-                    <input ref="pickupPhotoInputRef" type="file" accept="image/*" class="hidden" @change="handlePickupPhotoChange" />
-                    <button
-                        type="button"
-                        class="flex min-h-32 w-full flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-[#2563EB]/30 bg-[#2563EB]/5 px-4 py-6 transition hover:border-[#2563EB]/50"
-                        @click="pickupPhotoInputRef?.click()"
-                    >
-                        <Camera class="h-8 w-8 text-[#2563EB]" />
-                        <p class="font-semibold text-slate-800">اضغط لرفع صورة الفك</p>
-                    </button>
-                    <p v-if="pickupPhotoError || pickupForm.errors.pickup_photo" class="text-sm text-rose-600">
-                        {{ pickupPhotoError || pickupForm.errors.pickup_photo }}
-                    </p>
-                    <img v-if="pickupPhotoPreview" :src="pickupPhotoPreview" alt="معاينة" class="max-h-56 w-full rounded-2xl object-cover" />
-                </div>
-                <div class="grid grid-cols-2 gap-2 border-t border-slate-100 px-5 py-4">
-                    <Button variant="outline" class="h-11 rounded-xl" @click="closePickupDialog">إلغاء</Button>
-                    <Button class="h-11 rounded-xl bg-[#2563EB]" :disabled="pickupForm.processing" @click="submitPickup">
-                        {{ pickupForm.processing ? 'جاري الإرسال...' : 'حفظ' }}
                     </Button>
                 </div>
             </div>

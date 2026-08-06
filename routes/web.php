@@ -44,8 +44,6 @@ Route::middleware(['pwa'])->prefix('worker-app')->name('pwa.')->group(function (
             ->name('installations.show');
         Route::post('installations/lines/{workerOrder}/complete', [\App\Http\Controllers\Pwa\WorkerInstallationController::class, 'complete'])
             ->name('installations.complete');
-        Route::post('installations/lines/{workerOrder}/pickup', [\App\Http\Controllers\Pwa\WorkerInstallationController::class, 'pickup'])
-            ->name('installations.pickup');
         Route::post('installations/{order}/notes', [\App\Http\Controllers\Pwa\WorkerInstallationController::class, 'storeNote'])
             ->name('installations.notes.store');
         Route::post('logout', [\App\Http\Controllers\Pwa\WorkerAuthController::class, 'destroy'])
@@ -403,10 +401,6 @@ Route::get('worker-orders/{workOrderKey}', [\App\Http\Controllers\WorkerOrderCon
 Route::post('worker-orders/lines/{workerOrder}/complete', [\App\Http\Controllers\WorkerOrderController::class, 'complete'])
     ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,workers_manager'])
     ->name('worker-orders.complete');
-
-Route::post('worker-orders/lines/{workerOrder}/pickup', [\App\Http\Controllers\WorkerOrderController::class, 'completePickup'])
-    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,workers_manager'])
-    ->name('worker-orders.pickup');
 
 Route::post('worker-orders/{workOrderKey}/approve', [\App\Http\Controllers\WorkerOrderController::class, 'approve'])
     ->middleware(['auth', 'verified', 'role:admin,manager,workers_manager'])

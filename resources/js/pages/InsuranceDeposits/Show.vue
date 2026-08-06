@@ -24,10 +24,6 @@ interface WorkerLine {
     installation_photo_url: string | null;
     completed_at: string | null;
     completed_by_name: string | null;
-    pickup_photo_url: string | null;
-    pickup_at: string | null;
-    pickup_by_name: string | null;
-    pickup_condition: string | null;
 }
 
 interface Deposit {
@@ -97,13 +93,6 @@ const statusMeta: Record<string, { label: string; class: string }> = {
     refunded: { label: 'تم الاسترداد', class: 'bg-emerald-50 text-emerald-700 ring-emerald-200' },
     withheld: { label: 'محجوز', class: 'bg-rose-50 text-rose-700 ring-rose-200' },
     none: { label: '—', class: 'bg-slate-50 text-slate-600 ring-slate-200' },
-};
-
-const conditionLabels: Record<string, string> = {
-    excellent: 'ممتاز',
-    good: 'جيد',
-    damaged: 'تالف جزئياً',
-    broken: 'مكسور',
 };
 
 function openLightbox(url: string, label: string) {
@@ -228,9 +217,9 @@ async function markWithheld() {
                         <ArrowRight class="h-4 w-4" />
                         العودة لاسترداد التأمين
                     </Link>
-                    <h1 class="text-2xl font-bold text-slate-900">مراجعة التركيب والاستلام</h1>
+                    <h1 class="text-2xl font-bold text-slate-900">مراجعة التركيب</h1>
                     <p class="mt-1 text-sm text-slate-500">
-                        راجع صور المنتجات قبل التعميد
+                        راجع صور التركيب قبل التعميد
                     </p>
                 </div>
                 <span
@@ -334,64 +323,33 @@ async function markWithheld() {
                         </div>
                         <div class="min-w-0 flex-1">
                             <h3 class="truncate font-semibold text-slate-900">{{ line.product_name }}</h3>
-                            <p v-if="line.pickup_condition" class="text-xs text-slate-500">
-                                حالة الاستلام: {{ conditionLabels[line.pickup_condition] || line.pickup_condition }}
-                            </p>
                         </div>
                     </div>
 
-                    <div class="grid gap-4 p-4 sm:grid-cols-2 sm:p-5">
-                        <div>
-                            <p class="mb-2 text-xs font-semibold text-slate-500">صورة التركيب</p>
-                            <button
-                                v-if="line.installation_photo_url"
-                                type="button"
-                                class="group relative block w-full overflow-hidden rounded-xl bg-slate-100 ring-1 ring-slate-200"
-                                @click="openLightbox(line.installation_photo_url!, `تركيب · ${line.product_name}`)"
-                            >
-                                <img
-                                    :src="line.installation_photo_url"
-                                    :alt="`تركيب ${line.product_name}`"
-                                    class="aspect-[4/3] w-full object-cover transition group-hover:scale-[1.02]"
-                                />
-                            </button>
-                            <div
-                                v-else
-                                class="flex aspect-[4/3] items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50 text-sm text-slate-400"
-                            >
-                                لا توجد صورة
-                            </div>
-                            <p v-if="line.completed_at" class="mt-2 text-xs text-slate-400">
-                                {{ formatDateTime(line.completed_at) }}
-                                <span v-if="line.completed_by_name"> · {{ line.completed_by_name }}</span>
-                            </p>
+                    <div class="p-4 sm:p-5">
+                        <p class="mb-2 text-xs font-semibold text-slate-500">صورة التركيب</p>
+                        <button
+                            v-if="line.installation_photo_url"
+                            type="button"
+                            class="group relative block w-full max-w-md overflow-hidden rounded-xl bg-slate-100 ring-1 ring-slate-200"
+                            @click="openLightbox(line.installation_photo_url!, `تركيب · ${line.product_name}`)"
+                        >
+                            <img
+                                :src="line.installation_photo_url"
+                                :alt="`تركيب ${line.product_name}`"
+                                class="aspect-[4/3] w-full object-cover transition group-hover:scale-[1.02]"
+                            />
+                        </button>
+                        <div
+                            v-else
+                            class="flex aspect-[4/3] max-w-md items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50 text-sm text-slate-400"
+                        >
+                            لا توجد صورة
                         </div>
-
-                        <div>
-                            <p class="mb-2 text-xs font-semibold text-slate-500">صورة الاستلام والفك</p>
-                            <button
-                                v-if="line.pickup_photo_url"
-                                type="button"
-                                class="group relative block w-full overflow-hidden rounded-xl bg-slate-100 ring-1 ring-slate-200"
-                                @click="openLightbox(line.pickup_photo_url!, `استلام · ${line.product_name}`)"
-                            >
-                                <img
-                                    :src="line.pickup_photo_url"
-                                    :alt="`استلام ${line.product_name}`"
-                                    class="aspect-[4/3] w-full object-cover transition group-hover:scale-[1.02]"
-                                />
-                            </button>
-                            <div
-                                v-else
-                                class="flex aspect-[4/3] items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50 text-sm text-slate-400"
-                            >
-                                لا توجد صورة
-                            </div>
-                            <p v-if="line.pickup_at" class="mt-2 text-xs text-slate-400">
-                                {{ formatDateTime(line.pickup_at) }}
-                                <span v-if="line.pickup_by_name"> · {{ line.pickup_by_name }}</span>
-                            </p>
-                        </div>
+                        <p v-if="line.completed_at" class="mt-2 text-xs text-slate-400">
+                            {{ formatDateTime(line.completed_at) }}
+                            <span v-if="line.completed_by_name"> · {{ line.completed_by_name }}</span>
+                        </p>
                     </div>
                 </article>
             </div>

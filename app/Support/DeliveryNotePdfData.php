@@ -127,14 +127,12 @@ class DeliveryNotePdfData
     }
 
     /**
-     * Product lines that have installation and/or pickup photos for the PDF.
+     * Product lines that have installation photos for the PDF.
      *
      * @return array<int, array{
      *     name: string,
      *     installation_photo_path: string|null,
-     *     pickup_photo_path: string|null,
-     *     has_installation_photo: bool,
-     *     has_pickup_photo: bool
+     *     has_installation_photo: bool
      * }>
      */
     public function photoLines(): array
@@ -142,17 +140,14 @@ class DeliveryNotePdfData
         return $this->order->workerOrders
             ->map(function ($line) {
                 $installationPath = $this->absoluteStoragePath($line->installation_photo);
-                $pickupPath = $this->absoluteStoragePath($line->pickup_photo);
 
                 return [
                     'name' => $line->product_name,
                     'installation_photo_path' => $installationPath,
-                    'pickup_photo_path' => $pickupPath,
                     'has_installation_photo' => $installationPath !== null,
-                    'has_pickup_photo' => $pickupPath !== null,
                 ];
             })
-            ->filter(fn (array $row) => $row['has_installation_photo'] || $row['has_pickup_photo'])
+            ->filter(fn (array $row) => $row['has_installation_photo'])
             ->values()
             ->all();
     }

@@ -13,17 +13,11 @@ import {
     Package,
     Phone,
     ShieldAlert,
-    Timer,
-    Truck,
     X,
 } from 'lucide-vue-next';
 import { formatDate, formatDateTime } from '@/lib/formatNumber';
 import WorkerLanguageSwitcher from '../components/WorkerLanguageSwitcher.vue';
 import { useI18n } from '../i18n';
-import type { MessageKey } from '../i18n/messages';
-
-type PickupCondition = 'excellent' | 'good' | 'damaged' | 'broken';
-type CaptureMode = 'install' | 'pickup';
 
 interface ProductLine {
     id: number;
@@ -32,9 +26,6 @@ interface ProductLine {
     status: 'pending' | 'completed';
     installation_photo_url: string | null;
     completed_at: string | null;
-    pickup_photo_url: string | null;
-    pickup_at: string | null;
-    pickup_condition: PickupCondition | null;
 }
 
 interface WorkNote {
@@ -43,15 +34,6 @@ interface WorkNote {
     user_name: string;
     is_mine: boolean;
     created_at: string | null;
-}
-
-interface LatePenalty {
-    is_late: boolean;
-    delay_minutes: number;
-    delay_hours: number;
-    delay_remainder_minutes: number;
-    scheduled_at: string | null;
-    installed_at: string | null;
 }
 
 interface Installation {
@@ -64,9 +46,7 @@ interface Installation {
     products_count: number;
     pending_count: number;
     completed_count: number;
-    pending_pickup_count: number;
     is_approved: boolean;
-    late_penalty: LatePenalty | null;
     status: 'pending' | 'completed';
     products: ProductLine[];
     notes: WorkNote[];
@@ -81,15 +61,7 @@ const page = usePage();
 const { t, isRtl, dir } = useI18n();
 const successMessage = computed(() => page.props.flash?.success as string | undefined);
 
-const conditionKeys: { key: PickupCondition; labelKey: MessageKey }[] = [
-    { key: 'excellent', labelKey: 'condition_excellent' },
-    { key: 'good', labelKey: 'condition_good' },
-    { key: 'damaged', labelKey: 'condition_damaged' },
-    { key: 'broken', labelKey: 'condition_broken' },
-];
-
 const selectedProduct = ref<ProductLine | null>(null);
-const captureMode = ref<CaptureMode>('install');
 const dialogOpen = ref(false);
 const photoPreview = ref<string | null>(null);
 const photoError = ref<string | null>(null);
@@ -97,11 +69,6 @@ const fileInputRef = ref<HTMLInputElement | null>(null);
 
 const installForm = useForm({
     installation_photo: null as File | null,
-});
-
-const pickupForm = useForm({
-    pickup_photo: null as File | null,
-    pickup_condition: 'good' as PickupCondition,
 });
 
 const noteForm = useForm({
@@ -112,32 +79,15 @@ const pendingProducts = computed(() =>
     props.installation.products.filter((p) => p.status === 'pending'),
 );
 
-const awaitingPickupProducts = computed(() =>
-    props.installation.products.filter((p) => p.status === 'completed' && !p.pickup_photo_url),
-);
-
 const finishedProducts = computed(() =>
-    props.installation.products.filter((p) => p.status === 'completed' && !!p.pickup_photo_url),
+    props.installation.products.filter((p) => p.status === 'completed'),
 );
 
 const notes = computed(() => props.installation.notes ?? []);
 
-const activeForm = computed(() => (captureMode.value === 'install' ? installForm : pickupForm));
-
 const pageTitle = computed(() =>
     t('install_title', { name: props.installation.customer_name }),
 );
-
-function conditionLabel(key: PickupCondition): string {
-    const map: Record<PickupCondition, MessageKey> = {
-        excellent: 'condition_excellent',
-        good: 'condition_good',
-        damaged: 'condition_damaged',
-        broken: 'condition_broken',
-    };
-
-    return t(map[key]);
-}
 
 function formatInstallDate(date: string | null): string {
     if (!date) return t('date_unset');
@@ -156,34 +106,6 @@ function formatActivityTime(time: string | null): string {
         period,
     });
 }
-
-function formatClock(iso: string | null): string {
-    if (!iso) return '—';
-    const date = new Date(iso);
-    if (Number.isNaN(date.getTime())) return '—';
-    let hour = date.getHours();
-    const minutes = String(date.getMinutes()).padStart(2, '0');
-    const period = hour >= 12 ? 'PM' : 'AM';
-    hour = hour % 12 || 12;
-    return `${hour}:${minutes} ${period}`;
-}
-
-function formatDelay(penalty: LatePenalty): string {
-    if (penalty.delay_hours > 0 && penalty.delay_remainder_minutes > 0) {
-        return t('delay_hours_minutes', {
-            hours: penalty.delay_hours,
-            minutes: penalty.delay_remainder_minutes,
-        });
-    }
-    if (penalty.delay_hours > 0) {
-        return t('delay_hours_only', { hours: penalty.delay_hours });
-    }
-    return t('delay_minutes_only', { minutes: penalty.delay_minutes });
-}
-
-const latePenalty = computed(() =>
-    props.installation.late_penalty?.is_late ? props.installation.late_penalty : null,
-);
 
 function submitNote() {
     const body = noteForm.body.trim();
@@ -208,21 +130,9 @@ function clearPreview() {
 }
 
 function openInstallCapture(product: ProductLine) {
-    captureMode.value = 'install';
     selectedProduct.value = product;
     installForm.reset();
     installForm.clearErrors();
-    photoError.value = null;
-    clearPreview();
-    dialogOpen.value = true;
-}
-
-function openPickupCapture(product: ProductLine) {
-    captureMode.value = 'pickup';
-    selectedProduct.value = product;
-    pickupForm.reset();
-    pickupForm.pickup_condition = 'good';
-    pickupForm.clearErrors();
     photoError.value = null;
     clearPreview();
     dialogOpen.value = true;
@@ -233,9 +143,6 @@ function closeCapture() {
     selectedProduct.value = null;
     installForm.reset();
     installForm.clearErrors();
-    pickupForm.reset();
-    pickupForm.pickup_condition = 'good';
-    pickupForm.clearErrors();
     photoError.value = null;
     clearPreview();
     if (fileInputRef.value) fileInputRef.value.value = '';
@@ -246,39 +153,19 @@ function handlePhotoChange(event: Event) {
     clearPreview();
     photoPreview.value = file ? URL.createObjectURL(file) : null;
     photoError.value = null;
-
-    if (captureMode.value === 'install') {
-        installForm.installation_photo = file;
-        installForm.clearErrors('installation_photo');
-    } else {
-        pickupForm.pickup_photo = file;
-        pickupForm.clearErrors('pickup_photo');
-    }
+    installForm.installation_photo = file;
+    installForm.clearErrors('installation_photo');
 }
 
 function submitCapture() {
     if (!selectedProduct.value) return;
 
-    if (captureMode.value === 'install') {
-        if (!installForm.installation_photo) {
-            photoError.value = t('need_install_photo');
-            return;
-        }
-
-        installForm.post(`/worker-app/installations/lines/${selectedProduct.value.id}/complete`, {
-            forceFormData: true,
-            preserveScroll: true,
-            onSuccess: () => closeCapture(),
-        });
+    if (!installForm.installation_photo) {
+        photoError.value = t('need_install_photo');
         return;
     }
 
-    if (!pickupForm.pickup_photo) {
-        photoError.value = t('need_pickup_photo');
-        return;
-    }
-
-    pickupForm.post(`/worker-app/installations/lines/${selectedProduct.value.id}/pickup`, {
+    installForm.post(`/worker-app/installations/lines/${selectedProduct.value.id}/complete`, {
         forceFormData: true,
         preserveScroll: true,
         onSuccess: () => closeCapture(),
@@ -291,8 +178,7 @@ onBeforeUnmount(() => {
 
 const allPhotosDone = computed(() =>
     props.installation.products_count > 0
-    && props.installation.completed_count === props.installation.products_count
-    && props.installation.pending_pickup_count === 0,
+    && props.installation.completed_count === props.installation.products_count,
 );
 
 const waitApproval = computed(() => allPhotosDone.value && !props.installation.is_approved);
@@ -346,27 +232,6 @@ function confirmLeave() {
                 {{ successMessage }}
             </div>
 
-            <div
-                v-if="latePenalty"
-                class="rounded-3xl border border-rose-200 bg-gradient-to-br from-rose-50 to-orange-50 p-4 shadow-sm"
-            >
-                <div class="flex items-start gap-3">
-                    <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-rose-500 text-white shadow-md shadow-rose-500/30">
-                        <Timer class="h-5 w-5" />
-                    </span>
-                    <div class="min-w-0">
-                        <p class="font-bold text-rose-900">{{ t('late_penalty_title') }}</p>
-                        <p class="mt-1 text-sm leading-relaxed text-rose-800">
-                            {{ t('late_penalty_body', {
-                                scheduled: formatClock(latePenalty.scheduled_at),
-                                installed: formatClock(latePenalty.installed_at),
-                                delay: formatDelay(latePenalty),
-                            }) }}
-                        </p>
-                    </div>
-                </div>
-            </div>
-
             <section class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
                 <div class="flex items-start justify-between gap-3">
                     <div class="min-w-0 space-y-3">
@@ -379,17 +244,9 @@ function confirmLeave() {
                             <p class="mt-1 font-semibold text-slate-900" dir="ltr">{{ formatActivityTime(installation.activity_time) }}</p>
                         </div>
                     </div>
-                    <div class="flex flex-col items-end gap-1">
-                        <span class="rounded-full bg-sky-50 px-2.5 py-1 text-[11px] font-semibold text-sky-700 ring-1 ring-sky-100">
-                            {{ t('install_progress', { done: installation.completed_count, total: installation.products_count }) }}
-                        </span>
-                        <span class="rounded-full bg-violet-50 px-2.5 py-1 text-[11px] font-semibold text-violet-700 ring-1 ring-violet-100">
-                            {{ t('pickup_progress', {
-                                done: installation.products_count - installation.pending_pickup_count,
-                                total: installation.products_count,
-                            }) }}
-                        </span>
-                    </div>
+                    <span class="rounded-full bg-sky-50 px-2.5 py-1 text-[11px] font-semibold text-sky-700 ring-1 ring-sky-100">
+                        {{ t('install_progress', { done: installation.completed_count, total: installation.products_count }) }}
+                    </span>
                 </div>
 
                 <div class="mt-4 space-y-3 text-sm">
@@ -503,93 +360,26 @@ function confirmLeave() {
                 </div>
             </section>
 
-            <section v-if="awaitingPickupProducts.length" class="space-y-3">
-                <h2 class="px-1 text-sm font-semibold text-slate-700">{{ t('pickup_before_dismantle') }}</h2>
-                <p class="px-1 text-xs text-slate-500">{{ t('pickup_before_hint') }}</p>
-
-                <article
-                    v-for="product in awaitingPickupProducts"
-                    :key="`pickup-${product.id}`"
-                    class="overflow-hidden rounded-3xl border border-violet-100 bg-white shadow-sm"
-                >
-                    <div class="grid grid-cols-2 gap-0">
-                        <div class="aspect-square bg-slate-100">
-                            <img
-                                v-if="product.product_image_url"
-                                :src="product.product_image_url"
-                                :alt="product.product_name"
-                                class="h-full w-full object-cover"
-                            />
-                            <div v-else class="flex h-full items-center justify-center text-slate-300">
-                                <Package class="h-8 w-8" />
-                            </div>
-                        </div>
-                        <div class="aspect-square bg-slate-100">
-                            <img
-                                v-if="product.installation_photo_url"
-                                :src="product.installation_photo_url"
-                                :alt="t('install_photo_alt')"
-                                class="h-full w-full object-cover"
-                            />
-                        </div>
-                    </div>
-                    <div class="space-y-3 p-4">
-                        <div class="flex items-start justify-between gap-2">
-                            <div class="min-w-0">
-                                <p class="truncate font-semibold text-slate-900">{{ product.product_name }}</p>
-                                <p class="mt-0.5 text-xs text-emerald-600">{{ t('installed_ok') }}</p>
-                            </div>
-                            <Truck class="h-5 w-5 shrink-0 text-violet-500" />
-                        </div>
-                        <button
-                            type="button"
-                            class="inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-violet-600 text-sm font-semibold text-white shadow-sm transition active:scale-[0.99] hover:bg-violet-700"
-                            @click="openPickupCapture(product)"
-                        >
-                            <Camera class="h-5 w-5" />
-                            {{ t('photo_on_pickup') }}
-                        </button>
-                    </div>
-                </article>
-            </section>
-
             <section v-if="finishedProducts.length" class="space-y-3 pb-4">
-                <h2 class="px-1 text-sm font-semibold text-slate-700">{{ t('completed_both') }}</h2>
+                <h2 class="px-1 text-sm font-semibold text-slate-700">{{ t('completed_installs') }}</h2>
                 <article
                     v-for="product in finishedProducts"
                     :key="`done-${product.id}`"
                     class="overflow-hidden rounded-3xl border border-emerald-100 bg-white shadow-sm"
                 >
-                    <div class="grid grid-cols-2 gap-0">
-                        <div class="relative aspect-square bg-slate-100">
-                            <img
-                                v-if="product.installation_photo_url"
-                                :src="product.installation_photo_url"
-                                :alt="t('install_photo_alt')"
-                                class="h-full w-full object-cover"
-                            />
-                            <span class="absolute bottom-2 start-2 rounded-md bg-black/55 px-1.5 py-0.5 text-[10px] font-medium text-white">
-                                {{ t('install') }}
-                            </span>
-                        </div>
-                        <div class="relative aspect-square bg-slate-100">
-                            <img
-                                v-if="product.pickup_photo_url"
-                                :src="product.pickup_photo_url"
-                                :alt="t('pickup_photo_alt')"
-                                class="h-full w-full object-cover"
-                            />
-                            <span class="absolute bottom-2 start-2 rounded-md bg-black/55 px-1.5 py-0.5 text-[10px] font-medium text-white">
-                                {{ t('pickup') }}
-                            </span>
-                        </div>
+                    <div class="aspect-[16/10] bg-slate-100">
+                        <img
+                            v-if="product.installation_photo_url"
+                            :src="product.installation_photo_url"
+                            :alt="t('install_photo_alt')"
+                            class="h-full w-full object-cover"
+                        />
                     </div>
                     <div class="flex items-center justify-between gap-2 p-4">
                         <div class="min-w-0">
                             <p class="truncate font-semibold text-slate-900">{{ product.product_name }}</p>
-                            <p v-if="product.pickup_condition" class="mt-0.5 text-xs text-slate-500">
-                                {{ t('condition') }}: {{ conditionLabel(product.pickup_condition) }}
-                                <span v-if="product.pickup_at"> — {{ formatDateTime(product.pickup_at) }}</span>
+                            <p v-if="product.completed_at" class="mt-0.5 text-xs text-slate-500">
+                                {{ formatDateTime(product.completed_at) }}
                             </p>
                         </div>
                         <span class="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700 ring-1 ring-emerald-100">
@@ -615,9 +405,7 @@ function confirmLeave() {
                 >
                     <div class="flex items-start justify-between gap-3 border-b border-slate-100 px-5 py-4">
                         <div class="min-w-0">
-                            <h2 class="text-lg font-bold text-slate-900">
-                                {{ captureMode === 'install' ? t('capture_install_title') : t('capture_pickup_title') }}
-                            </h2>
+                            <h2 class="text-lg font-bold text-slate-900">{{ t('capture_install_title') }}</h2>
                             <p class="mt-1 truncate text-sm text-slate-500">{{ selectedProduct.product_name }}</p>
                         </div>
                         <button
@@ -630,27 +418,6 @@ function confirmLeave() {
                     </div>
 
                     <div class="space-y-4 overflow-y-auto px-5 py-4">
-                        <div v-if="captureMode === 'pickup'" class="space-y-2">
-                            <p class="text-sm font-medium text-slate-700">{{ t('product_condition') }}</p>
-                            <div class="grid grid-cols-2 gap-2">
-                                <button
-                                    v-for="option in conditionKeys"
-                                    :key="option.key"
-                                    type="button"
-                                    class="h-11 rounded-xl text-sm font-semibold ring-1 transition"
-                                    :class="pickupForm.pickup_condition === option.key
-                                        ? 'bg-violet-600 text-white ring-violet-600'
-                                        : 'bg-slate-50 text-slate-700 ring-slate-200'"
-                                    @click="pickupForm.pickup_condition = option.key"
-                                >
-                                    {{ t(option.labelKey) }}
-                                </button>
-                            </div>
-                            <p v-if="pickupForm.errors.pickup_condition" class="text-sm text-rose-600">
-                                {{ pickupForm.errors.pickup_condition }}
-                            </p>
-                        </div>
-
                         <input
                             ref="fileInputRef"
                             type="file"
@@ -661,16 +428,11 @@ function confirmLeave() {
                         />
                         <button
                             type="button"
-                            class="flex w-full flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed px-4 py-8"
-                            :class="captureMode === 'install'
-                                ? 'border-sky-200 bg-sky-50/50 text-sky-700'
-                                : 'border-violet-200 bg-violet-50/50 text-violet-700'"
+                            class="flex w-full flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-sky-200 bg-sky-50/50 px-4 py-8 text-sky-700"
                             @click="fileInputRef?.click()"
                         >
                             <Camera class="h-8 w-8" />
-                            <p class="font-semibold">
-                                {{ captureMode === 'install' ? t('open_camera_install') : t('open_camera_pickup') }}
-                            </p>
+                            <p class="font-semibold">{{ t('open_camera_install') }}</p>
                             <p class="text-xs opacity-80">{{ t('or_gallery') }}</p>
                         </button>
 
@@ -682,10 +444,10 @@ function confirmLeave() {
                         />
 
                         <p
-                            v-if="photoError || installForm.errors.installation_photo || pickupForm.errors.pickup_photo"
+                            v-if="photoError || installForm.errors.installation_photo"
                             class="text-sm text-rose-600"
                         >
-                            {{ photoError || installForm.errors.installation_photo || pickupForm.errors.pickup_photo }}
+                            {{ photoError || installForm.errors.installation_photo }}
                         </p>
                     </div>
 
@@ -699,12 +461,11 @@ function confirmLeave() {
                         </button>
                         <button
                             type="button"
-                            class="h-12 rounded-2xl text-sm font-semibold text-white disabled:opacity-60"
-                            :class="captureMode === 'install' ? 'bg-sky-600' : 'bg-violet-600'"
-                            :disabled="activeForm.processing"
+                            class="h-12 rounded-2xl bg-sky-600 text-sm font-semibold text-white disabled:opacity-60"
+                            :disabled="installForm.processing"
                             @click="submitCapture"
                         >
-                            {{ activeForm.processing ? t('saving') : t('save_record') }}
+                            {{ installForm.processing ? t('saving') : t('save_record') }}
                         </button>
                     </div>
                 </div>

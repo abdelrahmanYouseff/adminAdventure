@@ -337,7 +337,7 @@ async function approveWorkOrder(item: WorkOrderItem) {
             title: 'لا يمكن التعميد الآن',
             text: item.photos_ready
                 ? 'تعميد أمر العمل مخصص لمدير العمال فقط.'
-                : 'يجب أن يرفع العامل صور التركيب وصور الاستلام لجميع المنتجات أولاً.',
+                : 'يجب أن يرفع العامل صور التركيب لجميع المنتجات أولاً.',
             confirmButtonText: 'حسناً',
             confirmButtonColor: '#2563EB',
         });
@@ -662,7 +662,7 @@ watch(
                                                     ? 'تم التعميد'
                                                     : item.can_approve
                                                         ? 'تعميد أمر العمل'
-                                                        : 'يلزم رفع صور التركيب والاستلام أولاً'"
+                                                        : 'يلزم رفع صور التركيب أولاً'"
                                                 @click="approveWorkOrder(item)"
                                             >
                                                 <ShieldCheck class="size-3.5 stroke-[1.75]" />

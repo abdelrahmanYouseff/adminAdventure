@@ -21,15 +21,6 @@ import type { MessageKey } from '../i18n/messages';
 type ListStatus = 'current' | 'awaiting_approval' | 'completed';
 type FilterKey = 'all' | ListStatus;
 
-interface LatePenalty {
-    is_late: boolean;
-    delay_minutes: number;
-    delay_hours: number;
-    delay_remainder_minutes: number;
-    scheduled_at: string | null;
-    installed_at: string | null;
-}
-
 interface Installation {
     id: number;
     customer_name: string;
@@ -39,12 +30,10 @@ interface Installation {
     activity_time: string | null;
     status: 'pending' | 'completed';
     list_status: ListStatus;
-    phase: 'installation' | 'pickup' | 'awaiting' | 'done';
+    phase: 'installation' | 'awaiting' | 'done';
     is_approved: boolean;
-    late_penalty: LatePenalty | null;
     products_count: number;
     pending_count: number;
-    pending_pickup_count: number;
     completed_count: number;
     preview_products: string[];
 }
@@ -113,14 +102,12 @@ function openMap(event: Event, url: string) {
 function statusLabel(item: Installation): string {
     if (item.list_status === 'awaiting_approval') return t('status_awaiting');
     if (item.list_status === 'completed') return t('status_approved');
-    if (item.phase === 'pickup') return t('pickup_count', { count: item.pending_pickup_count });
     return t('remaining', { pending: item.pending_count, total: item.products_count });
 }
 
 function statusClass(item: Installation): string {
     if (item.list_status === 'awaiting_approval') return 'bg-amber-50 text-amber-800 ring-amber-200';
     if (item.list_status === 'completed') return 'bg-emerald-50 text-emerald-700 ring-emerald-200';
-    if (item.phase === 'pickup') return 'bg-violet-50 text-violet-700 ring-violet-100';
     return 'bg-sky-50 text-sky-700 ring-sky-100';
 }
 </script>
@@ -248,12 +235,6 @@ function statusClass(item: Installation): string {
                             </div>
 
                             <div class="flex flex-wrap items-center gap-2 sm:justify-end">
-                                <span
-                                    v-if="item.late_penalty?.is_late"
-                                    class="inline-flex rounded-full bg-rose-50 px-2.5 py-1 text-[11px] font-semibold text-rose-700 ring-1 ring-rose-200"
-                                >
-                                    {{ t('late_penalty_badge') }}
-                                </span>
                                 <span
                                     class="inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold ring-1"
                                     :class="statusClass(item)"

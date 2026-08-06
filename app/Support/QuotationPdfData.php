@@ -9,13 +9,21 @@ class QuotationPdfData
 {
     private const VAT_RATE = 0.15;
 
-    public function __construct(public Quotation $quotation) {}
+    public function __construct(
+        public Quotation $quotation,
+        public string $locale = 'en',
+    ) {}
 
-    public static function fromQuotation(Quotation $quotation): self
+    public static function fromQuotation(Quotation $quotation, string $locale = 'en'): self
     {
         $quotation->load(['user', 'items', 'brand']);
 
-        return new self($quotation);
+        return new self($quotation, in_array($locale, ['ar', 'en'], true) ? $locale : 'en');
+    }
+
+    public function isArabic(): bool
+    {
+        return $this->locale === 'ar';
     }
 
     public function logoPath(): string
@@ -36,7 +44,7 @@ class QuotationPdfData
 
     public function logoAlt(): string
     {
-        return $this->quotation->brand?->name ?: 'Adventure World';
+        return $this->quotation->brand?->name ?: ($this->isArabic() ? 'عالم المغامرة' : 'Adventure World');
     }
 
     private function brandLogoAbsolutePath(): ?string
@@ -260,7 +268,11 @@ class QuotationPdfData
 
     public function formatSar(float $amount, int $decimals = 2): string
     {
-        return 'SAR '.number_format($amount, $decimals);
+        $formatted = number_format($amount, $decimals);
+
+        return $this->isArabic()
+            ? $formatted.' ر.س'
+            : 'SAR '.$formatted;
     }
 
     public function companyLegalNameAr(): string
@@ -275,7 +287,9 @@ class QuotationPdfData
 
     public function companyAddress(): string
     {
-        return 'Al Muruj - Riyadh - Saudi Arabia';
+        return $this->isArabic()
+            ? 'حي المروج - الرياض - المملكة العربية السعودية'
+            : 'Al Muruj - Riyadh - Saudi Arabia';
     }
 
     public function companyPhone(): string
@@ -295,7 +309,7 @@ class QuotationPdfData
 
     public function bankName(): string
     {
-        return 'Riyad Bank / بنك الرياض';
+        return $this->isArabic() ? 'بنك الرياض' : 'Riyad Bank';
     }
 
     public function bankAccountNumber(): string
@@ -310,7 +324,9 @@ class QuotationPdfData
 
     public function bankAccountName(): string
     {
-        return $this->companyLegalNameEn();
+        return $this->isArabic()
+            ? $this->companyLegalNameAr()
+            : $this->companyLegalNameEn();
     }
 
     public function vatNumber(): string
@@ -328,15 +344,25 @@ class QuotationPdfData
      */
     public function termsAndConditions(): array
     {
-        $terms = [
-            '100% of the amount is payable upon approval, and the transfer receipt must be attached.',
-            'A refundable security deposit of 40% of the order value is to be transferred by the client through a separate receipt, and it is refunded after confirming that all games delivered to the client are undamaged.',
-            'Supply and installation of the games take place after the security deposit has been transferred.',
-            'If the client delays the return of the games, a penalty of 120% is charged for each day of delay in delivery.',
-            'If the client cancels the event, the amount is not refunded; it is recorded as a credit balance with the company, and the client may use it outside of seasons and official holidays.',
-            'Any technical malfunction resulting from misuse of the games after their delivery by the company is the full responsibility of the client.',
-            'The client bears the full cost and responsibility if the site details differ from the actual description (including with regard to installation).',
-        ];
+        $terms = $this->isArabic()
+            ? [
+                'يُسدَّد 100٪ من المبلغ عند الموافقة، مع إرفاق إيصال التحويل.',
+                'يحوّل العميل مبلغ تأمين مسترد بنسبة 40٪ من قيمة الطلب بموجب إيصال منفصل، ويُسترد بعد التأكد من سلامة جميع الألعاب المسلَّمة.',
+                'يتم التوريد والتركيب بعد تحويل مبلغ التأمين.',
+                'في حال تأخر العميل عن إعادة الألعاب، تُحتسب غرامة بنسبة 120٪ عن كل يوم تأخير في التسليم.',
+                'في حال إلغاء الفعالية من قبل العميل لا يُسترد المبلغ، ويُسجَّل رصيدًا دائنًا لدى الشركة يمكن استخدامه خارج المواسم والإجازات الرسمية.',
+                'أي عطل فني ناتج عن سوء استخدام الألعاب بعد تسليمها من الشركة يقع كاملًا على مسؤولية العميل.',
+                'يتحمل العميل كامل التكلفة والمسؤولية إذا اختلفت تفاصيل الموقع عن الوصف الفعلي (بما في ذلك ما يتعلق بالتركيب).',
+            ]
+            : [
+                '100% of the amount is payable upon approval, and the transfer receipt must be attached.',
+                'A refundable security deposit of 40% of the order value is to be transferred by the client through a separate receipt, and it is refunded after confirming that all games delivered to the client are undamaged.',
+                'Supply and installation of the games take place after the security deposit has been transferred.',
+                'If the client delays the return of the games, a penalty of 120% is charged for each day of delay in delivery.',
+                'If the client cancels the event, the amount is not refunded; it is recorded as a credit balance with the company, and the client may use it outside of seasons and official holidays.',
+                'Any technical malfunction resulting from misuse of the games after their delivery by the company is the full responsibility of the client.',
+                'The client bears the full cost and responsibility if the site details differ from the actual description (including with regard to installation).',
+            ];
 
         if ($this->notes()) {
             $terms[] = $this->notes();

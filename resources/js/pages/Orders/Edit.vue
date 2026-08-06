@@ -9,6 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import {
     ArrowRight,
     Calendar,
+    Clock,
     CreditCard,
     Mail,
     MapPin,
@@ -57,6 +58,7 @@ interface Props {
         address: string | null;
         activity_date: string | null;
         activity_time: string | null;
+        dismantling_at: string | null;
         currency: string;
         payment_method: string;
         status: string;
@@ -81,6 +83,7 @@ const form = useForm({
     address: props.order.address || '',
     activity_date: props.order.activity_date || '',
     activity_time: props.order.activity_time || '',
+    dismantling_at: props.order.dismantling_at || '',
     currency: props.order.currency || 'SAR',
     payment_method: props.order.payment_method || 'cash',
     status: props.order.status || 'processing',
@@ -518,6 +521,34 @@ watch(
                                     v-model="form.activity_date"
                                     type="date"
                                     class="h-11 rounded-xl"
+                                />
+                            </div>
+
+                            <div class="space-y-2">
+                                <Label for="activity_time" class="flex items-center gap-1.5">
+                                    <Clock class="h-3.5 w-3.5 text-muted-foreground" />
+                                    وقت الفعالية
+                                </Label>
+                                <Input
+                                    id="activity_time"
+                                    v-model="form.activity_time"
+                                    type="time"
+                                    class="h-11 rounded-xl"
+                                    dir="ltr"
+                                />
+                            </div>
+
+                            <div class="space-y-2">
+                                <Label for="dismantling_at" class="flex items-center gap-1.5">
+                                    <Calendar class="h-3.5 w-3.5 text-muted-foreground" />
+                                    تاريخ الفك مع الوقت
+                                </Label>
+                                <Input
+                                    id="dismantling_at"
+                                    v-model="form.dismantling_at"
+                                    type="datetime-local"
+                                    class="h-11 rounded-xl"
+                                    dir="ltr"
                                 />
                             </div>
 

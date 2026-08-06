@@ -42,6 +42,7 @@ class QuotationPdfService
         }
 
         $bottomMargin = round(16 * $scale, 2);
+        $isArabic = $data->isArabic();
 
         $mpdf = new Mpdf([
             'mode' => 'utf-8',
@@ -53,21 +54,27 @@ class QuotationPdfService
             'margin_header' => 4,
             'margin_footer' => round(6 * $scale, 2),
             'default_font' => 'dejavusans',
-            'directionality' => 'ltr',
+            'directionality' => $isArabic ? 'rtl' : 'ltr',
             'tempDir' => $tempDir,
             'autoScriptToLang' => true,
             'autoLangToFont' => true,
             'useSubstitutions' => true,
         ]);
 
-        $mpdf->SetTitle('Quotation '.$data->quotationNumber());
+        $title = $isArabic
+            ? 'عرض سعر '.$data->quotationNumber()
+            : 'Quotation '.$data->quotationNumber();
+        $mpdf->SetTitle($title);
 
-        $mpdf->SetHTMLFooter(View::make('quotation-pdf-footer', [
+        $footerView = $isArabic ? 'quotation-pdf-footer-ar' : 'quotation-pdf-footer';
+        $bodyView = $isArabic ? 'quotation-pdf-ar' : 'quotation-pdf';
+
+        $mpdf->SetHTMLFooter(View::make($footerView, [
             'data' => $data,
             'scale' => $scale,
         ])->render());
 
-        $mpdf->WriteHTML(View::make('quotation-pdf', [
+        $mpdf->WriteHTML(View::make($bodyView, [
             'data' => $data,
             'scale' => $scale,
             'bottomMargin' => $bottomMargin,

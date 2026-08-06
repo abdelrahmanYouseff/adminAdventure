@@ -17,21 +17,13 @@ class WorkerHistoryController extends Controller
 
         $currentCount = Order::query()
             ->assignedToWorker($user)
-            ->where(function ($query) {
-                $query->whereHas('workerOrders', fn ($q) => $q->where('status', 'pending'))
-                    ->orWhereHas('workerOrders', fn ($q) => $q
-                        ->where('status', 'completed')
-                        ->whereNull('pickup_photo'));
-            })
+            ->whereHas('workerOrders', fn ($q) => $q->where('status', 'pending'))
             ->count();
 
         $history = Order::query()
             ->assignedToWorker($user)
             ->whereHas('workerOrders')
             ->whereDoesntHave('workerOrders', fn ($q) => $q->where('status', 'pending'))
-            ->whereDoesntHave('workerOrders', fn ($q) => $q
-                ->where('status', 'completed')
-                ->whereNull('pickup_photo'))
             ->with([
                 'workerOrders' => fn ($q) => $q->orderBy('line_index'),
             ])
@@ -42,7 +34,7 @@ class WorkerHistoryController extends Controller
             ->get()
             ->sortByDesc(function (Order $order) {
                 return $order->workerOrders
-                    ->map(fn (WorkerOrder $line) => $line->pickup_at ?? $line->completed_at)
+                    ->map(fn (WorkerOrder $line) => $line->completed_at)
                     ->filter()
                     ->max();
             })
@@ -69,7 +61,7 @@ class WorkerHistoryController extends Controller
         $address = $firstLine?->customer_address ?? $order->address;
 
         $latestAt = $order->workerOrders
-            ->map(fn (WorkerOrder $line) => $line->pickup_at ?? $line->completed_at)
+            ->map(fn (WorkerOrder $line) => $line->completed_at)
             ->filter()
             ->sortDesc()
             ->first();
@@ -86,10 +78,7 @@ class WorkerHistoryController extends Controller
                 'product_name' => $line->product_name,
                 'product_image_url' => $line->product_image_url,
                 'installation_photo_url' => $line->installation_photo_url,
-                'pickup_photo_url' => $line->pickup_photo_url,
                 'completed_at' => $line->completed_at?->toIso8601String(),
-                'pickup_at' => $line->pickup_at?->toIso8601String(),
-                'pickup_condition' => $line->pickup_condition,
             ])->values()->all(),
         ];
     }

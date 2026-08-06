@@ -10,8 +10,6 @@ import Swal from 'sweetalert2';
 interface ReturnProduct {
     id: number;
     product_name: string;
-    pickup_condition: string | null;
-    pickup_at: string | null;
 }
 
 interface ReturnNote {
@@ -29,8 +27,6 @@ interface ProductReturn {
     customer_phone: string | null;
     products_count: number;
     products: ReturnProduct[];
-    condition_summary: Record<string, number>;
-    latest_pickup_at: string | null;
     warehouse_returned_at: string | null;
     warehouse_returned_by_name: string | null;
     is_returned: boolean;
@@ -72,12 +68,6 @@ const statusTabs = [
     { key: 'returned', label: 'تم الاسترجاع' },
     { key: 'all', label: 'الكل' },
 ] as const;
-
-const conditionLabels: Record<string, string> = {
-    good: 'سليم',
-    damaged: 'تالف',
-    broken: 'مكسور',
-};
 
 watch(
     () => [flash.value.success, flash.value.error] as const,
@@ -196,11 +186,6 @@ function submitNote(item: ProductReturn) {
         },
     );
 }
-
-function conditionText(summary: Record<string, number>): string {
-    const parts = Object.entries(summary).map(([key, count]) => `${conditionLabels[key] || key}: ${count}`);
-    return parts.length ? parts.join(' · ') : '—';
-}
 </script>
 
 <template>
@@ -213,7 +198,7 @@ function conditionText(summary: Record<string, number>): string {
                 الاسترجاع
             </h1>
             <p class="mt-1 text-sm text-gray-500 dark:text-neutral-400">
-                تأكيد استرجاع المنتجات للمستودع بعد الفك والاستلام من العميل — اضغط على السجل لعرض الملاحظات
+                تأكيد استرجاع المنتجات للمستودع بعد الفك — اضغط على السجل لعرض الملاحظات
             </p>
         </div>
 
@@ -282,15 +267,13 @@ function conditionText(summary: Record<string, number>): string {
             </div>
 
             <div v-else class="overflow-x-auto">
-                <table class="w-full min-w-[900px] border-collapse text-right text-sm">
+                <table class="w-full min-w-[780px] border-collapse text-right text-sm">
                     <thead>
                         <tr class="border-b border-gray-100 bg-gray-50/80 text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:border-neutral-800 dark:bg-neutral-950/50 dark:text-neutral-400">
                             <th class="whitespace-nowrap px-4 py-3 w-8"></th>
                             <th class="whitespace-nowrap px-4 py-3">الطلب</th>
                             <th class="whitespace-nowrap px-4 py-3">العميل</th>
                             <th class="whitespace-nowrap px-4 py-3">المنتجات</th>
-                            <th class="whitespace-nowrap px-4 py-3">حالة الاستلام</th>
-                            <th class="whitespace-nowrap px-4 py-3">آخر استلام</th>
                             <th class="whitespace-nowrap px-4 py-3">الحالة</th>
                             <th class="whitespace-nowrap px-4 py-3">إجراء</th>
                         </tr>
@@ -331,10 +314,6 @@ function conditionText(summary: Record<string, number>): string {
                                         <li v-if="item.products.length > 3">+{{ item.products.length - 3 }} أخرى</li>
                                     </ul>
                                 </td>
-                                <td class="px-4 py-3 text-xs text-gray-600 dark:text-neutral-300">{{ conditionText(item.condition_summary) }}</td>
-                                <td class="px-4 py-3 text-xs text-gray-600 dark:text-neutral-300">
-                                    {{ item.latest_pickup_at ? formatDateTime(item.latest_pickup_at) : '—' }}
-                                </td>
                                 <td class="px-4 py-3">
                                     <span
                                         v-if="item.is_returned"
@@ -370,7 +349,7 @@ function conditionText(summary: Record<string, number>): string {
                             </tr>
 
                             <tr v-if="expandedId === item.id" class="border-b border-gray-100 bg-slate-50/70 dark:border-neutral-800 dark:bg-neutral-950/40">
-                                <td colspan="8" class="px-4 py-4">
+                                <td colspan="6" class="px-4 py-4">
                                     <div class="rounded-2xl border border-slate-200 bg-white p-4 text-right shadow-sm dark:border-neutral-700 dark:bg-neutral-900">
                                         <div class="mb-3 flex items-center justify-between gap-2">
                                             <p class="flex items-center gap-2 text-sm font-semibold text-slate-800 dark:text-neutral-100">

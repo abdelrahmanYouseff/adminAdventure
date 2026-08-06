@@ -12,10 +12,7 @@ interface HistoryProduct {
     product_name: string;
     product_image_url: string | null;
     installation_photo_url: string | null;
-    pickup_photo_url: string | null;
     completed_at: string | null;
-    pickup_at: string | null;
-    pickup_condition: string | null;
 }
 
 interface HistoryItem {
@@ -135,35 +132,19 @@ function formatInstallDate(date: string | null): string {
                             class="rounded-2xl bg-slate-50 p-3 ring-1 ring-slate-100"
                         >
                             <p class="mb-2 truncate text-sm font-semibold text-slate-800">{{ product.product_name }}</p>
-                            <div class="grid grid-cols-2 gap-2">
-                                <div class="overflow-hidden rounded-xl bg-white ring-1 ring-slate-200">
-                                    <div class="aspect-square bg-slate-100">
-                                        <img
-                                            v-if="product.installation_photo_url"
-                                            :src="product.installation_photo_url"
-                                            :alt="t('install_photo_alt')"
-                                            class="h-full w-full object-cover"
-                                        />
-                                        <div v-else class="flex h-full items-center justify-center text-slate-300">
-                                            <Package class="h-6 w-6" />
-                                        </div>
+                            <div class="overflow-hidden rounded-xl bg-white ring-1 ring-slate-200">
+                                <div class="aspect-[16/10] bg-slate-100">
+                                    <img
+                                        v-if="product.installation_photo_url"
+                                        :src="product.installation_photo_url"
+                                        :alt="t('install_photo_alt')"
+                                        class="h-full w-full object-cover"
+                                    />
+                                    <div v-else class="flex h-full items-center justify-center text-slate-300">
+                                        <Package class="h-6 w-6" />
                                     </div>
-                                    <p class="px-2 py-1.5 text-center text-[10px] font-medium text-slate-500">{{ t('install') }}</p>
                                 </div>
-                                <div class="overflow-hidden rounded-xl bg-white ring-1 ring-slate-200">
-                                    <div class="aspect-square bg-slate-100">
-                                        <img
-                                            v-if="product.pickup_photo_url"
-                                            :src="product.pickup_photo_url"
-                                            :alt="t('pickup_photo_alt')"
-                                            class="h-full w-full object-cover"
-                                        />
-                                        <div v-else class="flex h-full items-center justify-center text-slate-300">
-                                            <Package class="h-6 w-6" />
-                                        </div>
-                                    </div>
-                                    <p class="px-2 py-1.5 text-center text-[10px] font-medium text-slate-500">{{ t('pickup') }}</p>
-                                </div>
+                                <p class="px-2 py-1.5 text-center text-[10px] font-medium text-slate-500">{{ t('install') }}</p>
                             </div>
                         </div>
                     </div>

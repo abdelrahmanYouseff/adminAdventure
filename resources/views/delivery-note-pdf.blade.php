@@ -262,43 +262,24 @@
 
 @if($data->hasPhotos())
     <pagebreak />
-    <div style="{{ $sectionTitle }} margin-bottom: 10px;">Installation &amp; Pickup Photos</div>
+    <div style="{{ $sectionTitle }} margin-bottom: 10px;">Installation Photos</div>
     <div style="font-size: 7pt; color: #555; margin-bottom: 12px;">
-        Attached site photos for installed products and collection / pickup at the client location.
+        Attached site photos for installed products.
     </div>
 
     @foreach($data->photoLines() as $index => $photoLine)
         <div class="photo-card">
             <div class="photo-card-title">{{ $index + 1 }}. {{ $photoLine['name'] }}</div>
-            <table width="100%" cellpadding="0" cellspacing="0">
-                <tr>
-                    <td width="48%" valign="top">
-                        <div class="photo-label">Installation Photo</div>
-                        @if($photoLine['has_installation_photo'])
-                            <img
-                                src="{{ $photoLine['installation_photo_path'] }}"
-                                alt="Installation photo"
-                                class="photo-img"
-                            >
-                        @else
-                            <div class="photo-missing">No installation photo</div>
-                        @endif
-                    </td>
-                    <td width="4%"></td>
-                    <td width="48%" valign="top">
-                        <div class="photo-label">Pickup / Collection Photo</div>
-                        @if($photoLine['has_pickup_photo'])
-                            <img
-                                src="{{ $photoLine['pickup_photo_path'] }}"
-                                alt="Pickup photo"
-                                class="photo-img"
-                            >
-                        @else
-                            <div class="photo-missing">No pickup photo</div>
-                        @endif
-                    </td>
-                </tr>
-            </table>
+            <div class="photo-label">Installation Photo</div>
+            @if($photoLine['has_installation_photo'])
+                <img
+                    src="{{ $photoLine['installation_photo_path'] }}"
+                    alt="Installation photo"
+                    class="photo-img"
+                >
+            @else
+                <div class="photo-missing">No installation photo</div>
+            @endif
         </div>
     @endforeach
 @endif

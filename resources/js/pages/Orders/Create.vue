@@ -9,6 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import {
     ArrowRight,
     Calendar,
+    Clock,
     CreditCard,
     Mail,
     MapPin,
@@ -59,6 +60,8 @@ const form = useForm({
     customer_phone: '',
     address: '',
     activity_date: '',
+    activity_time: '',
+    dismantling_at: '',
     currency: 'SAR',
     payment_method: 'cash',
     status: 'processing',
@@ -444,6 +447,34 @@ watch(grandTotal, (total) => {
                                     v-model="form.activity_date"
                                     type="date"
                                     class="h-11 rounded-xl"
+                                />
+                            </div>
+
+                            <div class="space-y-2">
+                                <Label for="activity_time" class="flex items-center gap-1.5">
+                                    <Clock class="h-3.5 w-3.5 text-muted-foreground" />
+                                    وقت الفعالية
+                                </Label>
+                                <Input
+                                    id="activity_time"
+                                    v-model="form.activity_time"
+                                    type="time"
+                                    class="h-11 rounded-xl"
+                                    dir="ltr"
+                                />
+                            </div>
+
+                            <div class="space-y-2">
+                                <Label for="dismantling_at" class="flex items-center gap-1.5">
+                                    <Calendar class="h-3.5 w-3.5 text-muted-foreground" />
+                                    تاريخ الفك مع الوقت
+                                </Label>
+                                <Input
+                                    id="dismantling_at"
+                                    v-model="form.dismantling_at"
+                                    type="datetime-local"
+                                    class="h-11 rounded-xl"
+                                    dir="ltr"
                                 />
                             </div>
 

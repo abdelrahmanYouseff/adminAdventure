@@ -733,11 +733,13 @@ class QuotationController extends Controller
     /**
      * Generate PDF for the quotation
      */
-    public function generatePdf(Quotation $quotation, QuotationPdfService $pdfService)
+    public function generatePdf(Request $request, Quotation $quotation, QuotationPdfService $pdfService)
     {
-        $data = QuotationPdfData::fromQuotation($quotation);
+        $locale = $request->string('lang')->toString() === 'ar' ? 'ar' : 'en';
+        $data = QuotationPdfData::fromQuotation($quotation, $locale);
         $content = $pdfService->render($data);
-        $filename = 'quotation-'.$quotation->quotation_number.'.pdf';
+        $suffix = $locale === 'ar' ? '-ar' : '-en';
+        $filename = 'quotation-'.$quotation->quotation_number.$suffix.'.pdf';
 
         return response($content, 200, [
             'Content-Type' => 'application/pdf',

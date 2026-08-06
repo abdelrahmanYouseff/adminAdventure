@@ -45,7 +45,6 @@ class WorkerOrderController extends Controller
             'invoice:id,invoice_number',
             'workerOrders' => fn ($query) => $query->orderBy('line_index'),
             'workerOrders.completedByUser:id,customer_name',
-            'workerOrders.pickupByUser:id,customer_name',
             'workerAssemblers' => fn ($query) => $query->latest(),
             'workerNotes' => fn ($query) => $query->latest(),
             'workerNotes.user:id,customer_name,role',
@@ -134,52 +133,6 @@ class WorkerOrderController extends Controller
             ->with('success', 'تم رفع صورة التركيب وإرسال الطلب للمراجعة. يمكن للمسؤول مراجعته في قسم «مرفوعة للمراجعة».');
     }
 
-    public function completePickup(Request $request, WorkerOrder $workerOrder)
-    {
-        $this->assertCanUploadWorkerPhotos($request);
-
-        if ($workerOrder->status !== 'completed') {
-            return back()->withErrors([
-                'pickup_photo' => 'يجب رفع صورة التركيب أولاً قبل صورة الاستلام والفك.',
-            ]);
-        }
-
-        if ($workerOrder->pickup_photo) {
-            return back()->withErrors([
-                'pickup_photo' => 'تم رفع صورة الاستلام والفك مسبقاً لهذا المنتج.',
-            ]);
-        }
-
-        $validated = $request->validate([
-            'pickup_photo' => ['required', 'image', 'max:5120'],
-            'pickup_condition' => ['required', 'in:excellent,good,damaged,broken'],
-        ], [
-            'pickup_photo.required' => 'يجب إرفاق صورة عند الاستلام والفك من عند العميل.',
-            'pickup_photo.image' => 'يجب أن يكون الملف صورة.',
-            'pickup_photo.max' => 'حجم الصورة يجب ألا يتجاوز 5 ميجابايت.',
-            'pickup_condition.required' => 'يجب تحديد حالة المنتج عند الاستلام.',
-            'pickup_condition.in' => 'حالة المنتج غير صالحة.',
-        ]);
-
-        $path = $validated['pickup_photo']->store('worker-pickups', 'public');
-
-        $workerOrder->loadMissing('order.invoice');
-
-        $workerOrder->update([
-            'pickup_photo' => $path,
-            'pickup_at' => now(),
-            'pickup_by' => $request->user()->id,
-            'pickup_condition' => $validated['pickup_condition'],
-        ]);
-
-        $reference = $workerOrder->order->invoice?->invoice_number
-            ?? $workerOrder->order->order_number;
-
-        return redirect()
-            ->route('worker-orders.show', $reference)
-            ->with('success', 'تم رفع صورة الاستلام والفك بنجاح.');
-    }
-
     public function approve(Request $request, string $workOrderKey, WorkerOrderSyncService $syncService)
     {
         $user = $request->user();
@@ -197,7 +150,7 @@ class WorkerOrderController extends Controller
         }
 
         if (! $order->hasAllWorkerPhotos()) {
-            return back()->with('error', 'لا يمكن التعميد قبل رفع العامل لصور التركيب وصور الاستلام لجميع المنتجات.');
+            return back()->with('error', 'لا يمكن التعميد قبل رفع العامل لصور التركيب لجميع المنتجات.');
         }
 
         $updates = [
@@ -507,15 +460,12 @@ class WorkerOrderController extends Controller
         $summary = $this->formatWorkOrderSummary($order);
         $lines = $order->workerOrders;
         $installedCount = $lines->where('status', 'completed')->count();
-        $pickupDoneCount = $lines->whereNotNull('pickup_photo')->count();
         $total = $lines->count();
         $assignedWorkers = $order->workerAssemblers->pluck('worker_name')->unique()->values()->all();
 
         $eventStatus = 'pending';
-        if ($installedCount === $total && $total > 0 && $pickupDoneCount === $total) {
+        if ($installedCount === $total && $total > 0) {
             $eventStatus = 'completed';
-        } elseif ($installedCount === $total && $total > 0) {
-            $eventStatus = 'pickup';
         } elseif ($installedCount > 0) {
             $eventStatus = 'in_progress';
         }
@@ -531,13 +481,8 @@ class WorkerOrderController extends Controller
                 'done' => $installedCount,
                 'total' => $total,
             ],
-            'pickup_progress' => [
-                'done' => $pickupDoneCount,
-                'total' => $installedCount,
-            ],
             'photo_stats' => [
                 'installation' => $lines->whereNotNull('installation_photo')->count(),
-                'pickup' => $pickupDoneCount,
             ],
             'lines' => $lines->map(fn (WorkerOrder $line) => $this->formatWorkerOrderLine($line))->values()->all(),
             'assemblers' => $order->workerAssemblers
@@ -602,30 +547,21 @@ class WorkerOrderController extends Controller
                 'user_name' => $line->completedByUser?->name,
                 'completed' => $line->status === 'completed',
             ];
-
-            $items[] = [
-                'key' => 'pickup_'.$line->id,
-                'title' => 'اكتمال الاستلام والفك',
-                'description' => $line->product_name,
-                'timestamp' => $line->pickup_at?->toIso8601String(),
-                'user_name' => $line->pickupByUser?->name,
-                'completed' => (bool) $line->pickup_photo,
-            ];
         }
 
         $allDone = $order->workerOrders->isNotEmpty()
-            && $order->workerOrders->every(fn (WorkerOrder $line) => $line->status === 'completed' && $line->pickup_photo);
+            && $order->workerOrders->every(fn (WorkerOrder $line) => $line->status === 'completed' && filled($line->installation_photo));
 
-        $latestPickup = $order->workerOrders
-            ->filter(fn (WorkerOrder $line) => $line->pickup_at !== null)
-            ->sortByDesc(fn (WorkerOrder $line) => $line->pickup_at?->getTimestamp() ?? 0)
+        $latestInstall = $order->workerOrders
+            ->filter(fn (WorkerOrder $line) => $line->completed_at !== null)
+            ->sortByDesc(fn (WorkerOrder $line) => $line->completed_at?->getTimestamp() ?? 0)
             ->first();
 
         $items[] = [
             'key' => 'completed',
             'title' => 'اكتمال الفعالية',
-            'description' => $allDone ? 'تم إنهاء التركيب والاستلام بنجاح' : 'بانتظار اكتمال جميع المراحل',
-            'timestamp' => $allDone ? $latestPickup?->pickup_at?->toIso8601String() : null,
+            'description' => $allDone ? 'تم إنهاء التركيب بنجاح' : 'بانتظار اكتمال التركيب',
+            'timestamp' => $allDone ? $latestInstall?->completed_at?->toIso8601String() : null,
             'user_name' => null,
             'completed' => $allDone,
         ];
@@ -634,8 +570,8 @@ class WorkerOrderController extends Controller
             'key' => 'approved',
             'title' => 'تعميد مدير العمال',
             'description' => $order->work_order_approved_at
-                ? 'تم اعتماد اكتمال التركيب والاستلام — بانتظار سلسلة التعميدات في استرداد التأمين'
-                : 'بانتظار تعميد مدير العمال بعد رفع كل الصور',
+                ? 'تم اعتماد اكتمال التركيب — بانتظار سلسلة التعميدات في استرداد التأمين'
+                : 'بانتظار تعميد مدير العمال بعد رفع صور التركيب',
             'timestamp' => $order->work_order_approved_at?->toIso8601String(),
             'user_name' => $order->workOrderApprovedBy?->name,
             'completed' => (bool) $order->work_order_approved_at,
@@ -652,7 +588,7 @@ class WorkerOrderController extends Controller
         abort_if(
             $user?->isWorkersManager(),
             403,
-            'لا يمكن لمدير العمال رفع الصور. يجب على العامل رفع صور التركيب والاستلام أولاً ثم التعميد.',
+            'لا يمكن لمدير العمال رفع الصور. يجب على العامل رفع صور التركيب أولاً ثم التعميد.',
         );
     }
 
@@ -733,13 +669,6 @@ class WorkerOrderController extends Controller
                 'id' => $workerOrder->completedByUser->id,
                 'name' => $workerOrder->completedByUser->name,
             ] : null,
-            'pickup_photo_url' => $workerOrder->pickup_photo_url,
-            'pickup_at' => $workerOrder->pickup_at?->toIso8601String(),
-            'pickup_by_user' => $workerOrder->pickupByUser ? [
-                'id' => $workerOrder->pickupByUser->id,
-                'name' => $workerOrder->pickupByUser->name,
-            ] : null,
-            'pickup_condition' => $workerOrder->pickup_condition,
         ];
     }
 }

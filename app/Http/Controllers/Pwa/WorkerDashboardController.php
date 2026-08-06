@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use App\Models\Order;
 use App\Models\WorkerOrder;
 use App\Support\OrderWhatsAppMessage;
-use App\Support\WorkerLatePenalty;
 use Carbon\Carbon;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -27,9 +26,6 @@ class WorkerDashboardController extends Controller
                 'workerOrders as total_lines',
                 'workerOrders as pending_lines' => fn ($q) => $q->where('status', 'pending'),
                 'workerOrders as completed_lines' => fn ($q) => $q->where('status', 'completed'),
-                'workerOrders as pending_pickup_lines' => fn ($q) => $q
-                    ->where('status', 'completed')
-                    ->whereNull('pickup_photo'),
             ])
             ->orderByRaw('activity_date IS NULL')
             ->orderBy('activity_date')
@@ -66,15 +62,14 @@ class WorkerDashboardController extends Controller
     {
         $firstLine = $order->workerOrders->first();
         $pendingLines = (int) ($order->pending_lines ?? 0);
-        $pendingPickup = (int) ($order->pending_pickup_lines ?? 0);
         $totalLines = (int) ($order->total_lines ?? $order->workerOrders->count());
         $address = $firstLine?->customer_address ?? $order->address;
         $isApproved = (bool) $order->work_order_approved_at;
         $photosReady = $order->hasAllWorkerPhotos();
 
-        if ($pendingLines > 0 || $pendingPickup > 0) {
+        if ($pendingLines > 0) {
             $listStatus = 'current';
-            $phase = $pendingLines > 0 ? 'installation' : 'pickup';
+            $phase = 'installation';
         } elseif ($photosReady && ! $isApproved) {
             $listStatus = 'awaiting_approval';
             $phase = 'awaiting';
@@ -96,10 +91,8 @@ class WorkerDashboardController extends Controller
             'list_status' => $listStatus,
             'phase' => $phase,
             'is_approved' => $isApproved,
-            'late_penalty' => WorkerLatePenalty::forOrder($order),
             'products_count' => $totalLines,
             'pending_count' => $pendingLines,
-            'pending_pickup_count' => $pendingPickup,
             'completed_count' => (int) ($order->completed_lines ?? 0),
             'preview_products' => $order->workerOrders
                 ->take(3)

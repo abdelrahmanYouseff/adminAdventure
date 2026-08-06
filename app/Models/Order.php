@@ -15,6 +15,7 @@ class Order extends Model
         'address',
         'activity_date',
         'activity_time',
+        'dismantling_at',
         'invoice_id',
         'quotation_id',
         'order_number',
@@ -58,6 +59,7 @@ class Order extends Model
         'insurance_original_amount' => 'decimal:2',
         'items' => 'array',
         'activity_date' => 'date',
+        'dismantling_at' => 'datetime',
         'whatsapp_notified_at' => 'datetime',
         'insurance_refunded_at' => 'datetime',
         'work_order_approved_at' => 'datetime',
@@ -257,7 +259,6 @@ class Order extends Model
         return $lines->every(
             fn (WorkerOrder $line) => $line->status === 'completed'
                 && filled($line->installation_photo)
-                && filled($line->pickup_photo)
         );
     }
 

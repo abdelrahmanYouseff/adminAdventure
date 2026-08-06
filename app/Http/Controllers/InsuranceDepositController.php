@@ -69,7 +69,6 @@ class InsuranceDepositController extends Controller
             'insuranceAccountsApprovedBy:id,customer_name',
             'workerOrders' => fn ($query) => $query->orderBy('line_index'),
             'workerOrders.completedByUser:id,customer_name',
-            'workerOrders.pickupByUser:id,customer_name',
         ]);
 
         $deposit = $this->formatDeposit($order, $request->user());
@@ -82,10 +81,6 @@ class InsuranceDepositController extends Controller
             'installation_photo_url' => $line->installation_photo_url,
             'completed_at' => $line->completed_at?->toIso8601String(),
             'completed_by_name' => $line->completedByUser?->name,
-            'pickup_photo_url' => $line->pickup_photo_url,
-            'pickup_at' => $line->pickup_at?->toIso8601String(),
-            'pickup_by_name' => $line->pickupByUser?->name,
-            'pickup_condition' => $line->pickup_condition,
         ])->values()->all();
 
         return Inertia::render('InsuranceDeposits/Show', [

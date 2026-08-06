@@ -103,8 +103,7 @@ class ProductReturnController extends Controller
             ->whereDoesntHave('workerOrders', function (Builder $query) {
                 $query->where(function (Builder $inner) {
                     $inner->where('status', '!=', 'completed')
-                        ->orWhereNull('installation_photo')
-                        ->orWhereNull('pickup_photo');
+                        ->orWhereNull('installation_photo');
                 });
             });
     }
@@ -123,18 +122,6 @@ class ProductReturnController extends Controller
             ? $order->workerOrders
             : $order->workerOrders()->orderBy('line_index')->get();
 
-        $conditions = $lines
-            ->pluck('pickup_condition')
-            ->filter()
-            ->countBy()
-            ->all();
-
-        $latestPickup = $lines
-            ->pluck('pickup_at')
-            ->filter()
-            ->sortDesc()
-            ->first();
-
         $notes = $order->relationLoaded('workerNotes')
             ? $order->workerNotes
             : collect();
@@ -148,11 +135,7 @@ class ProductReturnController extends Controller
             'products' => $lines->map(fn (WorkerOrder $line) => [
                 'id' => $line->id,
                 'product_name' => $line->product_name,
-                'pickup_condition' => $line->pickup_condition,
-                'pickup_at' => $line->pickup_at?->toIso8601String(),
             ])->values()->all(),
-            'condition_summary' => $conditions,
-            'latest_pickup_at' => $latestPickup?->toIso8601String(),
             'warehouse_returned_at' => $order->warehouse_returned_at?->toIso8601String(),
             'warehouse_returned_by_name' => $order->warehouseReturnedBy?->name,
             'is_returned' => filled($order->warehouse_returned_at),
