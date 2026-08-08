@@ -116,91 +116,91 @@ Route::middleware(['auth', 'verified', 'admin'])->prefix('settings')->name('sett
 });
 
 Route::get('products', [ProductController::class, 'index'])
-    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,warehouse_keeper'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager'])
     ->name('products');
 
 Route::get('products/brand/{brand}', [ProductController::class, 'brand'])
-    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,warehouse_keeper'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager'])
     ->name('products.brand.show');
 
 Route::get('brands', [BrandController::class, 'index'])
-    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,warehouse_keeper'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager'])
     ->name('brands.index');
 
 Route::post('brands', [BrandController::class, 'store'])
-    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,warehouse_keeper'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager'])
     ->name('brands.store');
 
 Route::post('brands/{brand}', [BrandController::class, 'update'])
-    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,warehouse_keeper'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager'])
     ->name('brands.update');
 
 Route::delete('brands/{brand}', [BrandController::class, 'destroy'])
-    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,warehouse_keeper'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager'])
     ->name('brands.destroy');
 
 Route::get('products/create', [ProductController::class, 'create'])
-    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,warehouse_keeper'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager'])
     ->name('products.create');
 
 Route::post('products', [ProductController::class, 'store'])
-    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,warehouse_keeper'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager'])
     ->name('products.store');
 
 Route::post('products/import', [ProductController::class, 'import'])
-    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,warehouse_keeper'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager'])
     ->name('products.import');
 
 Route::get('products/{product}/edit', [ProductController::class, 'edit'])
-    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,warehouse_keeper'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager'])
     ->name('products.edit');
 
 Route::put('products/{product}', [ProductController::class, 'update'])
-    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,warehouse_keeper'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager'])
     ->name('products.update');
 
 Route::patch('products/{product}', [ProductController::class, 'update'])
-    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,warehouse_keeper'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager'])
     ->name('products.patch');
 
 Route::patch('products/{product}/toggle-status', [ProductController::class, 'toggleStatus'])
-    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,warehouse_keeper'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager'])
     ->name('products.toggle-status');
 
 Route::delete('products/{product}', [ProductController::class, 'destroy'])
-    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,warehouse_keeper'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager'])
     ->name('products.destroy');
 
 Route::get('categories', [CategoryController::class, 'index'])
-    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,warehouse_keeper'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager'])
     ->name('categories.index');
 
 Route::get('categories/brand/{brand}', [CategoryController::class, 'brand'])
-    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,warehouse_keeper'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager'])
     ->name('categories.brand.show');
 
 Route::get('categories/create', [CategoryController::class, 'create'])
-    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,warehouse_keeper'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager'])
     ->name('categories.create');
 
 Route::post('categories', [CategoryController::class, 'store'])
-    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,warehouse_keeper'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager'])
     ->name('categories.store');
 
 Route::get('categories/{category}', [CategoryController::class, 'show'])
-    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,warehouse_keeper'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager'])
     ->name('categories.show');
 
 Route::get('categories/{category}/edit', [CategoryController::class, 'edit'])
-    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,warehouse_keeper'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager'])
     ->name('categories.edit');
 
 Route::put('categories/{category}', [CategoryController::class, 'update'])
-    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,warehouse_keeper'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager'])
     ->name('categories.update');
 
 Route::delete('categories/{category}', [CategoryController::class, 'destroy'])
-    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,warehouse_keeper'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager'])
     ->name('categories.destroy');
 
 Route::get('customers', [\App\Http\Controllers\CustomerController::class, 'index'])
