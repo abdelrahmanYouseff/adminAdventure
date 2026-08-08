@@ -34,6 +34,12 @@ Route::middleware(['pwa'])->prefix('worker-app')->name('pwa.')->group(function (
     Route::post('login', [\App\Http\Controllers\Pwa\WorkerAuthController::class, 'store'])
         ->middleware('throttle:10,1')
         ->name('login.store');
+    Route::post('login/otp/send', [\App\Http\Controllers\Pwa\WorkerAuthController::class, 'sendOtp'])
+        ->middleware('throttle:10,1')
+        ->name('login.otp.send');
+    Route::post('login/otp/verify', [\App\Http\Controllers\Pwa\WorkerAuthController::class, 'verifyOtp'])
+        ->middleware('throttle:20,1')
+        ->name('login.otp.verify');
 
     Route::middleware(['auth', 'worker'])->group(function () {
         Route::get('/', \App\Http\Controllers\Pwa\WorkerDashboardController::class)

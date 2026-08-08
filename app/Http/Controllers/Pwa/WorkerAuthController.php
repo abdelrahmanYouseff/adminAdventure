@@ -4,9 +4,12 @@ namespace App\Http\Controllers\Pwa;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Services\AuthenticaOtpService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -15,6 +18,13 @@ use Inertia\Response;
 
 class WorkerAuthController extends Controller
 {
+    /** رقم اختبار: يقبل OTP ثابت 0000 بدون إرسال SMS */
+    private const FIXED_OTP_PHONE = '535815072';
+
+    private const FIXED_OTP_CODE = '0000';
+
+    public function __construct(private AuthenticaOtpService $authentica) {}
+
     public function create(Request $request): Response|RedirectResponse
     {
         if ($request->user()?->isWorker()) {
@@ -29,6 +39,145 @@ class WorkerAuthController extends Controller
         }
 
         return Inertia::render('Login');
+    }
+
+    public function sendOtp(Request $request): RedirectResponse
+    {
+        $data = $request->validate([
+            'phone' => ['required', 'string', 'regex:/^5\d{8}$/'],
+        ], [
+            'phone.required' => 'رقم الجوال مطلوب.',
+            'phone.regex' => 'أدخل رقم جوال سعودي صحيح يبدأ بـ 5.',
+        ]);
+
+        $throttleKey = 'worker-otp-send:'.$data['phone'].'|'.$request->ip();
+
+        if (RateLimiter::tooManyAttempts($throttleKey, 5)) {
+            $seconds = RateLimiter::availableIn($throttleKey);
+
+            throw ValidationException::withMessages([
+                'phone' => "محاولات كثيرة. حاول مرة أخرى بعد {$seconds} ثانية.",
+            ]);
+        }
+
+        $worker = $this->findWorkerByPhone($data['phone']);
+
+        if (! $worker) {
+            RateLimiter::hit($throttleKey, 60);
+
+            throw ValidationException::withMessages([
+                'phone' => 'لا يوجد حساب عامل مرتبط بهذا الرقم.',
+            ]);
+        }
+
+        $e164 = AuthenticaOtpService::formatPhoneE164($data['phone']);
+
+        if ($this->isFixedOtpPhone($data['phone'])) {
+            Cache::put($this->cacheKey($data['phone']), self::FIXED_OTP_CODE, now()->addMinutes(5));
+
+            if (config('app.debug')) {
+                Log::info('Worker OTP fixed test phone', ['phone' => $e164, 'code' => self::FIXED_OTP_CODE]);
+            }
+
+            RateLimiter::clear($throttleKey);
+
+            return back();
+        }
+
+        if ($this->authentica->isConfigured()) {
+            try {
+                $otp = $this->authentica->sendOtp($e164);
+                Cache::put($this->cacheKey($data['phone']), $otp, now()->addMinutes(5));
+            } catch (\Throwable $e) {
+                Log::error('Worker OTP send failed', [
+                    'phone' => $e164,
+                    'message' => $e->getMessage(),
+                ]);
+
+                RateLimiter::hit($throttleKey, 60);
+
+                throw ValidationException::withMessages([
+                    'phone' => 'تعذر إرسال رمز التحقق. حاول مرة أخرى.',
+                ]);
+            }
+        } else {
+            $code = '0000';
+            Cache::put($this->cacheKey($data['phone']), $code, now()->addMinutes(5));
+
+            if (config('app.debug')) {
+                Log::info('Worker OTP dev fallback', ['phone' => $e164, 'code' => $code]);
+            }
+        }
+
+        RateLimiter::clear($throttleKey);
+
+        return back();
+    }
+
+    public function verifyOtp(Request $request): RedirectResponse|\Symfony\Component\HttpFoundation\Response
+    {
+        $data = $request->validate([
+            'phone' => ['required', 'string', 'regex:/^5\d{8}$/'],
+            'code' => ['required', 'string', 'regex:/^\d{4}$/'],
+        ], [
+            'phone.required' => 'رقم الجوال مطلوب.',
+            'phone.regex' => 'أدخل رقم جوال سعودي صحيح يبدأ بـ 5.',
+            'code.required' => 'رمز التحقق مطلوب.',
+            'code.regex' => 'رمز التحقق يجب أن يكون 4 أرقام.',
+        ]);
+
+        $throttleKey = 'worker-otp-verify:'.$data['phone'].'|'.$request->ip();
+
+        if (RateLimiter::tooManyAttempts($throttleKey, 8)) {
+            $seconds = RateLimiter::availableIn($throttleKey);
+
+            throw ValidationException::withMessages([
+                'code' => "محاولات كثيرة. حاول مرة أخرى بعد {$seconds} ثانية.",
+            ]);
+        }
+
+        $e164 = AuthenticaOtpService::formatPhoneE164($data['phone']);
+        $verified = false;
+
+        if ($this->isFixedOtpPhone($data['phone']) && hash_equals(self::FIXED_OTP_CODE, $data['code'])) {
+            $verified = true;
+        } elseif ($this->authentica->isConfigured()) {
+            $verified = $this->authentica->verifyOtp($e164, $data['code']);
+
+            if (! $verified) {
+                $cached = Cache::get($this->cacheKey($data['phone']));
+                $verified = is_string($cached) && hash_equals($cached, $data['code']);
+            }
+        } else {
+            $cached = Cache::get($this->cacheKey($data['phone']));
+            $verified = is_string($cached) && hash_equals($cached, $data['code']);
+        }
+
+        if (! $verified) {
+            RateLimiter::hit($throttleKey, 60);
+
+            throw ValidationException::withMessages([
+                'code' => 'رمز التحقق غير صحيح أو منتهي الصلاحية.',
+            ]);
+        }
+
+        $worker = $this->findWorkerByPhone($data['phone']);
+
+        if (! $worker) {
+            RateLimiter::hit($throttleKey, 60);
+
+            throw ValidationException::withMessages([
+                'phone' => 'لا يوجد حساب عامل مرتبط بهذا الرقم.',
+            ]);
+        }
+
+        Cache::forget($this->cacheKey($data['phone']));
+        RateLimiter::clear($throttleKey);
+
+        Auth::login($worker, false);
+        $request->session()->regenerate();
+
+        return Inertia::location('/worker-app');
     }
 
     public function store(Request $request): RedirectResponse|\Symfony\Component\HttpFoundation\Response
@@ -90,5 +239,60 @@ class WorkerAuthController extends Controller
         $request->session()->regenerateToken();
 
         return redirect()->route('pwa.login');
+    }
+
+    private function isFixedOtpPhone(string $phone): bool
+    {
+        return $this->normalizePhoneDigits($phone) === self::FIXED_OTP_PHONE;
+    }
+
+    private function cacheKey(string $phone): string
+    {
+        return 'worker_otp_'.$this->normalizePhoneDigits($phone);
+    }
+
+    private function normalizePhoneDigits(string $phone): string
+    {
+        $digits = preg_replace('/\D/', '', $phone) ?? '';
+
+        if (str_starts_with($digits, '966')) {
+            $digits = substr($digits, 3);
+        }
+
+        if (str_starts_with($digits, '0')) {
+            $digits = substr($digits, 1);
+        }
+
+        return $digits;
+    }
+
+    private function findWorkerByPhone(string $phone): ?User
+    {
+        $digits = $this->normalizePhoneDigits($phone);
+
+        $variants = array_unique(array_filter([
+            $phone,
+            $digits,
+            '0'.$digits,
+            '+966'.$digits,
+            '966'.$digits,
+        ]));
+
+        $user = User::query()
+            ->where('role', User::ROLE_WORKER)
+            ->whereIn('phone', $variants)
+            ->first();
+
+        if ($user) {
+            return $user;
+        }
+
+        return User::query()
+            ->where('role', User::ROLE_WORKER)
+            ->whereNotNull('phone')
+            ->get()
+            ->first(function (User $candidate) use ($digits) {
+                return $this->normalizePhoneDigits((string) $candidate->phone) === $digits;
+            });
     }
 }
