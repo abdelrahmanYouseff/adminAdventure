@@ -66,7 +66,7 @@ class WorkerAuthController extends Controller
             RateLimiter::hit($throttleKey, 60);
 
             throw ValidationException::withMessages([
-                'phone' => 'لا يوجد حساب عامل مرتبط بهذا الرقم.',
+                'phone' => 'هذا الرقم غير موجود في النظام، وبالتالي لن يتم إرسال رمز الدخول.',
             ]);
         }
 
@@ -167,7 +167,7 @@ class WorkerAuthController extends Controller
             RateLimiter::hit($throttleKey, 60);
 
             throw ValidationException::withMessages([
-                'phone' => 'لا يوجد حساب عامل مرتبط بهذا الرقم.',
+                'phone' => 'هذا الرقم غير موجود في النظام، وبالتالي لن يتم إرسال رمز الدخول.',
             ]);
         }
 
