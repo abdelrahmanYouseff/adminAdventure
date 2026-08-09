@@ -11,6 +11,8 @@ class OrderPaymentReceipt extends Model
 
     public const STATUS_APPROVED = 'approved';
 
+    public const STATUS_REJECTED = 'rejected';
+
     protected $fillable = [
         'order_id',
         'recorded_by',
@@ -25,6 +27,9 @@ class OrderPaymentReceipt extends Model
         'approval_status',
         'approved_at',
         'approved_by',
+        'rejection_reason',
+        'rejected_at',
+        'rejected_by',
         'notes',
         'proof_image',
         'account_number',
@@ -41,6 +46,7 @@ class OrderPaymentReceipt extends Model
         'amount_paid_after' => 'decimal:2',
         'remaining_after' => 'decimal:2',
         'approved_at' => 'datetime',
+        'rejected_at' => 'datetime',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];
@@ -68,6 +74,11 @@ class OrderPaymentReceipt extends Model
         return $this->approval_status === self::STATUS_PENDING;
     }
 
+    public function isRejected(): bool
+    {
+        return $this->approval_status === self::STATUS_REJECTED;
+    }
+
     public function order(): BelongsTo
     {
         return $this->belongsTo(Order::class);
@@ -81,6 +92,11 @@ class OrderPaymentReceipt extends Model
     public function approvedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'approved_by');
+    }
+
+    public function rejectedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'rejected_by');
     }
 
     public static function generateReceiptNumber(): string

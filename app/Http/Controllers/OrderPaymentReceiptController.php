@@ -30,6 +30,7 @@ class OrderPaymentReceiptController extends Controller
                 'order.user:id,customer_name,phone,phone_secondary,email,iban,iban_image',
                 'recordedBy:id,customer_name',
                 'approvedBy:id,customer_name',
+                'rejectedBy:id,customer_name',
             ])
             ->when($search !== '', function ($query) use ($search) {
                 $query->where(function ($inner) use ($search) {
@@ -41,7 +42,11 @@ class OrderPaymentReceiptController extends Controller
                         });
                 });
             })
-            ->when(in_array($status, [OrderPaymentReceipt::STATUS_PENDING, OrderPaymentReceipt::STATUS_APPROVED], true), function ($query) use ($status) {
+            ->when(in_array($status, [
+                OrderPaymentReceipt::STATUS_PENDING,
+                OrderPaymentReceipt::STATUS_APPROVED,
+                OrderPaymentReceipt::STATUS_REJECTED,
+            ], true), function ($query) use ($status) {
                 $query->where('approval_status', $status);
             })
             ->latest('id')
@@ -51,7 +56,12 @@ class OrderPaymentReceiptController extends Controller
                 $order = $receipt->order;
                 $total = round((float) ($receipt->total_amount ?: $order?->total_amount ?: 0), 2);
                 $isApproved = $receipt->isApproved();
+                $isPending = $receipt->isPending();
+                $isRejected = $receipt->isRejected();
                 $remaining = round((float) ($receipt->remaining_after ?? $order?->remaining_amount ?? 0), 2);
+                if ($isRejected && $order) {
+                    $remaining = round((float) ($order->remaining_amount ?? 0), 2);
+                }
                 $customer = $order ? $this->resolveCustomerProfile($order) : null;
 
                 return [
@@ -64,9 +74,14 @@ class OrderPaymentReceiptController extends Controller
                     'type' => $receipt->type,
                     'approval_status' => $receipt->approval_status,
                     'is_approved' => $isApproved,
-                    'can_approve' => $canApprove && ! $isApproved,
+                    'is_rejected' => $isRejected,
+                    'can_approve' => $canApprove && $isPending,
+                    'can_reject' => $canApprove && $isPending,
                     'approved_at' => $receipt->approved_at?->toIso8601String(),
                     'approved_by_name' => $receipt->approvedBy?->customer_name,
+                    'rejection_reason' => $receipt->rejection_reason,
+                    'rejected_at' => $receipt->rejected_at?->toIso8601String(),
+                    'rejected_by_name' => $receipt->rejectedBy?->customer_name,
                     'created_at' => optional($receipt->created_at)?->toIso8601String(),
                     'order' => $order ? [
                         'id' => $order->id,
@@ -85,6 +100,14 @@ class OrderPaymentReceiptController extends Controller
             'all' => OrderPaymentReceipt::query()->count(),
             'pending' => OrderPaymentReceipt::query()->where('approval_status', OrderPaymentReceipt::STATUS_PENDING)->count(),
             'approved' => OrderPaymentReceipt::query()->where('approval_status', OrderPaymentReceipt::STATUS_APPROVED)->count(),
+            'rejected' => OrderPaymentReceipt::query()->where('approval_status', OrderPaymentReceipt::STATUS_REJECTED)->count(),
+        ];
+
+        $allowedStatuses = [
+            'all',
+            OrderPaymentReceipt::STATUS_PENDING,
+            OrderPaymentReceipt::STATUS_APPROVED,
+            OrderPaymentReceipt::STATUS_REJECTED,
         ];
 
         return Inertia::render('PaymentReceipts/Index', [
@@ -92,12 +115,13 @@ class OrderPaymentReceiptController extends Controller
             'stats' => [
                 'pending' => $statusCounts['pending'],
                 'approved' => $statusCounts['approved'],
+                'rejected' => $statusCounts['rejected'],
             ],
             'statusCounts' => $statusCounts,
             'canApprove' => $canApprove,
             'filters' => [
                 'search' => $search,
-                'status' => in_array($status, ['all', OrderPaymentReceipt::STATUS_PENDING, OrderPaymentReceipt::STATUS_APPROVED], true) ? $status : 'all',
+                'status' => in_array($status, $allowedStatuses, true) ? $status : 'all',
                 'per_page' => $perPage,
             ],
         ]);
@@ -113,7 +137,15 @@ class OrderPaymentReceiptController extends Controller
             return back()->with('error', 'تم اعتماد هذا السند مسبقاً.');
         }
 
-        $result = app(OrderPaymentReceiptService::class)->approveReceipt($receipt, $request->user());
+        if ($receipt->isRejected()) {
+            return back()->with('error', 'لا يمكن اعتماد سند مرفوض.');
+        }
+
+        try {
+            $result = app(OrderPaymentReceiptService::class)->approveReceipt($receipt, $request->user());
+        } catch (\RuntimeException $e) {
+            return back()->with('error', $e->getMessage());
+        }
 
         // Always attempt sync after a successful approval. The sync service is
         // idempotent and gated on approved receipts, so this also recovers from
@@ -135,6 +167,43 @@ class OrderPaymentReceiptController extends Controller
         }
 
         return back()->with('success', $message);
+    }
+
+    public function reject(Request $request, OrderPaymentReceipt $receipt): RedirectResponse
+    {
+        if (! $this->canApprove($request->user())) {
+            return back()->with('error', 'رفض سندات القبض متاح للمحاسب والمسؤول فقط.');
+        }
+
+        if ($receipt->isApproved()) {
+            return back()->with('error', 'لا يمكن رفض سند معتمد مسبقاً.');
+        }
+
+        if ($receipt->isRejected()) {
+            return back()->with('error', 'تم رفض هذا السند مسبقاً.');
+        }
+
+        $validated = $request->validate([
+            'rejection_reason' => ['required', 'string', 'min:3', 'max:1000'],
+        ], [
+            'rejection_reason.required' => 'يجب كتابة سبب الرفض.',
+            'rejection_reason.min' => 'سبب الرفض قصير جداً.',
+        ]);
+
+        try {
+            $rejected = app(OrderPaymentReceiptService::class)->rejectReceipt(
+                $receipt,
+                $validated['rejection_reason'],
+                $request->user(),
+            );
+        } catch (\RuntimeException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        return back()->with(
+            'success',
+            'تم رفض سند القبض '.$rejected->receipt_number.' دون إصدار أمر عمل. الطلب بقي كما كان.',
+        );
     }
 
     private function canApprove(?User $user): bool

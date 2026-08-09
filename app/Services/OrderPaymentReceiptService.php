@@ -93,6 +93,14 @@ class OrderPaymentReceiptService
                 return ['receipt' => $lockedReceipt, 'released_work_order' => false];
             }
 
+            if ($lockedReceipt->isRejected()) {
+                throw new RuntimeException('لا يمكن اعتماد سند مرفوض.');
+            }
+
+            if (! $lockedReceipt->isPending()) {
+                throw new RuntimeException('يمكن اعتماد السندات قيد الانتظار فقط.');
+            }
+
             /** @var Order $locked */
             $locked = Order::query()->lockForUpdate()->findOrFail($lockedReceipt->order_id);
 
@@ -140,6 +148,49 @@ class OrderPaymentReceiptService
                 'receipt' => $lockedReceipt,
                 'released_work_order' => ! $hadApprovedBefore,
             ];
+        });
+    }
+
+    /**
+     * Reject a pending receipt without applying its amount to the order or
+     * releasing a work order. The order balance stays unchanged.
+     */
+    public function rejectReceipt(
+        OrderPaymentReceipt $receipt,
+        string $reason,
+        ?User $rejector = null,
+    ): OrderPaymentReceipt {
+        $reason = trim($reason);
+
+        if ($reason === '') {
+            throw new RuntimeException('يجب كتابة سبب الرفض.');
+        }
+
+        return DB::transaction(function () use ($receipt, $reason, $rejector) {
+            /** @var OrderPaymentReceipt $lockedReceipt */
+            $lockedReceipt = OrderPaymentReceipt::query()->lockForUpdate()->findOrFail($receipt->id);
+
+            if ($lockedReceipt->isApproved()) {
+                throw new RuntimeException('لا يمكن رفض سند معتمد مسبقاً.');
+            }
+
+            if ($lockedReceipt->isRejected()) {
+                return $lockedReceipt;
+            }
+
+            if (! $lockedReceipt->isPending()) {
+                throw new RuntimeException('يمكن رفض السندات قيد الانتظار فقط.');
+            }
+
+            $lockedReceipt->fill([
+                'approval_status' => OrderPaymentReceipt::STATUS_REJECTED,
+                'rejection_reason' => $reason,
+                'rejected_at' => now(),
+                'rejected_by' => $rejector?->id,
+            ]);
+            $lockedReceipt->save();
+
+            return $lockedReceipt;
         });
     }
 

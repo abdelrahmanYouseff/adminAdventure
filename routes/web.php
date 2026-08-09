@@ -382,6 +382,10 @@ Route::post('payment-receipts/{receipt}/approve', [\App\Http\Controllers\OrderPa
     ->middleware(['auth', 'verified', 'role:admin,manager,accounts'])
     ->name('payment-receipts.approve');
 
+Route::post('payment-receipts/{receipt}/reject', [\App\Http\Controllers\OrderPaymentReceiptController::class, 'reject'])
+    ->middleware(['auth', 'verified', 'role:admin,manager,accounts'])
+    ->name('payment-receipts.reject');
+
 Route::get('orders/{order}/payment-receipt', [OrderController::class, 'latestPaymentReceiptPdf'])
     ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,accounts'])
     ->name('orders.payment-receipt');

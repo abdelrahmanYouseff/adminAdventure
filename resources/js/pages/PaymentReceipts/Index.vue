@@ -10,6 +10,16 @@ import {
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
+import {
     ArrowUpRight,
     CheckCircle2,
     ChevronDown,
@@ -25,6 +35,7 @@ import {
     Receipt,
     Search,
     UserRound,
+    XCircle,
 } from 'lucide-vue-next';
 import { formatCurrency, formatDate, formatInteger } from '@/lib/formatNumber';
 
@@ -50,9 +61,14 @@ interface ReceiptRow {
     type: string;
     approval_status: string;
     is_approved: boolean;
+    is_rejected: boolean;
     can_approve: boolean;
+    can_reject: boolean;
     approved_at: string | null;
     approved_by_name: string | null;
+    rejection_reason: string | null;
+    rejected_at: string | null;
+    rejected_by_name: string | null;
     created_at: string | null;
     order: {
         id: number;
@@ -66,7 +82,7 @@ interface ReceiptRow {
     account_number?: string | null;
 }
 
-type StatusTab = 'all' | 'pending' | 'approved';
+type StatusTab = 'all' | 'pending' | 'approved' | 'rejected';
 
 interface Props {
     receipts: {
@@ -81,6 +97,7 @@ interface Props {
     stats?: {
         pending: number;
         approved: number;
+        rejected?: number;
     };
     statusCounts?: Record<StatusTab, number>;
     canApprove: boolean;
@@ -92,8 +109,8 @@ interface Props {
 }
 
 const props = withDefaults(defineProps<Props>(), {
-    stats: () => ({ pending: 0, approved: 0 }),
-    statusCounts: () => ({ all: 0, pending: 0, approved: 0 }),
+    stats: () => ({ pending: 0, approved: 0, rejected: 0 }),
+    statusCounts: () => ({ all: 0, pending: 0, approved: 0, rejected: 0 }),
     filters: () => ({
         search: '',
         status: 'all',
@@ -110,11 +127,17 @@ const selectedIds = ref<number[]>([]);
 const expandedReceiptId = ref<number | null>(null);
 const approveForm = useForm({});
 const approvingId = ref<number | null>(null);
+const rejectDialogOpen = ref(false);
+const rejectTarget = ref<ReceiptRow | null>(null);
+const rejectForm = useForm({
+    rejection_reason: '',
+});
 
 const statusTabs: { key: StatusTab; label: string }[] = [
     { key: 'all', label: 'الكل' },
     { key: 'pending', label: 'بانتظار الاعتماد' },
     { key: 'approved', label: 'معتمدة' },
+    { key: 'rejected', label: 'مرفوضة' },
 ];
 
 const summaryCards = computed(() => [
@@ -138,6 +161,13 @@ const summaryCards = computed(() => [
         value: props.statusCounts.approved,
         unit: 'سند',
         hint: 'عرض المعتمدة',
+    },
+    {
+        key: 'rejected' as const,
+        label: 'مرفوضة',
+        value: props.statusCounts.rejected ?? 0,
+        unit: 'سند',
+        hint: 'عرض المرفوضة',
     },
 ]);
 
@@ -244,6 +274,29 @@ function approveReceipt(row: ReceiptRow) {
     });
 }
 
+function openRejectDialog(row: ReceiptRow) {
+    if (!row.can_reject || rejectForm.processing) return;
+    rejectTarget.value = row;
+    rejectForm.clearErrors();
+    rejectForm.rejection_reason = '';
+    rejectDialogOpen.value = true;
+}
+
+function closeRejectDialog() {
+    rejectDialogOpen.value = false;
+    rejectTarget.value = null;
+    rejectForm.reset();
+    rejectForm.clearErrors();
+}
+
+function submitReject() {
+    if (!rejectTarget.value) return;
+    rejectForm.post(route('payment-receipts.reject', rejectTarget.value.id), {
+        preserveScroll: true,
+        onSuccess: () => closeRejectDialog(),
+    });
+}
+
 function receiptPdfUrl(row: ReceiptRow): string | null {
     if (!row.order || !row.is_approved) return null;
     return `/orders/${row.order.id}/payment-receipts/${row.id}`;
@@ -274,9 +327,18 @@ function typeLabel(type: string): string {
     return map[type] || type;
 }
 
+function statusLabel(row: ReceiptRow): string {
+    if (row.is_approved) return 'معتمد';
+    if (row.is_rejected) return 'مرفوض';
+    return 'بانتظار الاعتماد';
+}
+
 function statusBadgeClass(row: ReceiptRow): string {
     if (row.is_approved) {
         return 'bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-300 dark:ring-emerald-900/50';
+    }
+    if (row.is_rejected) {
+        return 'bg-red-50 text-red-700 ring-1 ring-inset ring-red-100 dark:bg-red-950/40 dark:text-red-300 dark:ring-red-900/50';
     }
     return 'bg-amber-50 text-amber-800 ring-1 ring-inset ring-amber-100 dark:bg-amber-950/40 dark:text-amber-300 dark:ring-amber-900/50';
 }
@@ -298,7 +360,7 @@ function statusBadgeClass(row: ReceiptRow): string {
             </div>
         </div>
 
-        <div class="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-3">
+        <div class="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
             <button
                 v-for="card in summaryCards"
                 :key="card.key"
@@ -469,13 +531,26 @@ function statusBadgeClass(row: ReceiptRow): string {
                                             :class="statusBadgeClass(row)"
                                         >
                                             <CheckCircle2 v-if="row.is_approved" class="size-3.5" />
-                                            {{ row.is_approved ? 'معتمد' : 'بانتظار الاعتماد' }}
+                                            <XCircle v-else-if="row.is_rejected" class="size-3.5" />
+                                            {{ statusLabel(row) }}
                                         </span>
                                         <span
                                             v-if="row.is_approved && row.approved_by_name"
                                             class="text-[11px] text-gray-400"
                                         >
                                             {{ row.approved_by_name }}
+                                        </span>
+                                        <span
+                                            v-else-if="row.is_rejected && row.rejected_by_name"
+                                            class="text-[11px] text-gray-400"
+                                        >
+                                            {{ row.rejected_by_name }}
+                                        </span>
+                                        <span
+                                            v-if="row.is_rejected && row.rejection_reason"
+                                            class="max-w-[220px] text-[11px] leading-snug text-red-600/90 dark:text-red-400"
+                                        >
+                                            السبب: {{ row.rejection_reason }}
                                         </span>
                                     </div>
                                 </td>
@@ -485,11 +560,21 @@ function statusBadgeClass(row: ReceiptRow): string {
                                             v-if="row.can_approve"
                                             type="button"
                                             class="inline-flex h-8 items-center gap-1.5 rounded-lg bg-blue-600 px-3 text-xs font-medium text-white transition hover:bg-blue-700 disabled:opacity-60"
-                                            :disabled="approvingId === row.id"
+                                            :disabled="approvingId === row.id || rejectForm.processing"
                                             @click="approveReceipt(row)"
                                         >
                                             <CheckCircle2 class="size-3.5" />
                                             {{ approvingId === row.id ? 'جاري...' : 'اعتماد' }}
+                                        </button>
+                                        <button
+                                            v-if="row.can_reject"
+                                            type="button"
+                                            class="inline-flex h-8 items-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 text-xs font-medium text-red-700 transition hover:bg-red-50 disabled:opacity-60 dark:border-red-900/60 dark:bg-neutral-900 dark:text-red-300 dark:hover:bg-red-950/40"
+                                            :disabled="approvingId === row.id || rejectForm.processing"
+                                            @click="openRejectDialog(row)"
+                                        >
+                                            <XCircle class="size-3.5" />
+                                            رفض
                                         </button>
                                         <DropdownMenu>
                                             <DropdownMenuTrigger as-child>
@@ -518,7 +603,7 @@ function statusBadgeClass(row: ReceiptRow): string {
                                                         عرض الطلب
                                                     </Link>
                                                 </DropdownMenuItem>
-                                                <DropdownMenuSeparator v-if="row.can_approve" />
+                                                <DropdownMenuSeparator v-if="row.can_approve || row.can_reject" />
                                                 <DropdownMenuItem
                                                     v-if="row.can_approve"
                                                     class="gap-2"
@@ -527,6 +612,15 @@ function statusBadgeClass(row: ReceiptRow): string {
                                                 >
                                                     <CheckCircle2 class="size-4" />
                                                     اعتماد المبلغ
+                                                </DropdownMenuItem>
+                                                <DropdownMenuItem
+                                                    v-if="row.can_reject"
+                                                    class="gap-2 text-red-600 focus:text-red-700"
+                                                    :disabled="rejectForm.processing"
+                                                    @click="openRejectDialog(row)"
+                                                >
+                                                    <XCircle class="size-4" />
+                                                    رفض السند
                                                 </DropdownMenuItem>
                                             </DropdownMenuContent>
                                         </DropdownMenu>
@@ -702,5 +796,55 @@ function statusBadgeClass(row: ReceiptRow): string {
                 </div>
             </div>
         </div>
+
+        <Dialog :open="rejectDialogOpen" @update:open="(open) => !open && closeRejectDialog()">
+            <DialogContent class="max-w-md sm:max-w-lg">
+                <DialogHeader>
+                    <DialogTitle>رفض سند القبض</DialogTitle>
+                    <DialogDescription v-if="rejectTarget">
+                        لن يُطبَّق المبلغ على الطلب ولن يصدر أمر عمل.
+                        السند
+                        <span class="font-semibold tabular-nums" dir="ltr">{{ rejectTarget.receipt_number }}</span>
+                        —
+                        مبلغ
+                        <span class="font-semibold tabular-nums" dir="ltr">
+                            {{ formatCurrency(rejectTarget.amount, rejectTarget.order?.currency || 'SAR') }}
+                        </span>
+                    </DialogDescription>
+                </DialogHeader>
+
+                <form class="space-y-4" @submit.prevent="submitReject">
+                    <div class="space-y-2">
+                        <Label for="rejection-reason">سبب الرفض</Label>
+                        <textarea
+                            id="rejection-reason"
+                            v-model="rejectForm.rejection_reason"
+                            rows="4"
+                            class="flex min-h-[100px] w-full rounded-xl border border-input bg-background px-3 py-2 text-sm outline-none ring-offset-background placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring"
+                            placeholder="اكتب سبب رفض السند..."
+                            required
+                        />
+                        <p v-if="rejectForm.errors.rejection_reason" class="text-xs text-red-600">
+                            {{ rejectForm.errors.rejection_reason }}
+                        </p>
+                    </div>
+
+                    <DialogFooter class="gap-2 sm:justify-start">
+                        <Button
+                            type="submit"
+                            variant="destructive"
+                            class="h-10 gap-2 rounded-xl"
+                            :disabled="rejectForm.processing || !rejectForm.rejection_reason.trim()"
+                        >
+                            <XCircle class="size-4" />
+                            {{ rejectForm.processing ? 'جاري الرفض...' : 'تأكيد الرفض' }}
+                        </Button>
+                        <Button type="button" variant="outline" class="h-10 rounded-xl" @click="closeRejectDialog">
+                            إلغاء
+                        </Button>
+                    </DialogFooter>
+                </form>
+            </DialogContent>
+        </Dialog>
     </div>
 </template>
