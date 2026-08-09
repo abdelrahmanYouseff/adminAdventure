@@ -290,8 +290,10 @@ function closeRejectDialog() {
 }
 
 function submitReject() {
-    if (!rejectTarget.value) return;
-    rejectForm.post(route('payment-receipts.reject', rejectTarget.value.id), {
+    const target = rejectTarget.value;
+    if (!target) return;
+
+    rejectForm.post(`/payment-receipts/${target.id}/reject`, {
         preserveScroll: true,
         onSuccess: () => closeRejectDialog(),
     });
