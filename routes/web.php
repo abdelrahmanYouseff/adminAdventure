@@ -57,6 +57,33 @@ Route::middleware(['pwa'])->prefix('worker-app')->name('pwa.')->group(function (
     });
 });
 
+/*
+|--------------------------------------------------------------------------
+| Main staff PWA
+|--------------------------------------------------------------------------
+*/
+Route::middleware(['main-app'])->prefix('main-app')->name('main.')->group(function () {
+    Route::get('login', [\App\Http\Controllers\MainApp\AuthController::class, 'create'])
+        ->name('login');
+    Route::post('login', [\App\Http\Controllers\MainApp\AuthController::class, 'store'])
+        ->middleware('throttle:10,1')
+        ->name('login.store');
+
+    Route::middleware(['auth', 'main-app.staff'])->group(function () {
+        Route::get('/', \App\Http\Controllers\MainApp\HomeController::class)
+            ->name('home');
+        Route::get('modules', [\App\Http\Controllers\MainApp\ModuleController::class, 'index'])
+            ->name('modules');
+        Route::get('m/{module}', [\App\Http\Controllers\MainApp\ModuleController::class, 'show'])
+            ->where('module', '[a-z0-9\-]+')
+            ->name('module.show');
+        Route::get('more', [\App\Http\Controllers\MainApp\ModuleController::class, 'more'])
+            ->name('more');
+        Route::post('logout', [\App\Http\Controllers\MainApp\AuthController::class, 'destroy'])
+            ->name('logout');
+    });
+});
+
 Route::get('/home', function (Request $request) {
     $storefrontBrandId = \App\Models\Brand::storefront()->id;
 

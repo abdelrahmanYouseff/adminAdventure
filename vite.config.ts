@@ -7,7 +7,7 @@ import { defineConfig } from 'vite';
 export default defineConfig({
     plugins: [
         laravel({
-            input: ['resources/js/app.ts', 'resources/js/pwa/app.ts'],
+            input: ['resources/js/app.ts', 'resources/js/pwa/app.ts', 'resources/js/main-app/app.ts'],
             ssr: 'resources/js/ssr.ts',
             refresh: true,
         }),

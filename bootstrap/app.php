@@ -29,6 +29,10 @@ return Application::configure(basePath: dirname(__DIR__))
                 return route('pwa.login');
             }
 
+            if ($request->is('main-app', 'main-app/*')) {
+                return route('main.login');
+            }
+
             return route('login');
         });
 
@@ -37,6 +41,10 @@ return Application::configure(basePath: dirname(__DIR__))
 
             if ($user?->isWorker()) {
                 return route('pwa.dashboard');
+            }
+
+            if ($request->is('main-app', 'main-app/*') && $user?->canAccessDashboard()) {
+                return route('main.home');
             }
 
             if ($user?->canAccessDashboard()) {
@@ -59,6 +67,8 @@ return Application::configure(basePath: dirname(__DIR__))
             'role' => \App\Http\Middleware\EnsureUserHasRole::class,
             'worker' => \App\Http\Middleware\EnsureUserIsWorker::class,
             'pwa' => \App\Http\Middleware\UsePwaRootView::class,
+            'main-app' => \App\Http\Middleware\UseMainAppRootView::class,
+            'main-app.staff' => \App\Http\Middleware\EnsureUserIsMainAppStaff::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {
