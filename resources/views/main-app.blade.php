@@ -11,7 +11,7 @@
 
         <title inertia>تطبيق الإدارة — عالم المغامرة</title>
 
-        <link rel="manifest" href="/main-app/manifest.webmanifest">
+        <link rel="manifest" href="/pwa-main/manifest.webmanifest">
         <link rel="icon" href="/assets/logo.png" type="image/png" sizes="any">
         <link rel="apple-touch-icon" href="/assets/logo.png">
 
@@ -33,7 +33,7 @@
         <script>
             if ('serviceWorker' in navigator) {
                 window.addEventListener('load', function () {
-                    navigator.serviceWorker.register('/main-app/sw.js').catch(function () {});
+                    navigator.serviceWorker.register('/pwa-main/sw.js', { scope: '/main-app' }).catch(function () {});
                 });
             }
         </script>

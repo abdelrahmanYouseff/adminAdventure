@@ -1,8 +1,8 @@
-const CACHE = 'main-app-pwa-v1';
+const CACHE = 'main-app-pwa-v2';
 const PRECACHE = [
   '/main-app/login',
   '/assets/logo.png',
-  '/main-app/manifest.webmanifest',
+  '/pwa-main/manifest.webmanifest',
 ];
 
 self.addEventListener('install', (event) => {
