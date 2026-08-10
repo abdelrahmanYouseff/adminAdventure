@@ -262,12 +262,12 @@ class Order extends Model
         );
     }
 
-    public function scopeAssignedToWorker($query, User $user)
+    public function scopeAssignedToWorker($query, User $user, ?string $taskType = null)
     {
         $workerId = (int) $user->id;
         $workerName = (string) $user->name;
 
-        return $query->whereHas('workerAssemblers', function ($q) use ($workerId, $workerName) {
+        return $query->whereHas('workerAssemblers', function ($q) use ($workerId, $workerName, $taskType) {
             $q->where(function ($inner) use ($workerId, $workerName) {
                 $inner->where('user_id', $workerId);
 
@@ -275,10 +275,19 @@ class Order extends Model
                     $inner->orWhere('worker_name', $workerName);
                 }
             });
+
+            if ($taskType === WorkerOrderAssembler::TYPE_DISMANTLING) {
+                $q->where('task_type', WorkerOrderAssembler::TYPE_DISMANTLING);
+            } elseif ($taskType === WorkerOrderAssembler::TYPE_INSTALLATION) {
+                $q->where(function ($inner) {
+                    $inner->where('task_type', WorkerOrderAssembler::TYPE_INSTALLATION)
+                        ->orWhereNull('task_type');
+                });
+            }
         });
     }
 
-    public function isAssignedToWorker(User $user): bool
+    public function isAssignedToWorker(User $user, ?string $taskType = null): bool
     {
         return $this->workerAssemblers()
             ->where(function ($query) use ($user) {
@@ -288,7 +297,57 @@ class Order extends Model
                     $query->orWhere('worker_name', $user->name);
                 }
             })
+            ->when(
+                $taskType === WorkerOrderAssembler::TYPE_DISMANTLING,
+                fn ($query) => $query->where('task_type', WorkerOrderAssembler::TYPE_DISMANTLING),
+            )
+            ->when(
+                $taskType === WorkerOrderAssembler::TYPE_INSTALLATION,
+                fn ($query) => $query->where(function ($inner) {
+                    $inner->where('task_type', WorkerOrderAssembler::TYPE_INSTALLATION)
+                        ->orWhereNull('task_type');
+                }),
+            )
             ->exists();
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function workerAssignmentTypes(User $user): array
+    {
+        $types = $this->workerAssemblers()
+            ->where(function ($query) use ($user) {
+                $query->where('user_id', $user->id);
+
+                if ($user->name !== '') {
+                    $query->orWhere('worker_name', $user->name);
+                }
+            })
+            ->pluck('task_type')
+            ->map(fn ($type) => $type ?: WorkerOrderAssembler::TYPE_INSTALLATION)
+            ->unique()
+            ->values()
+            ->all();
+
+        return array_values($types);
+    }
+
+    public function primaryWorkerAssignmentType(User $user): string
+    {
+        $types = $this->workerAssignmentTypes($user);
+
+        if (in_array(WorkerOrderAssembler::TYPE_DISMANTLING, $types, true)
+            && ! in_array(WorkerOrderAssembler::TYPE_INSTALLATION, $types, true)) {
+            return WorkerOrderAssembler::TYPE_DISMANTLING;
+        }
+
+        if (in_array(WorkerOrderAssembler::TYPE_INSTALLATION, $types, true)
+            && in_array(WorkerOrderAssembler::TYPE_DISMANTLING, $types, true)) {
+            return 'both';
+        }
+
+        return WorkerOrderAssembler::TYPE_INSTALLATION;
     }
 
     /**

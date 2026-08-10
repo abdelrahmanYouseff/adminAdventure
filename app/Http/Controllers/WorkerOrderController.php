@@ -278,6 +278,7 @@ class WorkerOrderController extends Controller
 
         $alreadyAssigned = WorkerOrderAssembler::query()
             ->where('order_id', $order->id)
+            ->installation()
             ->where(function ($query) use ($worker) {
                 $query->where('user_id', $worker->id)
                     ->orWhere('worker_name', $worker->name);
@@ -294,6 +295,7 @@ class WorkerOrderController extends Controller
             'order_id' => $order->id,
             'worker_order_id' => null,
             'worker_name' => $worker->name,
+            'task_type' => WorkerOrderAssembler::TYPE_INSTALLATION,
             'user_id' => $worker->id,
             'created_by' => $user->id,
         ]);
@@ -321,6 +323,7 @@ class WorkerOrderController extends Controller
         $order = WorkOrderPresenter::resolve($workOrderKey, $syncService);
 
         abort_unless($assembler->order_id === $order->id, 404);
+        abort_unless($assembler->isInstallation(), 404);
 
         $assembler->delete();
 

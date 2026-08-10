@@ -31,7 +31,7 @@ const allNavItems: NavItemWithRoles[] = [
         title: 'الاسترجاع',
         href: '/returns',
         icon: Undo2,
-        roles: ['admin', 'general_manager', 'manager', 'warehouse_keeper'],
+        roles: ['admin', 'general_manager', 'manager', 'warehouse_keeper', 'workers_manager'],
     },
     {
         title: 'الأصناف',

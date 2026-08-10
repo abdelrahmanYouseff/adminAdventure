@@ -30,7 +30,9 @@ interface Installation {
     activity_time: string | null;
     status: 'pending' | 'completed';
     list_status: ListStatus;
-    phase: 'installation' | 'awaiting' | 'done';
+    phase: 'installation' | 'dismantling' | 'awaiting' | 'done';
+    task_type: 'installation' | 'dismantling' | 'both';
+    task_label: string;
     is_approved: boolean;
     products_count: number;
     pending_count: number;
@@ -109,6 +111,18 @@ function statusClass(item: Installation): string {
     if (item.list_status === 'awaiting_approval') return 'bg-amber-50 text-amber-800 ring-amber-200';
     if (item.list_status === 'completed') return 'bg-emerald-50 text-emerald-700 ring-emerald-200';
     return 'bg-sky-50 text-sky-700 ring-sky-100';
+}
+
+function taskBadgeClass(item: Installation): string {
+    if (item.task_type === 'dismantling') return 'bg-orange-50 text-orange-700 ring-orange-200';
+    if (item.task_type === 'both') return 'bg-violet-50 text-violet-700 ring-violet-200';
+    return 'bg-sky-50 text-sky-700 ring-sky-200';
+}
+
+function taskLabel(item: Installation): string {
+    if (item.task_type === 'dismantling') return t('task_dismantle');
+    if (item.task_type === 'both') return t('task_both');
+    return t('task_install');
 }
 </script>
 
@@ -217,7 +231,15 @@ function statusClass(item: Installation): string {
                     >
                         <div class="grid gap-2 sm:grid-cols-[1.4fr_1fr_auto] sm:items-center sm:gap-3">
                             <div class="min-w-0">
-                                <p class="truncate font-semibold text-slate-900">{{ item.customer_name }}</p>
+                                <div class="flex flex-wrap items-center gap-2">
+                                    <p class="truncate font-semibold text-slate-900">{{ item.customer_name }}</p>
+                                    <span
+                                        class="inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold ring-1"
+                                        :class="taskBadgeClass(item)"
+                                    >
+                                        {{ taskLabel(item) }}
+                                    </span>
+                                </div>
                                 <p class="mt-0.5 text-xs text-slate-500">
                                     {{ formatInteger(item.products_count) }} {{ t('products_short') }}
                                 </p>

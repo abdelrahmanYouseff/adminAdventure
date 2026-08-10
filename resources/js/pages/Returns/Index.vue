@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { Button } from '@/components/ui/button';
@@ -10,14 +10,6 @@ import Swal from 'sweetalert2';
 interface ReturnProduct {
     id: number;
     product_name: string;
-}
-
-interface ReturnNote {
-    id: number;
-    body: string;
-    user_name: string;
-    user_role: string;
-    created_at: string | null;
 }
 
 interface ProductReturn {
@@ -35,7 +27,6 @@ interface ProductReturn {
     warehouse_returned_by_name: string | null;
     is_returned: boolean;
     can_confirm: boolean;
-    notes: ReturnNote[];
     notes_count: number;
 }
 
@@ -63,9 +54,6 @@ const page = usePage();
 const flash = computed(() => (page.props.flash as { success?: string; error?: string } | undefined) ?? {});
 const searchQuery = ref(props.filters.search || '');
 const confirmingId = ref<number | null>(null);
-const expandedId = ref<number | null>(null);
-const noteDrafts = reactive<Record<number, string>>({});
-const savingNoteId = ref<number | null>(null);
 
 const statusTabs = [
     { key: 'pending', label: 'بانتظار الاسترجاع' },
@@ -130,13 +118,13 @@ function tabCount(key: string): number {
     return props.stats.pending + props.stats.returned;
 }
 
-function toggleExpand(item: ProductReturn, event?: Event) {
+function openDetails(item: ProductReturn, event?: Event) {
     const target = event?.target as HTMLElement | undefined;
     if (target?.closest('a, button, input, textarea, select, label')) {
         return;
     }
 
-    expandedId.value = expandedId.value === item.id ? null : item.id;
+    router.visit(`/returns/${item.id}`);
 }
 
 async function confirmReturn(item: ProductReturn) {
@@ -168,36 +156,6 @@ function dismantlingToneClass(tone: ProductReturn['dismantling_tone']): string {
     if (tone === 'ok') return 'bg-sky-50 text-sky-700 ring-sky-100';
     return 'bg-slate-50 text-slate-500 ring-slate-100';
 }
-
-function submitNote(item: ProductReturn) {
-    const body = (noteDrafts[item.id] || '').trim();
-    if (!body) {
-        Swal.fire({
-            icon: 'info',
-            title: 'الملاحظة فارغة',
-            text: 'اكتب ملاحظة قبل الإرسال.',
-            confirmButtonText: 'حسناً',
-            confirmButtonColor: '#2563EB',
-        });
-        return;
-    }
-
-    savingNoteId.value = item.id;
-    router.post(
-        `/returns/${item.id}/notes`,
-        { body },
-        {
-            preserveScroll: true,
-            onSuccess: () => {
-                noteDrafts[item.id] = '';
-                expandedId.value = item.id;
-            },
-            onFinish: () => {
-                savingNoteId.value = null;
-            },
-        },
-    );
-}
 </script>
 
 <template>
@@ -210,7 +168,7 @@ function submitNote(item: ProductReturn) {
                 الاسترجاع
             </h1>
             <p class="mt-1 text-sm text-gray-500 dark:text-neutral-400">
-                كل الطلبات تظهر هنا حسب تاريخ الفك والأيام المتبقية — اضغط على السجل لعرض الملاحظات
+                كل الطلبات تظهر هنا حسب تاريخ الفك والأيام المتبقية — اضغط على السجل لفتح التفاصيل وتعيين عامل الفك
             </p>
         </div>
 
@@ -295,15 +253,11 @@ function submitNote(item: ProductReturn) {
                     <tbody>
                         <template v-for="item in returns.data" :key="item.id">
                             <tr
-                                class="cursor-pointer border-b border-gray-100 align-top transition hover:bg-gray-50/80 dark:border-neutral-800 dark:hover:bg-neutral-800/40"
-                                :class="expandedId === item.id ? 'bg-orange-50/40 dark:bg-orange-950/20' : ''"
-                                @click="toggleExpand(item, $event)"
+                                class="cursor-pointer border-b border-gray-100 align-top transition hover:bg-orange-50/50 dark:border-neutral-800 dark:hover:bg-orange-950/20"
+                                @click="openDetails(item, $event)"
                             >
                                 <td class="px-3 py-3 text-gray-400">
-                                    <ChevronDown
-                                        class="size-4 transition"
-                                        :class="expandedId === item.id ? 'rotate-180 text-orange-600' : ''"
-                                    />
+                                    <ChevronDown class="size-4 -rotate-90" />
                                 </td>
                                 <td class="px-4 py-3 font-semibold text-gray-900 dark:text-white">
                                     <div class="flex flex-wrap items-center gap-2">
@@ -374,70 +328,6 @@ function submitNote(item: ProductReturn) {
                                         {{ confirmingId === item.id ? 'جاري التأكيد...' : 'تأكيد الاسترجاع' }}
                                     </Button>
                                     <span v-else class="text-xs text-gray-400">—</span>
-                                </td>
-                            </tr>
-
-                            <tr v-if="expandedId === item.id" class="border-b border-gray-100 bg-slate-50/70 dark:border-neutral-800 dark:bg-neutral-950/40">
-                                <td colspan="8" class="px-4 py-4">
-                                    <div class="rounded-2xl border border-slate-200 bg-white p-4 text-right shadow-sm dark:border-neutral-700 dark:bg-neutral-900">
-                                        <div class="mb-3 flex items-center justify-between gap-2">
-                                            <p class="flex items-center gap-2 text-sm font-semibold text-slate-800 dark:text-neutral-100">
-                                                <MessageSquareText class="h-4 w-4 text-slate-500" />
-                                                الملاحظات ({{ formatInteger(item.notes_count || 0) }})
-                                            </p>
-                                            <button
-                                                type="button"
-                                                class="text-xs font-medium text-slate-500 hover:text-slate-700"
-                                                @click="expandedId = null"
-                                            >
-                                                إغلاق
-                                            </button>
-                                        </div>
-
-                                        <div v-if="item.notes?.length" class="mb-4 max-h-72 space-y-3 overflow-y-auto">
-                                            <article
-                                                v-for="note in item.notes"
-                                                :key="note.id"
-                                                class="rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 dark:border-neutral-700 dark:bg-neutral-950"
-                                            >
-                                                <div class="mb-1.5 flex flex-wrap items-center gap-x-2 gap-y-1">
-                                                    <span class="text-sm font-semibold text-slate-900 dark:text-white">{{ note.user_name }}</span>
-                                                    <span class="rounded-full bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-500 ring-1 ring-slate-200 dark:bg-neutral-900 dark:ring-neutral-700">
-                                                        {{ note.user_role }}
-                                                    </span>
-                                                    <span v-if="note.created_at" class="text-[11px] text-slate-400" dir="ltr">
-                                                        {{ formatDateTime(note.created_at) }}
-                                                    </span>
-                                                </div>
-                                                <p class="whitespace-pre-wrap text-sm leading-relaxed text-slate-700 dark:text-neutral-300">{{ note.body }}</p>
-                                            </article>
-                                        </div>
-                                        <p v-else class="mb-4 py-4 text-center text-sm text-slate-400">
-                                            لا توجد ملاحظات على هذا الطلب بعد.
-                                        </p>
-
-                                        <div class="space-y-2 border-t border-slate-100 pt-3 dark:border-neutral-800">
-                                            <label class="block text-xs font-semibold text-slate-600 dark:text-neutral-300">إضافة ملاحظة</label>
-                                            <textarea
-                                                v-model="noteDrafts[item.id]"
-                                                rows="3"
-                                                maxlength="2000"
-                                                placeholder="اكتب ملاحظة عن حالة المنتجات أو أي ملاحظات للمستودع..."
-                                                class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none transition focus:border-orange-300 focus:ring-2 focus:ring-orange-100 dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100"
-                                            />
-                                            <div class="flex justify-end">
-                                                <Button
-                                                    size="sm"
-                                                    class="gap-1.5"
-                                                    :disabled="savingNoteId === item.id"
-                                                    @click="submitNote(item)"
-                                                >
-                                                    <MessageSquareText class="size-3.5" />
-                                                    {{ savingNoteId === item.id ? 'جاري الحفظ...' : 'حفظ الملاحظة' }}
-                                                </Button>
-                                            </div>
-                                        </div>
-                                    </div>
                                 </td>
                             </tr>
                         </template>

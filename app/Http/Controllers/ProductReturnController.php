@@ -3,12 +3,16 @@
 namespace App\Http\Controllers;
 
 use App\Models\Order;
+use App\Models\User;
 use App\Models\WorkerOrder;
+use App\Models\WorkerOrderAssembler;
 use App\Models\WorkerOrderNote;
+use App\Support\WorkOrderPresenter;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -63,6 +67,35 @@ class ProductReturnController extends Controller
         ]);
     }
 
+    public function show(Request $request, Order $order): Response
+    {
+        abort_unless($this->isEligibleReturn($order), 404);
+
+        $order->load([
+            'workerOrders' => fn ($q) => $q->orderBy('line_index'),
+            'workerOrders.completedByUser:id,customer_name',
+            'warehouseReturnedBy:id,customer_name',
+            'workerAssemblers' => fn ($q) => $q->dismantling()->latest(),
+            'workerNotes' => fn ($q) => $q->latest(),
+            'workerNotes.user:id,customer_name,role',
+        ]);
+
+        $user = $request->user();
+
+        return Inertia::render('Returns/Show', [
+            'returnOrder' => $this->formatReturnDetail($order),
+            'availableWorkers' => WorkOrderPresenter::availableWorkers(),
+            'canAssignWorkers' => $this->canAssignWorkers($user),
+            'canConfirm' => blank($order->warehouse_returned_at)
+                && $user?->hasAnyRole(
+                    User::ROLE_ADMIN,
+                    User::ROLE_GENERAL_MANAGER,
+                    User::ROLE_MANAGER,
+                    User::ROLE_WAREHOUSE_KEEPER,
+                ),
+        ]);
+    }
+
     public function confirm(Request $request, Order $order): RedirectResponse
     {
         abort_unless($this->isEligibleReturn($order), 404);
@@ -99,6 +132,65 @@ class ProductReturnController extends Controller
         return back()->with('success', 'تم إضافة الملاحظة.');
     }
 
+    public function storeAssembler(Request $request, Order $order): RedirectResponse
+    {
+        abort_unless($this->isEligibleReturn($order), 404);
+        abort_unless($this->canAssignWorkers($request->user()), 403, 'غير مصرح لك بتعيين العمال.');
+
+        $validated = $request->validate([
+            'user_id' => [
+                'required',
+                'integer',
+                Rule::exists('users', 'id')->where(fn ($query) => $query->where('role', User::ROLE_WORKER)),
+            ],
+        ], [
+            'user_id.required' => 'يجب اختيار العامل.',
+            'user_id.exists' => 'العامل المحدد غير صالح.',
+        ]);
+
+        $worker = User::query()->findOrFail($validated['user_id']);
+
+        $alreadyAssigned = WorkerOrderAssembler::query()
+            ->where('order_id', $order->id)
+            ->dismantling()
+            ->where(function ($query) use ($worker) {
+                $query->where('user_id', $worker->id)
+                    ->orWhere('worker_name', $worker->name);
+            })
+            ->exists();
+
+        if ($alreadyAssigned) {
+            return back()->withErrors([
+                'user_id' => 'هذا العامل معيّن مسبقاً لفك هذا الطلب.',
+            ]);
+        }
+
+        WorkerOrderAssembler::create([
+            'order_id' => $order->id,
+            'worker_order_id' => null,
+            'worker_name' => $worker->name,
+            'task_type' => WorkerOrderAssembler::TYPE_DISMANTLING,
+            'user_id' => $worker->id,
+            'created_by' => $request->user()->id,
+        ]);
+
+        return back()->with('success', 'تم تعيين العامل للفك بنجاح.');
+    }
+
+    public function destroyAssembler(Request $request, Order $order, WorkerOrderAssembler $assembler): RedirectResponse
+    {
+        abort_unless($this->isEligibleReturn($order), 404);
+        abort_unless($this->canAssignWorkers($request->user()), 403, 'غير مصرح لك بحذف تعيين العمال.');
+        abort_unless(
+            $assembler->order_id === $order->id && $assembler->isDismantling(),
+            404,
+        );
+
+        $assembler->delete();
+
+        return back()->with('success', 'تم حذف عامل الفك.');
+    }
+
     private function eligibleReturnsQuery(): Builder
     {
         return Order::query()
@@ -108,6 +200,17 @@ class ProductReturnController extends Controller
     private function isEligibleReturn(Order $order): bool
     {
         return ! in_array($order->status, ['cancelled', 'refunded'], true);
+    }
+
+    private function canAssignWorkers(?User $user): bool
+    {
+        return (bool) $user?->hasAnyRole(
+            User::ROLE_ADMIN,
+            User::ROLE_GENERAL_MANAGER,
+            User::ROLE_MANAGER,
+            User::ROLE_WORKERS_MANAGER,
+            User::ROLE_WAREHOUSE_KEEPER,
+        );
     }
 
     /**
@@ -163,6 +266,63 @@ class ProductReturnController extends Controller
             ])->values()->all(),
             'notes_count' => $notes->count(),
         ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function formatReturnDetail(Order $order): array
+    {
+        $base = $this->formatReturn($order);
+        $lines = $order->workerOrders;
+        $assemblers = $order->workerAssemblers
+            ->filter(fn (WorkerOrderAssembler $assembler) => $assembler->isDismantling())
+            ->values();
+
+        $products = $lines->isNotEmpty()
+            ? $lines->map(fn (WorkerOrder $line) => [
+                'id' => $line->id,
+                'product_name' => $line->product_name,
+                'product_image_url' => $line->product_image_url,
+                'status' => $line->status,
+                'installation_photo_url' => $line->installation_photo_url,
+                'pickup_photo_url' => $line->pickup_photo_url,
+                'pickup_at' => $line->pickup_at?->toIso8601String(),
+                'pickup_condition' => $line->pickup_condition,
+                'completed_at' => $line->completed_at?->toIso8601String(),
+            ])->values()->all()
+            : collect($order->items ?? [])->values()->map(function ($item, int $index) {
+                $row = is_array($item) ? $item : [];
+
+                return [
+                    'id' => $index + 1,
+                    'product_name' => (string) ($row['name'] ?? $row['product_name'] ?? 'صنف'),
+                    'product_image_url' => null,
+                    'status' => null,
+                    'installation_photo_url' => null,
+                    'pickup_photo_url' => null,
+                    'pickup_at' => null,
+                    'pickup_condition' => null,
+                    'completed_at' => null,
+                ];
+            })->all();
+
+        return array_merge($base, [
+            'address' => $order->address,
+            'activity_date' => $order->activity_date?->format('Y-m-d'),
+            'activity_time' => ($order->getAttributes()['activity_time'] ?? null)
+                ? \Carbon\Carbon::parse($order->getAttributes()['activity_time'])->format('H:i')
+                : null,
+            'products' => $products,
+            'assemblers' => $assemblers->map(fn (WorkerOrderAssembler $assembler) => [
+                'id' => $assembler->id,
+                'worker_name' => $assembler->worker_name,
+                'user_id' => $assembler->user_id,
+                'task_type' => WorkerOrderAssembler::TYPE_DISMANTLING,
+                'created_at' => $assembler->created_at?->toIso8601String(),
+            ])->values()->all(),
+            'assigned_workers' => $assemblers->pluck('worker_name')->unique()->values()->all(),
+        ]);
     }
 
     /**

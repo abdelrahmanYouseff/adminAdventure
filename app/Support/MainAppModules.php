@@ -45,7 +45,7 @@ class MainAppModules
                 'icon' => 'undo-2',
                 'tone' => 'amber',
                 'desktop_path' => '/returns',
-                'roles' => [User::ROLE_ADMIN, User::ROLE_GENERAL_MANAGER, User::ROLE_MANAGER, User::ROLE_WAREHOUSE_KEEPER],
+                'roles' => [User::ROLE_ADMIN, User::ROLE_GENERAL_MANAGER, User::ROLE_MANAGER, User::ROLE_WAREHOUSE_KEEPER, User::ROLE_WORKERS_MANAGER],
             ],
             [
                 'key' => 'categories',

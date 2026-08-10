@@ -48,6 +48,8 @@ interface Installation {
     completed_count: number;
     is_approved: boolean;
     status: 'pending' | 'completed';
+    task_type?: 'installation' | 'dismantling' | 'both';
+    task_label?: string;
     products: ProductLine[];
     notes: WorkNote[];
 }
@@ -85,8 +87,12 @@ const finishedProducts = computed(() =>
 
 const notes = computed(() => props.installation.notes ?? []);
 
+const isDismantling = computed(() => props.installation.task_type === 'dismantling');
+
 const pageTitle = computed(() =>
-    t('install_title', { name: props.installation.customer_name }),
+    isDismantling.value
+        ? t('dismantle_title', { name: props.installation.customer_name })
+        : t('install_title', { name: props.installation.customer_name }),
 );
 
 function formatInstallDate(date: string | null): string {
@@ -161,7 +167,7 @@ function submitCapture() {
     if (!selectedProduct.value) return;
 
     if (!installForm.installation_photo) {
-        photoError.value = t('need_install_photo');
+        photoError.value = isDismantling.value ? t('need_dismantle_photo') : t('need_install_photo');
         return;
     }
 
@@ -215,7 +221,9 @@ function confirmLeave() {
                 <ArrowLeft v-else class="h-5 w-5" />
             </Link>
             <div class="min-w-0 flex-1">
-                <p class="text-xs text-slate-500">{{ t('install_details') }}</p>
+                <p class="text-xs text-slate-500">
+                    {{ isDismantling ? t('dismantle_details') : t('install_details') }}
+                </p>
                 <h1 class="truncate text-lg font-bold text-slate-900">{{ installation.customer_name }}</h1>
             </div>
             <WorkerLanguageSwitcher />
@@ -236,7 +244,9 @@ function confirmLeave() {
                 <div class="flex items-start justify-between gap-3">
                     <div class="min-w-0 space-y-3">
                         <div>
-                            <p class="text-sm text-slate-500">{{ t('install_date') }}</p>
+                            <p class="text-sm text-slate-500">
+                                {{ isDismantling ? t('dismantle_date') : t('install_date') }}
+                            </p>
                             <p class="mt-1 font-semibold text-slate-900">{{ formatInstallDate(installation.installation_date) }}</p>
                         </div>
                         <div>
@@ -244,9 +254,19 @@ function confirmLeave() {
                             <p class="mt-1 font-semibold text-slate-900" dir="ltr">{{ formatActivityTime(installation.activity_time) }}</p>
                         </div>
                     </div>
-                    <span class="rounded-full bg-sky-50 px-2.5 py-1 text-[11px] font-semibold text-sky-700 ring-1 ring-sky-100">
-                        {{ t('install_progress', { done: installation.completed_count, total: installation.products_count }) }}
-                    </span>
+                    <div class="flex flex-col items-end gap-2">
+                        <span
+                            class="rounded-full px-2.5 py-1 text-[11px] font-bold ring-1"
+                            :class="isDismantling ? 'bg-orange-50 text-orange-700 ring-orange-200' : 'bg-sky-50 text-sky-700 ring-sky-100'"
+                        >
+                            {{ isDismantling ? t('task_dismantle') : t('task_install') }}
+                        </span>
+                        <span class="rounded-full bg-slate-50 px-2.5 py-1 text-[11px] font-semibold text-slate-700 ring-1 ring-slate-200">
+                            {{ isDismantling
+                                ? t('dismantle_progress', { done: installation.completed_count, total: installation.products_count })
+                                : t('install_progress', { done: installation.completed_count, total: installation.products_count }) }}
+                        </span>
+                    </div>
                 </div>
 
                 <div class="mt-4 space-y-3 text-sm">
@@ -286,7 +306,7 @@ function confirmLeave() {
                         v-model="noteForm.body"
                         rows="3"
                         maxlength="2000"
-                        :placeholder="t('note_placeholder')"
+                        :placeholder="isDismantling ? t('note_placeholder_dismantle') : t('note_placeholder')"
                         class="w-full resize-none rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none ring-sky-400/30 placeholder:text-slate-400 focus:border-sky-400 focus:bg-white focus:ring-2"
                         :disabled="noteForm.processing"
                     />
@@ -320,7 +340,9 @@ function confirmLeave() {
             </section>
 
             <section class="space-y-3">
-                <h2 class="px-1 text-sm font-semibold text-slate-700">{{ t('products_to_install') }}</h2>
+                <h2 class="px-1 text-sm font-semibold text-slate-700">
+                    {{ isDismantling ? t('products_to_dismantle') : t('products_to_install') }}
+                </h2>
 
                 <article
                     v-for="product in pendingProducts"
@@ -346,7 +368,7 @@ function confirmLeave() {
                             @click="openInstallCapture(product)"
                         >
                             <Camera class="h-5 w-5" />
-                            {{ t('photo_after_install') }}
+                            {{ isDismantling ? t('photo_after_dismantle') : t('photo_after_install') }}
                         </button>
                     </div>
                 </article>
@@ -356,12 +378,16 @@ function confirmLeave() {
                     class="rounded-3xl border border-dashed border-emerald-200 bg-emerald-50/60 px-5 py-8 text-center"
                 >
                     <CheckCircle2 class="mx-auto h-8 w-8 text-emerald-500" />
-                    <p class="mt-3 text-sm font-semibold text-emerald-800">{{ t('all_installed') }}</p>
+                    <p class="mt-3 text-sm font-semibold text-emerald-800">
+                        {{ isDismantling ? t('all_dismantled') : t('all_installed') }}
+                    </p>
                 </div>
             </section>
 
             <section v-if="finishedProducts.length" class="space-y-3 pb-4">
-                <h2 class="px-1 text-sm font-semibold text-slate-700">{{ t('completed_installs') }}</h2>
+                <h2 class="px-1 text-sm font-semibold text-slate-700">
+                    {{ isDismantling ? t('completed_dismantles') : t('completed_installs') }}
+                </h2>
                 <article
                     v-for="product in finishedProducts"
                     :key="`done-${product.id}`"
@@ -405,7 +431,9 @@ function confirmLeave() {
                 >
                     <div class="flex items-start justify-between gap-3 border-b border-slate-100 px-5 py-4">
                         <div class="min-w-0">
-                            <h2 class="text-lg font-bold text-slate-900">{{ t('capture_install_title') }}</h2>
+                            <h2 class="text-lg font-bold text-slate-900">
+                                {{ isDismantling ? t('capture_dismantle_title') : t('capture_install_title') }}
+                            </h2>
                             <p class="mt-1 truncate text-sm text-slate-500">{{ selectedProduct.product_name }}</p>
                         </div>
                         <button
@@ -432,7 +460,9 @@ function confirmLeave() {
                             @click="fileInputRef?.click()"
                         >
                             <Camera class="h-8 w-8" />
-                            <p class="font-semibold">{{ t('open_camera_install') }}</p>
+                            <p class="font-semibold">
+                                {{ isDismantling ? t('open_camera_dismantle') : t('open_camera_install') }}
+                            </p>
                             <p class="text-xs opacity-80">{{ t('or_gallery') }}</p>
                         </button>
 

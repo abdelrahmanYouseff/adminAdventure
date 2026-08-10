@@ -319,16 +319,28 @@ Route::get('insurance-deposits', [\App\Http\Controllers\InsuranceDepositControll
     ->name('insurance-deposits.index');
 
 Route::get('returns', [\App\Http\Controllers\ProductReturnController::class, 'index'])
-    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,warehouse_keeper'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,warehouse_keeper,workers_manager'])
     ->name('returns.index');
+
+Route::get('returns/{order}', [\App\Http\Controllers\ProductReturnController::class, 'show'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,warehouse_keeper,workers_manager'])
+    ->name('returns.show');
 
 Route::post('returns/{order}/confirm', [\App\Http\Controllers\ProductReturnController::class, 'confirm'])
     ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,warehouse_keeper'])
     ->name('returns.confirm');
 
 Route::post('returns/{order}/notes', [\App\Http\Controllers\ProductReturnController::class, 'storeNote'])
-    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,warehouse_keeper'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,warehouse_keeper,workers_manager'])
     ->name('returns.notes.store');
+
+Route::post('returns/{order}/assemblers', [\App\Http\Controllers\ProductReturnController::class, 'storeAssembler'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,warehouse_keeper,workers_manager'])
+    ->name('returns.assemblers.store');
+
+Route::delete('returns/{order}/assemblers/{assembler}', [\App\Http\Controllers\ProductReturnController::class, 'destroyAssembler'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,warehouse_keeper,workers_manager'])
+    ->name('returns.assemblers.destroy');
 
 Route::get('insurance-deposits/{order}', [\App\Http\Controllers\InsuranceDepositController::class, 'show'])
     ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,accounts'])

@@ -73,7 +73,10 @@ class WorkOrderPresenter
         $lines = $order->workerOrders;
         $installedCount = $lines->where('status', 'completed')->count();
         $total = $lines->count();
-        $assignedWorkers = $order->workerAssemblers->pluck('worker_name')->unique()->values()->all();
+        $installationAssemblers = $order->workerAssemblers
+            ->filter(fn (WorkerOrderAssembler $assembler) => $assembler->isInstallation())
+            ->values();
+        $assignedWorkers = $installationAssemblers->pluck('worker_name')->unique()->values()->all();
 
         $eventStatus = 'pending';
         if ($installedCount === $total && $total > 0) {
@@ -98,11 +101,12 @@ class WorkOrderPresenter
                 'pickup' => $lines->whereNotNull('pickup_photo')->count(),
             ],
             'lines' => $lines->map(fn (WorkerOrder $line) => self::line($line))->values()->all(),
-            'assemblers' => $order->workerAssemblers
+            'assemblers' => $installationAssemblers
                 ->map(fn (WorkerOrderAssembler $assembler) => [
                     'id' => $assembler->id,
                     'worker_name' => $assembler->worker_name,
                     'user_id' => $assembler->user_id,
+                    'task_type' => $assembler->task_type ?: WorkerOrderAssembler::TYPE_INSTALLATION,
                     'created_at' => $assembler->created_at?->toIso8601String(),
                 ])
                 ->values()
@@ -161,13 +165,16 @@ class WorkOrderPresenter
             'completed' => true,
         ];
 
-        $firstAssembler = $order->workerAssemblers->sortBy('created_at')->first();
+        $firstAssembler = $order->workerAssemblers
+            ->filter(fn (WorkerOrderAssembler $assembler) => $assembler->isInstallation())
+            ->sortBy('created_at')
+            ->first();
         $items[] = [
             'key' => 'worker_assigned',
-            'title' => 'تعيين العمال',
+            'title' => 'تعيين عمال التركيب',
             'description' => $firstAssembler
                 ? 'تم تسجيل العامل: '.$firstAssembler->worker_name
-                : 'لم يتم تسجيل عمال بعد',
+                : 'لم يتم تسجيل عمال تركيب بعد',
             'timestamp' => $firstAssembler?->created_at?->toIso8601String(),
             'user_name' => $firstAssembler?->worker_name,
             'completed' => (bool) $firstAssembler,

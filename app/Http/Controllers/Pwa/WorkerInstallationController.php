@@ -18,7 +18,7 @@ class WorkerInstallationController extends Controller
     public function show(Order $order): Response
     {
         $user = request()->user();
-        abort_unless($order->isAssignedToWorker($user), 403, 'هذا التركيب غير معيّن لك.');
+        abort_unless($order->isAssignedToWorker($user), 403, 'هذا الطلب غير معيّن لك.');
 
         $order->load([
             'workerOrders' => fn ($q) => $q->orderBy('line_index'),
@@ -26,11 +26,25 @@ class WorkerInstallationController extends Controller
             'workerNotes.user:id,customer_name,role',
         ]);
 
+        $assignmentType = $order->primaryWorkerAssignmentType($user);
+        $isDismantling = $assignmentType === \App\Models\WorkerOrderAssembler::TYPE_DISMANTLING;
         $lines = $order->workerOrders;
-        $pendingInstallCount = $lines->where('status', 'pending')->count();
-        $completedInstallCount = $lines->where('status', 'completed')->count();
         $firstLine = $lines->first();
         $address = $firstLine?->customer_address ?? $order->address;
+
+        if ($isDismantling) {
+            $pendingCount = $lines->whereNull('pickup_photo')->count();
+            $completedCount = $lines->whereNotNull('pickup_photo')->count();
+            $scheduledDate = $order->dismantling_at?->format('Y-m-d');
+            $scheduledTime = $order->dismantling_at?->format('H:i');
+        } else {
+            $pendingCount = $lines->where('status', 'pending')->count();
+            $completedCount = $lines->where('status', 'completed')->count();
+            $scheduledDate = ($firstLine?->installation_date ?? $order->activity_date)?->format('Y-m-d');
+            $scheduledTime = ($order->getAttributes()['activity_time'] ?? null)
+                ? \Carbon\Carbon::parse($order->getAttributes()['activity_time'])->format('H:i')
+                : null;
+        }
 
         return Inertia::render('InstallationShow', [
             'installation' => [
@@ -38,22 +52,28 @@ class WorkerInstallationController extends Controller
                 'customer_name' => $firstLine?->customer_name ?? $order->customer_name,
                 'customer_phone' => $order->customer_phone,
                 'map_url' => $this->resolveMapUrl($address),
-                'installation_date' => ($firstLine?->installation_date ?? $order->activity_date)?->format('Y-m-d'),
-                'activity_time' => ($order->getAttributes()['activity_time'] ?? null)
-                    ? \Carbon\Carbon::parse($order->getAttributes()['activity_time'])->format('H:i')
-                    : null,
+                'installation_date' => $scheduledDate,
+                'activity_time' => $scheduledTime,
                 'products_count' => $lines->count(),
-                'pending_count' => $pendingInstallCount,
-                'completed_count' => $completedInstallCount,
+                'pending_count' => $pendingCount,
+                'completed_count' => $completedCount,
                 'is_approved' => (bool) $order->work_order_approved_at,
-                'status' => $pendingInstallCount > 0 ? 'pending' : 'completed',
+                'status' => $pendingCount > 0 ? 'pending' : 'completed',
+                'task_type' => $isDismantling ? 'dismantling' : ($assignmentType === 'both' ? 'both' : 'installation'),
+                'task_label' => $isDismantling ? 'فك' : ($assignmentType === 'both' ? 'تركيب + فك' : 'تركيب'),
                 'products' => $lines->map(fn (WorkerOrder $line) => [
                     'id' => $line->id,
                     'product_name' => $line->product_name,
                     'product_image_url' => $line->product_image_url,
-                    'status' => $line->status,
-                    'installation_photo_url' => $line->installation_photo_url,
-                    'completed_at' => $line->completed_at?->toIso8601String(),
+                    'status' => $isDismantling
+                        ? (filled($line->pickup_photo) ? 'completed' : 'pending')
+                        : $line->status,
+                    'installation_photo_url' => $isDismantling
+                        ? $line->pickup_photo_url
+                        : $line->installation_photo_url,
+                    'completed_at' => $isDismantling
+                        ? $line->pickup_at?->toIso8601String()
+                        : $line->completed_at?->toIso8601String(),
                 ])->values()->all(),
                 'notes' => $order->workerNotes
                     ->map(fn (WorkerOrderNote $note) => [
@@ -72,7 +92,7 @@ class WorkerInstallationController extends Controller
     public function storeNote(Request $request, Order $order): RedirectResponse
     {
         $user = $request->user();
-        abort_unless($order->isAssignedToWorker($user), 403, 'هذا التركيب غير معيّن لك.');
+        abort_unless($order->isAssignedToWorker($user), 403, 'هذا الطلب غير معيّن لك.');
 
         $validated = $request->validate([
             'body' => ['required', 'string', 'max:2000'],
@@ -100,8 +120,49 @@ class WorkerInstallationController extends Controller
         abort_unless(
             $workerOrder->order && $workerOrder->order->isAssignedToWorker($user),
             403,
-            'هذا التركيب غير معيّن لك.',
+            'هذا الطلب غير معيّن لك.',
         );
+
+        $isDismantling = $workerOrder->order->isAssignedToWorker(
+            $user,
+            \App\Models\WorkerOrderAssembler::TYPE_DISMANTLING,
+        ) && ! $workerOrder->order->isAssignedToWorker(
+            $user,
+            \App\Models\WorkerOrderAssembler::TYPE_INSTALLATION,
+        );
+
+        if ($isDismantling) {
+            if (filled($workerOrder->pickup_photo)) {
+                return back()->withErrors([
+                    'installation_photo' => 'تم رفع صورة الفك مسبقاً لهذا المنتج.',
+                ]);
+            }
+
+            $validated = $request->validate([
+                'installation_photo' => ['required', 'image', 'max:5120'],
+            ], [
+                'installation_photo.required' => 'يجب تصوير الفك من أرض الواقع قبل الإرسال.',
+                'installation_photo.image' => 'يجب أن يكون الملف صورة.',
+                'installation_photo.max' => 'حجم الصورة يجب ألا يتجاوز 5 ميجابايت.',
+            ]);
+
+            $path = $validated['installation_photo']->store('worker-pickups', 'public');
+
+            if ($workerOrder->pickup_photo) {
+                Storage::disk('public')->delete($workerOrder->pickup_photo);
+            }
+
+            $workerOrder->update([
+                'pickup_photo' => $path,
+                'pickup_at' => now(),
+                'pickup_by' => $user->id,
+                'pickup_condition' => 'returned',
+            ]);
+
+            return redirect()
+                ->route('pwa.installations.show', $workerOrder->order_id)
+                ->with('success', 'تم تسجيل صورة الفك بنجاح.');
+        }
 
         if ($workerOrder->status === 'completed') {
             return back()->withErrors([
