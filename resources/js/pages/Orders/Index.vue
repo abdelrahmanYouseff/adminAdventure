@@ -22,6 +22,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import {
     ArrowUpRight,
+    Camera,
     Check,
     ChevronLeft,
     ChevronRight,
@@ -37,9 +38,34 @@ import {
     Trash2,
     UploadCloud,
     Wallet,
+    Wrench,
     X,
 } from 'lucide-vue-next';
-import { formatCurrency, formatDate, formatInteger } from '@/lib/formatNumber';
+import { formatCurrency, formatDate, formatDateTime, formatInteger } from '@/lib/formatNumber';
+
+interface InstallationPhoto {
+    product_name: string;
+    url: string;
+}
+
+interface InstallationMeta {
+    status: string;
+    label: string;
+    progress_done: number;
+    progress_total: number;
+    approved_at?: string | null;
+    has_photos: boolean;
+    can_review_photos: boolean;
+    photos: InstallationPhoto[];
+}
+
+interface DismantlingMeta {
+    status: string;
+    label: string;
+    scheduled_at?: string | null;
+    progress_done: number;
+    progress_total: number;
+}
 
 interface Order {
     id: number;
@@ -66,6 +92,8 @@ interface Order {
     can_edit_activity_time?: boolean;
     address: string | null;
     created_at: string;
+    installation?: InstallationMeta | null;
+    dismantling?: DismantlingMeta | null;
 }
 
 type StatusTab = 'all' | 'pending' | 'processing' | 'paid' | 'cancelled' | 'refunded';
@@ -122,6 +150,9 @@ const settleDialogOpen = ref(false);
 const settleOrder = ref<Order | null>(null);
 const paymentProofPreviews = ref<string[]>([]);
 const paymentProofInput = ref<HTMLInputElement | null>(null);
+const photosDialogOpen = ref(false);
+const photosDialogOrder = ref<Order | null>(null);
+const photosLightbox = ref<string | null>(null);
 
 const settleForm = useForm({
     amount: '' as number | string,
@@ -445,6 +476,39 @@ function statusBadgeClass(status: string): string {
     return map[status] || 'bg-gray-100 text-gray-700 ring-1 ring-inset ring-gray-200';
 }
 
+function installBadgeClass(status: string): string {
+    const map: Record<string, string> = {
+        completed: 'bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-300 dark:ring-emerald-900/50',
+        in_progress: 'bg-sky-50 text-sky-700 ring-1 ring-inset ring-sky-100 dark:bg-sky-950/40 dark:text-sky-300 dark:ring-sky-900/50',
+        pending: 'bg-amber-50 text-amber-700 ring-1 ring-inset ring-amber-100 dark:bg-amber-950/40 dark:text-amber-300 dark:ring-amber-900/50',
+        none: 'bg-gray-50 text-gray-500 ring-1 ring-inset ring-gray-200 dark:bg-neutral-800 dark:text-neutral-400 dark:ring-neutral-700',
+    };
+    return map[status] || map.none;
+}
+
+function dismantleBadgeClass(status: string): string {
+    const map: Record<string, string> = {
+        completed: 'bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-300 dark:ring-emerald-900/50',
+        in_progress: 'bg-violet-50 text-violet-700 ring-1 ring-inset ring-violet-100 dark:bg-violet-950/40 dark:text-violet-300 dark:ring-violet-900/50',
+        pending: 'bg-amber-50 text-amber-700 ring-1 ring-inset ring-amber-100 dark:bg-amber-950/40 dark:text-amber-300 dark:ring-amber-900/50',
+        waiting_install: 'bg-slate-50 text-slate-500 ring-1 ring-inset ring-slate-200 dark:bg-neutral-800 dark:text-neutral-400 dark:ring-neutral-700',
+        none: 'bg-gray-50 text-gray-500 ring-1 ring-inset ring-gray-200 dark:bg-neutral-800 dark:text-neutral-400 dark:ring-neutral-700',
+    };
+    return map[status] || map.none;
+}
+
+function openPhotosDialog(order: Order) {
+    if (!order.installation?.can_review_photos) return;
+    photosDialogOrder.value = order;
+    photosDialogOpen.value = true;
+}
+
+function closePhotosDialog() {
+    photosDialogOpen.value = false;
+    photosDialogOrder.value = null;
+    photosLightbox.value = null;
+}
+
 function paidAmount(order: Order): number {
     if (order.status === 'paid') {
         return Number(order.total_amount) || 0;
@@ -678,7 +742,7 @@ function locationMapsUrl(address: string | null): string | null {
             </div>
 
             <div class="overflow-x-auto">
-                <table class="w-full min-w-[1180px] border-collapse text-sm">
+                <table class="w-full min-w-[1380px] border-collapse text-sm">
                     <thead>
                         <tr class="border-b border-gray-100 text-start dark:border-neutral-800">
                             <th class="w-12 px-4 py-3.5">
@@ -697,13 +761,15 @@ function locationMapsUrl(address: string | null): string | null {
                             <th class="px-3 py-3.5 text-start text-[13px] font-semibold text-gray-700 dark:text-neutral-200">المستحق</th>
                             <th class="px-3 py-3.5 text-start text-[13px] font-semibold text-gray-700 dark:text-neutral-200">تاريخ الفعالية</th>
                             <th class="px-3 py-3.5 text-start text-[13px] font-semibold text-gray-700 dark:text-neutral-200">وقت الفعالية</th>
+                            <th class="px-3 py-3.5 text-start text-[13px] font-semibold text-gray-700 dark:text-neutral-200">التركيب</th>
+                            <th class="px-3 py-3.5 text-start text-[13px] font-semibold text-gray-700 dark:text-neutral-200">الفك</th>
                             <th class="px-3 py-3.5 text-start text-[13px] font-semibold text-gray-700 dark:text-neutral-200">الحالة</th>
                             <th class="px-4 py-3.5 text-end text-[13px] font-semibold text-gray-700 dark:text-neutral-200" />
                         </tr>
                     </thead>
                     <tbody>
                         <tr v-if="orders.data.length === 0">
-                            <td colspan="11" class="px-4 py-16 text-center text-gray-500 dark:text-neutral-400">
+                            <td colspan="13" class="px-4 py-16 text-center text-gray-500 dark:text-neutral-400">
                                 لا توجد طلبات مطابقة للبحث أو الفلتر الحالي.
                             </td>
                         </tr>
@@ -838,6 +904,42 @@ function locationMapsUrl(address: string | null): string | null {
                                     >
                                         <Pencil class="size-3.5" />
                                     </button>
+                                </div>
+                            </td>
+                            <td class="px-3 py-4">
+                                <div class="flex min-w-[8.5rem] flex-col items-start gap-1.5">
+                                    <span
+                                        class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold"
+                                        :class="installBadgeClass(order.installation?.status || 'none')"
+                                    >
+                                        {{ order.installation?.label || '—' }}
+                                    </span>
+                                    <button
+                                        v-if="order.installation?.can_review_photos"
+                                        type="button"
+                                        class="inline-flex items-center gap-1 text-[11px] font-semibold text-sky-700 hover:underline dark:text-sky-400"
+                                        @click="openPhotosDialog(order)"
+                                    >
+                                        <Camera class="size-3" />
+                                        مراجعة الصور
+                                    </button>
+                                </div>
+                            </td>
+                            <td class="px-3 py-4">
+                                <div class="flex min-w-[7.5rem] flex-col items-start gap-1">
+                                    <span
+                                        class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold"
+                                        :class="dismantleBadgeClass(order.dismantling?.status || 'none')"
+                                    >
+                                        {{ order.dismantling?.label || '—' }}
+                                    </span>
+                                    <span
+                                        v-if="order.dismantling?.scheduled_at"
+                                        class="text-[11px] text-gray-400"
+                                        dir="ltr"
+                                    >
+                                        {{ formatDateTime(order.dismantling.scheduled_at) }}
+                                    </span>
                                 </div>
                             </td>
                             <td class="px-3 py-4">
@@ -1120,5 +1222,72 @@ function locationMapsUrl(address: string | null): string | null {
                 </form>
             </DialogContent>
         </Dialog>
+
+        <Dialog :open="photosDialogOpen" @update:open="(open) => !open && closePhotosDialog()">
+            <DialogContent class="max-h-[90vh] max-w-3xl overflow-y-auto sm:rounded-2xl">
+                <DialogHeader>
+                    <DialogTitle class="flex items-center gap-2">
+                        <Wrench class="size-5 text-sky-600" />
+                        مراجعة صور التركيب
+                    </DialogTitle>
+                    <DialogDescription v-if="photosDialogOrder">
+                        الطلب
+                        <span class="font-semibold tabular-nums" dir="ltr">{{ photosDialogOrder.order_number }}</span>
+                        —
+                        {{ photosDialogOrder.customer_name }}
+                    </DialogDescription>
+                </DialogHeader>
+
+                <div
+                    v-if="photosDialogOrder?.installation?.photos?.length"
+                    class="grid grid-cols-1 gap-3 sm:grid-cols-2"
+                >
+                    <button
+                        v-for="(photo, index) in photosDialogOrder.installation.photos"
+                        :key="`${photo.url}-${index}`"
+                        type="button"
+                        class="overflow-hidden rounded-2xl border border-border/70 bg-muted/20 text-start transition hover:ring-2 hover:ring-sky-200"
+                        @click="photosLightbox = photo.url"
+                    >
+                        <img
+                            :src="photo.url"
+                            :alt="photo.product_name"
+                            class="aspect-[4/3] w-full object-cover"
+                        />
+                        <p class="truncate px-3 py-2 text-sm font-medium text-slate-800 dark:text-neutral-100">
+                            {{ photo.product_name }}
+                        </p>
+                    </button>
+                </div>
+                <p v-else class="py-8 text-center text-sm text-muted-foreground">
+                    لا توجد صور تركيب مرفوعة لهذا الطلب.
+                </p>
+
+                <DialogFooter>
+                    <Button type="button" variant="outline" class="h-10 rounded-xl" @click="closePhotosDialog">
+                        إغلاق
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+
+        <Teleport to="body">
+            <div
+                v-if="photosLightbox"
+                class="fixed inset-0 z-[300] flex items-center justify-center bg-black/85 p-4"
+                role="dialog"
+                aria-modal="true"
+                @click.self="photosLightbox = null"
+            >
+                <button
+                    type="button"
+                    class="absolute end-4 top-4 flex h-10 w-10 items-center justify-center rounded-full bg-white/15 text-white"
+                    @click="photosLightbox = null"
+                >
+                    <X class="h-5 w-5" />
+                </button>
+                <img :src="photosLightbox" alt="معاينة صورة التركيب" class="max-h-[85vh] max-w-full rounded-2xl object-contain" />
+            </div>
+        </Teleport>
     </div>
 </template>

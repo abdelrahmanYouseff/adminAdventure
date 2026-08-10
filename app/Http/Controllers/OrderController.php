@@ -27,7 +27,12 @@ class OrderController extends Controller
         $perPage = (int) $request->query('per_page', 15);
         $perPage = in_array($perPage, [10, 15, 25, 50], true) ? $perPage : 15;
 
-        $query = Order::with(['user', 'invoice', 'products'])
+        $query = Order::with([
+            'user',
+            'invoice',
+            'products',
+            'workerOrders' => fn ($q) => $q->orderBy('line_index'),
+        ])
             ->withSum([
                 'paymentReceipts as pending_payment_sum' => fn ($q) => $q
                     ->where('approval_status', OrderPaymentReceipt::STATUS_PENDING),
@@ -113,6 +118,10 @@ class OrderController extends Controller
             $order->setAttribute('total_amount', $grandTotal);
             $order->setAttribute('vat_amount', $breakdown['tax']);
             $order->setAttribute('tax_amount', $breakdown['tax']);
+
+            $installMeta = $this->installationColumnMeta($order, (bool) $canEditTime);
+            $order->setAttribute('installation', $installMeta);
+            $order->setAttribute('dismantling', $this->dismantlingColumnMeta($order));
 
             return $order;
         });
@@ -1296,6 +1305,115 @@ class OrderController extends Controller
             'tax' => $tax,
             'insurance' => $insurance,
             'grand' => round($grand, 2),
+        ];
+    }
+
+    /**
+     * @return array{
+     *     status: string,
+     *     label: string,
+     *     progress_done: int,
+     *     progress_total: int,
+     *     approved_at: string|null,
+     *     has_photos: bool,
+     *     can_review_photos: bool,
+     *     photos: list<array{product_name: string, url: string}>
+     * }
+     */
+    private function installationColumnMeta(Order $order, bool $canReviewPhotos): array
+    {
+        $lines = $order->relationLoaded('workerOrders')
+            ? $order->workerOrders
+            : $order->workerOrders()->orderBy('line_index')->get();
+
+        $total = $lines->count();
+        $done = $lines->where('status', 'completed')->count();
+        $isApproved = filled($order->work_order_approved_at);
+
+        $photos = $lines
+            ->filter(fn ($line) => filled($line->installation_photo))
+            ->map(fn ($line) => [
+                'product_name' => (string) $line->product_name,
+                'url' => (string) $line->installation_photo_url,
+            ])
+            ->values()
+            ->all();
+
+        if ($total === 0) {
+            $status = 'none';
+            $label = '—';
+        } elseif ($isApproved) {
+            $status = 'completed';
+            $label = 'تم التركيب';
+        } elseif ($done > 0) {
+            $status = 'in_progress';
+            $label = "قيد التركيب ({$done}/{$total})";
+        } else {
+            $status = 'pending';
+            $label = 'بانتظار التركيب';
+        }
+
+        return [
+            'status' => $status,
+            'label' => $label,
+            'progress_done' => $done,
+            'progress_total' => $total,
+            'approved_at' => $order->work_order_approved_at?->toIso8601String(),
+            'has_photos' => $photos !== [],
+            'can_review_photos' => $canReviewPhotos && $photos !== [],
+            'photos' => $photos,
+        ];
+    }
+
+    /**
+     * @return array{
+     *     status: string,
+     *     label: string,
+     *     scheduled_at: string|null,
+     *     progress_done: int,
+     *     progress_total: int
+     * }
+     */
+    private function dismantlingColumnMeta(Order $order): array
+    {
+        $lines = $order->relationLoaded('workerOrders')
+            ? $order->workerOrders
+            : $order->workerOrders()->orderBy('line_index')->get();
+
+        $total = $lines->count();
+        $pickedUp = $lines->filter(fn ($line) => filled($line->pickup_photo))->count();
+        $scheduledAt = $order->dismantling_at?->format('Y-m-d H:i');
+
+        if ($total === 0) {
+            return [
+                'status' => 'none',
+                'label' => '—',
+                'scheduled_at' => $scheduledAt,
+                'progress_done' => 0,
+                'progress_total' => 0,
+            ];
+        }
+
+        if ($pickedUp >= $total) {
+            $status = 'completed';
+            $label = 'تم الفك';
+        } elseif ($pickedUp > 0) {
+            $status = 'in_progress';
+            $label = "قيد الفك ({$pickedUp}/{$total})";
+        } elseif (filled($order->work_order_approved_at) || $lines->where('status', 'completed')->isNotEmpty()) {
+            $status = 'pending';
+            $label = 'بانتظار الفك';
+        } else {
+            $status = 'waiting_install';
+            $label = 'بعد التركيب';
+        }
+
+        return [
+            'status' => $status,
+            'label' => $label,
+            'scheduled_at' => $scheduledAt,
+            'progress_done' => $pickedUp,
+            'progress_total' => $total,
         ];
     }
 
