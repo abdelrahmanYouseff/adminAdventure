@@ -8,15 +8,15 @@ import {
     CheckCircle2,
     Clock3,
     ExternalLink,
+    Gamepad2,
     History,
     MapPin,
     MessageSquareText,
-    Package,
     Phone,
     Plus,
-    ShieldCheck,
     Trash2,
     Users,
+    Wrench,
     X,
 } from 'lucide-vue-next';
 import { formatCurrency, formatDate, formatDateTime } from '@/lib/formatNumber';
@@ -147,6 +147,17 @@ const progress = computed(() => props.workOrder.installation_progress ?? {
     total: props.workOrder.products_count,
 });
 
+const installButtonLabel = computed(() => {
+    if (props.workOrder.is_approved) return 'تم التركيب ✓';
+    if (approveForm.processing) return 'جاري التأكيد...';
+    if (props.workOrder.can_approve) return 'تم التركيب';
+    return 'بانتظار اكتمال التركيب';
+});
+
+const canClickInstallDone = computed(
+    () => Boolean(props.workOrder.can_approve) && !approveForm.processing,
+);
+
 const unassignedWorkers = computed(() => {
     const assignedIds = new Set(
         assemblers.value.map((a) => a.user_id).filter((id): id is number => id != null),
@@ -222,7 +233,7 @@ function removeAssembler(assembler: WorkOrderAssembler) {
 
 function approveOrder() {
     if (!props.workOrder.can_approve) return;
-    if (!confirm('تأكيد تعميد أمر العمل؟')) return;
+    if (!confirm('تأكيد أن التركيب اكتمل؟ سيتم تعميد أمر العمل.')) return;
     approveForm.return_to = returnTo.value;
     approveForm.post(`/worker-orders/${encodeURIComponent(props.workOrder.reference_number)}/approve`, {
         preserveScroll: true,
@@ -373,44 +384,138 @@ function openPhoto(url: string) {
                 </a>
             </section>
 
-            <!-- Approve -->
-            <section
-                v-if="workOrder.can_approve || workOrder.is_approved"
-                class="mb-4 rounded-[1.5rem] border p-4 shadow-sm"
+            <!-- تم التركيب -->
+            <section class="mb-4 rounded-[1.5rem] border p-4 shadow-sm"
                 :class="workOrder.is_approved
                     ? 'border-emerald-100 bg-emerald-50/80'
-                    : 'border-amber-200 bg-gradient-to-br from-amber-50 to-orange-50'"
+                    : workOrder.can_approve
+                        ? 'border-emerald-200 bg-gradient-to-br from-emerald-50 to-teal-50'
+                        : 'border-slate-200 bg-white'"
             >
                 <div class="flex items-start gap-3">
                     <span
                         class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-white shadow-md"
-                        :class="workOrder.is_approved ? 'bg-emerald-500' : 'bg-amber-500'"
+                        :class="workOrder.is_approved || workOrder.can_approve ? 'bg-emerald-500' : 'bg-slate-400'"
                     >
-                        <ShieldCheck class="h-5 w-5" />
+                        <Wrench class="h-5 w-5" />
                     </span>
                     <div class="min-w-0 flex-1">
-                        <p class="font-bold" :class="workOrder.is_approved ? 'text-emerald-900' : 'text-amber-900'">
-                            {{ workOrder.is_approved ? 'تم تعميد أمر العمل' : 'جاهز للتعميد' }}
+                        <p class="font-bold text-slate-900">
+                            {{ workOrder.is_approved ? 'اكتمل التركيب وتم التعميد' : 'تأكيد اكتمال التركيب' }}
                         </p>
-                        <p class="mt-1 text-sm" :class="workOrder.is_approved ? 'text-emerald-800' : 'text-amber-800'">
+                        <p class="mt-1 text-sm text-slate-600">
                             <template v-if="workOrder.is_approved">
                                 اعتمد بواسطة {{ workOrder.approved_by_name || 'مدير العمال' }}
                                 <span v-if="workOrder.approved_at"> — {{ formatDateTime(workOrder.approved_at) }}</span>
                             </template>
+                            <template v-else-if="workOrder.can_approve">
+                                كل الألعاب مكتملة الصور. اضغط «تم التركيب» لتعميد أمر العمل.
+                            </template>
                             <template v-else>
-                                تم رفع صور التركيب لجميع المنتجات. يمكنك تعميد أمر العمل الآن.
+                                التقدم: {{ progress.done }}/{{ progress.total }} —
+                                بانتظار رفع العامل لصور التركيب.
                             </template>
                         </p>
                         <button
-                            v-if="workOrder.can_approve"
                             type="button"
-                            class="mt-3 inline-flex h-11 w-full items-center justify-center rounded-2xl bg-amber-600 text-sm font-bold text-white shadow-sm disabled:opacity-60"
-                            :disabled="approveForm.processing"
-                            @click="approveOrder"
+                            class="mt-3 inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl text-sm font-bold text-white shadow-sm transition disabled:opacity-60"
+                            :class="workOrder.is_approved
+                                ? 'bg-emerald-600'
+                                : canClickInstallDone
+                                    ? 'bg-emerald-600 active:scale-[0.99] hover:bg-emerald-700'
+                                    : 'bg-slate-300 text-slate-600'"
+                            :disabled="!canClickInstallDone && !workOrder.is_approved"
+                            @click="canClickInstallDone && approveOrder()"
                         >
-                            {{ approveForm.processing ? 'جاري التعميد...' : 'تعميد أمر العمل' }}
+                            <CheckCircle2 class="h-5 w-5" />
+                            {{ installButtonLabel }}
                         </button>
                     </div>
+                </div>
+            </section>
+
+            <!-- الألعاب المطلوب تركيبها -->
+            <section class="mb-4 space-y-3">
+                <div class="flex items-center justify-between gap-2 px-1">
+                    <h2 class="flex items-center gap-2 text-sm font-bold text-slate-800">
+                        <Gamepad2 class="h-4 w-4 text-teal-600" />
+                        الألعاب المطلوب تركيبها
+                    </h2>
+                    <span class="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600">
+                        {{ progress.done }}/{{ progress.total }}
+                    </span>
+                </div>
+                <p class="px-1 text-xs text-slate-500">تفاصيل الألعاب والمعدات المفترض تركيبها لهذه الفعالية</p>
+
+                <article
+                    v-for="line in workOrder.lines"
+                    :key="`game-${line.id}`"
+                    class="overflow-hidden rounded-[1.5rem] border border-white/80 bg-white shadow-sm"
+                >
+                    <div class="relative aspect-[16/9] bg-slate-100">
+                        <img
+                            v-if="line.product_image_url"
+                            :src="line.product_image_url"
+                            :alt="line.product_name"
+                            class="h-full w-full object-cover"
+                        />
+                        <div v-else class="flex h-full w-full items-center justify-center text-slate-300">
+                            <Gamepad2 class="h-10 w-10" />
+                        </div>
+                        <span class="absolute start-3 top-3 rounded-full bg-white/95 px-2.5 py-1 text-[11px] font-semibold text-slate-700 shadow-sm">
+                            كمية: 1
+                        </span>
+                        <span
+                            class="absolute end-3 top-3 rounded-full px-2.5 py-1 text-[11px] font-semibold shadow-sm"
+                            :class="line.status === 'completed'
+                                ? 'bg-emerald-600 text-white'
+                                : 'bg-amber-500 text-white'"
+                        >
+                            {{ line.status === 'completed' ? 'تم التركيب' : 'قيد الانتظار' }}
+                        </span>
+                    </div>
+                    <div class="space-y-2 p-4">
+                        <h3 class="font-bold text-slate-900">{{ line.product_name }}</h3>
+                        <div class="flex flex-wrap items-center gap-2 text-[11px] text-slate-500">
+                            <span
+                                class="rounded-full px-2.5 py-0.5 font-semibold"
+                                :class="line.status === 'completed'
+                                    ? 'bg-emerald-50 text-emerald-700'
+                                    : 'bg-amber-50 text-amber-700'"
+                            >
+                                تركيب: {{ line.status === 'completed' ? 'مكتمل' : 'لم يكتمل' }}
+                            </span>
+                            <span
+                                class="rounded-full px-2.5 py-0.5 font-semibold"
+                                :class="line.installation_photo_url
+                                    ? 'bg-sky-50 text-sky-700'
+                                    : 'bg-slate-100 text-slate-500'"
+                            >
+                                {{ line.installation_photo_url ? 'صورة مرفوعة' : 'بدون صورة' }}
+                            </span>
+                        </div>
+                        <p v-if="line.completed_by_user" class="text-[11px] text-slate-400">
+                            ركّبها {{ line.completed_by_user.name }}
+                            <span v-if="line.completed_at"> — {{ formatDateTime(line.completed_at) }}</span>
+                        </p>
+                        <button
+                            v-if="line.installation_photo_url"
+                            type="button"
+                            class="inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-700"
+                            @click="openPhoto(line.installation_photo_url!)"
+                        >
+                            <Camera class="h-3.5 w-3.5" />
+                            عرض صورة التركيب
+                        </button>
+                    </div>
+                </article>
+
+                <div
+                    v-if="!workOrder.lines.length"
+                    class="rounded-[1.5rem] border border-dashed border-slate-200 bg-white/70 px-5 py-10 text-center"
+                >
+                    <Gamepad2 class="mx-auto h-8 w-8 text-slate-300" />
+                    <p class="mt-2 text-sm font-semibold text-slate-600">لا توجد ألعاب مسجّلة</p>
                 </div>
             </section>
 
@@ -469,43 +574,26 @@ function openPhoto(url: string) {
                 <p v-else class="mt-3 text-xs text-slate-400">لم يتم تعيين عمال بعد</p>
             </section>
 
-            <!-- Products / photos -->
+            <!-- Photos gallery -->
             <section class="mb-4 space-y-3">
                 <h2 class="flex items-center gap-2 px-1 text-sm font-bold text-slate-800">
-                    <Package class="h-4 w-4 text-teal-600" />
-                    المنتجات والصور
+                    <Camera class="h-4 w-4 text-teal-600" />
+                    صور التركيب والاستلام
                 </h2>
 
                 <article
                     v-for="line in workOrder.lines"
-                    :key="line.id"
+                    :key="`photo-${line.id}`"
                     class="overflow-hidden rounded-[1.5rem] border border-white/80 bg-white shadow-sm"
                 >
-                    <div class="flex gap-3 p-3">
-                        <div class="h-16 w-16 shrink-0 overflow-hidden rounded-xl bg-slate-100">
-                            <img
-                                v-if="line.product_image_url"
-                                :src="line.product_image_url"
-                                :alt="line.product_name"
-                                class="h-full w-full object-cover"
-                            />
-                            <div v-else class="flex h-full items-center justify-center text-slate-300">
-                                <Package class="h-6 w-6" />
-                            </div>
-                        </div>
-                        <div class="min-w-0 flex-1">
-                            <p class="font-semibold text-slate-900">{{ line.product_name }}</p>
-                            <p
-                                class="mt-1 text-xs font-medium"
-                                :class="line.status === 'completed' ? 'text-emerald-600' : 'text-amber-600'"
-                            >
-                                {{ line.status === 'completed' ? 'تم التركيب' : 'بانتظار التركيب' }}
-                            </p>
-                            <p v-if="line.completed_by_user" class="mt-0.5 text-[11px] text-slate-400">
-                                بواسطة {{ line.completed_by_user.name }}
-                                <span v-if="line.completed_at"> — {{ formatDateTime(line.completed_at) }}</span>
-                            </p>
-                        </div>
+                    <div class="flex items-center justify-between gap-2 border-b border-slate-100 px-4 py-3">
+                        <p class="truncate text-sm font-semibold text-slate-900">{{ line.product_name }}</p>
+                        <span
+                            class="shrink-0 rounded-full px-2.5 py-0.5 text-[11px] font-semibold"
+                            :class="line.status === 'completed' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'"
+                        >
+                            {{ line.status === 'completed' ? 'تم التركيب' : 'قيد التركيب' }}
+                        </span>
                     </div>
 
                     <div class="grid grid-cols-2 gap-px bg-slate-100">
