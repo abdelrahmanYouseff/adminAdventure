@@ -20,7 +20,11 @@ class EnsureUserIsMainAppStaff
             return redirect()->route('pwa.dashboard');
         }
 
-        if (! $user->canAccessDashboard()) {
+        if (! $user->isWorkersManager()) {
+            if ($user->canAccessDashboard()) {
+                return redirect()->route($user->homeRouteName());
+            }
+
             return redirect()->route('home');
         }
 

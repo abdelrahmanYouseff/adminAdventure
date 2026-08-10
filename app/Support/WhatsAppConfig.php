@@ -7,7 +7,7 @@ class WhatsAppConfig
     /**
      * @return list<string>
      */
-    public static function issues(): array
+    public static function apiIssues(): array
     {
         $issues = [];
 
@@ -22,6 +22,21 @@ class WhatsAppConfig
         if (! filled(config('services.whatsapp.access_token'))) {
             $issues[] = 'WHATSAPP_ACCESS_TOKEN غير موجود في .env';
         }
+
+        return $issues;
+    }
+
+    public static function isApiConfigured(): bool
+    {
+        return self::apiIssues() === [];
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function issues(): array
+    {
+        $issues = self::apiIssues();
 
         $recipients = app(\App\Services\WhatsAppCloudService::class)->recipientNumbers();
         if ($recipients === []) {

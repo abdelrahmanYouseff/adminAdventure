@@ -2,12 +2,12 @@
 import BottomNav from '../components/BottomNav.vue';
 
 interface Props {
-    activeNav?: 'home' | 'modules' | 'more';
+    activeNav?: 'orders' | 'more';
     showNav?: boolean;
 }
 
 withDefaults(defineProps<Props>(), {
-    activeNav: 'home',
+    activeNav: 'orders',
     showNav: true,
 });
 </script>

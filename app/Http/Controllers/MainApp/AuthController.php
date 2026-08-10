@@ -16,7 +16,7 @@ class AuthController extends Controller
 {
     public function create(Request $request): Response|RedirectResponse
     {
-        if ($request->user()?->canAccessDashboard()) {
+        if ($request->user()?->isWorkersManager()) {
             return redirect()->route('main.home');
         }
 
@@ -24,7 +24,12 @@ class AuthController extends Controller
             return redirect()->route('pwa.dashboard');
         }
 
-        // أي جلسة عميل تُصفَّر حتى لا تمنع دخول الموظفين
+        // أي جلسة موظف آخر تُحوَّل للوحة المناسبة — التطبيق مخصص لمدير العمال فقط
+        if ($request->user()?->canAccessDashboard()) {
+            return redirect()->route($request->user()->homeRouteName());
+        }
+
+        // أي جلسة عميل تُصفَّر حتى لا تمنع دخول مدير العمال
         if ($request->user()) {
             Auth::logout();
             $request->session()->invalidate();
@@ -79,14 +84,14 @@ class AuthController extends Controller
             ]);
         }
 
-        if (! $user->canAccessDashboard()) {
+        if (! $user->isWorkersManager()) {
             Auth::logout();
             $request->session()->invalidate();
             $request->session()->regenerateToken();
             RateLimiter::hit($throttleKey);
 
             throw ValidationException::withMessages([
-                'email' => 'هذا الحساب غير مصرح له بدخول تطبيق الإدارة.',
+                'email' => 'تطبيق الإدارة مخصص لمدير العمال فقط.',
             ]);
         }
 

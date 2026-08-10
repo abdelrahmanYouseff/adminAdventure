@@ -1,0 +1,70 @@
+<?php
+
+namespace App\Services;
+
+use App\Models\Order;
+use App\Models\ShortLink;
+use App\Support\PublicAppUrl;
+use Illuminate\Support\Str;
+
+class ShortLinkService
+{
+    public function createDeliveryNoteLink(Order $order, int $daysValid = 90): ShortLink
+    {
+        $order->loadMissing('invoice:id,invoice_number');
+        $targetKey = $order->invoice?->invoice_number ?? $order->order_number;
+
+        $existing = ShortLink::query()
+            ->where('type', ShortLink::TYPE_DELIVERY_NOTE)
+            ->where('order_id', $order->id)
+            ->where(function ($query) {
+                $query->whereNull('expires_at')->orWhere('expires_at', '>', now());
+            })
+            ->latest('id')
+            ->first();
+
+        if ($existing) {
+            $existing->fill([
+                'target_key' => $targetKey,
+                'expires_at' => now()->addDays($daysValid),
+            ]);
+            $existing->save();
+
+            return $existing;
+        }
+
+        return ShortLink::query()->create([
+            'code' => $this->uniqueCode(),
+            'type' => ShortLink::TYPE_DELIVERY_NOTE,
+            'order_id' => $order->id,
+            'target_key' => $targetKey,
+            'expires_at' => now()->addDays($daysValid),
+            'hits' => 0,
+        ]);
+    }
+
+    public function publicUrl(ShortLink $link): string
+    {
+        return rtrim(PublicAppUrl::base(), '/').'/d/'.$link->code;
+    }
+
+    /**
+     * Value passed to Meta URL button {{1}}.
+     * Template website URL should be: https://your-domain/d/{{1}}
+     */
+    public function whatsappButtonSuffix(ShortLink $link): string
+    {
+        $mode = (string) config('services.whatsapp.delivery_note_button_mode', 'code');
+
+        return $mode === 'path' ? 'd/'.$link->code : $link->code;
+    }
+
+    private function uniqueCode(int $length = 8): string
+    {
+        do {
+            $code = Str::lower(Str::random($length));
+        } while (ShortLink::query()->where('code', $code)->exists());
+
+        return $code;
+    }
+}

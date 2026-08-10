@@ -8,10 +8,13 @@ use App\Models\WorkerOrder;
 use App\Models\WorkerOrderAssembler;
 use App\Models\WorkerOrderNote;
 use App\Services\DeliveryNotePdfService;
+use App\Services\ShortLinkService;
+use App\Services\WhatsAppCloudService;
 use App\Services\WorkerOrderSyncService;
 use App\Support\DeliveryNotePdfData;
-use App\Support\InsuranceApprovalChain;
 use App\Support\OrderInsuranceCalculator;
+use App\Support\WorkOrderPresenter;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
@@ -39,38 +42,22 @@ class WorkerOrderController extends Controller
 
     public function show(string $workOrderKey, WorkerOrderSyncService $syncService)
     {
-        $order = $this->resolveWorkOrder($workOrderKey, $syncService);
-
-        $order->load([
-            'invoice:id,invoice_number',
-            'workerOrders' => fn ($query) => $query->orderBy('line_index'),
-            'workerOrders.completedByUser:id,customer_name',
-            'workerAssemblers' => fn ($query) => $query->latest(),
-            'workerNotes' => fn ($query) => $query->latest(),
-            'workerNotes.user:id,customer_name,role',
-            'workOrderApprovedBy:id,customer_name',
-        ]);
+        $order = WorkOrderPresenter::resolve($workOrderKey, $syncService);
+        WorkOrderPresenter::loadDetailRelations($order);
 
         return Inertia::render('WorkerOrders/Show', [
-            'workOrder' => $this->formatWorkOrderDetail($order),
-            'availableWorkers' => User::query()
-                ->where('role', User::ROLE_WORKER)
-                ->orderBy('customer_name')
-                ->get(['id', 'customer_name', 'phone', 'email'])
-                ->map(fn (User $worker) => [
-                    'id' => $worker->id,
-                    'name' => $worker->name,
-                    'phone' => $worker->phone,
-                    'email' => $worker->email,
-                ])
-                ->values()
-                ->all(),
+            'workOrder' => WorkOrderPresenter::detail($order),
+            'whatsappTestDefaults' => [
+                'test_phone' => (string) config('services.whatsapp.test_customer_phone', '966538778559'),
+                'customer_phone' => $order->customer_phone,
+            ],
+            'availableWorkers' => WorkOrderPresenter::availableWorkers(),
         ]);
     }
 
     public function deliveryNote(string $workOrderKey, DeliveryNotePdfService $pdfService, WorkerOrderSyncService $syncService): Response
     {
-        $order = $this->resolveWorkOrder($workOrderKey, $syncService);
+        $order = WorkOrderPresenter::resolve($workOrderKey, $syncService);
 
         $data = DeliveryNotePdfData::fromOrder($order);
         $pdf = $pdfService->render($data);
@@ -82,6 +69,59 @@ class WorkerOrderController extends Controller
             'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
             'Pragma' => 'no-cache',
         ]);
+    }
+
+    public function testDeliveryNoteWhatsApp(
+        Request $request,
+        string $workOrderKey,
+        DeliveryNotePdfService $pdfService,
+        WorkerOrderSyncService $syncService,
+        WhatsAppCloudService $whatsApp,
+        ShortLinkService $shortLinks,
+    ): RedirectResponse {
+        $order = WorkOrderPresenter::resolve($workOrderKey, $syncService);
+        $data = DeliveryNotePdfData::fromOrder($order);
+        $pdf = $pdfService->render($data);
+        $filename = 'delivery-note-'.$data->referenceNumber().'.pdf';
+
+        $validated = $request->validate([
+            'phone' => ['required', 'string', 'max:20'],
+        ], [
+            'phone.required' => 'رقم الجوال مطلوب.',
+        ]);
+
+        $to = WhatsAppCloudService::normalizePhone($validated['phone']);
+
+        if (strlen($to) < 11) {
+            return back()->with('error', 'رقم الجوال غير صالح. مثال: 966538778559 أو 0538778559');
+        }
+
+        $upload = $whatsApp->uploadMedia($pdf, 'application/pdf', $filename);
+        if (! $upload['success'] || ! $upload['media_id']) {
+            return back()->with('error', 'فشل رفع إذن التسليم إلى واتساب: '.($upload['error'] ?? 'خطأ غير معروف'));
+        }
+
+        $shortLink = $shortLinks->createDeliveryNoteLink($order);
+        $buttonSuffix = $shortLinks->whatsappButtonSuffix($shortLink);
+        $publicUrl = $shortLinks->publicUrl($shortLink);
+
+        $send = $whatsApp->sendDeliveryNoteTemplate(
+            $to,
+            $upload['media_id'],
+            $filename,
+            $buttonSuffix,
+        );
+
+        if (! $send['success']) {
+            return back()->with('error', 'فشل إرسال تمبلت واتساب: '.($send['error'] ?? 'خطأ غير معروف'));
+        }
+
+        return back()->with(
+            'success',
+            'تم إرسال اختبار واتساب إلى +'.$to
+            .' — رابط إذن التسليم: '.$publicUrl
+            .' — message_id='.($send['message_id'] ?? '—'),
+        );
     }
 
     public function complete(Request $request, WorkerOrder $workerOrder)
@@ -142,7 +182,7 @@ class WorkerOrderController extends Controller
             'تعميد أمر العمل مخصص لمدير العمال والمسئول فقط.',
         );
 
-        $order = $this->resolveWorkOrder($workOrderKey, $syncService);
+        $order = WorkOrderPresenter::resolve($workOrderKey, $syncService);
         $order->load(['workerOrders', 'products', 'invoice:id,invoice_number']);
 
         if ($order->work_order_approved_at) {
@@ -181,9 +221,7 @@ class WorkerOrderController extends Controller
             $message .= ' ظهر مبلغ التأمين في صفحة استرداد التأمين وبانتظار تعميد المسئول ثم المدير العام ثم المحاسب.';
         }
 
-        return redirect()
-            ->route('worker-orders.show', $reference)
-            ->with('success', $message);
+        return $this->redirectAfterMutation($request, $reference, $message);
     }
 
     public function storeAssembler(Request $request, string $workOrderKey, WorkerOrderSyncService $syncService)
@@ -200,7 +238,7 @@ class WorkerOrderController extends Controller
             'غير مصرح لك بتعيين العمال.',
         );
 
-        $order = $this->resolveWorkOrder($workOrderKey, $syncService);
+        $order = WorkOrderPresenter::resolve($workOrderKey, $syncService);
 
         $validated = $request->validate([
             'user_id' => [
@@ -240,14 +278,12 @@ class WorkerOrderController extends Controller
         $order->loadMissing('invoice:id,invoice_number');
         $reference = $order->invoice?->invoice_number ?? $order->order_number;
 
-        return redirect()
-            ->route('worker-orders.show', $reference)
-            ->with('success', 'تم تعيين العامل للتركيب بنجاح.');
+        return $this->redirectAfterMutation($request, $reference, 'تم تعيين العامل للتركيب بنجاح.');
     }
 
-    public function destroyAssembler(string $workOrderKey, WorkerOrderAssembler $assembler, WorkerOrderSyncService $syncService)
+    public function destroyAssembler(Request $request, string $workOrderKey, WorkerOrderAssembler $assembler, WorkerOrderSyncService $syncService)
     {
-        $user = request()->user();
+        $user = $request->user();
         abort_unless(
             $user?->hasAnyRole(
                 User::ROLE_ADMIN,
@@ -259,7 +295,7 @@ class WorkerOrderController extends Controller
             'غير مصرح لك بحذف تعيين العمال.',
         );
 
-        $order = $this->resolveWorkOrder($workOrderKey, $syncService);
+        $order = WorkOrderPresenter::resolve($workOrderKey, $syncService);
 
         abort_unless($assembler->order_id === $order->id, 404);
 
@@ -268,14 +304,12 @@ class WorkerOrderController extends Controller
         $order->loadMissing('invoice:id,invoice_number');
         $reference = $order->invoice?->invoice_number ?? $order->order_number;
 
-        return redirect()
-            ->route('worker-orders.show', $reference)
-            ->with('success', 'تم حذف العامل.');
+        return $this->redirectAfterMutation($request, $reference, 'تم حذف العامل.');
     }
 
     public function storeNote(Request $request, string $workOrderKey, WorkerOrderSyncService $syncService)
     {
-        $order = $this->resolveWorkOrder($workOrderKey, $syncService);
+        $order = WorkOrderPresenter::resolve($workOrderKey, $syncService);
 
         $validated = $request->validate([
             'body' => ['required', 'string', 'max:2000'],
@@ -293,21 +327,19 @@ class WorkerOrderController extends Controller
         $order->loadMissing('invoice:id,invoice_number');
         $reference = $order->invoice?->invoice_number ?? $order->order_number;
 
-        return redirect()
-            ->route('worker-orders.show', $reference)
-            ->with('success', 'تم إضافة الملاحظة.');
+        return $this->redirectAfterMutation($request, $reference, 'تم إضافة الملاحظة.');
     }
 
-    public function destroyNote(string $workOrderKey, WorkerOrderNote $note, WorkerOrderSyncService $syncService)
+    public function destroyNote(Request $request, string $workOrderKey, WorkerOrderNote $note, WorkerOrderSyncService $syncService)
     {
-        $user = request()->user();
+        $user = $request->user();
         abort_unless(
             $user?->hasAnyRole(User::ROLE_ADMIN, User::ROLE_GENERAL_MANAGER, User::ROLE_MANAGER),
             403,
             'غير مصرح لك بحذف الملاحظات.',
         );
 
-        $order = $this->resolveWorkOrder($workOrderKey, $syncService);
+        $order = WorkOrderPresenter::resolve($workOrderKey, $syncService);
 
         abort_unless($note->order_id === $order->id, 404);
 
@@ -316,9 +348,7 @@ class WorkerOrderController extends Controller
         $order->loadMissing('invoice:id,invoice_number');
         $reference = $order->invoice?->invoice_number ?? $order->order_number;
 
-        return redirect()
-            ->route('worker-orders.show', $reference)
-            ->with('success', 'تم حذف الملاحظة.');
+        return $this->redirectAfterMutation($request, $reference, 'تم حذف الملاحظة.');
     }
 
     /**
@@ -388,7 +418,7 @@ class WorkerOrderController extends Controller
         return $query
             ->paginate(12)
             ->withQueryString()
-            ->through(fn (Order $order) => $this->formatWorkOrderSummary($order))
+            ->through(fn (Order $order) => WorkOrderPresenter::summary($order))
             ->toArray();
     }
 
@@ -404,180 +434,6 @@ class WorkerOrderController extends Controller
                 ->count(),
             'total' => Order::whereHas('workerOrders')->count(),
         ];
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    private function formatWorkOrderSummary(Order $order): array
-    {
-        $firstLine = $order->workerOrders->first();
-        $pendingLines = (int) ($order->pending_lines ?? 0);
-        $totalLines = (int) ($order->total_lines ?? $order->workerOrders->count());
-        $photosReady = $order->hasAllWorkerPhotos();
-        $isApproved = (bool) $order->work_order_approved_at;
-        $user = auth()->user();
-        $canApprove = $photosReady
-            && ! $isApproved
-            && InsuranceApprovalChain::canUserApproveStep($user, InsuranceApprovalChain::STEP_WORKERS_MANAGER);
-
-        return [
-            'id' => $order->id,
-            'reference_number' => $order->invoice?->invoice_number ?? $order->order_number,
-            'order_number' => $order->order_number,
-            'invoice_number' => $order->invoice?->invoice_number,
-            'customer_name' => $firstLine?->customer_name ?? $order->customer_name,
-            'customer_address' => $firstLine?->customer_address ?? $order->address,
-            'installation_date' => ($firstLine?->installation_date ?? $order->activity_date)?->format('Y-m-d'),
-            'activity_time' => ($order->getAttributes()['activity_time'] ?? null)
-                ? \Carbon\Carbon::parse($order->getAttributes()['activity_time'])->format('H:i')
-                : null,
-            'status' => $pendingLines > 0 ? 'pending' : 'completed',
-            'products_count' => $totalLines,
-            'pending_count' => $pendingLines,
-            'completed_count' => (int) ($order->completed_lines ?? 0),
-            'location_slug' => $order->location_slug,
-            'photos_ready' => $photosReady,
-            'is_approved' => $isApproved,
-            'can_approve' => $canApprove,
-            'approved_at' => $order->work_order_approved_at?->toIso8601String(),
-            'currency' => $order->currency ?: 'SAR',
-            'total_amount' => (float) $order->total_amount,
-            'amount_paid' => (float) ($order->amount_paid ?? 0),
-            'remaining_amount' => (float) $order->remaining_amount,
-            'preview_products' => $order->workerOrders->take(3)->map(fn (WorkerOrder $line) => [
-                'name' => $line->product_name,
-                'image_url' => $line->product_image_url,
-            ])->values()->all(),
-        ];
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    private function formatWorkOrderDetail(Order $order): array
-    {
-        $summary = $this->formatWorkOrderSummary($order);
-        $lines = $order->workerOrders;
-        $installedCount = $lines->where('status', 'completed')->count();
-        $total = $lines->count();
-        $assignedWorkers = $order->workerAssemblers->pluck('worker_name')->unique()->values()->all();
-
-        $eventStatus = 'pending';
-        if ($installedCount === $total && $total > 0) {
-            $eventStatus = 'completed';
-        } elseif ($installedCount > 0) {
-            $eventStatus = 'in_progress';
-        }
-
-        return array_merge($summary, [
-            'event_status' => $eventStatus,
-            'created_at' => $order->created_at?->toIso8601String(),
-            'customer_phone' => $order->customer_phone,
-            'customer_email' => $order->customer_email,
-            'address' => $order->address ?: $summary['customer_address'],
-            'assigned_workers' => $assignedWorkers,
-            'installation_progress' => [
-                'done' => $installedCount,
-                'total' => $total,
-            ],
-            'photo_stats' => [
-                'installation' => $lines->whereNotNull('installation_photo')->count(),
-            ],
-            'lines' => $lines->map(fn (WorkerOrder $line) => $this->formatWorkerOrderLine($line))->values()->all(),
-            'assemblers' => $order->workerAssemblers
-                ->map(fn (WorkerOrderAssembler $assembler) => [
-                    'id' => $assembler->id,
-                    'worker_name' => $assembler->worker_name,
-                    'user_id' => $assembler->user_id,
-                    'created_at' => $assembler->created_at?->toIso8601String(),
-                ])
-                ->values()
-                ->all(),
-            'notes' => $order->workerNotes
-                ->map(fn (WorkerOrderNote $note) => [
-                    'id' => $note->id,
-                    'body' => $note->body,
-                    'user_name' => $note->user?->name ?: 'مستخدم',
-                    'user_role' => $note->user?->roleLabel() ?? 'مستخدم',
-                    'created_at' => $note->created_at?->toIso8601String(),
-                ])
-                ->values()
-                ->all(),
-            'timeline' => $this->buildTimeline($order),
-            'delivery_note_url' => '/worker-orders/'.rawurlencode($summary['reference_number']).'/delivery-note',
-            'approved_by_name' => $order->workOrderApprovedBy?->name,
-        ]);
-    }
-
-    /**
-     * @return list<array<string, mixed>>
-     */
-    private function buildTimeline(Order $order): array
-    {
-        $items = [];
-
-        $items[] = [
-            'key' => 'created',
-            'title' => 'تم إنشاء الفعالية',
-            'description' => 'تم تسجيل أمر العمل رقم '.$order->order_number,
-            'timestamp' => $order->created_at?->toIso8601String(),
-            'user_name' => null,
-            'completed' => true,
-        ];
-
-        $firstAssembler = $order->workerAssemblers->sortBy('created_at')->first();
-        $items[] = [
-            'key' => 'worker_assigned',
-            'title' => 'تعيين العمال',
-            'description' => $firstAssembler
-                ? 'تم تسجيل العامل: '.$firstAssembler->worker_name
-                : 'لم يتم تسجيل عمال بعد',
-            'timestamp' => $firstAssembler?->created_at?->toIso8601String(),
-            'user_name' => $firstAssembler?->worker_name,
-            'completed' => (bool) $firstAssembler,
-        ];
-
-        foreach ($order->workerOrders as $line) {
-            $items[] = [
-                'key' => 'install_'.$line->id,
-                'title' => 'اكتمال التركيب',
-                'description' => $line->product_name,
-                'timestamp' => $line->completed_at?->toIso8601String(),
-                'user_name' => $line->completedByUser?->name,
-                'completed' => $line->status === 'completed',
-            ];
-        }
-
-        $allDone = $order->workerOrders->isNotEmpty()
-            && $order->workerOrders->every(fn (WorkerOrder $line) => $line->status === 'completed' && filled($line->installation_photo));
-
-        $latestInstall = $order->workerOrders
-            ->filter(fn (WorkerOrder $line) => $line->completed_at !== null)
-            ->sortByDesc(fn (WorkerOrder $line) => $line->completed_at?->getTimestamp() ?? 0)
-            ->first();
-
-        $items[] = [
-            'key' => 'completed',
-            'title' => 'اكتمال الفعالية',
-            'description' => $allDone ? 'تم إنهاء التركيب بنجاح' : 'بانتظار اكتمال التركيب',
-            'timestamp' => $allDone ? $latestInstall?->completed_at?->toIso8601String() : null,
-            'user_name' => null,
-            'completed' => $allDone,
-        ];
-
-        $items[] = [
-            'key' => 'approved',
-            'title' => 'تعميد مدير العمال',
-            'description' => $order->work_order_approved_at
-                ? 'تم اعتماد اكتمال التركيب — بانتظار سلسلة التعميدات في استرداد التأمين'
-                : 'بانتظار تعميد مدير العمال بعد رفع صور التركيب',
-            'timestamp' => $order->work_order_approved_at?->toIso8601String(),
-            'user_name' => $order->workOrderApprovedBy?->name,
-            'completed' => (bool) $order->work_order_approved_at,
-        ];
-
-        return $items;
     }
 
     private function assertCanUploadWorkerPhotos(Request $request): void
@@ -626,49 +482,16 @@ class WorkerOrderController extends Controller
         return OrderInsuranceCalculator::fromLines($lines)['total'];
     }
 
-    private function resolveWorkOrder(string $workOrderKey, WorkerOrderSyncService $syncService): Order
+    private function redirectAfterMutation(Request $request, string $reference, string $message): RedirectResponse
     {
-        $order = Order::query()
-            ->whereKey($workOrderKey)
-            ->orWhere('order_number', $workOrderKey)
-            ->orWhereHas('invoice', fn ($query) => $query->where('invoice_number', $workOrderKey))
-            ->first();
+        $returnTo = $request->input('return_to') ?? $request->query('return_to');
 
-        if (! $order && ctype_digit($workOrderKey)) {
-            $workerOrder = WorkerOrder::query()->find((int) $workOrderKey);
-            $order = $workerOrder?->order;
+        if (is_string($returnTo) && preg_match('#^/main-app/work-orders/[A-Za-z0-9\-_.%]+$#', $returnTo)) {
+            return redirect()->to($returnTo)->with('success', $message);
         }
 
-        abort_unless($order, 404);
-
-        // Only lazily materialise work-order lines once the accountant has
-        // approved a payment; otherwise the order must not surface here.
-        if (! $order->workerOrders()->exists() && $order->hasApprovedPaymentReceipt()) {
-            $syncService->syncFromOrder($order->fresh());
-            $order->unsetRelation('workerOrders');
-        }
-
-        abort_unless($order->workerOrders()->exists(), 404);
-
-        return $order;
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    private function formatWorkerOrderLine(WorkerOrder $workerOrder): array
-    {
-        return [
-            'id' => $workerOrder->id,
-            'product_name' => $workerOrder->product_name,
-            'product_image_url' => $workerOrder->product_image_url,
-            'status' => $workerOrder->status,
-            'installation_photo_url' => $workerOrder->installation_photo_url,
-            'completed_at' => $workerOrder->completed_at?->toIso8601String(),
-            'completed_by_user' => $workerOrder->completedByUser ? [
-                'id' => $workerOrder->completedByUser->id,
-                'name' => $workerOrder->completedByUser->name,
-            ] : null,
-        ];
+        return redirect()
+            ->route('worker-orders.show', $reference)
+            ->with('success', $message);
     }
 }

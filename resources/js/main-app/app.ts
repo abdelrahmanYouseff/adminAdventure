@@ -15,7 +15,7 @@ declare global {
     }
 }
 
-const appName = 'إدارة عالم المغامرة';
+const appName = 'مدير العمال — عالم المغامرة';
 
 function buildZiggyConfig(location: string): Config & { location: URL } {
     const routes = (window.Ziggy ?? fallbackZiggy) as Config;

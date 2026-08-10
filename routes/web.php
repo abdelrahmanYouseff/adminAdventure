@@ -23,6 +23,10 @@ Route::get('/', function () {
 Route::post('track/app-download', [\App\Http\Controllers\AppDownloadClickController::class, 'store'])
     ->name('track.app-download');
 
+Route::get('d/{code}', [\App\Http\Controllers\ShortLinkController::class, 'show'])
+    ->where('code', '[A-Za-z0-9]{6,16}')
+    ->name('short-links.show');
+
 /*
 |--------------------------------------------------------------------------
 | Worker PWA
@@ -70,13 +74,10 @@ Route::middleware(['main-app'])->prefix('main-app')->name('main.')->group(functi
         ->name('login.store');
 
     Route::middleware(['auth', 'main-app.staff'])->group(function () {
-        Route::get('/', \App\Http\Controllers\MainApp\HomeController::class)
+        Route::get('/', [\App\Http\Controllers\MainApp\WorkOrderController::class, 'index'])
             ->name('home');
-        Route::get('modules', [\App\Http\Controllers\MainApp\ModuleController::class, 'index'])
-            ->name('modules');
-        Route::get('m/{module}', [\App\Http\Controllers\MainApp\ModuleController::class, 'show'])
-            ->where('module', '[a-z0-9\-]+')
-            ->name('module.show');
+        Route::get('work-orders/{workOrderKey}', [\App\Http\Controllers\MainApp\WorkOrderController::class, 'show'])
+            ->name('work-orders.show');
         Route::get('more', [\App\Http\Controllers\MainApp\ModuleController::class, 'more'])
             ->name('more');
         Route::post('logout', [\App\Http\Controllers\MainApp\AuthController::class, 'destroy'])
@@ -429,6 +430,11 @@ Route::get('worker-orders/{workOrderKey}/delivery-note', [\App\Http\Controllers\
     ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,workers_manager'])
     ->where('workOrderKey', '[A-Za-z0-9\-_/]+')
     ->name('worker-orders.delivery-note');
+
+Route::post('worker-orders/{workOrderKey}/test-delivery-whatsapp', [\App\Http\Controllers\WorkerOrderController::class, 'testDeliveryNoteWhatsApp'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,workers_manager'])
+    ->where('workOrderKey', '[A-Za-z0-9\-_/]+')
+    ->name('worker-orders.test-delivery-whatsapp');
 
 Route::get('worker-orders/{workOrderKey}', [\App\Http\Controllers\WorkerOrderController::class, 'show'])
     ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,workers_manager'])

@@ -67,7 +67,6 @@ class ModuleController extends Controller
                 'role' => $user->role,
                 'role_label' => $user->roleLabel(),
             ],
-            'modules' => MainAppModules::forUser($user),
         ]);
     }
 

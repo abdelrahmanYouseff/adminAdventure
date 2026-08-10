@@ -13,6 +13,144 @@ class WhatsAppCloudService
         return \App\Support\WhatsAppConfig::isReady();
     }
 
+    public function isApiConfigured(): bool
+    {
+        return \App\Support\WhatsAppConfig::isApiConfigured();
+    }
+
+    /**
+     * Upload a binary file to WhatsApp Cloud media storage.
+     *
+     * @return array{success: bool, media_id: ?string, error: ?string, status: ?int}
+     */
+    public function uploadMedia(string $binary, string $mimeType, string $filename): array
+    {
+        if (! $this->isApiConfigured()) {
+            return [
+                'success' => false,
+                'media_id' => null,
+                'error' => 'واتساب غير مفعّل أو الإعدادات ناقصة',
+                'status' => null,
+            ];
+        }
+
+        $phoneNumberId = (string) config('services.whatsapp.phone_number_id');
+        $version = (string) config('services.whatsapp.graph_version', 'v21.0');
+
+        $response = Http::timeout(60)
+            ->acceptJson()
+            ->withToken((string) config('services.whatsapp.access_token'))
+            ->attach('file', $binary, $filename, ['Content-Type' => $mimeType])
+            ->post("https://graph.facebook.com/{$version}/{$phoneNumberId}/media", [
+                'messaging_product' => 'whatsapp',
+                'type' => $mimeType,
+            ]);
+
+        if ($response->successful()) {
+            $mediaId = $response->json('id');
+
+            return [
+                'success' => is_string($mediaId) && $mediaId !== '',
+                'media_id' => is_string($mediaId) ? $mediaId : null,
+                'error' => is_string($mediaId) && $mediaId !== '' ? null : 'Meta لم تُرجع معرّف الوسائط',
+                'status' => $response->status(),
+            ];
+        }
+
+        $errorBody = $response->json() ?? $response->body();
+        $errorMessage = is_array($errorBody)
+            ? ($errorBody['error']['message'] ?? json_encode($errorBody, JSON_UNESCAPED_UNICODE))
+            : (string) $errorBody;
+
+        Log::error('WhatsApp media upload failed', [
+            'status' => $response->status(),
+            'body' => $errorBody,
+            'filename' => $filename,
+        ]);
+
+        return [
+            'success' => false,
+            'media_id' => null,
+            'error' => $errorMessage,
+            'status' => $response->status(),
+        ];
+    }
+
+    /**
+     * Send the approved delivery-note Meta template with a PDF header.
+     *
+     * @return array{success: bool, message_id: ?string, error: ?string, status: ?int, mode: string, to: string}
+     */
+    public function sendDeliveryNoteTemplate(
+        string $to,
+        string $mediaId,
+        string $filename,
+        ?string $urlButtonSuffix = null,
+    ): array {
+        $template = trim((string) config('services.whatsapp.delivery_note_template', ''));
+        $language = (string) config('services.whatsapp.delivery_note_template_language', 'ar');
+
+        if ($template === '') {
+            return [
+                'success' => false,
+                'message_id' => null,
+                'error' => 'اضبط WHATSAPP_DELIVERY_NOTE_TEMPLATE في .env باسم القالب المعتمد في Meta.',
+                'status' => null,
+                'mode' => 'template:missing',
+                'to' => self::normalizePhone($to),
+            ];
+        }
+
+        $headerComponent = [
+            'type' => 'header',
+            'parameters' => [[
+                'type' => 'document',
+                'document' => [
+                    'id' => $mediaId,
+                    'filename' => $filename,
+                ],
+            ]],
+        ];
+
+        $components = [$headerComponent];
+
+        // زر الرابط ثابت غالباً في القالب — لا نرسل parameters إلا إذا فُعّل صراحة
+        $includeUrlButton = filter_var(config('services.whatsapp.delivery_note_url_button', false), FILTER_VALIDATE_BOOLEAN)
+            && is_string($urlButtonSuffix)
+            && $urlButtonSuffix !== '';
+
+        if ($includeUrlButton) {
+            $components[] = [
+                'type' => 'button',
+                'sub_type' => 'url',
+                'index' => '0',
+                'parameters' => [[
+                    'type' => 'text',
+                    'text' => $urlButtonSuffix,
+                ]],
+            ];
+        }
+
+        $result = $this->sendTemplateWithReport($to, $template, $language, $components);
+        $result['mode'] = 'template:'.$template.($includeUrlButton ? '+button' : '');
+        $result['to'] = self::normalizePhone($to);
+
+        $error = strtolower((string) ($result['error'] ?? ''));
+        $parameterIssue = str_contains($error, 'parameter')
+            || str_contains($error, 'button')
+            || str_contains($error, '132018');
+
+        if (! $result['success'] && $includeUrlButton && $parameterIssue) {
+            $retry = $this->sendTemplateWithReport($to, $template, $language, [$headerComponent]);
+            $retry['mode'] = 'template:'.$template.'(header-only)';
+            $retry['to'] = self::normalizePhone($to);
+
+            return $retry;
+        }
+
+        return $result;
+    }
+
     /**
      * @return array{success: bool, message_id: ?string, error: ?string, status: ?int, mode: string}
      */
@@ -50,7 +188,7 @@ class WhatsAppCloudService
      */
     public function sendTemplateWithReport(string $to, string $templateName, string $languageCode, array $components): array
     {
-        if (! $this->isConfigured()) {
+        if (! $this->isApiConfigured()) {
             return [
                 'success' => false,
                 'message_id' => null,
@@ -85,7 +223,7 @@ class WhatsAppCloudService
      */
     public function sendTextWithReport(string $to, string $body): array
     {
-        if (! $this->isConfigured()) {
+        if (! $this->isApiConfigured()) {
             return [
                 'success' => false,
                 'message_id' => null,
@@ -314,7 +452,7 @@ class WhatsAppCloudService
             return ['success' => true, 'waba_id' => $configured, 'error' => null];
         }
 
-        if (! $this->isConfigured()) {
+        if (! $this->isApiConfigured()) {
             return ['success' => false, 'waba_id' => null, 'error' => 'واتساب غير مفعّل'];
         }
 

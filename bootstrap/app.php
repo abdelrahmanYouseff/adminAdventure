@@ -43,7 +43,7 @@ return Application::configure(basePath: dirname(__DIR__))
                 return route('pwa.dashboard');
             }
 
-            if ($request->is('main-app', 'main-app/*') && $user?->canAccessDashboard()) {
+            if ($request->is('main-app', 'main-app/*') && $user?->isWorkersManager()) {
                 return route('main.home');
             }
 

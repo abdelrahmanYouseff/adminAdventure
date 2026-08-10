@@ -38,9 +38,9 @@ function submit() {
                     <div class="mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-[1.75rem] bg-white/10 p-3 shadow-lg shadow-teal-950/40 ring-1 ring-white/20 backdrop-blur">
                         <img src="/assets/logo.png" alt="عالم المغامرة" class="h-full w-full object-contain" />
                     </div>
-                    <p class="text-xs font-semibold tracking-[0.22em] text-teal-200/90 uppercase">Main App</p>
+                    <p class="text-xs font-semibold tracking-[0.22em] text-teal-200/90 uppercase">Workers Manager</p>
                     <h1 class="mt-2 text-3xl font-bold tracking-tight">عالم المغامرة</h1>
-                    <p class="mt-2 text-sm text-teal-50/75">تطبيق الإدارة للموظفين — حسب صلاحياتك</p>
+                    <p class="mt-2 text-sm text-teal-50/75">تطبيق أوامر العمل — لمدير العمال فقط</p>
                 </div>
 
                 <div class="rounded-[1.75rem] border border-white/15 bg-white/95 p-5 text-slate-900 shadow-2xl shadow-black/30 backdrop-blur">

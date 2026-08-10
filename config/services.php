@@ -70,10 +70,20 @@ return [
         'phone_number_id' => env('WHATSAPP_PHONE_NUMBER_ID'),
         'access_token' => env('WHATSAPP_ACCESS_TOKEN'),
         // رقم الإرسال (النشاط التجاري) — لا يُرسل إليه أبداً
-        'business_phone' => env('WHATSAPP_BUSINESS_PHONE', '966538388299'),
+        'business_phone' => env('WHATSAPP_BUSINESS_PHONE', '966559723161'),
+        // رقم اختبار لإرسال تمبلت إذن التسليم
+        'test_customer_phone' => env('WHATSAPP_TEST_CUSTOMER_PHONE', env('WHATSAPP_EXTRA_TO', '966538778559')),
         // قالب معتمد في Meta (مطلوب لإيصال الرسائل خارج نافذة 24 ساعة)
         'order_template' => env('WHATSAPP_ORDER_TEMPLATE'),
         'order_template_language' => env('WHATSAPP_ORDER_TEMPLATE_LANGUAGE', 'ar'),
+        // قالب إذن التسليم (HEADER = DOCUMENT + زر رابط اختياري)
+        'delivery_note_template' => env('WHATSAPP_DELIVERY_NOTE_TEMPLATE'),
+        'delivery_note_template_language' => env('WHATSAPP_DELIVERY_NOTE_TEMPLATE_LANGUAGE', 'ar'),
+        // إن كان زر «عرض الطلب» ديناميكياً في القالب (URL/.../{{1}})
+        'delivery_note_url_button' => env('WHATSAPP_DELIVERY_NOTE_URL_BUTTON', true),
+        // code => قالب الزر: https://domain/d/{{1}}
+        // path => قالب الزر: https://domain/{{1}}  والقيمة تكون d/xxxx
+        'delivery_note_button_mode' => env('WHATSAPP_DELIVERY_NOTE_BUTTON_MODE', 'code'),
         'waba_id' => env('WHATSAPP_WABA_ID'),
         'dispatch_sync' => env('WHATSAPP_DISPATCH_SYNC', true),
         'graph_version' => env('WHATSAPP_GRAPH_VERSION', 'v21.0'),
