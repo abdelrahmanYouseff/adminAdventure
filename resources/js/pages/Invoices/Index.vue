@@ -25,8 +25,14 @@ interface InvoiceUser {
     id: number;
     customer_name?: string | null;
     name?: string | null;
-    full_name?: string | null;
     email?: string | null;
+}
+
+interface InvoiceOrder {
+    id: number;
+    customer_name?: string | null;
+    customer_email?: string | null;
+    customer_phone?: string | null;
 }
 
 interface InvoiceBrand {
@@ -43,6 +49,7 @@ interface InvoiceItem {
     payment_method?: string | null;
     created_at: string;
     user?: InvoiceUser | null;
+    order?: InvoiceOrder | null;
     brand?: InvoiceBrand | null;
 }
 
@@ -128,9 +135,9 @@ watch(
 );
 
 function customerName(invoice: InvoiceItem): string {
-    return invoice.user?.full_name
-        || invoice.user?.name
+    return invoice.order?.customer_name
         || invoice.user?.customer_name
+        || invoice.user?.name
         || '—';
 }
 

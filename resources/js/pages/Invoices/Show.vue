@@ -9,11 +9,18 @@ import { formatCurrency, formatDate as formatDateValue, formatDateTime as format
 import type { BreadcrumbItem } from '@/types';
 
 interface InvoiceUser {
-    full_name?: string | null;
+    customer_name?: string | null;
     name?: string | null;
     email?: string | null;
     phone?: string | null;
     country?: string | null;
+}
+
+interface InvoiceOrder {
+    id: number;
+    customer_name?: string | null;
+    customer_email?: string | null;
+    customer_phone?: string | null;
 }
 
 interface InvoiceRental {
@@ -31,6 +38,7 @@ interface Invoice {
     created_at: string;
     updated_at: string;
     user?: InvoiceUser | null;
+    order?: InvoiceOrder | null;
     rental?: InvoiceRental | null;
 }
 
@@ -166,15 +174,21 @@ function getStatusBadgeClass(status: string) {
                                 <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
                                     <div>
                                         <Label class="text-sm text-gray-500">الاسم</Label>
-                                        <p class="text-lg">{{ invoice.user?.full_name || invoice.user?.name || '—' }}</p>
+                                        <p class="text-lg">
+                                            {{ invoice.order?.customer_name || invoice.user?.customer_name || invoice.user?.name || '—' }}
+                                        </p>
                                     </div>
                                     <div>
                                         <Label class="text-sm text-gray-500">البريد الإلكتروني</Label>
-                                        <p class="text-lg" dir="ltr">{{ invoice.user?.email || '—' }}</p>
+                                        <p class="text-lg" dir="ltr">
+                                            {{ invoice.order?.customer_email || invoice.user?.email || '—' }}
+                                        </p>
                                     </div>
                                     <div>
                                         <Label class="text-sm text-gray-500">الجوال</Label>
-                                        <p class="text-lg" dir="ltr">{{ invoice.user?.phone || '—' }}</p>
+                                        <p class="text-lg" dir="ltr">
+                                            {{ invoice.order?.customer_phone || invoice.user?.phone || '—' }}
+                                        </p>
                                     </div>
                                     <div>
                                         <Label class="text-sm text-gray-500">الدولة</Label>

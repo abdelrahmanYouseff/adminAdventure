@@ -24,7 +24,7 @@ class InvoiceController extends Controller
         $invoices = Invoice::with([
             'user:id,customer_name,email,phone',
             'brand:id,name,slug',
-            'order:id,invoice_id,status,payment_status',
+            'order:id,invoice_id,status,payment_status,customer_name,customer_email,customer_phone',
         ])
             ->where('status', 'paid')
             ->where(function ($query) {
@@ -41,6 +41,11 @@ class InvoiceController extends Controller
                             $user->where('customer_name', 'like', "%{$search}%")
                                 ->orWhere('email', 'like', "%{$search}%")
                                 ->orWhere('phone', 'like', "%{$search}%");
+                        })
+                        ->orWhereHas('order', function ($order) use ($search) {
+                            $order->where('customer_name', 'like', "%{$search}%")
+                                ->orWhere('customer_email', 'like', "%{$search}%")
+                                ->orWhere('customer_phone', 'like', "%{$search}%");
                         })
                         ->orWhereHas('brand', fn ($brand) => $brand->where('name', 'like', "%{$search}%"));
                 });
@@ -72,7 +77,11 @@ class InvoiceController extends Controller
      */
     public function show(Invoice $invoice)
     {
-        $invoice->load(['user', 'rental.product', 'order']);
+        $invoice->load([
+            'user',
+            'rental.product',
+            'order:id,invoice_id,customer_name,customer_email,customer_phone',
+        ]);
         abort_unless($this->isFinalInvoice($invoice), 404);
 
         return Inertia::render('Invoices/Show', [
@@ -128,7 +137,10 @@ class InvoiceController extends Controller
      */
     public function export(Request $request)
     {
-        $query = Invoice::with(['user'])->where('status', 'paid');
+        $query = Invoice::with([
+            'user:id,customer_name,email',
+            'order:id,invoice_id,customer_name',
+        ])->where('status', 'paid');
 
         if ($request->has('brand') && $request->brand !== 'all') {
             $query->where('brand_id', $request->brand);
@@ -168,7 +180,8 @@ class InvoiceController extends Controller
             foreach ($invoices as $invoice) {
                 fputcsv($file, [
                     $invoice->invoice_number,
-                    $invoice->user->full_name ?? $invoice->user->name,
+                    $invoice->order?->customer_name
+                        ?: ($invoice->user?->customer_name ?: $invoice->user?->name ?: '—'),
                     $invoice->amount,
                     'SAR',
                     ucfirst($invoice->status),
