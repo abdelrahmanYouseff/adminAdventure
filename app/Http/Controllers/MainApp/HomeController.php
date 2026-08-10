@@ -83,6 +83,7 @@ class HomeController extends Controller
                 'value' => Order::query()
                     ->whereNotNull('work_order_approved_at')
                     ->whereNull('warehouse_returned_at')
+                    ->whereNull('warehouse_rejected_at')
                     ->count(),
             ];
         }

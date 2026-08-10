@@ -27,6 +27,7 @@ class ProductReturnController extends Controller
             ->with([
                 'workerOrders' => fn ($q) => $q->orderBy('line_index'),
                 'warehouseReturnedBy:id,customer_name',
+                'warehouseRejectedBy:id,customer_name',
                 'workerNotes' => fn ($q) => $q->latest(),
                 'workerNotes.user:id,customer_name,role',
             ])
@@ -35,9 +36,11 @@ class ProductReturnController extends Controller
             ->orderByDesc('id');
 
         if ($status === 'pending') {
-            $query->whereNull('warehouse_returned_at');
+            $query->whereNull('warehouse_returned_at')->whereNull('warehouse_rejected_at');
         } elseif ($status === 'returned') {
             $query->whereNotNull('warehouse_returned_at');
+        } elseif ($status === 'rejected') {
+            $query->whereNotNull('warehouse_rejected_at')->whereNull('warehouse_returned_at');
         }
 
         if ($search !== '') {
@@ -54,14 +57,17 @@ class ProductReturnController extends Controller
             ->withQueryString()
             ->through(fn (Order $order) => $this->formatReturn($order));
 
+        $base = $this->eligibleReturnsQuery();
+
         return Inertia::render('Returns/Index', [
             'returns' => $returns,
             'stats' => [
-                'pending' => (clone $this->eligibleReturnsQuery())->whereNull('warehouse_returned_at')->count(),
-                'returned' => (clone $this->eligibleReturnsQuery())->whereNotNull('warehouse_returned_at')->count(),
+                'pending' => (clone $base)->whereNull('warehouse_returned_at')->whereNull('warehouse_rejected_at')->count(),
+                'returned' => (clone $base)->whereNotNull('warehouse_returned_at')->count(),
+                'rejected' => (clone $base)->whereNotNull('warehouse_rejected_at')->whereNull('warehouse_returned_at')->count(),
             ],
             'filters' => [
-                'status' => in_array($status, ['pending', 'returned', 'all'], true) ? $status : 'pending',
+                'status' => in_array($status, ['pending', 'returned', 'rejected', 'all'], true) ? $status : 'pending',
                 'search' => $search,
             ],
         ]);
@@ -74,31 +80,32 @@ class ProductReturnController extends Controller
         $order->load([
             'workerOrders' => fn ($q) => $q->orderBy('line_index'),
             'workerOrders.completedByUser:id,customer_name',
+            'workerOrders.pickupByUser:id,customer_name',
             'warehouseReturnedBy:id,customer_name',
+            'warehouseRejectedBy:id,customer_name',
             'workerAssemblers' => fn ($q) => $q->dismantling()->latest(),
             'workerNotes' => fn ($q) => $q->latest(),
             'workerNotes.user:id,customer_name,role',
         ]);
 
         $user = $request->user();
+        $canDecide = $this->canDecideReturn($user);
 
         return Inertia::render('Returns/Show', [
             'returnOrder' => $this->formatReturnDetail($order),
             'availableWorkers' => WorkOrderPresenter::availableWorkers(),
             'canAssignWorkers' => $this->canAssignWorkers($user),
-            'canConfirm' => blank($order->warehouse_returned_at)
-                && $user?->hasAnyRole(
-                    User::ROLE_ADMIN,
-                    User::ROLE_GENERAL_MANAGER,
-                    User::ROLE_MANAGER,
-                    User::ROLE_WAREHOUSE_KEEPER,
-                ),
+            'canConfirm' => $canDecide && blank($order->warehouse_returned_at),
+            'canReject' => $canDecide
+                && blank($order->warehouse_returned_at)
+                && blank($order->warehouse_rejected_at),
         ]);
     }
 
     public function confirm(Request $request, Order $order): RedirectResponse
     {
         abort_unless($this->isEligibleReturn($order), 404);
+        abort_unless($this->canDecideReturn($request->user()), 403, 'غير مصرح لك بتأكيد الاسترجاع.');
 
         if ($order->warehouse_returned_at) {
             return back()->with('error', 'تم تسجيل استرجاع هذا الطلب للمستودع مسبقاً.');
@@ -107,9 +114,50 @@ class ProductReturnController extends Controller
         $order->forceFill([
             'warehouse_returned_at' => now(),
             'warehouse_returned_by' => $request->user()?->id,
+            'warehouse_rejection_reason' => null,
+            'warehouse_rejected_at' => null,
+            'warehouse_rejected_by' => null,
         ])->save();
 
         return back()->with('success', 'تم تأكيد استرجاع منتجات الطلب '.$order->order_number.' للمستودع. أصبح التأمين ظاهرًا الآن في صفحة استرداد التأمين.');
+    }
+
+    public function reject(Request $request, Order $order): RedirectResponse
+    {
+        abort_unless($this->isEligibleReturn($order), 404);
+        abort_unless($this->canDecideReturn($request->user()), 403, 'غير مصرح لك برفض الاسترجاع.');
+
+        if ($order->warehouse_returned_at) {
+            return back()->with('error', 'لا يمكن رفض طلب تم تأكيد استرجاعه للمستودع.');
+        }
+
+        if ($order->warehouse_rejected_at) {
+            return back()->with('error', 'تم رفض استرجاع هذا الطلب مسبقاً.');
+        }
+
+        $validated = $request->validate([
+            'rejection_reason' => ['required', 'string', 'min:3', 'max:2000'],
+        ], [
+            'rejection_reason.required' => 'يجب كتابة سبب الرفض.',
+            'rejection_reason.min' => 'سبب الرفض قصير جداً.',
+            'rejection_reason.max' => 'سبب الرفض يجب ألا يتجاوز 2000 حرف.',
+        ]);
+
+        $reason = trim($validated['rejection_reason']);
+
+        $order->forceFill([
+            'warehouse_rejection_reason' => $reason,
+            'warehouse_rejected_at' => now(),
+            'warehouse_rejected_by' => $request->user()?->id,
+        ])->save();
+
+        WorkerOrderNote::create([
+            'order_id' => $order->id,
+            'user_id' => $request->user()->id,
+            'body' => 'رفض الاسترجاع: '.$reason,
+        ]);
+
+        return back()->with('success', 'تم رفض استرجاع الطلب '.$order->order_number.' وتسجيل الملاحظة.');
     }
 
     public function storeNote(Request $request, Order $order): RedirectResponse
@@ -213,6 +261,16 @@ class ProductReturnController extends Controller
         );
     }
 
+    private function canDecideReturn(?User $user): bool
+    {
+        return (bool) $user?->hasAnyRole(
+            User::ROLE_ADMIN,
+            User::ROLE_GENERAL_MANAGER,
+            User::ROLE_MANAGER,
+            User::ROLE_WAREHOUSE_KEEPER,
+        );
+    }
+
     /**
      * @return array<string, mixed>
      */
@@ -241,7 +299,13 @@ class ProductReturnController extends Controller
             : collect();
 
         $isReturned = filled($order->warehouse_returned_at);
-        $dismantlingMeta = $this->dismantlingMeta($order->dismantling_at, $isReturned);
+        $isRejected = ! $isReturned && filled($order->warehouse_rejected_at);
+        $dismantlingMeta = $this->dismantlingMeta(
+            $order->dismantling_at,
+            $isReturned,
+            $isRejected,
+            $order->warehouse_rejection_reason,
+        );
 
         return [
             'id' => $order->id,
@@ -256,8 +320,13 @@ class ProductReturnController extends Controller
             'dismantling_tone' => $dismantlingMeta['tone'],
             'warehouse_returned_at' => $order->warehouse_returned_at?->toIso8601String(),
             'warehouse_returned_by_name' => $order->warehouseReturnedBy?->name,
+            'warehouse_rejected_at' => $order->warehouse_rejected_at?->toIso8601String(),
+            'warehouse_rejected_by_name' => $order->warehouseRejectedBy?->name,
+            'warehouse_rejection_reason' => $order->warehouse_rejection_reason,
             'is_returned' => $isReturned,
+            'is_rejected' => $isRejected,
             'can_confirm' => ! $isReturned,
+            'can_reject' => ! $isReturned && ! $isRejected,
             'notes' => $notes->map(fn (WorkerOrderNote $note) => [
                 'id' => $note->id,
                 'body' => $note->body,
@@ -289,6 +358,7 @@ class ProductReturnController extends Controller
                 'installation_photo_url' => $line->installation_photo_url,
                 'pickup_photo_url' => $line->pickup_photo_url,
                 'pickup_at' => $line->pickup_at?->toIso8601String(),
+                'pickup_by_name' => $line->pickupByUser?->name,
                 'pickup_condition' => $line->pickup_condition,
                 'completed_at' => $line->completed_at?->toIso8601String(),
             ])->values()->all()
@@ -303,10 +373,14 @@ class ProductReturnController extends Controller
                     'installation_photo_url' => null,
                     'pickup_photo_url' => null,
                     'pickup_at' => null,
+                    'pickup_by_name' => null,
                     'pickup_condition' => null,
                     'completed_at' => null,
                 ];
             })->all();
+
+        $pickupPhotosReady = $lines->isNotEmpty()
+            && $lines->every(fn (WorkerOrder $line) => filled($line->pickup_photo));
 
         return array_merge($base, [
             'address' => $order->address,
@@ -315,6 +389,8 @@ class ProductReturnController extends Controller
                 ? \Carbon\Carbon::parse($order->getAttributes()['activity_time'])->format('H:i')
                 : null,
             'products' => $products,
+            'pickup_photos_ready' => $pickupPhotosReady,
+            'pickup_photos_count' => $lines->filter(fn (WorkerOrder $line) => filled($line->pickup_photo))->count(),
             'assemblers' => $assemblers->map(fn (WorkerOrderAssembler $assembler) => [
                 'id' => $assembler->id,
                 'worker_name' => $assembler->worker_name,
@@ -329,13 +405,27 @@ class ProductReturnController extends Controller
     /**
      * @return array{days: int|null, label: string, tone: string}
      */
-    private function dismantlingMeta(?CarbonInterface $dismantlingAt, bool $isReturned = false): array
-    {
+    private function dismantlingMeta(
+        ?CarbonInterface $dismantlingAt,
+        bool $isReturned = false,
+        bool $isRejected = false,
+        ?string $rejectionReason = null,
+    ): array {
         if ($isReturned) {
             return [
                 'days' => null,
                 'label' => 'تم الفك والاسترجاع',
                 'tone' => 'ok',
+            ];
+        }
+
+        if ($isRejected) {
+            $reason = trim((string) $rejectionReason);
+
+            return [
+                'days' => null,
+                'label' => $reason !== '' ? 'تم الرفض — '.$reason : 'تم الرفض',
+                'tone' => 'overdue',
             ];
         }
 

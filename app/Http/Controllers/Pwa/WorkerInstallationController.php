@@ -27,7 +27,7 @@ class WorkerInstallationController extends Controller
         ]);
 
         $assignmentType = $order->primaryWorkerAssignmentType($user);
-        $isDismantling = $assignmentType === \App\Models\WorkerOrderAssembler::TYPE_DISMANTLING;
+        $isDismantling = $order->workerIsInDismantlingPhase($user);
         $lines = $order->workerOrders;
         $firstLine = $lines->first();
         $address = $firstLine?->customer_address ?? $order->address;
@@ -123,13 +123,7 @@ class WorkerInstallationController extends Controller
             'هذا الطلب غير معيّن لك.',
         );
 
-        $isDismantling = $workerOrder->order->isAssignedToWorker(
-            $user,
-            \App\Models\WorkerOrderAssembler::TYPE_DISMANTLING,
-        ) && ! $workerOrder->order->isAssignedToWorker(
-            $user,
-            \App\Models\WorkerOrderAssembler::TYPE_INSTALLATION,
-        );
+        $isDismantling = $workerOrder->order->workerIsInDismantlingPhase($user);
 
         if ($isDismantling) {
             if (filled($workerOrder->pickup_photo)) {
@@ -141,7 +135,7 @@ class WorkerInstallationController extends Controller
             $validated = $request->validate([
                 'installation_photo' => ['required', 'image', 'max:5120'],
             ], [
-                'installation_photo.required' => 'يجب تصوير الفك من أرض الواقع قبل الإرسال.',
+                'installation_photo.required' => 'يجب تصوير المنتج عند الفك من أرض الواقع قبل الإرسال.',
                 'installation_photo.image' => 'يجب أن يكون الملف صورة.',
                 'installation_photo.max' => 'حجم الصورة يجب ألا يتجاوز 5 ميجابايت.',
             ]);
@@ -161,7 +155,7 @@ class WorkerInstallationController extends Controller
 
             return redirect()
                 ->route('pwa.installations.show', $workerOrder->order_id)
-                ->with('success', 'تم تسجيل صورة الفك بنجاح.');
+                ->with('success', 'تم إرسال صورة الفك بنجاح. ستظهر للمسؤول في تفاصيل الاسترجاع.');
         }
 
         if ($workerOrder->status === 'completed') {

@@ -8,6 +8,7 @@ import { formatDateTime, formatInteger } from '@/lib/formatNumber';
 import {
     ArrowRight,
     CalendarClock,
+    Camera,
     CheckCircle2,
     MessageSquareText,
     PackageCheck,
@@ -16,8 +17,17 @@ import {
     Undo2,
     Users,
     X,
+    XCircle,
 } from 'lucide-vue-next';
 import Swal from 'sweetalert2';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog';
 
 interface ReturnProduct {
     id: number;
@@ -27,6 +37,7 @@ interface ReturnProduct {
     installation_photo_url?: string | null;
     pickup_photo_url?: string | null;
     pickup_at?: string | null;
+    pickup_by_name?: string | null;
     pickup_condition?: string | null;
     completed_at?: string | null;
 }
@@ -70,12 +81,19 @@ interface ReturnOrder {
     dismantling_tone: 'ok' | 'warn' | 'due' | 'overdue' | 'muted';
     warehouse_returned_at: string | null;
     warehouse_returned_by_name: string | null;
+    warehouse_rejected_at: string | null;
+    warehouse_rejected_by_name: string | null;
+    warehouse_rejection_reason: string | null;
     is_returned: boolean;
+    is_rejected: boolean;
     can_confirm: boolean;
+    can_reject: boolean;
     notes: ReturnNote[];
     notes_count: number;
     assemblers: Assembler[];
     assigned_workers: string[];
+    pickup_photos_ready?: boolean;
+    pickup_photos_count?: number;
 }
 
 interface Props {
@@ -83,6 +101,7 @@ interface Props {
     availableWorkers: AvailableWorker[];
     canAssignWorkers: boolean;
     canConfirm: boolean;
+    canReject: boolean;
 }
 
 const props = defineProps<Props>();
@@ -92,10 +111,24 @@ const page = usePage();
 const flash = computed(() => (page.props.flash as { success?: string; error?: string } | undefined) ?? {});
 
 const confirming = ref(false);
+const rejectDialogOpen = ref(false);
+const rejectForm = useForm({ rejection_reason: '' });
 const assemblerFormOpen = ref(false);
 const deletingAssemblerId = ref<number | null>(null);
 const assemblerForm = useForm({ user_id: '' as string | number });
 const noteForm = useForm({ body: '' });
+const lightboxUrl = ref<string | null>(null);
+const lightboxLabel = ref('');
+
+function openLightbox(url: string, label: string) {
+    lightboxUrl.value = url;
+    lightboxLabel.value = label;
+}
+
+function closeLightbox() {
+    lightboxUrl.value = null;
+    lightboxLabel.value = '';
+}
 
 watch(
     () => [flash.value.success, flash.value.error] as const,
@@ -169,6 +202,26 @@ async function confirmReturn() {
     });
 }
 
+function openRejectDialog() {
+    if (!props.canReject || !props.returnOrder.can_reject || rejectForm.processing) return;
+    rejectForm.clearErrors();
+    rejectForm.rejection_reason = '';
+    rejectDialogOpen.value = true;
+}
+
+function closeRejectDialog() {
+    rejectDialogOpen.value = false;
+    rejectForm.reset();
+    rejectForm.clearErrors();
+}
+
+function submitReject() {
+    rejectForm.post(`/returns/${props.returnOrder.id}/reject`, {
+        preserveScroll: true,
+        onSuccess: () => closeRejectDialog(),
+    });
+}
+
 function openAssemblerForm() {
     assemblerForm.reset();
     assemblerForm.clearErrors();
@@ -236,15 +289,27 @@ function submitNote() {
                 </p>
             </div>
 
-            <Button
-                v-if="canConfirm && returnOrder.can_confirm"
-                class="gap-1.5"
-                :disabled="confirming"
-                @click="confirmReturn"
-            >
-                <Undo2 class="size-3.5" />
-                {{ confirming ? 'جاري التأكيد...' : 'تأكيد الاسترجاع' }}
-            </Button>
+            <div class="flex flex-wrap items-center gap-2">
+                <Button
+                    v-if="canConfirm && returnOrder.can_confirm"
+                    class="gap-1.5"
+                    :disabled="confirming || rejectForm.processing"
+                    @click="confirmReturn"
+                >
+                    <Undo2 class="size-3.5" />
+                    {{ confirming ? 'جاري التأكيد...' : 'تأكيد الاسترجاع' }}
+                </Button>
+                <Button
+                    v-if="canReject && returnOrder.can_reject"
+                    variant="destructive"
+                    class="gap-1.5"
+                    :disabled="confirming || rejectForm.processing"
+                    @click="openRejectDialog"
+                >
+                    <XCircle class="size-3.5" />
+                    رفض
+                </Button>
+            </div>
         </div>
 
         <section class="grid gap-4 lg:grid-cols-3">
@@ -268,6 +333,13 @@ function submitNote() {
                             تم الاسترجاع
                         </span>
                         <span
+                            v-else-if="returnOrder.is_rejected"
+                            class="inline-flex items-center gap-1 rounded-full bg-rose-50 px-2.5 py-1 text-xs font-semibold text-rose-700 ring-1 ring-inset ring-rose-100"
+                        >
+                            <XCircle class="size-3.5" />
+                            مرفوض
+                        </span>
+                        <span
                             v-else
                             class="inline-flex items-center gap-1 rounded-full bg-orange-50 px-2.5 py-1 text-xs font-semibold text-orange-700 ring-1 ring-inset ring-orange-100"
                         >
@@ -275,11 +347,17 @@ function submitNote() {
                             بانتظار المستودع
                         </span>
                         <span
-                            class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset"
+                            class="inline-flex max-w-xs items-center rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset"
                             :class="dismantlingToneClass(returnOrder.dismantling_tone)"
                         >
                             {{ returnOrder.dismantling_label }}
                         </span>
+                        <p
+                            v-if="returnOrder.is_rejected && returnOrder.warehouse_rejection_reason"
+                            class="max-w-xs text-end text-xs leading-relaxed text-rose-600"
+                        >
+                            {{ returnOrder.warehouse_rejection_reason }}
+                        </p>
                     </div>
                 </div>
 
@@ -390,33 +468,83 @@ function submitNote() {
         </section>
 
         <section class="rounded-2xl border border-gray-200 bg-white p-5 dark:border-neutral-700 dark:bg-neutral-900 sm:p-6">
-            <h2 class="text-lg font-bold text-slate-900 dark:text-white">المنتجات</h2>
-            <ul class="mt-4 divide-y divide-slate-100 dark:divide-neutral-800">
-                <li
+            <div class="mb-4 flex flex-wrap items-start justify-between gap-3">
+                <div>
+                    <h2 class="flex items-center gap-2 text-lg font-bold text-slate-900 dark:text-white">
+                        <Camera class="h-5 w-5 text-slate-500" />
+                        صور الفك من العامل
+                    </h2>
+                    <p class="mt-1 text-sm text-slate-500">
+                        نفس تسلسل التركيب: العامل يصور كل منتج عند الفك، وتظهر الصور هنا للمراجعة قبل تأكيد الاسترجاع.
+                    </p>
+                </div>
+                <span
+                    class="inline-flex rounded-full px-3 py-1 text-xs font-semibold ring-1"
+                    :class="returnOrder.pickup_photos_ready
+                        ? 'bg-emerald-50 text-emerald-700 ring-emerald-200'
+                        : 'bg-amber-50 text-amber-700 ring-amber-200'"
+                >
+                    {{
+                        returnOrder.pickup_photos_ready
+                            ? 'صور الفك مكتملة'
+                            : `بانتظار الصور (${formatInteger(returnOrder.pickup_photos_count || 0)}/${formatInteger(returnOrder.products_count)})`
+                    }}
+                </span>
+            </div>
+
+            <div v-if="!returnOrder.products.length" class="rounded-2xl border border-dashed border-slate-200 px-4 py-12 text-center text-sm text-slate-500">
+                لا توجد منتجات في هذا الطلب.
+            </div>
+
+            <div v-else class="space-y-4">
+                <article
                     v-for="product in returnOrder.products"
                     :key="product.id"
-                    class="flex items-center gap-3 py-3"
+                    class="overflow-hidden rounded-2xl border border-slate-200 bg-slate-50/50 dark:border-neutral-700 dark:bg-neutral-950/40"
                 >
-                    <img
-                        v-if="product.product_image_url"
-                        :src="product.product_image_url"
-                        :alt="product.product_name"
-                        class="size-12 rounded-xl object-cover ring-1 ring-slate-200"
-                    >
-                    <div
-                        v-else
-                        class="flex size-12 items-center justify-center rounded-xl bg-slate-100 text-slate-400"
-                    >
-                        <PackageCheck class="size-5" />
+                    <div class="flex items-center gap-3 border-b border-slate-100 bg-white px-4 py-3 dark:border-neutral-800 dark:bg-neutral-900">
+                        <div class="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-slate-100">
+                            <img
+                                v-if="product.product_image_url"
+                                :src="product.product_image_url"
+                                :alt="product.product_name"
+                                class="h-full w-full object-cover"
+                            >
+                            <PackageCheck v-else class="h-5 w-5 text-slate-400" />
+                        </div>
+                        <div class="min-w-0 flex-1">
+                            <h3 class="truncate font-semibold text-slate-900 dark:text-white">{{ product.product_name }}</h3>
+                            <p v-if="product.pickup_at" class="mt-0.5 text-xs text-emerald-600">
+                                تم الفك {{ formatDateTime(product.pickup_at) }}
+                                <span v-if="product.pickup_by_name"> · {{ product.pickup_by_name }}</span>
+                            </p>
+                            <p v-else class="mt-0.5 text-xs text-amber-600">بانتظار صورة الفك من العامل</p>
+                        </div>
                     </div>
-                    <div class="min-w-0 flex-1">
-                        <p class="truncate font-medium text-slate-900 dark:text-white">{{ product.product_name }}</p>
-                        <p v-if="product.pickup_at" class="mt-0.5 text-xs text-emerald-600">
-                            تم الفك {{ formatDateTime(product.pickup_at) }}
-                        </p>
+
+                    <div class="p-4">
+                        <p class="mb-2 text-xs font-semibold text-slate-500">صورة الفك</p>
+                        <button
+                            v-if="product.pickup_photo_url"
+                            type="button"
+                            class="group relative block w-full max-w-md overflow-hidden rounded-xl bg-slate-100 ring-1 ring-slate-200"
+                            @click="openLightbox(product.pickup_photo_url!, `فك · ${product.product_name}`)"
+                        >
+                            <img
+                                :src="product.pickup_photo_url"
+                                :alt="`فك ${product.product_name}`"
+                                class="aspect-[4/3] w-full object-cover transition group-hover:scale-[1.02]"
+                            >
+                        </button>
+                        <div
+                            v-else
+                            class="flex aspect-[4/3] max-w-md items-center justify-center rounded-xl border border-dashed border-slate-200 bg-white text-sm text-slate-400 dark:border-neutral-700 dark:bg-neutral-900"
+                        >
+                            لا توجد صورة فك بعد
+                        </div>
                     </div>
-                </li>
-            </ul>
+                </article>
+            </div>
         </section>
 
         <section class="rounded-2xl border border-gray-200 bg-white p-5 dark:border-neutral-700 dark:bg-neutral-900 sm:p-6">
@@ -470,5 +598,76 @@ function submitNote() {
                 </div>
             </div>
         </section>
+
+        <Dialog :open="rejectDialogOpen" @update:open="(open) => !open && closeRejectDialog()">
+            <DialogContent class="max-w-md sm:max-w-lg" dir="rtl">
+                <DialogHeader>
+                    <DialogTitle>رفض الاسترجاع</DialogTitle>
+                    <DialogDescription>
+                        الطلب
+                        <span class="font-semibold tabular-nums" dir="ltr">{{ returnOrder.order_number }}</span>
+                        —
+                        {{ returnOrder.customer_name }}
+                    </DialogDescription>
+                </DialogHeader>
+
+                <form class="space-y-4" @submit.prevent="submitReject">
+                    <div class="space-y-2">
+                        <Label for="show-rejection-reason">سبب الرفض / الملاحظة</Label>
+                        <textarea
+                            id="show-rejection-reason"
+                            v-model="rejectForm.rejection_reason"
+                            rows="4"
+                            class="flex min-h-[100px] w-full rounded-xl border border-input bg-background px-3 py-2 text-sm outline-none ring-offset-background placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring"
+                            placeholder="اكتب سبب رفض الاسترجاع..."
+                            required
+                        />
+                        <p v-if="rejectForm.errors.rejection_reason" class="text-xs text-red-600">
+                            {{ rejectForm.errors.rejection_reason }}
+                        </p>
+                    </div>
+
+                    <DialogFooter class="gap-2 sm:justify-start">
+                        <Button
+                            type="submit"
+                            variant="destructive"
+                            class="h-10 gap-2 rounded-xl"
+                            :disabled="rejectForm.processing || !rejectForm.rejection_reason.trim()"
+                        >
+                            <XCircle class="size-4" />
+                            {{ rejectForm.processing ? 'جاري الرفض...' : 'تأكيد الرفض' }}
+                        </Button>
+                        <Button type="button" variant="outline" class="h-10 rounded-xl" @click="closeRejectDialog">
+                            إلغاء
+                        </Button>
+                    </DialogFooter>
+                </form>
+            </DialogContent>
+        </Dialog>
+
+        <Teleport to="body">
+            <div
+                v-if="lightboxUrl"
+                class="fixed inset-0 z-[300] flex items-center justify-center bg-slate-950/80 p-4"
+                role="dialog"
+                aria-modal="true"
+                @click.self="closeLightbox"
+            >
+                <button
+                    type="button"
+                    class="absolute end-4 top-4 rounded-full bg-white/10 p-2 text-white hover:bg-white/20"
+                    aria-label="إغلاق"
+                    @click="closeLightbox"
+                >
+                    <X class="h-5 w-5" />
+                </button>
+                <div class="max-h-[90vh] w-full max-w-3xl overflow-hidden rounded-2xl bg-white shadow-2xl">
+                    <img :src="lightboxUrl" :alt="lightboxLabel" class="max-h-[75vh] w-full object-contain">
+                    <p class="border-t border-slate-100 px-4 py-3 text-center text-sm font-medium text-slate-700">
+                        {{ lightboxLabel }}
+                    </p>
+                </div>
+            </div>
+        </Teleport>
     </div>
 </template>

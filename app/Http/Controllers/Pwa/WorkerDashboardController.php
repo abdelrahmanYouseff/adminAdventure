@@ -71,7 +71,7 @@ class WorkerDashboardController extends Controller
     {
         $firstLine = $order->workerOrders->first();
         $assignmentType = $order->primaryWorkerAssignmentType($user);
-        $isDismantling = $assignmentType === WorkerOrderAssembler::TYPE_DISMANTLING;
+        $isDismantling = $order->workerIsInDismantlingPhase($user);
         $address = $firstLine?->customer_address ?? $order->address;
         $isApproved = (bool) $order->work_order_approved_at;
         $photosReady = $order->hasAllWorkerPhotos();
@@ -87,6 +87,9 @@ class WorkerDashboardController extends Controller
             } elseif ($order->warehouse_returned_at) {
                 $listStatus = 'completed';
                 $phase = 'done';
+            } elseif ($order->warehouse_rejected_at) {
+                $listStatus = 'awaiting_approval';
+                $phase = 'awaiting';
             } else {
                 $listStatus = 'awaiting_approval';
                 $phase = 'awaiting';
@@ -125,10 +128,12 @@ class WorkerDashboardController extends Controller
             'status' => $pendingLines > 0 ? 'pending' : 'completed',
             'list_status' => $listStatus,
             'phase' => $phase,
-            'task_type' => $assignmentType === 'both' ? 'both' : ($isDismantling ? 'dismantling' : 'installation'),
-            'task_label' => $assignmentType === 'both'
-                ? 'تركيب + فك'
-                : ($isDismantling ? 'فك' : 'تركيب'),
+            'task_type' => $isDismantling
+                ? 'dismantling'
+                : ($assignmentType === 'both' ? 'both' : 'installation'),
+            'task_label' => $isDismantling
+                ? 'فك'
+                : ($assignmentType === 'both' ? 'تركيب + فك' : 'تركيب'),
             'is_approved' => $isApproved,
             'products_count' => $totalLines,
             'pending_count' => $pendingLines,

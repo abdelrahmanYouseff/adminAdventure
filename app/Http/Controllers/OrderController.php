@@ -1394,6 +1394,18 @@ class OrderController extends Controller
             ];
         }
 
+        if (filled($order->warehouse_rejected_at)) {
+            $reason = trim((string) ($order->warehouse_rejection_reason ?? ''));
+
+            return [
+                'status' => 'rejected',
+                'label' => $reason !== '' ? 'تم الرفض — '.$reason : 'تم الرفض',
+                'scheduled_at' => $scheduledAt,
+                'progress_done' => $pickedUp,
+                'progress_total' => $total,
+            ];
+        }
+
         if ($total === 0) {
             return [
                 'status' => 'none',

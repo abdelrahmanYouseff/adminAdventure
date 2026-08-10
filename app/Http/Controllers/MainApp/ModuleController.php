@@ -166,17 +166,35 @@ class ModuleController extends Controller
             });
         }
 
-        $pending = (clone $query)->whereNull('warehouse_returned_at')->count();
+        $pending = (clone $query)->whereNull('warehouse_returned_at')->whereNull('warehouse_rejected_at')->count();
 
-        $items = $query->limit(40)->get()->map(fn (Order $order) => [
-            'id' => $order->id,
-            'title' => $order->order_number,
-            'subtitle' => $order->customer_name ?: '—',
-            'meta' => $order->warehouse_returned_at ? 'تم الاسترجاع' : 'بانتظار الاسترجاع',
-            'badge' => $order->warehouse_returned_at ? 'مسترجع' : 'معلّق',
-            'badge_tone' => $order->warehouse_returned_at ? 'emerald' : 'amber',
-            'href' => '/returns',
-        ])->all();
+        $items = $query->limit(40)->get()->map(function (Order $order) {
+            if ($order->warehouse_returned_at) {
+                $meta = 'تم الاسترجاع';
+                $badge = 'مسترجع';
+                $tone = 'emerald';
+            } elseif ($order->warehouse_rejected_at) {
+                $meta = $order->warehouse_rejection_reason
+                    ? 'مرفوض — '.$order->warehouse_rejection_reason
+                    : 'مرفوض';
+                $badge = 'مرفوض';
+                $tone = 'rose';
+            } else {
+                $meta = 'بانتظار الاسترجاع';
+                $badge = 'معلّق';
+                $tone = 'amber';
+            }
+
+            return [
+                'id' => $order->id,
+                'title' => $order->order_number,
+                'subtitle' => $order->customer_name ?: '—',
+                'meta' => $meta,
+                'badge' => $badge,
+                'badge_tone' => $tone,
+                'href' => '/returns',
+            ];
+        })->all();
 
         return [
             'stats' => [

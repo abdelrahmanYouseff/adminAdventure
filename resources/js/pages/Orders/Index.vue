@@ -489,6 +489,7 @@ function installBadgeClass(status: string): string {
 function dismantleBadgeClass(status: string): string {
     const map: Record<string, string> = {
         returned: 'bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-300 dark:ring-emerald-900/50',
+        rejected: 'bg-rose-50 text-rose-700 ring-1 ring-inset ring-rose-100 dark:bg-rose-950/40 dark:text-rose-300 dark:ring-rose-900/50',
         completed: 'bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-300 dark:ring-emerald-900/50',
         in_progress: 'bg-violet-50 text-violet-700 ring-1 ring-inset ring-violet-100 dark:bg-violet-950/40 dark:text-violet-300 dark:ring-violet-900/50',
         pending: 'bg-amber-50 text-amber-700 ring-1 ring-inset ring-amber-100 dark:bg-amber-950/40 dark:text-amber-300 dark:ring-amber-900/50',
@@ -929,7 +930,7 @@ function locationMapsUrl(address: string | null): string | null {
                             <td class="px-2.5 py-2.5">
                                 <div class="flex min-w-[7.5rem] flex-col items-start gap-1">
                                     <span
-                                        class="inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold"
+                                        class="inline-flex max-w-[220px] rounded-full px-2 py-0.5 text-[10px] font-semibold leading-snug"
                                         :class="dismantleBadgeClass(order.dismantling?.status || 'none')"
                                     >
                                         {{ order.dismantling?.label || '—' }}
