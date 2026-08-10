@@ -240,7 +240,8 @@ class ProductReturnController extends Controller
             ? $order->workerNotes
             : collect();
 
-        $dismantlingMeta = $this->dismantlingMeta($order->dismantling_at);
+        $isReturned = filled($order->warehouse_returned_at);
+        $dismantlingMeta = $this->dismantlingMeta($order->dismantling_at, $isReturned);
 
         return [
             'id' => $order->id,
@@ -255,8 +256,8 @@ class ProductReturnController extends Controller
             'dismantling_tone' => $dismantlingMeta['tone'],
             'warehouse_returned_at' => $order->warehouse_returned_at?->toIso8601String(),
             'warehouse_returned_by_name' => $order->warehouseReturnedBy?->name,
-            'is_returned' => filled($order->warehouse_returned_at),
-            'can_confirm' => blank($order->warehouse_returned_at),
+            'is_returned' => $isReturned,
+            'can_confirm' => ! $isReturned,
             'notes' => $notes->map(fn (WorkerOrderNote $note) => [
                 'id' => $note->id,
                 'body' => $note->body,
@@ -328,8 +329,16 @@ class ProductReturnController extends Controller
     /**
      * @return array{days: int|null, label: string, tone: string}
      */
-    private function dismantlingMeta(?CarbonInterface $dismantlingAt): array
+    private function dismantlingMeta(?CarbonInterface $dismantlingAt, bool $isReturned = false): array
     {
+        if ($isReturned) {
+            return [
+                'days' => null,
+                'label' => 'تم الفك والاسترجاع',
+                'tone' => 'ok',
+            ];
+        }
+
         if (! $dismantlingAt) {
             return [
                 'days' => null,

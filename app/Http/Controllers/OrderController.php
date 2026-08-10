@@ -1384,6 +1384,16 @@ class OrderController extends Controller
         $pickedUp = $lines->filter(fn ($line) => filled($line->pickup_photo))->count();
         $scheduledAt = $order->dismantling_at?->format('Y-m-d H:i');
 
+        if (filled($order->warehouse_returned_at)) {
+            return [
+                'status' => 'returned',
+                'label' => 'تم الفك والاسترجاع',
+                'scheduled_at' => $scheduledAt,
+                'progress_done' => $pickedUp,
+                'progress_total' => $total,
+            ];
+        }
+
         if ($total === 0) {
             return [
                 'status' => 'none',
