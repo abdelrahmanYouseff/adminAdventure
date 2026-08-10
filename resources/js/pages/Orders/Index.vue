@@ -742,29 +742,29 @@ function locationMapsUrl(address: string | null): string | null {
             </div>
 
             <div class="overflow-x-auto">
-                <table class="w-full min-w-[1380px] border-collapse text-sm">
+                <table class="w-full min-w-[1380px] border-collapse text-xs">
                     <thead>
                         <tr class="border-b border-gray-100 text-start dark:border-neutral-800">
-                            <th class="w-12 px-4 py-3.5">
+                            <th class="w-12 px-3 py-2.5">
                                 <input
                                     type="checkbox"
-                                    class="size-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                    class="size-3.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                                     :checked="allVisibleSelected"
                                     @change="toggleSelectAll"
                                 />
                             </th>
-                            <th class="px-3 py-3.5 text-start text-[13px] font-semibold text-gray-700 dark:text-neutral-200">الطلب</th>
-                            <th class="px-3 py-3.5 text-start text-[13px] font-semibold text-gray-700 dark:text-neutral-200">العميل</th>
-                            <th class="px-3 py-3.5 text-start text-[13px] font-semibold text-gray-700 dark:text-neutral-200">الإجمالي</th>
-                            <th class="px-3 py-3.5 text-start text-[13px] font-semibold text-gray-700 dark:text-neutral-200">الضريبة 15%</th>
-                            <th class="px-3 py-3.5 text-start text-[13px] font-semibold text-gray-700 dark:text-neutral-200">المدفوع</th>
-                            <th class="px-3 py-3.5 text-start text-[13px] font-semibold text-gray-700 dark:text-neutral-200">المستحق</th>
-                            <th class="px-3 py-3.5 text-start text-[13px] font-semibold text-gray-700 dark:text-neutral-200">تاريخ الفعالية</th>
-                            <th class="px-3 py-3.5 text-start text-[13px] font-semibold text-gray-700 dark:text-neutral-200">وقت الفعالية</th>
-                            <th class="px-3 py-3.5 text-start text-[13px] font-semibold text-gray-700 dark:text-neutral-200">التركيب</th>
-                            <th class="px-3 py-3.5 text-start text-[13px] font-semibold text-gray-700 dark:text-neutral-200">الفك</th>
-                            <th class="px-3 py-3.5 text-start text-[13px] font-semibold text-gray-700 dark:text-neutral-200">الحالة</th>
-                            <th class="px-4 py-3.5 text-end text-[13px] font-semibold text-gray-700 dark:text-neutral-200" />
+                            <th class="px-2.5 py-2.5 text-start text-[11px] font-semibold text-gray-700 dark:text-neutral-200">الطلب</th>
+                            <th class="px-2.5 py-2.5 text-start text-[11px] font-semibold text-gray-700 dark:text-neutral-200">العميل</th>
+                            <th class="px-2.5 py-2.5 text-start text-[11px] font-semibold text-gray-700 dark:text-neutral-200">الإجمالي</th>
+                            <th class="px-2.5 py-2.5 text-start text-[11px] font-semibold text-gray-700 dark:text-neutral-200">الضريبة 15%</th>
+                            <th class="px-2.5 py-2.5 text-start text-[11px] font-semibold text-gray-700 dark:text-neutral-200">المدفوع</th>
+                            <th class="px-2.5 py-2.5 text-start text-[11px] font-semibold text-gray-700 dark:text-neutral-200">المستحق</th>
+                            <th class="px-2.5 py-2.5 text-start text-[11px] font-semibold text-gray-700 dark:text-neutral-200">تاريخ الفعالية</th>
+                            <th class="px-2.5 py-2.5 text-start text-[11px] font-semibold text-gray-700 dark:text-neutral-200">وقت الفعالية</th>
+                            <th class="px-2.5 py-2.5 text-start text-[11px] font-semibold text-gray-700 dark:text-neutral-200">التركيب</th>
+                            <th class="px-2.5 py-2.5 text-start text-[11px] font-semibold text-gray-700 dark:text-neutral-200">الفك</th>
+                            <th class="px-2.5 py-2.5 text-start text-[11px] font-semibold text-gray-700 dark:text-neutral-200">الحالة</th>
+                            <th class="px-3 py-2.5 text-end text-[11px] font-semibold text-gray-700 dark:text-neutral-200" />
                         </tr>
                     </thead>
                     <tbody>
@@ -778,7 +778,7 @@ function locationMapsUrl(address: string | null): string | null {
                             :key="order.id"
                             class="border-b border-gray-100 transition hover:bg-gray-50/70 dark:border-neutral-800 dark:hover:bg-neutral-800/40"
                         >
-                            <td class="px-4 py-4">
+                            <td class="px-3 py-2.5">
                                 <input
                                     type="checkbox"
                                     class="size-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
@@ -786,7 +786,7 @@ function locationMapsUrl(address: string | null): string | null {
                                     @change="toggleSelect(order.id)"
                                 />
                             </td>
-                            <td class="px-3 py-4">
+                            <td class="px-2.5 py-2.5">
                                 <Link :href="route('orders.show', order.id)" class="flex flex-col items-start gap-0.5">
                                     <p class="font-semibold tabular-nums text-gray-900 dark:text-white" dir="ltr">
                                         {{ order.order_number }}
@@ -796,7 +796,7 @@ function locationMapsUrl(address: string | null): string | null {
                                     </p>
                                 </Link>
                             </td>
-                            <td class="px-3 py-4">
+                            <td class="px-2.5 py-2.5">
                                 <div class="flex min-w-0 flex-col items-start gap-1">
                                     <p class="font-semibold text-gray-900 dark:text-white">{{ order.customer_name }}</p>
                                     <a
@@ -813,16 +813,16 @@ function locationMapsUrl(address: string | null): string | null {
                                     </a>
                                 </div>
                             </td>
-                            <td class="px-3 py-4 font-semibold tabular-nums text-gray-900 dark:text-white" dir="ltr">
+                            <td class="px-2.5 py-2.5 font-semibold tabular-nums text-gray-900 dark:text-white" dir="ltr">
                                 {{ formatCurrency(Number(order.total_amount) || 0, order.currency) }}
                             </td>
-                            <td class="px-3 py-4 tabular-nums text-gray-700 dark:text-neutral-200" dir="ltr">
+                            <td class="px-2.5 py-2.5 tabular-nums text-gray-700 dark:text-neutral-200" dir="ltr">
                                 <span v-if="vatAmount(order) > 0">
                                     {{ formatCurrency(vatAmount(order), order.currency) }}
                                 </span>
                                 <span v-else class="text-gray-400">-</span>
                             </td>
-                            <td class="px-3 py-4 tabular-nums" dir="ltr">
+                            <td class="px-2.5 py-2.5 tabular-nums" dir="ltr">
                                 <span
                                     v-if="paidAmount(order) > 0"
                                     class="font-semibold text-emerald-600 dark:text-emerald-400"
@@ -831,7 +831,7 @@ function locationMapsUrl(address: string | null): string | null {
                                 </span>
                                 <span v-else class="text-gray-400">-</span>
                             </td>
-                            <td class="px-3 py-4 tabular-nums" dir="ltr">
+                            <td class="px-2.5 py-2.5 tabular-nums" dir="ltr">
                                 <span
                                     v-if="dueAmount(order) > 0"
                                     class="font-semibold text-red-600 dark:text-red-400"
@@ -840,10 +840,10 @@ function locationMapsUrl(address: string | null): string | null {
                                 </span>
                                 <span v-else class="text-gray-400">-</span>
                             </td>
-                            <td class="px-3 py-4 text-gray-600 dark:text-neutral-300">
+                            <td class="px-2.5 py-2.5 text-gray-600 dark:text-neutral-300">
                                 {{ formatActivityDate(order.activity_date) }}
                             </td>
-                            <td class="px-3 py-4" @click.stop>
+                            <td class="px-2.5 py-2.5" @click.stop>
                                 <div v-if="editingTime.id === order.id" class="flex items-center gap-1.5" dir="ltr">
                                     <div class="inline-flex h-8 items-center gap-0.5 rounded-md border border-gray-200 bg-white px-1 dark:border-neutral-700 dark:bg-neutral-950">
                                         <select
@@ -906,10 +906,10 @@ function locationMapsUrl(address: string | null): string | null {
                                     </button>
                                 </div>
                             </td>
-                            <td class="px-3 py-4">
+                            <td class="px-2.5 py-2.5">
                                 <div class="flex min-w-[8.5rem] flex-col items-start gap-1.5">
                                     <span
-                                        class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold"
+                                        class="inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold"
                                         :class="installBadgeClass(order.installation?.status || 'none')"
                                     >
                                         {{ order.installation?.label || '—' }}
@@ -925,10 +925,10 @@ function locationMapsUrl(address: string | null): string | null {
                                     </button>
                                 </div>
                             </td>
-                            <td class="px-3 py-4">
+                            <td class="px-2.5 py-2.5">
                                 <div class="flex min-w-[7.5rem] flex-col items-start gap-1">
                                     <span
-                                        class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold"
+                                        class="inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold"
                                         :class="dismantleBadgeClass(order.dismantling?.status || 'none')"
                                     >
                                         {{ order.dismantling?.label || '—' }}
@@ -942,15 +942,15 @@ function locationMapsUrl(address: string | null): string | null {
                                     </span>
                                 </div>
                             </td>
-                            <td class="px-3 py-4">
+                            <td class="px-2.5 py-2.5">
                                 <span
-                                    class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold"
+                                    class="inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold"
                                     :class="statusBadgeClass(order.status)"
                                 >
                                     {{ getStatusText(order.status) }}
                                 </span>
                             </td>
-                            <td class="px-4 py-4">
+                            <td class="px-3 py-2.5">
                                 <div class="flex items-center justify-end gap-1">
                                     <button
                                         v-if="order.payment_url"
