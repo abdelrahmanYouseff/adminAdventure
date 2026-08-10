@@ -79,6 +79,7 @@ interface ReceiptRow {
     customer: CustomerProfile | null;
     recorded_by_name?: string | null;
     proof_image_url?: string | null;
+    proof_image_urls?: string[];
     account_number?: string | null;
 }
 
@@ -728,22 +729,28 @@ function statusBadgeClass(row: ReceiptRow): string {
                                                     <p v-else class="mt-0.5 text-sm text-gray-400">غير مسجّل</p>
                                                 </div>
                                                 <div>
-                                                    <p class="mb-1.5 text-xs text-gray-400">صورة التحويل / إيصال الدفع</p>
-                                                    <a
-                                                        v-if="row.proof_image_url"
-                                                        :href="row.proof_image_url"
-                                                        target="_blank"
-                                                        rel="noopener"
-                                                        class="block overflow-hidden rounded-lg border border-gray-200 dark:border-neutral-700"
-                                                        @click.stop
+                                                    <p class="mb-1.5 text-xs text-gray-400">صور التحويل / إيصال الدفع</p>
+                                                    <div
+                                                        v-if="(row.proof_image_urls?.length || (row.proof_image_url ? 1 : 0))"
+                                                        class="grid grid-cols-2 gap-2"
                                                     >
-                                                        <img
-                                                            :src="row.proof_image_url"
-                                                            alt="صورة إيصال الدفع"
-                                                            class="max-h-48 w-full bg-gray-50 object-contain dark:bg-neutral-800"
-                                                        />
-                                                    </a>
-                                                    <p v-else class="text-sm text-gray-400">لا توجد صورة مرفقة</p>
+                                                        <a
+                                                            v-for="(url, imgIndex) in (row.proof_image_urls?.length ? row.proof_image_urls : [row.proof_image_url!])"
+                                                            :key="`${row.id}-proof-${imgIndex}`"
+                                                            :href="url"
+                                                            target="_blank"
+                                                            rel="noopener"
+                                                            class="block overflow-hidden rounded-lg border border-gray-200 dark:border-neutral-700"
+                                                            @click.stop
+                                                        >
+                                                            <img
+                                                                :src="url"
+                                                                :alt="`صورة إيصال الدفع ${imgIndex + 1}`"
+                                                                class="aspect-square w-full bg-gray-50 object-cover dark:bg-neutral-800"
+                                                            />
+                                                        </a>
+                                                    </div>
+                                                    <p v-else class="text-sm text-gray-400">لا توجد صور مرفقة</p>
                                                 </div>
                                             </div>
                                         </div>

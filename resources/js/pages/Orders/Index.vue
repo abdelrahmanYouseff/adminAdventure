@@ -120,21 +120,19 @@ const selectedIds = ref<number[]>([]);
 
 const settleDialogOpen = ref(false);
 const settleOrder = ref<Order | null>(null);
-const paymentProofPreview = ref<string | null>(null);
+const paymentProofPreviews = ref<string[]>([]);
 const paymentProofInput = ref<HTMLInputElement | null>(null);
 
 const settleForm = useForm({
     amount: '' as number | string,
     payment_method: 'bank_transfer',
-    payment_proof: null as File | null,
+    payment_proof: [] as File[],
     notes: '',
 });
 
-function clearPaymentProofPreview() {
-    if (paymentProofPreview.value) {
-        URL.revokeObjectURL(paymentProofPreview.value);
-        paymentProofPreview.value = null;
-    }
+function clearPaymentProofPreviews() {
+    paymentProofPreviews.value.forEach((url) => URL.revokeObjectURL(url));
+    paymentProofPreviews.value = [];
 }
 
 function openSettleDialog(order: Order) {
@@ -143,9 +141,9 @@ function openSettleDialog(order: Order) {
     settleForm.clearErrors();
     settleForm.amount = Number(order.settle_available ?? dueAmount(order)) || '';
     settleForm.payment_method = order.payment_method || 'bank_transfer';
-    settleForm.payment_proof = null;
+    settleForm.payment_proof = [];
     settleForm.notes = '';
-    clearPaymentProofPreview();
+    clearPaymentProofPreviews();
     if (paymentProofInput.value) {
         paymentProofInput.value.value = '';
     }
@@ -157,7 +155,7 @@ function closeSettleDialog() {
     settleOrder.value = null;
     settleForm.reset();
     settleForm.clearErrors();
-    clearPaymentProofPreview();
+    clearPaymentProofPreviews();
     if (paymentProofInput.value) {
         paymentProofInput.value.value = '';
     }
@@ -165,17 +163,30 @@ function closeSettleDialog() {
 
 function handleSettleProofChange(event: Event) {
     const input = event.target as HTMLInputElement;
-    const file = input.files?.[0] ?? null;
-    clearPaymentProofPreview();
-    settleForm.payment_proof = file;
-    if (file) {
-        paymentProofPreview.value = URL.createObjectURL(file);
+    const files = Array.from(input.files ?? []);
+    if (!files.length) return;
+
+    const nextFiles = [...settleForm.payment_proof, ...files].slice(0, 10);
+    clearPaymentProofPreviews();
+    settleForm.payment_proof = nextFiles;
+    paymentProofPreviews.value = nextFiles.map((file) => URL.createObjectURL(file));
+    settleForm.clearErrors('payment_proof');
+    input.value = '';
+}
+
+function removeSettleProof(index: number) {
+    const nextFiles = settleForm.payment_proof.filter((_, i) => i !== index);
+    clearPaymentProofPreviews();
+    settleForm.payment_proof = nextFiles;
+    paymentProofPreviews.value = nextFiles.map((file) => URL.createObjectURL(file));
+    if (paymentProofInput.value) {
+        paymentProofInput.value.value = '';
     }
 }
 
-function removeSettleProof() {
-    clearPaymentProofPreview();
-    settleForm.payment_proof = null;
+function clearAllSettleProofs() {
+    clearPaymentProofPreviews();
+    settleForm.payment_proof = [];
     if (paymentProofInput.value) {
         paymentProofInput.value.value = '';
     }
@@ -221,7 +232,7 @@ function submitSettle() {
 }
 
 onBeforeUnmount(() => {
-    clearPaymentProofPreview();
+    clearPaymentProofPreviews();
     window.clearTimeout(copiedPaymentLinkTimer);
 });
 
@@ -1023,42 +1034,67 @@ function locationMapsUrl(address: string | null): string | null {
                     </div>
 
                     <div class="space-y-2">
-                        <Label for="settle-proof">صورة التحويل / إيصال الدفع</Label>
+                        <Label for="settle-proof">صور التحويل / إيصال الدفع</Label>
                         <label
                             for="settle-proof"
                             class="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border bg-muted/30 px-4 py-5 text-center transition hover:bg-muted/50"
                         >
                             <UploadCloud class="h-5 w-5 text-muted-foreground" />
                             <span class="text-sm font-medium">
-                                {{ settleForm.payment_proof ? settleForm.payment_proof.name : 'اختر صورة الإيصال' }}
+                                {{ settleForm.payment_proof.length
+                                    ? `${settleForm.payment_proof.length} صورة محددة — اضغط لإضافة المزيد`
+                                    : 'اختر صور الإيصال' }}
                             </span>
-                            <span class="text-xs text-muted-foreground">jpg, png, webp — حتى 5 ميجابايت</span>
+                            <span class="text-xs text-muted-foreground">jpg, png, webp — حتى 5 ميجابايت لكل صورة · بحد أقصى 10</span>
                             <input
                                 id="settle-proof"
                                 ref="paymentProofInput"
                                 type="file"
+                                multiple
                                 accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp"
                                 class="hidden"
                                 @change="handleSettleProofChange"
                             />
                         </label>
-                        <div v-if="paymentProofPreview" class="relative overflow-hidden rounded-xl border border-border/60">
-                            <img
-                                :src="paymentProofPreview"
-                                alt="معاينة إيصال الدفع"
-                                class="max-h-40 w-full bg-muted/20 object-contain"
-                            />
-                            <Button
-                                type="button"
-                                variant="outline"
-                                class="absolute left-2 top-2 h-8 rounded-lg px-2 text-xs"
-                                @click="removeSettleProof"
+                        <div v-if="paymentProofPreviews.length" class="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                            <div
+                                v-for="(preview, index) in paymentProofPreviews"
+                                :key="`${preview}-${index}`"
+                                class="relative overflow-hidden rounded-xl border border-border/60"
                             >
-                                إزالة
-                            </Button>
+                                <img
+                                    :src="preview"
+                                    :alt="`معاينة إيصال ${index + 1}`"
+                                    class="aspect-square w-full bg-muted/20 object-cover"
+                                />
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    class="absolute left-1.5 top-1.5 h-7 rounded-lg px-2 text-[11px]"
+                                    @click="removeSettleProof(index)"
+                                >
+                                    إزالة
+                                </Button>
+                            </div>
                         </div>
+                        <button
+                            v-if="settleForm.payment_proof.length"
+                            type="button"
+                            class="text-xs text-rose-600 hover:underline"
+                            @click="clearAllSettleProofs"
+                        >
+                            إزالة كل الصور
+                        </button>
                         <p v-if="settleForm.errors.payment_proof" class="text-xs text-red-600">
                             {{ settleForm.errors.payment_proof }}
+                        </p>
+                        <p
+                            v-for="(error, key) in settleForm.errors"
+                            v-show="String(key).startsWith('payment_proof.')"
+                            :key="key"
+                            class="text-xs text-red-600"
+                        >
+                            {{ error }}
                         </p>
                     </div>
 

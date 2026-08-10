@@ -89,7 +89,7 @@ const form = useForm({
     status: props.order.status || 'processing',
     notes: props.order.notes || '',
     amount_paid: 0 as number,
-    payment_proof: null as File | null,
+    payment_proof: [] as File[],
     items: (props.order.items || []).map((item) => ({
         ...item,
         product_id: item.product_id || null,
@@ -106,32 +106,40 @@ const customDescription = ref('');
 const customStatement = ref('');
 const customPrice = ref(0);
 const customQuantity = ref(1);
-const paymentProofPreview = ref<string | null>(null);
+const paymentProofPreviews = ref<string[]>([]);
 const customerLookupStatus = ref<'idle' | 'loading' | 'found' | 'not_found'>('idle');
 const customerLookupMessage = ref('');
 let phoneLookupTimer: ReturnType<typeof setTimeout> | null = null;
 let phoneLookupRequestId = 0;
 
 function clearPaymentProofPreview() {
-    if (paymentProofPreview.value) {
-        URL.revokeObjectURL(paymentProofPreview.value);
-        paymentProofPreview.value = null;
-    }
+    paymentProofPreviews.value.forEach((url) => URL.revokeObjectURL(url));
+    paymentProofPreviews.value = [];
 }
 
 function handlePaymentProofChange(event: Event) {
     const input = event.target as HTMLInputElement;
-    const file = input.files?.[0] ?? null;
+    const files = Array.from(input.files ?? []);
+    if (!files.length) return;
+
+    const nextFiles = [...form.payment_proof, ...files].slice(0, 10);
     clearPaymentProofPreview();
-    form.payment_proof = file;
-    if (file) {
-        paymentProofPreview.value = URL.createObjectURL(file);
-    }
+    form.payment_proof = nextFiles;
+    paymentProofPreviews.value = nextFiles.map((file) => URL.createObjectURL(file));
+    input.value = '';
 }
 
-function removePaymentProof() {
+function removePaymentProof(index?: number) {
+    if (typeof index !== 'number') {
+        clearPaymentProofPreview();
+        form.payment_proof = [];
+        return;
+    }
+
+    const nextFiles = form.payment_proof.filter((_, i) => i !== index);
     clearPaymentProofPreview();
-    form.payment_proof = null;
+    form.payment_proof = nextFiles;
+    paymentProofPreviews.value = nextFiles.map((file) => URL.createObjectURL(file));
 }
 
 onBeforeUnmount(() => {
@@ -263,7 +271,7 @@ function submit() {
     form.clearErrors('amount_paid');
 
     // PHP does not populate request body for multipart PUT. Always spoof as POST + _method.
-    const hasProof = form.payment_proof instanceof File;
+    const hasProof = form.payment_proof.length > 0;
     form
         .transform((data) => ({
             ...data,
@@ -943,38 +951,47 @@ watch(
                             </div>
 
                             <div v-if="newPayment > 0" class="space-y-2">
-                                <Label for="payment_proof" class="text-sm font-medium">صورة التحويل / إيصال الدفع</Label>
+                                <Label for="payment_proof" class="text-sm font-medium">صور التحويل / إيصال الدفع</Label>
                                 <label
                                     for="payment_proof"
                                     class="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border bg-muted/30 px-4 py-5 text-center transition hover:bg-muted/50"
                                 >
                                     <UploadCloud class="h-5 w-5 text-muted-foreground" />
                                     <span class="text-sm font-medium">
-                                        {{ form.payment_proof ? form.payment_proof.name : 'اختر صورة الإيصال' }}
+                                        {{ form.payment_proof.length
+                                            ? `${form.payment_proof.length} صورة محددة — اضغط لإضافة المزيد`
+                                            : 'اختر صور الإيصال' }}
                                     </span>
-                                    <span class="text-xs text-muted-foreground">jpg, png, webp — حتى 5 ميجابايت</span>
+                                    <span class="text-xs text-muted-foreground">jpg, png, webp — حتى 5 ميجابايت · بحد أقصى 10</span>
                                     <input
                                         id="payment_proof"
                                         type="file"
+                                        multiple
                                         accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp"
                                         class="hidden"
                                         @change="handlePaymentProofChange"
                                     />
                                 </label>
-                                <div v-if="paymentProofPreview" class="relative overflow-hidden rounded-xl border border-border/60">
-                                    <img
-                                        :src="paymentProofPreview"
-                                        alt="معاينة إيصال الدفع"
-                                        class="max-h-40 w-full bg-muted/20 object-contain"
-                                    />
-                                    <Button
-                                        type="button"
-                                        variant="outline"
-                                        class="absolute left-2 top-2 h-8 rounded-lg px-2 text-xs"
-                                        @click="removePaymentProof"
+                                <div v-if="paymentProofPreviews.length" class="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                                    <div
+                                        v-for="(preview, index) in paymentProofPreviews"
+                                        :key="`${preview}-${index}`"
+                                        class="relative overflow-hidden rounded-xl border border-border/60"
                                     >
-                                        إزالة
-                                    </Button>
+                                        <img
+                                            :src="preview"
+                                            :alt="`معاينة إيصال ${index + 1}`"
+                                            class="aspect-square w-full bg-muted/20 object-cover"
+                                        />
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            class="absolute left-1.5 top-1.5 h-7 rounded-lg px-2 text-[11px]"
+                                            @click="removePaymentProof(index)"
+                                        >
+                                            إزالة
+                                        </Button>
+                                    </div>
                                 </div>
                                 <p v-if="form.errors.payment_proof" class="text-xs text-red-600">
                                     {{ form.errors.payment_proof }}

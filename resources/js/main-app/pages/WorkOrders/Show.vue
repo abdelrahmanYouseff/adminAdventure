@@ -150,12 +150,11 @@ const progress = computed(() => props.workOrder.installation_progress ?? {
 const installButtonLabel = computed(() => {
     if (props.workOrder.is_approved) return 'تم التركيب ✓';
     if (approveForm.processing) return 'جاري التأكيد...';
-    if (props.workOrder.can_approve) return 'تم التركيب';
-    return 'بانتظار اكتمال التركيب';
+    return 'تم التركيب';
 });
 
 const canClickInstallDone = computed(
-    () => Boolean(props.workOrder.can_approve) && !approveForm.processing,
+    () => Boolean(props.workOrder.can_approve) && !approveForm.processing && !props.workOrder.is_approved,
 );
 
 const unassignedWorkers = computed(() => {
@@ -408,12 +407,9 @@ function openPhoto(url: string) {
                                 اعتمد بواسطة {{ workOrder.approved_by_name || 'مدير العمال' }}
                                 <span v-if="workOrder.approved_at"> — {{ formatDateTime(workOrder.approved_at) }}</span>
                             </template>
-                            <template v-else-if="workOrder.can_approve">
-                                كل الألعاب مكتملة الصور. اضغط «تم التركيب» لتعميد أمر العمل.
-                            </template>
                             <template v-else>
-                                التقدم: {{ progress.done }}/{{ progress.total }} —
-                                بانتظار رفع العامل لصور التركيب.
+                                يمكنك تأكيد اكتمال التركيب مباشرة حتى لو لم يرفع العامل الصور بعد.
+                                <span v-if="progress.total"> التقدم الحالي: {{ progress.done }}/{{ progress.total }}.</span>
                             </template>
                         </p>
                         <button

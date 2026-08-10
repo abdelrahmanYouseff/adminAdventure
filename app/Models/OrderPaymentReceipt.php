@@ -37,6 +37,7 @@ class OrderPaymentReceipt extends Model
 
     protected $appends = [
         'proof_image_url',
+        'proof_image_urls',
     ];
 
     protected $casts = [
@@ -49,19 +50,25 @@ class OrderPaymentReceipt extends Model
         'rejected_at' => 'datetime',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
+        'proof_image' => 'array',
     ];
+
+    /**
+     * @return list<string>
+     */
+    public function getProofImageUrlsAttribute(): array
+    {
+        $paths = $this->normalizeProofPaths($this->attributes['proof_image'] ?? null);
+
+        return array_values(array_filter(array_map(
+            fn (string $path) => $this->resolvePublicUrl($path),
+            $paths,
+        )));
+    }
 
     public function getProofImageUrlAttribute(): ?string
     {
-        $path = $this->attributes['proof_image'] ?? null;
-
-        if (! $path) {
-            return null;
-        }
-
-        return str_starts_with($path, 'http')
-            ? $path
-            : asset('storage/'.ltrim($path, '/'));
+        return $this->proof_image_urls[0] ?? null;
     }
 
     public function isApproved(): bool
@@ -115,5 +122,55 @@ class OrderPaymentReceipt extends Model
             : 1;
 
         return sprintf('%s-%s%s-%04d', $prefix, $year, $month, $next);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function normalizeProofPaths(mixed $raw): array
+    {
+        if ($raw === null || $raw === '') {
+            return [];
+        }
+
+        if (is_array($raw)) {
+            return array_values(array_filter(array_map(
+                fn ($path) => is_string($path) ? trim($path) : '',
+                $raw,
+            )));
+        }
+
+        if (! is_string($raw)) {
+            return [];
+        }
+
+        $trimmed = trim($raw);
+
+        if ($trimmed === '') {
+            return [];
+        }
+
+        if (str_starts_with($trimmed, '[')) {
+            $decoded = json_decode($trimmed, true);
+            if (is_array($decoded)) {
+                return array_values(array_filter(array_map(
+                    fn ($path) => is_string($path) ? trim($path) : '',
+                    $decoded,
+                )));
+            }
+        }
+
+        return [$trimmed];
+    }
+
+    private function resolvePublicUrl(string $path): ?string
+    {
+        if ($path === '') {
+            return null;
+        }
+
+        return str_starts_with($path, 'http')
+            ? $path
+            : asset('storage/'.ltrim($path, '/'));
     }
 }

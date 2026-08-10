@@ -293,7 +293,8 @@ class OrderController extends Controller
             'notes' => ['nullable', 'string', 'max:1000'],
             'amount_paid' => ['nullable', 'numeric', 'min:0'],
             'account_number' => ['nullable', 'string', 'max:100'],
-            'payment_proof' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
+            'payment_proof' => ['nullable', 'array', 'max:10'],
+            'payment_proof.*' => ['image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
             'items' => ['required', 'array', 'min:1'],
             'items.*.product_id' => ['nullable', 'integer', 'exists:products,id'],
             'items.*.product_name' => ['nullable', 'string', 'max:255'],
@@ -312,9 +313,11 @@ class OrderController extends Controller
             'amount_paid.min' => 'المبلغ المدفوع لا يمكن أن يكون سالباً.',
             'activity_time.date_format' => 'صيغة وقت الفعالية غير صحيحة.',
             'dismantling_at.date' => 'تاريخ الفك غير صالح.',
-            'payment_proof.image' => 'مرفق التحويل يجب أن يكون صورة.',
-            'payment_proof.mimes' => 'صيغ صورة التحويل المسموحة: jpg, jpeg, png, webp.',
-            'payment_proof.max' => 'حجم صورة التحويل يجب ألا يتجاوز 5 ميجابايت.',
+            'payment_proof.array' => 'مرفقات التحويل يجب أن تكون قائمة صور.',
+            'payment_proof.max' => 'يمكن رفع 10 صور كحد أقصى.',
+            'payment_proof.*.image' => 'مرفق التحويل يجب أن يكون صورة.',
+            'payment_proof.*.mimes' => 'صيغ صورة التحويل المسموحة: jpg, jpeg, png, webp.',
+            'payment_proof.*.max' => 'حجم صورة التحويل يجب ألا يتجاوز 5 ميجابايت.',
             'items.*.discount_amount.min' => 'خصم الوحدة لا يمكن أن يكون سالباً.',
             'items.*.discount_amount.lte' => 'خصم الوحدة لا يمكن أن يتجاوز سعر الوحدة.',
         ]);
@@ -484,10 +487,7 @@ class OrderController extends Controller
         $successMessage = 'تم تحديث الطلب بنجاح.';
 
         if ($newPayment > 0.009) {
-            $proofImage = null;
-            if ($request->hasFile('payment_proof')) {
-                $proofImage = $request->file('payment_proof')->store('payment-proofs', 'public');
-            }
+            $proofImages = $this->storePaymentProofImages($request);
 
             $accountNumber = isset($validated['account_number'])
                 ? trim((string) $validated['account_number'])
@@ -504,14 +504,12 @@ class OrderController extends Controller
                     $validated['payment_method'],
                     'settlement',
                     'سداد من تعديل الطلب — بانتظار اعتماد المحاسب',
-                    $proofImage,
+                    $proofImages !== [] ? $proofImages : null,
                     $accountNumber,
                 );
                 $successMessage = 'تم تحديث الطلب وتسجيل السداد في سند القبض '.$receipt->receipt_number.' وبانتظار اعتماد المحاسب.';
             } catch (\Throwable $e) {
-                if ($proofImage) {
-                    Storage::disk('public')->delete($proofImage);
-                }
+                $this->deleteStoredPaymentProofs($proofImages);
 
                 return redirect()
                     ->route('orders.edit', $order)
@@ -538,7 +536,8 @@ class OrderController extends Controller
             'payment_method' => ['required', 'string', 'in:credit_card,cash,bank_transfer,paypal,noon'],
             'status' => ['required', 'string', 'in:pending,processing,paid,cancelled'],
             'amount_paid' => ['nullable', 'numeric', 'min:0'],
-            'payment_proof' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
+            'payment_proof' => ['nullable', 'array', 'max:10'],
+            'payment_proof.*' => ['image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
             'notes' => ['nullable', 'string', 'max:1000'],
             'items' => ['required', 'array', 'min:1'],
             'items.*.product_id' => ['nullable', 'integer', 'exists:products,id'],
@@ -558,9 +557,11 @@ class OrderController extends Controller
             'amount_paid.min' => 'المبلغ المدفوع لا يمكن أن يكون سالباً.',
             'activity_time.date_format' => 'صيغة وقت الفعالية غير صحيحة.',
             'dismantling_at.date' => 'تاريخ الفك غير صالح.',
-            'payment_proof.image' => 'مرفق التحويل يجب أن يكون صورة.',
-            'payment_proof.mimes' => 'صيغ صورة التحويل المسموحة: jpg, jpeg, png, webp.',
-            'payment_proof.max' => 'حجم صورة التحويل يجب ألا يتجاوز 5 ميجابايت.',
+            'payment_proof.array' => 'مرفقات التحويل يجب أن تكون قائمة صور.',
+            'payment_proof.max' => 'يمكن رفع 10 صور كحد أقصى.',
+            'payment_proof.*.image' => 'مرفق التحويل يجب أن يكون صورة.',
+            'payment_proof.*.mimes' => 'صيغ صورة التحويل المسموحة: jpg, jpeg, png, webp.',
+            'payment_proof.*.max' => 'حجم صورة التحويل يجب ألا يتجاوز 5 ميجابايت.',
             'items.*.discount_amount.min' => 'خصم الوحدة لا يمكن أن يكون سالباً.',
             'items.*.discount_amount.lte' => 'خصم الوحدة لا يمكن أن يتجاوز سعر الوحدة.',
         ]);
@@ -698,10 +699,7 @@ class OrderController extends Controller
         });
 
         if ($amountPaid > 0) {
-            $proofImage = null;
-            if ($request->hasFile('payment_proof')) {
-                $proofImage = $request->file('payment_proof')->store('payment-proofs', 'public');
-            }
+            $proofImages = $this->storePaymentProofImages($request);
 
             try {
                 app(OrderPaymentReceiptService::class)->recordPayment(
@@ -711,12 +709,10 @@ class OrderController extends Controller
                     $validated['payment_method'],
                     'initial',
                     'سند قبض عند إنشاء الطلب — بانتظار اعتماد المحاسب',
-                    $proofImage,
+                    $proofImages !== [] ? $proofImages : null,
                 );
             } catch (\Throwable $e) {
-                if ($proofImage) {
-                    Storage::disk('public')->delete($proofImage);
-                }
+                $this->deleteStoredPaymentProofs($proofImages);
 
                 throw $e;
             }
@@ -738,13 +734,16 @@ class OrderController extends Controller
             'payment_method' => ['nullable', 'string', 'in:credit_card,cash,bank_transfer,paypal,noon'],
             'notes' => ['nullable', 'string', 'max:1000'],
             'account_number' => ['nullable', 'string', 'max:100'],
-            'payment_proof' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
+            'payment_proof' => ['nullable', 'array', 'max:10'],
+            'payment_proof.*' => ['image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
         ], [
             'amount.required' => 'مبلغ السداد مطلوب.',
             'amount.min' => 'مبلغ السداد يجب أن يكون أكبر من صفر.',
-            'payment_proof.image' => 'مرفق التحويل يجب أن يكون صورة.',
-            'payment_proof.mimes' => 'صيغ صورة التحويل المسموحة: jpg, jpeg, png, webp.',
-            'payment_proof.max' => 'حجم صورة التحويل يجب ألا يتجاوز 5 ميجابايت.',
+            'payment_proof.array' => 'مرفقات التحويل يجب أن تكون قائمة صور.',
+            'payment_proof.max' => 'يمكن رفع 10 صور كحد أقصى.',
+            'payment_proof.*.image' => 'مرفق التحويل يجب أن يكون صورة.',
+            'payment_proof.*.mimes' => 'صيغ صورة التحويل المسموحة: jpg, jpeg, png, webp.',
+            'payment_proof.*.max' => 'حجم صورة التحويل يجب ألا يتجاوز 5 ميجابايت.',
         ]);
 
         $pendingSum = round((float) $order->paymentReceipts()
@@ -763,10 +762,7 @@ class OrderController extends Controller
             return back()->withErrors(['amount' => 'مبلغ السداد أكبر من المتبقي غير المسجّل ('.$available.').']);
         }
 
-        $proofImage = null;
-        if ($request->hasFile('payment_proof')) {
-            $proofImage = $request->file('payment_proof')->store('payment-proofs', 'public');
-        }
+        $proofImages = $this->storePaymentProofImages($request);
 
         $accountNumber = isset($validated['account_number'])
             ? trim((string) $validated['account_number'])
@@ -785,13 +781,11 @@ class OrderController extends Controller
                 $validated['payment_method'] ?? $order->payment_method,
                 'settlement',
                 $notes,
-                $proofImage,
+                $proofImages !== [] ? $proofImages : null,
                 $accountNumber,
             );
         } catch (\Throwable $e) {
-            if ($proofImage) {
-                Storage::disk('public')->delete($proofImage);
-            }
+            $this->deleteStoredPaymentProofs($proofImages);
 
             return back()->with('error', $e->getMessage());
         }
@@ -1303,6 +1297,44 @@ class OrderController extends Controller
             'insurance' => $insurance,
             'grand' => round($grand, 2),
         ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function storePaymentProofImages(Request $request): array
+    {
+        if (! $request->hasFile('payment_proof')) {
+            return [];
+        }
+
+        $files = $request->file('payment_proof');
+        if (! is_array($files)) {
+            $files = [$files];
+        }
+
+        $paths = [];
+        foreach ($files as $file) {
+            if (! $file) {
+                continue;
+            }
+
+            $paths[] = $file->store('payment-proofs', 'public');
+        }
+
+        return $paths;
+    }
+
+    /**
+     * @param  list<string>  $paths
+     */
+    private function deleteStoredPaymentProofs(array $paths): void
+    {
+        foreach ($paths as $path) {
+            if (is_string($path) && $path !== '') {
+                Storage::disk('public')->delete($path);
+            }
+        }
     }
 }
 

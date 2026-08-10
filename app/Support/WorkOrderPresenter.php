@@ -23,9 +23,15 @@ class WorkOrderPresenter
         $totalLines = (int) ($order->total_lines ?? $order->workerOrders->count());
         $photosReady = $order->hasAllWorkerPhotos();
         $isApproved = (bool) $order->work_order_approved_at;
-        $canApprove = $photosReady
+        $roleCanApprove = InsuranceApprovalChain::canUserApproveStep(
+            $user,
+            InsuranceApprovalChain::STEP_WORKERS_MANAGER,
+        );
+        // مدير العمال يقدر يعتمد اكتمال التركيب بدون انتظار صور العامل
+        $canApproveWithoutPhotos = (bool) $user?->isWorkersManager();
+        $canApprove = $roleCanApprove
             && ! $isApproved
-            && InsuranceApprovalChain::canUserApproveStep($user, InsuranceApprovalChain::STEP_WORKERS_MANAGER);
+            && ($photosReady || $canApproveWithoutPhotos);
 
         return [
             'id' => $order->id,
