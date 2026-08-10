@@ -21,7 +21,6 @@ import {
     PackageCheck,
     Search,
     Undo2,
-    XCircle,
 } from 'lucide-vue-next';
 import Swal from 'sweetalert2';
 
@@ -43,13 +42,8 @@ interface ProductReturn {
     dismantling_tone: 'ok' | 'warn' | 'due' | 'overdue' | 'muted';
     warehouse_returned_at: string | null;
     warehouse_returned_by_name: string | null;
-    warehouse_rejected_at: string | null;
-    warehouse_rejected_by_name: string | null;
-    warehouse_rejection_reason: string | null;
     is_returned: boolean;
-    is_rejected: boolean;
     can_confirm: boolean;
-    can_reject: boolean;
     notes_count: number;
 }
 
@@ -63,7 +57,6 @@ interface Props {
     stats: {
         pending: number;
         returned: number;
-        rejected: number;
     };
     filters: {
         status: string;
@@ -77,17 +70,15 @@ defineOptions({ layout: AppLayout });
 const page = usePage();
 const flash = computed(() => (page.props.flash as { success?: string; error?: string } | undefined) ?? {});
 const searchQuery = ref(props.filters.search || '');
-const confirmingId = ref<number | null>(null);
-const rejectDialogOpen = ref(false);
-const rejectTarget = ref<ProductReturn | null>(null);
-const rejectForm = useForm({
-    rejection_reason: '',
+const confirmDialogOpen = ref(false);
+const confirmTarget = ref<ProductReturn | null>(null);
+const confirmForm = useForm({
+    note: '',
 });
 
 const statusTabs = [
     { key: 'pending', label: 'بانتظار الاسترجاع' },
     { key: 'returned', label: 'تم الاسترجاع' },
-    { key: 'rejected', label: 'مرفوض' },
     { key: 'all', label: 'الكل' },
 ] as const;
 
@@ -145,8 +136,7 @@ function submitSearch() {
 function tabCount(key: string): number {
     if (key === 'pending') return props.stats.pending;
     if (key === 'returned') return props.stats.returned;
-    if (key === 'rejected') return props.stats.rejected;
-    return props.stats.pending + props.stats.returned + props.stats.rejected;
+    return props.stats.pending + props.stats.returned;
 }
 
 function openDetails(item: ProductReturn, event?: Event) {
@@ -158,50 +148,28 @@ function openDetails(item: ProductReturn, event?: Event) {
     router.visit(`/returns/${item.id}`);
 }
 
-async function confirmReturn(item: ProductReturn) {
-    const result = await Swal.fire({
-        icon: 'question',
-        title: 'تأكيد الاسترجاع للمستودع؟',
-        text: `الطلب ${item.order_number} — ${formatInteger(item.products_count)} منتج`,
-        showCancelButton: true,
-        confirmButtonText: 'تأكيد الاسترجاع',
-        cancelButtonText: 'إلغاء',
-        confirmButtonColor: '#2563EB',
-    });
-
-    if (!result.isConfirmed) return;
-
-    confirmingId.value = item.id;
-    router.post(`/returns/${item.id}/confirm`, {}, {
-        preserveScroll: true,
-        onFinish: () => {
-            confirmingId.value = null;
-        },
-    });
+function openConfirmDialog(item: ProductReturn) {
+    if (!item.can_confirm || confirmForm.processing) return;
+    confirmTarget.value = item;
+    confirmForm.clearErrors();
+    confirmForm.note = '';
+    confirmDialogOpen.value = true;
 }
 
-function openRejectDialog(item: ProductReturn) {
-    if (!item.can_reject || rejectForm.processing) return;
-    rejectTarget.value = item;
-    rejectForm.clearErrors();
-    rejectForm.rejection_reason = '';
-    rejectDialogOpen.value = true;
+function closeConfirmDialog() {
+    confirmDialogOpen.value = false;
+    confirmTarget.value = null;
+    confirmForm.reset();
+    confirmForm.clearErrors();
 }
 
-function closeRejectDialog() {
-    rejectDialogOpen.value = false;
-    rejectTarget.value = null;
-    rejectForm.reset();
-    rejectForm.clearErrors();
-}
-
-function submitReject() {
-    const target = rejectTarget.value;
+function submitConfirm() {
+    const target = confirmTarget.value;
     if (!target) return;
 
-    rejectForm.post(`/returns/${target.id}/reject`, {
+    confirmForm.post(`/returns/${target.id}/confirm`, {
         preserveScroll: true,
-        onSuccess: () => closeRejectDialog(),
+        onSuccess: () => closeConfirmDialog(),
     });
 }
 
@@ -228,7 +196,7 @@ function dismantlingToneClass(tone: ProductReturn['dismantling_tone']): string {
             </p>
         </div>
 
-        <div class="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
+        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
             <button
                 type="button"
                 class="rounded-2xl border bg-white p-5 text-start transition hover:shadow-sm dark:bg-neutral-900"
@@ -246,15 +214,6 @@ function dismantlingToneClass(tone: ProductReturn['dismantling_tone']): string {
             >
                 <p class="text-xs font-bold uppercase tracking-wide text-gray-400">تم الاسترجاع</p>
                 <p class="mt-2 text-2xl font-extrabold tabular-nums text-gray-900 dark:text-white">{{ formatInteger(stats.returned) }}</p>
-            </button>
-            <button
-                type="button"
-                class="rounded-2xl border bg-white p-5 text-start transition hover:shadow-sm dark:bg-neutral-900"
-                :class="filters.status === 'rejected' ? 'border-rose-300 ring-1 ring-rose-100' : 'border-gray-200 dark:border-neutral-700'"
-                @click="setStatusFilter('rejected')"
-            >
-                <p class="text-xs font-bold uppercase tracking-wide text-gray-400">مرفوض</p>
-                <p class="mt-2 text-2xl font-extrabold tabular-nums text-gray-900 dark:text-white">{{ formatInteger(stats.rejected) }}</p>
             </button>
         </div>
 
@@ -305,7 +264,7 @@ function dismantlingToneClass(tone: ProductReturn['dismantling_tone']): string {
                 <table class="w-full min-w-[920px] border-collapse text-right text-sm">
                     <thead>
                         <tr class="border-b border-gray-100 bg-gray-50/80 text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:border-neutral-800 dark:bg-neutral-950/50 dark:text-neutral-400">
-                            <th class="whitespace-nowrap px-4 py-3 w-8"></th>
+                            <th class="w-8 whitespace-nowrap px-4 py-3"></th>
                             <th class="whitespace-nowrap px-4 py-3">الطلب</th>
                             <th class="whitespace-nowrap px-4 py-3">العميل</th>
                             <th class="whitespace-nowrap px-4 py-3">المنتجات</th>
@@ -368,60 +327,31 @@ function dismantlingToneClass(tone: ProductReturn['dismantling_tone']): string {
                                         class="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-100"
                                     >
                                         <CheckCircle2 class="size-3.5" />
-                                        تم الاسترجاع
-                                    </span>
-                                    <span
-                                        v-else-if="item.is_rejected"
-                                        class="inline-flex items-center gap-1 rounded-full bg-rose-50 px-2.5 py-1 text-xs font-semibold text-rose-700 ring-1 ring-inset ring-rose-100"
-                                    >
-                                        <XCircle class="size-3.5" />
-                                        مرفوض
+                                        تم التعميد
                                     </span>
                                     <span
                                         v-else
                                         class="inline-flex items-center gap-1 rounded-full bg-orange-50 px-2.5 py-1 text-xs font-semibold text-orange-700 ring-1 ring-inset ring-orange-100"
                                     >
                                         <PackageCheck class="size-3.5" />
-                                        بانتظار المستودع
+                                        بانتظار التعميد
                                     </span>
                                     <p v-if="item.is_returned && item.warehouse_returned_by_name" class="mt-1 text-[11px] text-gray-400">
                                         بواسطة {{ item.warehouse_returned_by_name }}
                                     </p>
-                                    <p v-else-if="item.is_rejected && item.warehouse_rejected_by_name" class="mt-1 text-[11px] text-gray-400">
-                                        بواسطة {{ item.warehouse_rejected_by_name }}
-                                    </p>
-                                    <p
-                                        v-if="item.is_rejected && item.warehouse_rejection_reason"
-                                        class="mt-1 max-w-[220px] text-[11px] leading-relaxed text-rose-600"
-                                    >
-                                        {{ item.warehouse_rejection_reason }}
-                                    </p>
                                 </td>
                                 <td class="px-4 py-3">
-                                    <div class="flex flex-wrap items-center gap-2">
-                                        <Button
-                                            v-if="item.can_confirm"
-                                            size="sm"
-                                            class="gap-1.5"
-                                            :disabled="confirmingId === item.id || rejectForm.processing"
-                                            @click="confirmReturn(item)"
-                                        >
-                                            <Undo2 class="size-3.5" />
-                                            {{ confirmingId === item.id ? 'جاري التأكيد...' : 'تأكيد' }}
-                                        </Button>
-                                        <Button
-                                            v-if="item.can_reject"
-                                            size="sm"
-                                            variant="destructive"
-                                            class="gap-1.5"
-                                            :disabled="confirmingId === item.id || rejectForm.processing"
-                                            @click="openRejectDialog(item)"
-                                        >
-                                            <XCircle class="size-3.5" />
-                                            رفض
-                                        </Button>
-                                        <span v-if="!item.can_confirm && !item.can_reject" class="text-xs text-gray-400">—</span>
-                                    </div>
+                                    <Button
+                                        v-if="item.can_confirm"
+                                        size="sm"
+                                        class="gap-1.5"
+                                        :disabled="confirmForm.processing"
+                                        @click="openConfirmDialog(item)"
+                                    >
+                                        <Undo2 class="size-3.5" />
+                                        تعميد
+                                    </Button>
+                                    <span v-else class="text-xs text-gray-400">—</span>
                                 </td>
                             </tr>
                         </template>
@@ -450,45 +380,44 @@ function dismantlingToneClass(tone: ProductReturn['dismantling_tone']): string {
             </div>
         </div>
 
-        <Dialog :open="rejectDialogOpen" @update:open="(open) => !open && closeRejectDialog()">
+        <Dialog :open="confirmDialogOpen" @update:open="(open) => !open && closeConfirmDialog()">
             <DialogContent class="max-w-md sm:max-w-lg" dir="rtl">
                 <DialogHeader>
-                    <DialogTitle>رفض الاسترجاع</DialogTitle>
-                    <DialogDescription v-if="rejectTarget">
+                    <DialogTitle>تعميد الاسترجاع</DialogTitle>
+                    <DialogDescription v-if="confirmTarget">
                         الطلب
-                        <span class="font-semibold tabular-nums" dir="ltr">{{ rejectTarget.order_number }}</span>
+                        <span class="font-semibold tabular-nums" dir="ltr">{{ confirmTarget.order_number }}</span>
                         —
-                        {{ rejectTarget.customer_name }}
+                        {{ confirmTarget.customer_name }}
                     </DialogDescription>
                 </DialogHeader>
 
-                <form class="space-y-4" @submit.prevent="submitReject">
+                <form class="space-y-4" @submit.prevent="submitConfirm">
                     <div class="space-y-2">
-                        <Label for="rejection-reason">سبب الرفض / الملاحظة</Label>
+                        <Label for="confirm-note">ملاحظة التعميد</Label>
                         <textarea
-                            id="rejection-reason"
-                            v-model="rejectForm.rejection_reason"
+                            id="confirm-note"
+                            v-model="confirmForm.note"
                             rows="4"
                             class="flex min-h-[100px] w-full rounded-xl border border-input bg-background px-3 py-2 text-sm outline-none ring-offset-background placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring"
-                            placeholder="اكتب سبب رفض الاسترجاع..."
+                            placeholder="اكتب ملاحظة التعميد..."
                             required
                         />
-                        <p v-if="rejectForm.errors.rejection_reason" class="text-xs text-red-600">
-                            {{ rejectForm.errors.rejection_reason }}
+                        <p v-if="confirmForm.errors.note" class="text-xs text-red-600">
+                            {{ confirmForm.errors.note }}
                         </p>
                     </div>
 
                     <DialogFooter class="gap-2 sm:justify-start">
                         <Button
                             type="submit"
-                            variant="destructive"
                             class="h-10 gap-2 rounded-xl"
-                            :disabled="rejectForm.processing || !rejectForm.rejection_reason.trim()"
+                            :disabled="confirmForm.processing || !confirmForm.note.trim()"
                         >
-                            <XCircle class="size-4" />
-                            {{ rejectForm.processing ? 'جاري الرفض...' : 'تأكيد الرفض' }}
+                            <Undo2 class="size-4" />
+                            {{ confirmForm.processing ? 'جاري التعميد...' : 'تعميد' }}
                         </Button>
-                        <Button type="button" variant="outline" class="h-10 rounded-xl" @click="closeRejectDialog">
+                        <Button type="button" variant="outline" class="h-10 rounded-xl" @click="closeConfirmDialog">
                             إلغاء
                         </Button>
                     </DialogFooter>

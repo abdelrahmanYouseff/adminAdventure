@@ -17,7 +17,6 @@ import {
     Undo2,
     Users,
     X,
-    XCircle,
 } from 'lucide-vue-next';
 import Swal from 'sweetalert2';
 import {
@@ -81,13 +80,8 @@ interface ReturnOrder {
     dismantling_tone: 'ok' | 'warn' | 'due' | 'overdue' | 'muted';
     warehouse_returned_at: string | null;
     warehouse_returned_by_name: string | null;
-    warehouse_rejected_at: string | null;
-    warehouse_rejected_by_name: string | null;
-    warehouse_rejection_reason: string | null;
     is_returned: boolean;
-    is_rejected: boolean;
     can_confirm: boolean;
-    can_reject: boolean;
     notes: ReturnNote[];
     notes_count: number;
     assemblers: Assembler[];
@@ -101,7 +95,6 @@ interface Props {
     availableWorkers: AvailableWorker[];
     canAssignWorkers: boolean;
     canConfirm: boolean;
-    canReject: boolean;
 }
 
 const props = defineProps<Props>();
@@ -110,9 +103,8 @@ defineOptions({ layout: AppLayout });
 const page = usePage();
 const flash = computed(() => (page.props.flash as { success?: string; error?: string } | undefined) ?? {});
 
-const confirming = ref(false);
-const rejectDialogOpen = ref(false);
-const rejectForm = useForm({ rejection_reason: '' });
+const confirmDialogOpen = ref(false);
+const confirmForm = useForm({ note: '' });
 const assemblerFormOpen = ref(false);
 const deletingAssemblerId = ref<number | null>(null);
 const assemblerForm = useForm({ user_id: '' as string | number });
@@ -180,45 +172,23 @@ function dismantlingToneClass(tone: ReturnOrder['dismantling_tone']): string {
     return 'bg-slate-50 text-slate-500 ring-slate-100';
 }
 
-async function confirmReturn() {
-    const result = await Swal.fire({
-        icon: 'question',
-        title: 'تأكيد الاسترجاع للمستودع؟',
-        text: `الطلب ${props.returnOrder.order_number} — ${formatInteger(props.returnOrder.products_count)} منتج`,
-        showCancelButton: true,
-        confirmButtonText: 'تأكيد الاسترجاع',
-        cancelButtonText: 'إلغاء',
-        confirmButtonColor: '#2563EB',
-    });
+function openConfirmDialog() {
+    if (!props.canConfirm || !props.returnOrder.can_confirm || confirmForm.processing) return;
+    confirmForm.clearErrors();
+    confirmForm.note = '';
+    confirmDialogOpen.value = true;
+}
 
-    if (!result.isConfirmed) return;
+function closeConfirmDialog() {
+    confirmDialogOpen.value = false;
+    confirmForm.reset();
+    confirmForm.clearErrors();
+}
 
-    confirming.value = true;
-    router.post(`/returns/${props.returnOrder.id}/confirm`, {}, {
+function submitConfirm() {
+    confirmForm.post(`/returns/${props.returnOrder.id}/confirm`, {
         preserveScroll: true,
-        onFinish: () => {
-            confirming.value = false;
-        },
-    });
-}
-
-function openRejectDialog() {
-    if (!props.canReject || !props.returnOrder.can_reject || rejectForm.processing) return;
-    rejectForm.clearErrors();
-    rejectForm.rejection_reason = '';
-    rejectDialogOpen.value = true;
-}
-
-function closeRejectDialog() {
-    rejectDialogOpen.value = false;
-    rejectForm.reset();
-    rejectForm.clearErrors();
-}
-
-function submitReject() {
-    rejectForm.post(`/returns/${props.returnOrder.id}/reject`, {
-        preserveScroll: true,
-        onSuccess: () => closeRejectDialog(),
+        onSuccess: () => closeConfirmDialog(),
     });
 }
 
@@ -293,21 +263,11 @@ function submitNote() {
                 <Button
                     v-if="canConfirm && returnOrder.can_confirm"
                     class="gap-1.5"
-                    :disabled="confirming || rejectForm.processing"
-                    @click="confirmReturn"
+                    :disabled="confirmForm.processing"
+                    @click="openConfirmDialog"
                 >
                     <Undo2 class="size-3.5" />
-                    {{ confirming ? 'جاري التأكيد...' : 'تأكيد الاسترجاع' }}
-                </Button>
-                <Button
-                    v-if="canReject && returnOrder.can_reject"
-                    variant="destructive"
-                    class="gap-1.5"
-                    :disabled="confirming || rejectForm.processing"
-                    @click="openRejectDialog"
-                >
-                    <XCircle class="size-3.5" />
-                    رفض
+                    {{ confirmForm.processing ? 'جاري التعميد...' : 'تعميد الاسترجاع' }}
                 </Button>
             </div>
         </div>
@@ -330,21 +290,14 @@ function submitNote() {
                             class="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-100"
                         >
                             <CheckCircle2 class="size-3.5" />
-                            تم الاسترجاع
-                        </span>
-                        <span
-                            v-else-if="returnOrder.is_rejected"
-                            class="inline-flex items-center gap-1 rounded-full bg-rose-50 px-2.5 py-1 text-xs font-semibold text-rose-700 ring-1 ring-inset ring-rose-100"
-                        >
-                            <XCircle class="size-3.5" />
-                            مرفوض
+                            تم التعميد
                         </span>
                         <span
                             v-else
                             class="inline-flex items-center gap-1 rounded-full bg-orange-50 px-2.5 py-1 text-xs font-semibold text-orange-700 ring-1 ring-inset ring-orange-100"
                         >
                             <PackageCheck class="size-3.5" />
-                            بانتظار المستودع
+                            بانتظار التعميد
                         </span>
                         <span
                             class="inline-flex max-w-xs items-center rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset"
@@ -352,12 +305,6 @@ function submitNote() {
                         >
                             {{ returnOrder.dismantling_label }}
                         </span>
-                        <p
-                            v-if="returnOrder.is_rejected && returnOrder.warehouse_rejection_reason"
-                            class="max-w-xs text-end text-xs leading-relaxed text-rose-600"
-                        >
-                            {{ returnOrder.warehouse_rejection_reason }}
-                        </p>
                     </div>
                 </div>
 
@@ -599,10 +546,10 @@ function submitNote() {
             </div>
         </section>
 
-        <Dialog :open="rejectDialogOpen" @update:open="(open) => !open && closeRejectDialog()">
+        <Dialog :open="confirmDialogOpen" @update:open="(open) => !open && closeConfirmDialog()">
             <DialogContent class="max-w-md sm:max-w-lg" dir="rtl">
                 <DialogHeader>
-                    <DialogTitle>رفض الاسترجاع</DialogTitle>
+                    <DialogTitle>تعميد الاسترجاع</DialogTitle>
                     <DialogDescription>
                         الطلب
                         <span class="font-semibold tabular-nums" dir="ltr">{{ returnOrder.order_number }}</span>
@@ -611,33 +558,32 @@ function submitNote() {
                     </DialogDescription>
                 </DialogHeader>
 
-                <form class="space-y-4" @submit.prevent="submitReject">
+                <form class="space-y-4" @submit.prevent="submitConfirm">
                     <div class="space-y-2">
-                        <Label for="show-rejection-reason">سبب الرفض / الملاحظة</Label>
+                        <Label for="show-confirm-note">ملاحظة التعميد</Label>
                         <textarea
-                            id="show-rejection-reason"
-                            v-model="rejectForm.rejection_reason"
+                            id="show-confirm-note"
+                            v-model="confirmForm.note"
                             rows="4"
                             class="flex min-h-[100px] w-full rounded-xl border border-input bg-background px-3 py-2 text-sm outline-none ring-offset-background placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring"
-                            placeholder="اكتب سبب رفض الاسترجاع..."
+                            placeholder="اكتب ملاحظة التعميد..."
                             required
                         />
-                        <p v-if="rejectForm.errors.rejection_reason" class="text-xs text-red-600">
-                            {{ rejectForm.errors.rejection_reason }}
+                        <p v-if="confirmForm.errors.note" class="text-xs text-red-600">
+                            {{ confirmForm.errors.note }}
                         </p>
                     </div>
 
                     <DialogFooter class="gap-2 sm:justify-start">
                         <Button
                             type="submit"
-                            variant="destructive"
                             class="h-10 gap-2 rounded-xl"
-                            :disabled="rejectForm.processing || !rejectForm.rejection_reason.trim()"
+                            :disabled="confirmForm.processing || !confirmForm.note.trim()"
                         >
-                            <XCircle class="size-4" />
-                            {{ rejectForm.processing ? 'جاري الرفض...' : 'تأكيد الرفض' }}
+                            <Undo2 class="size-4" />
+                            {{ confirmForm.processing ? 'جاري التعميد...' : 'تعميد' }}
                         </Button>
-                        <Button type="button" variant="outline" class="h-10 rounded-xl" @click="closeRejectDialog">
+                        <Button type="button" variant="outline" class="h-10 rounded-xl" @click="closeConfirmDialog">
                             إلغاء
                         </Button>
                     </DialogFooter>

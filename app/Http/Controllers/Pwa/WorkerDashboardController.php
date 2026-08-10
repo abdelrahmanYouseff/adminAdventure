@@ -87,9 +87,6 @@ class WorkerDashboardController extends Controller
             } elseif ($order->warehouse_returned_at) {
                 $listStatus = 'completed';
                 $phase = 'done';
-            } elseif ($order->warehouse_rejected_at) {
-                $listStatus = 'awaiting_approval';
-                $phase = 'awaiting';
             } else {
                 $listStatus = 'awaiting_approval';
                 $phase = 'awaiting';

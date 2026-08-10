@@ -330,10 +330,6 @@ Route::post('returns/{order}/confirm', [\App\Http\Controllers\ProductReturnContr
     ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,warehouse_keeper'])
     ->name('returns.confirm');
 
-Route::post('returns/{order}/reject', [\App\Http\Controllers\ProductReturnController::class, 'reject'])
-    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,warehouse_keeper'])
-    ->name('returns.reject');
-
 Route::post('returns/{order}/notes', [\App\Http\Controllers\ProductReturnController::class, 'storeNote'])
     ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,warehouse_keeper,workers_manager'])
     ->name('returns.notes.store');
