@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Order;
 use App\Models\WorkerOrder;
 use App\Models\WorkerOrderNote;
+use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -25,7 +26,9 @@ class ProductReturnController extends Controller
                 'workerNotes' => fn ($q) => $q->latest(),
                 'workerNotes.user:id,customer_name,role',
             ])
-            ->orderByDesc('updated_at');
+            ->orderByRaw('dismantling_at IS NULL')
+            ->orderBy('dismantling_at')
+            ->orderByDesc('id');
 
         if ($status === 'pending') {
             $query->whereNull('warehouse_returned_at');
@@ -99,18 +102,12 @@ class ProductReturnController extends Controller
     private function eligibleReturnsQuery(): Builder
     {
         return Order::query()
-            ->whereHas('workerOrders')
-            ->whereDoesntHave('workerOrders', function (Builder $query) {
-                $query->where(function (Builder $inner) {
-                    $inner->where('status', '!=', 'completed')
-                        ->orWhereNull('installation_photo');
-                });
-            });
+            ->whereNotIn('status', ['cancelled', 'refunded']);
     }
 
     private function isEligibleReturn(Order $order): bool
     {
-        return $order->hasAllWorkerPhotos();
+        return ! in_array($order->status, ['cancelled', 'refunded'], true);
     }
 
     /**
@@ -122,20 +119,37 @@ class ProductReturnController extends Controller
             ? $order->workerOrders
             : $order->workerOrders()->orderBy('line_index')->get();
 
+        $products = $lines->isNotEmpty()
+            ? $lines->map(fn (WorkerOrder $line) => [
+                'id' => $line->id,
+                'product_name' => $line->product_name,
+            ])->values()->all()
+            : collect($order->items ?? [])->values()->map(function ($item, int $index) {
+                $row = is_array($item) ? $item : [];
+
+                return [
+                    'id' => $index + 1,
+                    'product_name' => (string) ($row['name'] ?? $row['product_name'] ?? 'صنف'),
+                ];
+            })->all();
+
         $notes = $order->relationLoaded('workerNotes')
             ? $order->workerNotes
             : collect();
+
+        $dismantlingMeta = $this->dismantlingMeta($order->dismantling_at);
 
         return [
             'id' => $order->id,
             'order_number' => $order->order_number,
             'customer_name' => $order->customer_name,
             'customer_phone' => $order->customer_phone,
-            'products_count' => $lines->count(),
-            'products' => $lines->map(fn (WorkerOrder $line) => [
-                'id' => $line->id,
-                'product_name' => $line->product_name,
-            ])->values()->all(),
+            'products_count' => count($products),
+            'products' => $products,
+            'dismantling_at' => $order->dismantling_at?->toIso8601String(),
+            'days_until_dismantling' => $dismantlingMeta['days'],
+            'dismantling_label' => $dismantlingMeta['label'],
+            'dismantling_tone' => $dismantlingMeta['tone'],
             'warehouse_returned_at' => $order->warehouse_returned_at?->toIso8601String(),
             'warehouse_returned_by_name' => $order->warehouseReturnedBy?->name,
             'is_returned' => filled($order->warehouse_returned_at),
@@ -148,6 +162,46 @@ class ProductReturnController extends Controller
                 'created_at' => $note->created_at?->toIso8601String(),
             ])->values()->all(),
             'notes_count' => $notes->count(),
+        ];
+    }
+
+    /**
+     * @return array{days: int|null, label: string, tone: string}
+     */
+    private function dismantlingMeta(?CarbonInterface $dismantlingAt): array
+    {
+        if (! $dismantlingAt) {
+            return [
+                'days' => null,
+                'label' => 'بدون تاريخ فك',
+                'tone' => 'muted',
+            ];
+        }
+
+        $days = (int) now()->startOfDay()->diffInDays($dismantlingAt->copy()->startOfDay(), false);
+
+        if ($days > 0) {
+            return [
+                'days' => $days,
+                'label' => 'باقي '.$days.' '.($days === 1 ? 'يوم' : 'أيام'),
+                'tone' => $days <= 3 ? 'warn' : 'ok',
+            ];
+        }
+
+        if ($days === 0) {
+            return [
+                'days' => 0,
+                'label' => 'اليوم موعد الفك',
+                'tone' => 'due',
+            ];
+        }
+
+        $overdue = abs($days);
+
+        return [
+            'days' => $days,
+            'label' => 'متأخر '.$overdue.' '.($overdue === 1 ? 'يوم' : 'أيام'),
+            'tone' => 'overdue',
         ];
     }
 }

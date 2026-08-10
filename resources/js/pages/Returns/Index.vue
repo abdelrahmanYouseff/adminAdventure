@@ -4,7 +4,7 @@ import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { Button } from '@/components/ui/button';
 import { formatDateTime, formatInteger } from '@/lib/formatNumber';
-import { CheckCircle2, ChevronDown, MessageSquareText, PackageCheck, Search, Undo2 } from 'lucide-vue-next';
+import { CalendarClock, CheckCircle2, ChevronDown, MessageSquareText, PackageCheck, Search, Undo2 } from 'lucide-vue-next';
 import Swal from 'sweetalert2';
 
 interface ReturnProduct {
@@ -27,6 +27,10 @@ interface ProductReturn {
     customer_phone: string | null;
     products_count: number;
     products: ReturnProduct[];
+    dismantling_at: string | null;
+    days_until_dismantling: number | null;
+    dismantling_label: string;
+    dismantling_tone: 'ok' | 'warn' | 'due' | 'overdue' | 'muted';
     warehouse_returned_at: string | null;
     warehouse_returned_by_name: string | null;
     is_returned: boolean;
@@ -157,6 +161,14 @@ async function confirmReturn(item: ProductReturn) {
     });
 }
 
+function dismantlingToneClass(tone: ProductReturn['dismantling_tone']): string {
+    if (tone === 'overdue') return 'bg-rose-50 text-rose-700 ring-rose-100';
+    if (tone === 'due') return 'bg-amber-50 text-amber-800 ring-amber-100';
+    if (tone === 'warn') return 'bg-orange-50 text-orange-700 ring-orange-100';
+    if (tone === 'ok') return 'bg-sky-50 text-sky-700 ring-sky-100';
+    return 'bg-slate-50 text-slate-500 ring-slate-100';
+}
+
 function submitNote(item: ProductReturn) {
     const body = (noteDrafts[item.id] || '').trim();
     if (!body) {
@@ -198,7 +210,7 @@ function submitNote(item: ProductReturn) {
                 الاسترجاع
             </h1>
             <p class="mt-1 text-sm text-gray-500 dark:text-neutral-400">
-                تأكيد استرجاع المنتجات للمستودع بعد الفك — اضغط على السجل لعرض الملاحظات
+                كل الطلبات تظهر هنا حسب تاريخ الفك والأيام المتبقية — اضغط على السجل لعرض الملاحظات
             </p>
         </div>
 
@@ -267,13 +279,15 @@ function submitNote(item: ProductReturn) {
             </div>
 
             <div v-else class="overflow-x-auto">
-                <table class="w-full min-w-[780px] border-collapse text-right text-sm">
+                <table class="w-full min-w-[920px] border-collapse text-right text-sm">
                     <thead>
                         <tr class="border-b border-gray-100 bg-gray-50/80 text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:border-neutral-800 dark:bg-neutral-950/50 dark:text-neutral-400">
                             <th class="whitespace-nowrap px-4 py-3 w-8"></th>
                             <th class="whitespace-nowrap px-4 py-3">الطلب</th>
                             <th class="whitespace-nowrap px-4 py-3">العميل</th>
                             <th class="whitespace-nowrap px-4 py-3">المنتجات</th>
+                            <th class="whitespace-nowrap px-4 py-3">تاريخ الفك</th>
+                            <th class="whitespace-nowrap px-4 py-3">باقي عليه</th>
                             <th class="whitespace-nowrap px-4 py-3">الحالة</th>
                             <th class="whitespace-nowrap px-4 py-3">إجراء</th>
                         </tr>
@@ -315,6 +329,21 @@ function submitNote(item: ProductReturn) {
                                     </ul>
                                 </td>
                                 <td class="px-4 py-3">
+                                    <div v-if="item.dismantling_at" class="flex items-start gap-1.5 text-gray-800 dark:text-neutral-200">
+                                        <CalendarClock class="mt-0.5 size-3.5 shrink-0 text-gray-400" />
+                                        <span class="text-sm font-medium tabular-nums" dir="ltr">{{ formatDateTime(item.dismantling_at) }}</span>
+                                    </div>
+                                    <span v-else class="text-xs text-gray-400">—</span>
+                                </td>
+                                <td class="px-4 py-3">
+                                    <span
+                                        class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset"
+                                        :class="dismantlingToneClass(item.dismantling_tone)"
+                                    >
+                                        {{ item.dismantling_label }}
+                                    </span>
+                                </td>
+                                <td class="px-4 py-3">
                                     <span
                                         v-if="item.is_returned"
                                         class="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-100"
@@ -349,7 +378,7 @@ function submitNote(item: ProductReturn) {
                             </tr>
 
                             <tr v-if="expandedId === item.id" class="border-b border-gray-100 bg-slate-50/70 dark:border-neutral-800 dark:bg-neutral-950/40">
-                                <td colspan="6" class="px-4 py-4">
+                                <td colspan="8" class="px-4 py-4">
                                     <div class="rounded-2xl border border-slate-200 bg-white p-4 text-right shadow-sm dark:border-neutral-700 dark:bg-neutral-900">
                                         <div class="mb-3 flex items-center justify-between gap-2">
                                             <p class="flex items-center gap-2 text-sm font-semibold text-slate-800 dark:text-neutral-100">
