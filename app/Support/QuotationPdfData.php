@@ -346,7 +346,7 @@ class QuotationPdfData
     {
         $terms = $this->isArabic()
             ? [
-                'يُسدَّد 50٪ من المبلغ عند الموافقة، مع إرفاق إيصال التحويل.',
+                'يُسدَّد 100٪ من المبلغ عند الموافقة، مع إرفاق إيصال التحويل.',
                 'يحوّل العميل مبلغ تأمين مسترد بنسبة 40٪ من قيمة الطلب بموجب إيصال منفصل، ويُسترد بعد التأكد من سلامة جميع الألعاب المسلَّمة.',
                 'يتم التوريد والتركيب بعد تحويل مبلغ التأمين.',
                 'في حال تأخر العميل عن إعادة الألعاب، تُحتسب غرامة بنسبة 120٪ عن كل يوم تأخير في التسليم.',
@@ -355,7 +355,7 @@ class QuotationPdfData
                 'يتحمل العميل كامل التكلفة والمسؤولية إذا اختلفت تفاصيل الموقع عن الوصف الفعلي (بما في ذلك ما يتعلق بالتركيب).',
             ]
             : [
-                '50% of the amount is payable upon approval, and the transfer receipt must be attached.',
+                '100% of the amount is payable upon approval, and the transfer receipt must be attached.',
                 'A refundable security deposit of 40% of the order value is to be transferred by the client through a separate receipt, and it is refunded after confirming that all games delivered to the client are undamaged.',
                 'Supply and installation of the games take place after the security deposit has been transferred.',
                 'If the client delays the return of the games, a penalty of 120% is charged for each day of delay in delivery.',

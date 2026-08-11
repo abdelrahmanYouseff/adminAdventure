@@ -173,15 +173,12 @@
 <table class="items-table" style="margin-bottom: {{ $pt(7) }};">
     <thead>
         <tr>
-            <th width="23%" align="left">Description</th>
-            <th width="6%">Qty</th>
-            <th width="10%">Price</th>
-            <th width="9%">Discount<br>/ Unit</th>
-            <th width="11%">Price<br>(Incl. VAT)</th>
-            <th width="11%">Taxable<br>Value</th>
-            <th width="6%">VAT%</th>
-            <th width="11%">VAT<br>Amount</th>
-            <th width="13%">Total</th>
+            <th width="34%" align="left">Description</th>
+            <th width="8%">Qty</th>
+            <th width="14%">Price</th>
+            <th width="12%">Discount<br>/ Unit</th>
+            <th width="16%">Price<br>(Incl. VAT)</th>
+            <th width="16%">Total</th>
         </tr>
     </thead>
     <tbody>
@@ -194,49 +191,46 @@
                 <td align="right">{{ $data->formatMoney($item['unit_price'], 4) }}</td>
                 <td align="right">{{ $item['discount_amount'] > 0 ? $data->formatMoney($item['discount_amount'], 2) : '-' }}</td>
                 <td align="right">{{ $data->formatMoney($item['unit_price_incl_vat'], 4) }} SAR</td>
-                <td align="right">{{ $data->formatMoney($item['taxable_value'], 0) }}</td>
-                <td align="center">{{ $item['vat_percent'] }}</td>
-                <td align="right">SAR {{ $data->formatMoney($item['vat_amount'], 0) }}</td>
                 <td align="right">SAR {{ $data->formatMoney($item['total'], 0) }}</td>
             </tr>
         @endforeach
         <tr>
-            <td colspan="8" align="left" style="font-weight: bold; background-color: #f5f5f5;">SUBTOTAL</td>
+            <td colspan="5" align="left" style="font-weight: bold; background-color: #f5f5f5;">SUBTOTAL</td>
             <td align="left" style="font-weight: bold; background-color: #f5f5f5;">{{ $data->formatSar($data->grossSubtotal(), 0) }}</td>
         </tr>
         <tr>
-            <td colspan="8" align="left" style="font-weight: bold; background-color: #f5f5f5;">DISCOUNT</td>
+            <td colspan="5" align="left" style="font-weight: bold; background-color: #f5f5f5;">DISCOUNT</td>
             <td align="left" style="font-weight: bold; background-color: #f5f5f5;">
                 {{ $data->discountTotal() > 0 ? '- '.$data->formatSar($data->discountTotal(), 2) : 'SAR -' }}
             </td>
         </tr>
         <tr>
-            <td colspan="8" align="left" style="font-weight: bold; background-color: #f5f5f5;">SUBTOTAL BEFORE VAT</td>
+            <td colspan="5" align="left" style="font-weight: bold; background-color: #f5f5f5;">SUBTOTAL BEFORE VAT</td>
             <td align="left" style="font-weight: bold; background-color: #f5f5f5;">{{ $data->formatSar($data->subtotal(), 0) }}</td>
         </tr>
         <tr>
-            <td colspan="8" align="left" style="font-weight: bold; background-color: #f5f5f5;">VAT</td>
+            <td colspan="5" align="left" style="font-weight: bold; background-color: #f5f5f5;">VAT</td>
             <td align="left" style="font-weight: bold; background-color: #f5f5f5;">{{ $data->formatSar($data->vatAmount(), 0) }}</td>
         </tr>
         @if($data->hasInsurance())
             <tr>
-                <td colspan="8" align="left" style="font-weight: bold; background-color: #f5f5f5;">INSURANCE DEPOSIT</td>
+                <td colspan="5" align="left" style="font-weight: bold; background-color: #f5f5f5;">INSURANCE DEPOSIT</td>
                 <td align="left" style="font-weight: bold; background-color: #f5f5f5;">{{ $data->formatSar($data->insuranceAmount(), 2) }}</td>
             </tr>
         @endif
         <tr>
-            <td colspan="8" align="left" style="font-weight: bold; background-color: #333; color: #fff;">TOTAL</td>
+            <td colspan="5" align="left" style="font-weight: bold; background-color: #333; color: #fff;">TOTAL</td>
             <td align="left" style="font-weight: bold; background-color: #333; color: #fff;">{{ $data->formatSar($data->total(), 2) }}</td>
         </tr>
         @if($data->amountPaid() > 0)
             <tr>
-                <td colspan="8" align="left" style="font-weight: bold; background-color: #f5f5f5;">AMOUNT PAID</td>
+                <td colspan="5" align="left" style="font-weight: bold; background-color: #f5f5f5;">AMOUNT PAID</td>
                 <td align="left" style="font-weight: bold; background-color: #f5f5f5;">{{ $data->formatSar($data->amountPaid(), 2) }}</td>
             </tr>
         @endif
         @if($data->hasAmountDue())
             <tr>
-                <td colspan="8" align="left" style="font-weight: bold; background-color: #fff7ed;">AMOUNT DUE</td>
+                <td colspan="5" align="left" style="font-weight: bold; background-color: #fff7ed;">AMOUNT DUE</td>
                 <td align="left" style="font-weight: bold; background-color: #fff7ed;">{{ $data->formatSar($data->amountDue(), 2) }}</td>
             </tr>
         @endif
