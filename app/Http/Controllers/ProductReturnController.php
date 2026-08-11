@@ -8,6 +8,7 @@ use App\Models\WorkerOrder;
 use App\Models\WorkerOrderAssembler;
 use App\Models\WorkerOrderNote;
 use App\Support\WorkOrderPresenter;
+use App\Support\WorkerPresenceBoard;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
@@ -58,6 +59,7 @@ class ProductReturnController extends Controller
 
         return Inertia::render('Returns/Index', [
             'returns' => $returns,
+            'workersBoard' => WorkerPresenceBoard::forReturns(),
             'stats' => [
                 'pending' => (clone $base)->whereNull('warehouse_returned_at')->count(),
                 'returned' => (clone $base)->whereNotNull('warehouse_returned_at')->count(),

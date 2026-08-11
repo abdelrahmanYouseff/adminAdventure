@@ -108,6 +108,7 @@ class User extends Authenticatable
             'password' => 'hashed',
             'profile_completed' => 'boolean',
             'date_of_birth' => 'date',
+            'last_seen_at' => 'datetime',
             'created_at' => 'datetime',
             'updated_at' => 'datetime',
         ];
