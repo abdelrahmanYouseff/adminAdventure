@@ -26,6 +26,90 @@ class QuotationPdfData
         return $this->locale === 'ar';
     }
 
+    public function isBilingual(): bool
+    {
+        return ! $this->isArabic();
+    }
+
+    /**
+     * English PDF: "Arabic / English". Arabic PDF: Arabic only.
+     */
+    public function biLabel(string $en, string $ar): string
+    {
+        return $this->isArabic() ? $ar : $ar.' / '.$en;
+    }
+
+    /**
+     * @return array{en: string, ar: string}
+     */
+    public function biPair(string $en, string $ar): array
+    {
+        return ['en' => $en, 'ar' => $ar];
+    }
+
+    /**
+     * @return list<array{en: string, ar: string}>
+     */
+    public function bilingualTerms(): array
+    {
+        $pairs = [
+            [
+                'ar' => 'يُسدَّد 100٪ من المبلغ عند الموافقة، مع إرفاق إيصال التحويل.',
+                'en' => '100% of the amount is payable upon approval, and the transfer receipt must be attached.',
+            ],
+            [
+                'ar' => 'يحوّل العميل مبلغ تأمين مسترد بنسبة 40٪ من قيمة الطلب بموجب إيصال منفصل، ويُسترد بعد التأكد من سلامة جميع الألعاب المسلَّمة.',
+                'en' => 'A refundable security deposit of 40% of the order value is to be transferred by the client through a separate receipt, and it is refunded after confirming that all games delivered to the client are undamaged.',
+            ],
+            [
+                'ar' => 'يتم التوريد والتركيب بعد تحويل مبلغ التأمين.',
+                'en' => 'Supply and installation of the games take place after the security deposit has been transferred.',
+            ],
+            [
+                'ar' => 'في حال تأخر العميل عن إعادة الألعاب، تُحتسب غرامة بنسبة 120٪ عن كل يوم تأخير في التسليم.',
+                'en' => 'If the client delays the return of the games, a penalty of 120% is charged for each day of delay in delivery.',
+            ],
+            [
+                'ar' => 'في حال إلغاء الفعالية من قبل العميل لا يُسترد المبلغ، ويُسجَّل رصيدًا دائنًا لدى الشركة يمكن استخدامه خارج المواسم والإجازات الرسمية.',
+                'en' => 'If the client cancels the event, the amount is not refunded; it is recorded as a credit balance with the company, and the client may use it outside of seasons and official holidays.',
+            ],
+            [
+                'ar' => 'أي عطل فني ناتج عن سوء استخدام الألعاب بعد تسليمها من الشركة يقع كاملًا على مسؤولية العميل.',
+                'en' => 'Any technical malfunction resulting from misuse of the games after their delivery by the company is the full responsibility of the client.',
+            ],
+            [
+                'ar' => 'يتحمل العميل كامل التكلفة والمسؤولية إذا اختلفت تفاصيل الموقع عن الوصف الفعلي (بما في ذلك ما يتعلق بالتركيب).',
+                'en' => 'The client bears the full cost and responsibility if the site details differ from the actual description (including with regard to installation).',
+            ],
+        ];
+
+        if ($this->notes()) {
+            $pairs[] = ['ar' => $this->notes(), 'en' => $this->notes()];
+        }
+
+        return $pairs;
+    }
+
+    public function companyAddressBilingual(): string
+    {
+        $ar = 'حي المروج - الرياض - المملكة العربية السعودية';
+        $en = 'Al Muruj - Riyadh - Saudi Arabia';
+
+        return $this->isArabic() ? $ar : $ar.' / '.$en;
+    }
+
+    public function bankNameBilingual(): string
+    {
+        return $this->isArabic() ? 'بنك الرياض' : 'بنك الرياض / Riyad Bank';
+    }
+
+    public function bankAccountNameBilingual(): string
+    {
+        return $this->isArabic()
+            ? $this->companyLegalNameAr()
+            : $this->companyLegalNameAr().' / '.$this->companyLegalNameEn();
+    }
+
     public function logoPath(): string
     {
         $brandLogo = $this->brandLogoAbsolutePath();
@@ -287,9 +371,7 @@ class QuotationPdfData
 
     public function companyAddress(): string
     {
-        return $this->isArabic()
-            ? 'حي المروج - الرياض - المملكة العربية السعودية'
-            : 'Al Muruj - Riyadh - Saudi Arabia';
+        return $this->companyAddressBilingual();
     }
 
     public function companyPhone(): string
@@ -309,7 +391,7 @@ class QuotationPdfData
 
     public function bankName(): string
     {
-        return $this->isArabic() ? 'بنك الرياض' : 'Riyad Bank';
+        return $this->bankNameBilingual();
     }
 
     public function bankAccountNumber(): string
@@ -324,9 +406,7 @@ class QuotationPdfData
 
     public function bankAccountName(): string
     {
-        return $this->isArabic()
-            ? $this->companyLegalNameAr()
-            : $this->companyLegalNameEn();
+        return $this->bankAccountNameBilingual();
     }
 
     public function vatNumber(): string
@@ -344,31 +424,11 @@ class QuotationPdfData
      */
     public function termsAndConditions(): array
     {
-        $terms = $this->isArabic()
-            ? [
-                'يُسدَّد 100٪ من المبلغ عند الموافقة، مع إرفاق إيصال التحويل.',
-                'يحوّل العميل مبلغ تأمين مسترد بنسبة 40٪ من قيمة الطلب بموجب إيصال منفصل، ويُسترد بعد التأكد من سلامة جميع الألعاب المسلَّمة.',
-                'يتم التوريد والتركيب بعد تحويل مبلغ التأمين.',
-                'في حال تأخر العميل عن إعادة الألعاب، تُحتسب غرامة بنسبة 120٪ عن كل يوم تأخير في التسليم.',
-                'في حال إلغاء الفعالية من قبل العميل لا يُسترد المبلغ، ويُسجَّل رصيدًا دائنًا لدى الشركة يمكن استخدامه خارج المواسم والإجازات الرسمية.',
-                'أي عطل فني ناتج عن سوء استخدام الألعاب بعد تسليمها من الشركة يقع كاملًا على مسؤولية العميل.',
-                'يتحمل العميل كامل التكلفة والمسؤولية إذا اختلفت تفاصيل الموقع عن الوصف الفعلي (بما في ذلك ما يتعلق بالتركيب).',
-            ]
-            : [
-                '100% of the amount is payable upon approval, and the transfer receipt must be attached.',
-                'A refundable security deposit of 40% of the order value is to be transferred by the client through a separate receipt, and it is refunded after confirming that all games delivered to the client are undamaged.',
-                'Supply and installation of the games take place after the security deposit has been transferred.',
-                'If the client delays the return of the games, a penalty of 120% is charged for each day of delay in delivery.',
-                'If the client cancels the event, the amount is not refunded; it is recorded as a credit balance with the company, and the client may use it outside of seasons and official holidays.',
-                'Any technical malfunction resulting from misuse of the games after their delivery by the company is the full responsibility of the client.',
-                'The client bears the full cost and responsibility if the site details differ from the actual description (including with regard to installation).',
-            ];
-
-        if ($this->notes()) {
-            $terms[] = $this->notes();
+        if ($this->isArabic()) {
+            return array_map(fn (array $pair) => $pair['ar'], $this->bilingualTerms());
         }
 
-        return $terms;
+        return array_map(fn (array $pair) => $pair['en'], $this->bilingualTerms());
     }
 
     private function formatDate(mixed $date): string

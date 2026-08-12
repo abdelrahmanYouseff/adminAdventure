@@ -10,13 +10,13 @@
     $ackReservedHeight = 100;
 
     $border = 'border: 1px solid #333;';
-    $sectionTitle = 'font-size: '.$pt(8).'; font-weight: bold; color: #1a1a1a; margin: 0 0 '.$pt(4).' 0; text-transform: uppercase; letter-spacing: 0.3px;';
+    $sectionTitle = 'font-size: '.$pt(7.5).'; font-weight: bold; color: #1a1a1a; margin: 0 0 '.$pt(4).' 0; letter-spacing: 0.2px; line-height: 1.35;';
 @endphp
 <!DOCTYPE html>
 <html lang="en" dir="ltr">
 <head>
     <meta charset="UTF-8">
-    <title>Quotation {{ $data->quotationNumber() }}</title>
+    <title>{{ $data->biLabel('Quotation', 'عرض سعر') }} {{ $data->quotationNumber() }}</title>
     <style>
         body {
             font-family: dejavusans, sans-serif;
@@ -32,40 +32,82 @@
             letter-spacing: 0.3px;
         }
         .quotation-title {
-            font-size: {{ $pt(15) }};
+            font-size: {{ $pt(14) }};
             font-weight: bold;
             text-align: center;
             margin: {{ $pt(6) }} 0 {{ $pt(8) }} 0;
-            letter-spacing: 0.8px;
+            letter-spacing: 0.4px;
+            line-height: 1.35;
         }
         .meta-label {
             font-weight: bold;
             color: #333;
         }
+        .bi-ar {
+            font-family: xbriyaz, dejavusans, sans-serif;
+            font-weight: normal;
+        }
         .items-table {
             border-collapse: collapse;
             width: 100%;
-            font-size: {{ $pt(6.5) }};
+            font-size: {{ $pt(6.2) }};
         }
         .items-table th,
         .items-table td {
             border: 1px solid #333;
-            padding: {{ $pt(3.5) }} {{ $pt(4) }};
+            padding: {{ $pt(3) }} {{ $pt(3.5) }};
             line-height: 1.25;
         }
         .items-table th {
             background-color: #e8e8e8;
             font-weight: bold;
             text-align: center;
+            vertical-align: middle;
         }
-        .terms-list {
-            margin: 0;
-            padding-left: {{ $pt(10) }};
-            font-size: {{ $pt(7) }};
-            line-height: 1.35;
+        .th-en {
+            font-size: {{ $pt(5.8) }};
+            color: #444;
+            font-weight: normal;
         }
-        .terms-list li {
-            margin-bottom: {{ $pt(2.5) }};
+        .terms-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: {{ $pt(6.5) }};
+            line-height: 1.4;
+            table-layout: fixed;
+        }
+        .terms-table th,
+        .terms-table td {
+            border: 1px solid #333;
+            vertical-align: top;
+            padding: {{ $pt(4) }} {{ $pt(5) }};
+        }
+        .terms-table th {
+            background-color: #e8e8e8;
+            font-weight: bold;
+            text-align: center;
+        }
+        .terms-table .term-no {
+            width: 5%;
+            text-align: center;
+            font-weight: bold;
+            background-color: #f5f5f5;
+        }
+        .terms-table .term-en {
+            width: 47.5%;
+            color: #333;
+            text-align: left;
+        }
+        .terms-table .term-ar {
+            width: 47.5%;
+            font-family: xbriyaz, dejavusans, sans-serif;
+            direction: rtl;
+            text-align: right;
+        }
+        .terms-head-en {
+            font-size: {{ $pt(6.2) }};
+            color: #444;
+            font-weight: normal;
         }
         .ack-box {
             position: absolute;
@@ -94,6 +136,15 @@
             font-size: {{ $pt(7.5) }};
             line-height: 1.45;
         }
+        .total-label {
+            font-size: {{ $pt(6.2) }};
+            line-height: 1.3;
+        }
+        .total-en {
+            font-size: {{ $pt(5.8) }};
+            color: #555;
+            font-weight: normal;
+        }
     </style>
 </head>
 <body>
@@ -104,8 +155,8 @@
         <td width="65%" valign="top">
             <div class="company-name">{{ $data->companyLegalNameEn() }}</div>
             <div style="font-size: {{ $pt(7) }}; margin-top: {{ $pt(2) }};">
-                CR. No. {{ $data->commercialRegister() }}
-                <span dir="rtl" style="font-family: xbriyaz, dejavusans, sans-serif;"> سجل تجاري</span>
+                <span dir="rtl" style="font-family: xbriyaz, dejavusans, sans-serif; font-weight: bold;">{{ $data->biLabel('CR. No.', 'سجل تجاري') }}:</span>
+                {{ $data->commercialRegister() }}
             </div>
         </td>
         <td width="35%" align="right" valign="top">
@@ -116,22 +167,30 @@
     </tr>
 </table>
 
-<div class="quotation-title">Quotation</div>
+<div class="quotation-title bi-ar" dir="rtl">{{ $data->biLabel('Quotation', 'عرض سعر') }}</div>
 
 {{-- Company info + date / quotation no --}}
 <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom: {{ $pt(7) }};">
     <tr>
         <td width="58%" valign="top" class="company-block">
-            <div dir="rtl" style="font-family: xbriyaz, dejavusans, sans-serif; font-weight: bold;">{{ $data->companyLegalNameAr() }}</div>
-            <div>{{ $data->companyAddress() }}</div>
-            <div>Tel: {{ $data->companyPhone() }} &nbsp;|&nbsp; Email: {{ $data->companyEmail() }}</div>
-            <div>Website: {{ $data->companyWebsite() }} &nbsp;|&nbsp; VAT Number: {{ $data->vatNumber() }}</div>
+            <div class="bi-ar" dir="rtl" style="font-weight: bold;">{{ $data->companyLegalNameAr() }}</div>
+            <div class="bi-ar" dir="rtl">{{ $data->companyAddress() }}</div>
+            <div>
+                <span class="meta-label bi-ar" dir="rtl">{{ $data->biLabel('Tel', 'هاتف') }}:</span> {{ $data->companyPhone() }}
+                &nbsp;|&nbsp;
+                <span class="meta-label bi-ar" dir="rtl">{{ $data->biLabel('Email', 'البريد') }}:</span> {{ $data->companyEmail() }}
+            </div>
+            <div>
+                <span class="meta-label bi-ar" dir="rtl">{{ $data->biLabel('Website', 'الموقع') }}:</span> {{ $data->companyWebsite() }}
+                &nbsp;|&nbsp;
+                <span class="meta-label bi-ar" dir="rtl">{{ $data->biLabel('VAT Number', 'الرقم الضريبي') }}:</span> {{ $data->vatNumber() }}
+            </div>
         </td>
         <td width="4%"></td>
         <td width="38%" valign="top" align="right" class="meta-block">
-            <div><span class="meta-label">Date:</span> {{ $data->issueDateLong() }}</div>
-            <div><span class="meta-label">Quotation No:</span> {{ $data->quotationNumber() }}</div>
-            <div><span class="meta-label">Valid Until:</span> {{ $data->validUntilLong() }}</div>
+            <div><span class="meta-label bi-ar" dir="rtl">{{ $data->biLabel('Date', 'التاريخ') }}:</span> {{ $data->issueDateLong() }}</div>
+            <div><span class="meta-label bi-ar" dir="rtl">{{ $data->biLabel('Quotation No', 'رقم العرض') }}:</span> {{ $data->quotationNumber() }}</div>
+            <div><span class="meta-label bi-ar" dir="rtl">{{ $data->biLabel('Valid Until', 'صالح حتى') }}:</span> {{ $data->validUntilLong() }}</div>
         </td>
     </tr>
 </table>
@@ -140,30 +199,43 @@
 <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom: {{ $pt(7) }};">
     <tr>
         <td width="48%" valign="top" class="section-box">
-            <div style="{{ $sectionTitle }}">Bill To</div>
+            <div style="{{ $sectionTitle }}" class="bi-ar" dir="rtl">{{ $data->biLabel('Bill To', 'بيانات العميل') }}</div>
             <div style="font-weight: bold; font-size: {{ $pt(8.5) }};">{{ $data->customerName() }}</div>
             @if($data->customerAddress())
                 <div style="margin-top: {{ $pt(2) }};">{{ $data->customerAddress() }}</div>
             @endif
             @if($data->companyTaxNumber())
-                <div style="margin-top: {{ $pt(2) }};"><span class="meta-label">VAT No:</span> {{ $data->companyTaxNumber() }}</div>
+                <div style="margin-top: {{ $pt(2) }};">
+                    <span class="meta-label bi-ar" dir="rtl">{{ $data->biLabel('VAT No', 'الرقم الضريبي') }}:</span>
+                    {{ $data->companyTaxNumber() }}
+                </div>
             @endif
             <div style="margin-top: {{ $pt(2) }}; font-size: {{ $pt(7) }};">
-                Email / Contact No: {{ $data->customerEmail() }} / {{ $data->customerPhone() }}
+                <span class="bi-ar" dir="rtl">{{ $data->biLabel('Email / Contact No', 'البريد / الجوال') }}:</span>
+                {{ $data->customerEmail() }} / {{ $data->customerPhone() }}
             </div>
         </td>
         <td width="4%"></td>
         <td width="48%" valign="top" class="section-box">
-            <div style="{{ $sectionTitle }}">Quotation Details</div>
-            <div><span class="meta-label">Prepared By:</span> {{ $data->preparedBy() }}</div>
+            <div style="{{ $sectionTitle }}" class="bi-ar" dir="rtl">{{ $data->biLabel('Quotation Details', 'تفاصيل العرض') }}</div>
+            <div><span class="meta-label bi-ar" dir="rtl">{{ $data->biLabel('Prepared By', 'أعدّه') }}:</span> {{ $data->preparedBy() }}</div>
             @if($data->activityAt())
-                <div style="margin-top: {{ $pt(2) }};"><span class="meta-label">Event Date:</span> {{ $data->activityAt() }}</div>
+                <div style="margin-top: {{ $pt(2) }};">
+                    <span class="meta-label bi-ar" dir="rtl">{{ $data->biLabel('Event Date', 'تاريخ الفعالية') }}:</span>
+                    {{ $data->activityAt() }}
+                </div>
             @endif
             @if($data->installationAt())
-                <div style="margin-top: {{ $pt(2) }};"><span class="meta-label">Installation:</span> {{ $data->installationAt() }}</div>
+                <div style="margin-top: {{ $pt(2) }};">
+                    <span class="meta-label bi-ar" dir="rtl">{{ $data->biLabel('Installation', 'تاريخ التركيب') }}:</span>
+                    {{ $data->installationAt() }}
+                </div>
             @endif
             @if($data->dismantlingAt())
-                <div style="margin-top: {{ $pt(2) }};"><span class="meta-label">Dismantling:</span> {{ $data->dismantlingAt() }}</div>
+                <div style="margin-top: {{ $pt(2) }};">
+                    <span class="meta-label bi-ar" dir="rtl">{{ $data->biLabel('Dismantling', 'تاريخ الفك') }}:</span>
+                    {{ $data->dismantlingAt() }}
+                </div>
             @endif
         </td>
     </tr>
@@ -173,12 +245,24 @@
 <table class="items-table" style="margin-bottom: {{ $pt(7) }};">
     <thead>
         <tr>
-            <th width="34%" align="left">Description</th>
-            <th width="8%">Qty</th>
-            <th width="14%">Price</th>
-            <th width="12%">Discount<br>/ Unit</th>
-            <th width="16%">Price<br>(Incl. VAT)</th>
-            <th width="16%">Total</th>
+            <th width="34%" align="center">
+                <span class="bi-ar" dir="rtl">الوصف</span><br><span class="th-en">Description</span>
+            </th>
+            <th width="8%">
+                <span class="bi-ar" dir="rtl">الكمية</span><br><span class="th-en">Qty</span>
+            </th>
+            <th width="14%">
+                <span class="bi-ar" dir="rtl">السعر</span><br><span class="th-en">Price</span>
+            </th>
+            <th width="12%">
+                <span class="bi-ar" dir="rtl">الخصم / الوحدة</span><br><span class="th-en">Discount / Unit</span>
+            </th>
+            <th width="16%">
+                <span class="bi-ar" dir="rtl">السعر (شامل الضريبة)</span><br><span class="th-en">Price (Incl. VAT)</span>
+            </th>
+            <th width="16%">
+                <span class="bi-ar" dir="rtl">الإجمالي</span><br><span class="th-en">Total</span>
+            </th>
         </tr>
     </thead>
     <tbody>
@@ -195,42 +279,66 @@
             </tr>
         @endforeach
         <tr>
-            <td colspan="5" align="left" style="font-weight: bold; background-color: #f5f5f5;">SUBTOTAL</td>
+            <td colspan="5" align="left" style="font-weight: bold; background-color: #f5f5f5;">
+                <span class="total-label bi-ar" dir="rtl">الإجمالي الفرعي</span>
+                <span class="total-en"> / SUBTOTAL</span>
+            </td>
             <td align="left" style="font-weight: bold; background-color: #f5f5f5;">{{ $data->formatSar($data->grossSubtotal(), 0) }}</td>
         </tr>
         <tr>
-            <td colspan="5" align="left" style="font-weight: bold; background-color: #f5f5f5;">DISCOUNT</td>
+            <td colspan="5" align="left" style="font-weight: bold; background-color: #f5f5f5;">
+                <span class="total-label bi-ar" dir="rtl">الخصم</span>
+                <span class="total-en"> / DISCOUNT</span>
+            </td>
             <td align="left" style="font-weight: bold; background-color: #f5f5f5;">
                 {{ $data->discountTotal() > 0 ? '- '.$data->formatSar($data->discountTotal(), 2) : 'SAR -' }}
             </td>
         </tr>
         <tr>
-            <td colspan="5" align="left" style="font-weight: bold; background-color: #f5f5f5;">SUBTOTAL BEFORE VAT</td>
+            <td colspan="5" align="left" style="font-weight: bold; background-color: #f5f5f5;">
+                <span class="total-label bi-ar" dir="rtl">الإجمالي قبل الضريبة</span>
+                <span class="total-en"> / SUBTOTAL BEFORE VAT</span>
+            </td>
             <td align="left" style="font-weight: bold; background-color: #f5f5f5;">{{ $data->formatSar($data->subtotal(), 0) }}</td>
         </tr>
         <tr>
-            <td colspan="5" align="left" style="font-weight: bold; background-color: #f5f5f5;">VAT</td>
+            <td colspan="5" align="left" style="font-weight: bold; background-color: #f5f5f5;">
+                <span class="total-label bi-ar" dir="rtl">ضريبة القيمة المضافة</span>
+                <span class="total-en"> / VAT</span>
+            </td>
             <td align="left" style="font-weight: bold; background-color: #f5f5f5;">{{ $data->formatSar($data->vatAmount(), 0) }}</td>
         </tr>
         @if($data->hasInsurance())
             <tr>
-                <td colspan="5" align="left" style="font-weight: bold; background-color: #f5f5f5;">INSURANCE DEPOSIT</td>
+                <td colspan="5" align="left" style="font-weight: bold; background-color: #f5f5f5;">
+                    <span class="total-label bi-ar" dir="rtl">مبلغ التأمين</span>
+                    <span class="total-en"> / INSURANCE DEPOSIT</span>
+                </td>
                 <td align="left" style="font-weight: bold; background-color: #f5f5f5;">{{ $data->formatSar($data->insuranceAmount(), 2) }}</td>
             </tr>
         @endif
         <tr>
-            <td colspan="5" align="left" style="font-weight: bold; background-color: #333; color: #fff;">TOTAL</td>
+            <td colspan="5" align="left" style="font-weight: bold; background-color: #333; color: #fff;">
+                <span class="total-label bi-ar" dir="rtl" style="color: #fff;">الإجمالي النهائي</span>
+                <span class="total-en" style="color: #ddd;"> / TOTAL</span>
+            </td>
             <td align="left" style="font-weight: bold; background-color: #333; color: #fff;">{{ $data->formatSar($data->total(), 2) }}</td>
         </tr>
         @if($data->amountPaid() > 0)
             <tr>
-                <td colspan="5" align="left" style="font-weight: bold; background-color: #f5f5f5;">AMOUNT PAID</td>
+                <td colspan="5" align="left" style="font-weight: bold; background-color: #f5f5f5;">
+                    <span class="total-label bi-ar" dir="rtl">المبلغ المدفوع</span>
+                    <span class="total-en"> / AMOUNT PAID</span>
+                </td>
                 <td align="left" style="font-weight: bold; background-color: #f5f5f5;">{{ $data->formatSar($data->amountPaid(), 2) }}</td>
             </tr>
         @endif
         @if($data->hasAmountDue())
             <tr>
-                <td colspan="5" align="left" style="font-weight: bold; background-color: #fff7ed;">AMOUNT DUE</td>
+                <td colspan="5" align="left" style="font-weight: bold; background-color: #fff7ed;">
+                    <span class="total-label bi-ar" dir="rtl">المبلغ المستحق</span>
+                    <span class="total-en"> / AMOUNT DUE</span>
+                </td>
                 <td align="left" style="font-weight: bold; background-color: #fff7ed;">{{ $data->formatSar($data->amountDue(), 2) }}</td>
             </tr>
         @endif
@@ -238,41 +346,55 @@
 </table>
 
 @if($data->hasInsurance())
-    <div style="margin: -{{ $pt(4) }} 0 {{ $pt(6) }} 0; font-size: {{ $pt(6.5) }}; color: #444; line-height: 1.3;">
-        {{ $data->insuranceNoteEn() }}
-        <br>
-        <span dir="rtl" style="font-family: xbriyaz, dejavusans, sans-serif;">{{ $data->insuranceNoteAr() }}</span>
+    <div style="margin: -{{ $pt(4) }} 0 {{ $pt(6) }} 0; font-size: {{ $pt(6.5) }}; color: #444; line-height: 1.35;">
+        <div class="bi-ar" dir="rtl">{{ $data->insuranceNoteAr() }}</div>
+        <div style="margin-top: {{ $pt(1.5) }};">{{ $data->insuranceNoteEn() }}</div>
     </div>
 @endif
 
 {{-- Terms --}}
 <div style="margin-bottom: {{ $pt(6) }};">
-    <div style="{{ $sectionTitle }}">Terms &amp; Conditions</div>
-    <ul class="terms-list">
-        @foreach($data->termsAndConditions() as $term)
-            <li>{{ $term }}</li>
-        @endforeach
-    </ul>
+    <div style="{{ $sectionTitle }}" class="bi-ar" dir="rtl">{{ $data->biLabel('Terms & Conditions', 'الشروط والأحكام') }}</div>
+    <table class="terms-table" cellpadding="0" cellspacing="0">
+        <thead>
+            <tr>
+                <th class="term-no">#</th>
+                <th class="term-en" align="left">English</th>
+                <th class="term-ar" dir="rtl" align="right">
+                    العربية<br><span class="terms-head-en">Arabic</span>
+                </th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach($data->bilingualTerms() as $index => $term)
+                <tr>
+                    <td class="term-no">{{ $index + 1 }}</td>
+                    <td class="term-en">{{ $term['en'] }}</td>
+                    <td class="term-ar" dir="rtl">{{ $term['ar'] }}</td>
+                </tr>
+            @endforeach
+        </tbody>
+    </table>
 </div>
 
 {{-- Bank + Payment --}}
 <div style="margin-bottom: {{ $pt(5) }};">
-    <div style="{{ $sectionTitle }}">Bank Details</div>
+    <div style="{{ $sectionTitle }}" class="bi-ar" dir="rtl">{{ $data->biLabel('Bank Transfer Details', 'بيانات التحويل البنكي') }}</div>
     <div style="font-size: {{ $pt(7.5) }}; line-height: 1.45;">
-        <strong>{{ $data->bankName() }}</strong><br>
-        IBAN: {{ $data->bankIban() }}<br>
-        ACCT NUMBER: {{ $data->bankAccountNumber() }}<br>
-        Account Name: {{ $data->bankAccountName() }}
+        <strong class="bi-ar" dir="rtl">{{ $data->bankName() }}</strong><br>
+        <span class="bi-ar" dir="rtl">{{ $data->biLabel('IBAN', 'آيبان') }}:</span> {{ $data->bankIban() }}<br>
+        <span class="bi-ar" dir="rtl">{{ $data->biLabel('Account Number', 'رقم الحساب') }}:</span> {{ $data->bankAccountNumber() }}<br>
+        <span class="bi-ar" dir="rtl">{{ $data->biLabel('Account Name', 'اسم الحساب') }}:</span> {{ $data->bankAccountName() }}
     </div>
 
     @if($data->hasAmountDue() && $data->paymentUrl())
-        <div style="{{ $sectionTitle }} margin-top: {{ $pt(7) }};">Online Payment</div>
+        <div style="{{ $sectionTitle }} margin-top: {{ $pt(7) }};" class="bi-ar" dir="rtl">{{ $data->biLabel('Online Payment', 'الدفع الإلكتروني') }}</div>
         <div style="font-size: {{ $pt(7.5) }}; line-height: 1.45; padding: {{ $pt(5) }}; border: 1px solid #333; background-color: #f8fafc;">
-            <strong>Pay the due amount online:</strong>
+            <span class="bi-ar" dir="rtl">{{ $data->biLabel('Pay the due amount online', 'ادفع المبلغ المستحق إلكترونياً') }}:</span>
             {{ $data->formatSar($data->amountDue(), 2) }}
             <br>
             <a href="{{ $data->paymentUrl() }}" style="color: #1d4ed8; font-weight: bold;">
-                Payment Link
+                {{ $data->biLabel('Payment Link', 'رابط الدفع') }}
             </a>
         </div>
     @endif
@@ -284,21 +406,23 @@
 
 {{-- Client Acknowledgment --}}
 <div class="ack-box">
-    <div style="font-weight: bold; font-size: {{ $pt(8.5) }}; margin-bottom: {{ $pt(4) }};">Client Acknowledgment</div>
+    <div style="font-weight: bold; font-size: {{ $pt(8.5) }}; margin-bottom: {{ $pt(4) }};" class="bi-ar" dir="rtl">
+        {{ $data->biLabel('Client Acknowledgment', 'إقرار العميل') }}
+    </div>
     <table width="100%" cellpadding="0" cellspacing="0" style="font-size: {{ $pt(7.5) }};">
         <tr>
             <td width="50%" valign="bottom">
-                Company &amp; Client Name:
+                <span class="bi-ar" dir="rtl">{{ $data->biLabel('Company / Client Name', 'اسم الشركة / العميل') }}:</span>
                 <div class="ack-line"></div>
             </td>
             <td width="50%" valign="bottom" style="padding-left: {{ $pt(10) }};">
-                Contact:
+                <span class="bi-ar" dir="rtl">{{ $data->biLabel('Contact Method', 'وسيلة التواصل') }}:</span>
                 <div class="ack-line"></div>
             </td>
         </tr>
         <tr>
             <td colspan="2" valign="bottom" style="padding-top: {{ $pt(6) }};">
-                Signature:
+                <span class="bi-ar" dir="rtl">{{ $data->biLabel('Signature', 'التوقيع') }}:</span>
                 <div class="ack-line" style="width: 60%;"></div>
             </td>
         </tr>

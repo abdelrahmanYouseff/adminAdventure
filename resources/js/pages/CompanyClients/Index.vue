@@ -178,8 +178,8 @@ function getStatusClass(status: string) {
     }
 }
 
-function quotationPdfUrl(id: number, lang: 'en' | 'ar' = 'en'): string {
-    return `/quotations/${id}/pdf?lang=${lang}&v=${Date.now()}`;
+function quotationPdfUrl(id: number): string {
+    return `/quotations/${id}/pdf?v=${Date.now()}`;
 }
 </script>
 
@@ -391,22 +391,12 @@ function quotationPdfUrl(id: number, lang: 'en' | 'ar' = 'en'): string {
                                                         </Button>
                                                         <Button as-child type="button" size="sm" variant="outline" class="h-9 gap-1.5">
                                                             <a
-                                                                :href="quotationPdfUrl(quotation.id, 'en')"
+                                                                :href="quotationPdfUrl(quotation.id)"
                                                                 target="_blank"
                                                                 rel="noopener noreferrer"
                                                             >
                                                                 <Download class="h-4 w-4" />
-                                                                PDF EN
-                                                            </a>
-                                                        </Button>
-                                                        <Button as-child type="button" size="sm" variant="outline" class="h-9 gap-1.5">
-                                                            <a
-                                                                :href="quotationPdfUrl(quotation.id, 'ar')"
-                                                                target="_blank"
-                                                                rel="noopener noreferrer"
-                                                            >
-                                                                <Download class="h-4 w-4" />
-                                                                PDF AR
+                                                                عرض السعر
                                                             </a>
                                                         </Button>
                                                         <Button

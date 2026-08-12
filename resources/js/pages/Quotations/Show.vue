@@ -86,8 +86,8 @@ const updateStatus = (status: string) => {
     });
 };
 
-function quotationPdfUrl(id: number, lang: 'en' | 'ar' = 'en'): string {
-    return `/quotations/${id}/pdf?lang=${lang}&v=${Date.now()}`;
+function quotationPdfUrl(id: number): string {
+    return `/quotations/${id}/pdf?v=${Date.now()}`;
 }
 </script>
 
@@ -115,24 +115,14 @@ function quotationPdfUrl(id: number, lang: 'en' | 'ar' = 'en'): string {
                     </div>
                 </div>
                 <div class="flex items-center space-x-2">
-                    <Button as-child variant="outline">
-                        <a
-                            :href="quotationPdfUrl(quotation.id, 'en')"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                        >
-                            <Download class="mr-2 h-4 w-4" />
-                            PDF English
-                        </a>
-                    </Button>
                     <Button as-child variant="default">
                         <a
-                            :href="quotationPdfUrl(quotation.id, 'ar')"
+                            :href="quotationPdfUrl(quotation.id)"
                             target="_blank"
                             rel="noopener noreferrer"
                         >
                             <Download class="mr-2 h-4 w-4" />
-                            PDF عربي
+                            عرض السعر
                         </a>
                     </Button>
                     <Badge :variant="getStatusBadgeVariant(quotation.status)">
@@ -154,24 +144,13 @@ function quotationPdfUrl(id: number, lang: 'en' | 'ar' = 'en'): string {
                             </DropdownMenuItem>
                             <DropdownMenuItem as-child>
                                 <a
-                                    :href="quotationPdfUrl(quotation.id, 'en')"
+                                    :href="quotationPdfUrl(quotation.id)"
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     class="relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none transition-colors hover:bg-accent hover:text-accent-foreground"
                                 >
                                     <Download class="mr-2 h-4 w-4" />
-                                    PDF English
-                                </a>
-                            </DropdownMenuItem>
-                            <DropdownMenuItem as-child>
-                                <a
-                                    :href="quotationPdfUrl(quotation.id, 'ar')"
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    class="relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none transition-colors hover:bg-accent hover:text-accent-foreground"
-                                >
-                                    <Download class="mr-2 h-4 w-4" />
-                                    PDF عربي
+                                    عرض السعر
                                 </a>
                             </DropdownMenuItem>
                             <DropdownMenuItem as-child>

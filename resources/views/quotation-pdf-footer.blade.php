@@ -18,7 +18,7 @@
             </div>
         </td>
         <td width="28%" valign="middle" align="right" style="font-size: {{ $pt(6.5) }}; line-height: 1.4;">
-            <span style="font-weight: bold;">Quotation No:</span><br>
+            <span dir="rtl" style="font-weight: bold; font-family: xbriyaz, dejavusans, sans-serif;">{{ $data->biLabel('Quotation No', 'رقم العرض') }}:</span><br>
             <span style="font-weight: bold;">{{ $data->quotationNumber() }}</span>
         </td>
     </tr>

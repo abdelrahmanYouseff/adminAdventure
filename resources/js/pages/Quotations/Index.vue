@@ -178,7 +178,7 @@ watch(
 onMounted(() => {
     const pdfId = page.props.flash?.open_pdf as number | undefined;
     if (pdfId) {
-        window.open(quotationPdfUrl(pdfId, 'en'), '_blank');
+        window.open(quotationPdfUrl(pdfId), '_blank');
     }
 });
 
@@ -279,8 +279,8 @@ function deleteQuotation(quotation: Quotation) {
     }
 }
 
-function quotationPdfUrl(id: number, lang: 'en' | 'ar' = 'en'): string {
-    return `/quotations/${id}/pdf?lang=${lang}&v=${Date.now()}`;
+function quotationPdfUrl(id: number): string {
+    return `/quotations/${id}/pdf?v=${Date.now()}`;
 }
 </script>
 
@@ -505,24 +505,13 @@ function quotationPdfUrl(id: number, lang: 'en' | 'ar' = 'en'): string {
                                         <DropdownMenuContent align="end" class="min-w-52">
                                             <DropdownMenuItem as-child>
                                                 <a
-                                                    :href="quotationPdfUrl(quotation.id, 'en')"
+                                                    :href="quotationPdfUrl(quotation.id)"
                                                     target="_blank"
                                                     rel="noopener noreferrer"
                                                     class="gap-2"
                                                 >
                                                     <Download class="size-4" />
-                                                    عرض السعر بالإنجليزي
-                                                </a>
-                                            </DropdownMenuItem>
-                                            <DropdownMenuItem as-child>
-                                                <a
-                                                    :href="quotationPdfUrl(quotation.id, 'ar')"
-                                                    target="_blank"
-                                                    rel="noopener noreferrer"
-                                                    class="gap-2"
-                                                >
-                                                    <Download class="size-4" />
-                                                    عرض السعر بالعربي
+                                                    عرض السعر
                                                 </a>
                                             </DropdownMenuItem>
                                             <DropdownMenuItem
