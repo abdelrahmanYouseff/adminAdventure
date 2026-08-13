@@ -43,33 +43,34 @@ const allNavItems: NavItemWithRoles[] = [
     },
     {
         title: 'المنتجات',
-        href: route('products'),
         icon: ShoppingBag,
         roles: ['admin', 'general_manager', 'manager'],
-    },
-    {
-        title: 'الاسترجاع',
-        href: '/returns',
-        icon: Undo2,
-        roles: ['admin', 'general_manager', 'manager', 'warehouse_keeper', 'workers_manager'],
-    },
-    {
-        title: 'الأصناف',
-        href: route('categories.index'),
-        icon: Tags,
-        roles: ['admin', 'general_manager', 'manager'],
-    },
-    {
-        title: 'البراندات',
-        href: route('brands.index'),
-        icon: Building2,
-        roles: ['admin', 'general_manager', 'manager'],
-    },
-    {
-        title: 'الباقات',
-        href: '/packages',
-        icon: Package,
-        roles: ['admin', 'manager'],
+        children: [
+            {
+                title: 'المنتجات',
+                href: route('products'),
+                icon: ShoppingBag,
+                roles: ['admin', 'general_manager', 'manager'],
+            },
+            {
+                title: 'الأصناف',
+                href: route('categories.index'),
+                icon: Tags,
+                roles: ['admin', 'general_manager', 'manager'],
+            },
+            {
+                title: 'البراندات',
+                href: route('brands.index'),
+                icon: Building2,
+                roles: ['admin', 'general_manager', 'manager'],
+            },
+            {
+                title: 'الباقات',
+                href: '/packages',
+                icon: Package,
+                roles: ['admin', 'manager'],
+            },
+        ],
     },
     {
         title: 'الطلبات',
@@ -79,9 +80,22 @@ const allNavItems: NavItemWithRoles[] = [
     },
     {
         title: 'أوامر العمل',
-        href: '/worker-orders',
         icon: HardHat,
-        roles: ['admin', 'general_manager', 'manager', 'workers_manager'],
+        roles: ['admin', 'general_manager', 'manager', 'workers_manager', 'warehouse_keeper'],
+        children: [
+            {
+                title: 'أوامر العمل',
+                href: '/worker-orders',
+                icon: HardHat,
+                roles: ['admin', 'general_manager', 'manager', 'workers_manager'],
+            },
+            {
+                title: 'الاسترجاع',
+                href: '/returns',
+                icon: Undo2,
+                roles: ['admin', 'general_manager', 'manager', 'warehouse_keeper', 'workers_manager'],
+            },
+        ],
     },
     {
         title: 'العملاء',
