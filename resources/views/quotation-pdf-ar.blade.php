@@ -193,15 +193,15 @@
                     <strong>{{ $item['name'] }}</strong>
                 </td>
                 <td align="center"><span class="ltr">{{ $item['quantity'] }}</span></td>
-                <td align="center"><span class="ltr">{{ $data->formatMoney($item['unit_price'], 4) }}</span></td>
+                <td align="center"><span class="ltr">{{ $data->formatMoney($item['unit_price'], 2) }}</span></td>
                 <td align="center"><span class="ltr">{{ $item['discount_amount'] > 0 ? $data->formatMoney($item['discount_amount'], 2) : '-' }}</span></td>
-                <td align="center"><span class="ltr">{{ $data->formatMoney($item['unit_price_incl_vat'], 4) }} ر.س</span></td>
-                <td align="center"><span class="ltr">{{ $data->formatMoney($item['total'], 0) }} ر.س</span></td>
+                <td align="center"><span class="ltr">{{ $data->formatMoney($item['unit_price_incl_vat'], 2) }} ر.س</span></td>
+                <td align="center"><span class="ltr">{{ $data->formatMoney($item['total'], 2) }} ر.س</span></td>
             </tr>
         @endforeach
         <tr>
             <td colspan="5" align="right" style="font-weight: bold; background-color: #f5f5f5;">الإجمالي الفرعي</td>
-            <td align="center" style="font-weight: bold; background-color: #f5f5f5;"><span class="ltr">{{ $data->formatSar($data->grossSubtotal(), 0) }}</span></td>
+            <td align="center" style="font-weight: bold; background-color: #f5f5f5;"><span class="ltr">{{ $data->formatSar($data->grossSubtotal(), 2) }}</span></td>
         </tr>
         <tr>
             <td colspan="5" align="right" style="font-weight: bold; background-color: #f5f5f5;">الخصم</td>
@@ -211,11 +211,11 @@
         </tr>
         <tr>
             <td colspan="5" align="right" style="font-weight: bold; background-color: #f5f5f5;">الإجمالي قبل الضريبة</td>
-            <td align="center" style="font-weight: bold; background-color: #f5f5f5;"><span class="ltr">{{ $data->formatSar($data->subtotal(), 0) }}</span></td>
+            <td align="center" style="font-weight: bold; background-color: #f5f5f5;"><span class="ltr">{{ $data->formatSar($data->subtotal(), 2) }}</span></td>
         </tr>
         <tr>
             <td colspan="5" align="right" style="font-weight: bold; background-color: #f5f5f5;">ضريبة القيمة المضافة</td>
-            <td align="center" style="font-weight: bold; background-color: #f5f5f5;"><span class="ltr">{{ $data->formatSar($data->vatAmount(), 0) }}</span></td>
+            <td align="center" style="font-weight: bold; background-color: #f5f5f5;"><span class="ltr">{{ $data->formatSar($data->vatAmount(), 2) }}</span></td>
         </tr>
         @if($data->hasInsurance())
             <tr>
@@ -266,7 +266,7 @@
         اسم الحساب: {{ $data->bankAccountName() }}
     </div>
 
-    @if($data->hasAmountDue() && $data->paymentUrl())
+    @if($data->hasOnlinePaymentSection())
         <div style="{{ $sectionTitle }} margin-top: {{ $pt(7) }};">الدفع الإلكتروني</div>
         <div style="font-size: {{ $pt(7.5) }}; line-height: 1.45; padding: {{ $pt(5) }}; border: 1px solid #333; background-color: #f8fafc; text-align: right;">
             <strong>ادفع المبلغ المستحق إلكترونيًا:</strong>

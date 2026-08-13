@@ -16,7 +16,7 @@ class QuotationPdfData
 
     public static function fromQuotation(Quotation $quotation, string $locale = 'en'): self
     {
-        $quotation->load(['user', 'items', 'brand']);
+        $quotation->load(['user', 'items.product', 'brand']);
 
         return new self($quotation, in_array($locale, ['ar', 'en'], true) ? $locale : 'en');
     }
@@ -52,36 +52,9 @@ class QuotationPdfData
      */
     public function bilingualTerms(): array
     {
-        $pairs = [
-            [
-                'ar' => 'يُسدَّد 100٪ من المبلغ عند الموافقة، مع إرفاق إيصال التحويل.',
-                'en' => '100% of the amount is payable upon approval, and the transfer receipt must be attached.',
-            ],
-            [
-                'ar' => 'يحوّل العميل مبلغ تأمين مسترد بنسبة 40٪ من قيمة الطلب بموجب إيصال منفصل، ويُسترد بعد التأكد من سلامة جميع الألعاب المسلَّمة.',
-                'en' => 'A refundable security deposit of 40% of the order value is to be transferred by the client through a separate receipt, and it is refunded after confirming that all games delivered to the client are undamaged.',
-            ],
-            [
-                'ar' => 'يتم التوريد والتركيب بعد تحويل مبلغ التأمين.',
-                'en' => 'Supply and installation of the games take place after the security deposit has been transferred.',
-            ],
-            [
-                'ar' => 'في حال تأخر العميل عن إعادة الألعاب، تُحتسب غرامة بنسبة 120٪ عن كل يوم تأخير في التسليم.',
-                'en' => 'If the client delays the return of the games, a penalty of 120% is charged for each day of delay in delivery.',
-            ],
-            [
-                'ar' => 'في حال إلغاء الفعالية من قبل العميل لا يُسترد المبلغ، ويُسجَّل رصيدًا دائنًا لدى الشركة يمكن استخدامه خارج المواسم والإجازات الرسمية.',
-                'en' => 'If the client cancels the event, the amount is not refunded; it is recorded as a credit balance with the company, and the client may use it outside of seasons and official holidays.',
-            ],
-            [
-                'ar' => 'أي عطل فني ناتج عن سوء استخدام الألعاب بعد تسليمها من الشركة يقع كاملًا على مسؤولية العميل.',
-                'en' => 'Any technical malfunction resulting from misuse of the games after their delivery by the company is the full responsibility of the client.',
-            ],
-            [
-                'ar' => 'يتحمل العميل كامل التكلفة والمسؤولية إذا اختلفت تفاصيل الموقع عن الوصف الفعلي (بما في ذلك ما يتعلق بالتركيب).',
-                'en' => 'The client bears the full cost and responsibility if the site details differ from the actual description (including with regard to installation).',
-            ],
-        ];
+        $pairs = $this->quotation->terms === null
+            ? QuotationDefaultTerms::all()
+            : QuotationDefaultTerms::sanitize($this->quotation->terms);
 
         if ($this->notes()) {
             $pairs[] = ['ar' => $this->notes(), 'en' => $this->notes()];
@@ -95,7 +68,7 @@ class QuotationPdfData
         $ar = 'حي المروج - الرياض - المملكة العربية السعودية';
         $en = 'Al Muruj - Riyadh - Saudi Arabia';
 
-        return $this->isArabic() ? $ar : $ar.' / '.$en;
+        return $this->isArabic() ? $ar : $en.' / '.$ar;
     }
 
     public function bankNameBilingual(): string
@@ -255,9 +228,12 @@ class QuotationPdfData
             $unitEx = (float) $item->unit_price;
             $discount = (float) ($item->discount_amount ?? 0);
             $netUnitPrice = max(0, $unitEx - $discount);
+            $names = $this->bilingualProductName((string) $item->product_name);
 
             return [
                 'name' => $item->product_name,
+                'name_en' => $names['en'],
+                'name_ar' => $names['ar'],
                 'description' => $item->description && trim($item->description) !== '' ? trim($item->description) : null,
                 'statement' => $item->statement && trim((string) $item->statement) !== '' ? trim((string) $item->statement) : null,
                 'quantity' => (int) $item->quantity,
@@ -271,6 +247,90 @@ class QuotationPdfData
                 'total' => round($taxable + $vat, 2),
             ];
         })->all();
+    }
+
+    /**
+     * @return array{en: ?string, ar: ?string}
+     */
+    public function bilingualProductName(string $name): array
+    {
+        $name = trim($name);
+        if ($name === '') {
+            return ['en' => null, 'ar' => null];
+        }
+
+        $hasArabic = (bool) preg_match('/\p{Arabic}/u', $name);
+        $hasLatin = (bool) preg_match('/[A-Za-z]/', $name);
+
+        if ($hasArabic && $hasLatin) {
+            $parts = preg_split('/\s*[-|–—]\s*/u', $name) ?: [$name];
+            $arParts = [];
+            $enParts = [];
+
+            foreach ($parts as $part) {
+                $part = trim($part);
+                if ($part === '') {
+                    continue;
+                }
+
+                $partHasArabic = (bool) preg_match('/\p{Arabic}/u', $part);
+                $partHasLatin = (bool) preg_match('/[A-Za-z]{2,}/', $part);
+
+                if ($partHasArabic && $partHasLatin && preg_match('/^(.*?\p{Arabic}.*?)\s+([A-Za-z].+)$/u', $part, $matches)) {
+                    $arParts[] = trim($matches[1]);
+                    $enParts[] = trim($matches[2]);
+                } elseif ($partHasArabic && ! $partHasLatin) {
+                    $arParts[] = $part;
+                } elseif ($partHasLatin && ! $partHasArabic) {
+                    $enParts[] = $part;
+                } elseif ($partHasArabic) {
+                    $arParts[] = $part;
+                } else {
+                    $enParts[] = $part;
+                }
+            }
+
+            return [
+                'en' => $enParts !== [] ? implode(' - ', $enParts) : null,
+                'ar' => $arParts !== [] ? implode(' - ', $arParts) : null,
+            ];
+        }
+
+        if ($hasArabic) {
+            return ['en' => null, 'ar' => $name];
+        }
+
+        return [
+            'en' => $name,
+            'ar' => $this->englishProductTranslation($name),
+        ];
+    }
+
+    private function englishProductTranslation(string $englishName): ?string
+    {
+        $map = [
+            'Adventure Backpack' => 'حقيبة ظهر للمغامرات',
+            'Camping Tent' => 'خيمة تخييم',
+            'Hiking Boots' => 'أحذية المشي',
+            'Sleeping Bag' => 'كيس نوم',
+            'Flamingo Summer' => 'فلامنجو الصيف',
+            'plate one' => 'بلات ون',
+            'Ice Cream Roll' => 'آيس كريم رول',
+            'VIP Cart' => 'عربة الـ VIP',
+            'Photo booth' => 'فوتو بوث',
+        ];
+
+        if (isset($map[$englishName])) {
+            return $map[$englishName];
+        }
+
+        foreach ($map as $en => $ar) {
+            if (strcasecmp($en, $englishName) === 0) {
+                return $ar;
+            }
+        }
+
+        return null;
     }
 
     public function subtotal(): float
@@ -316,6 +376,13 @@ class QuotationPdfData
     public function amountDue(): float
     {
         return $this->quotation->amountDue();
+    }
+
+    public function hasOnlinePaymentSection(): bool
+    {
+        return (bool) $this->quotation->show_online_payment
+            && $this->hasAmountDue()
+            && filled($this->paymentUrl());
     }
 
     public function hasAmountDue(): bool

@@ -11,6 +11,7 @@ import {
     Building2,
     Calendar,
     FileSpreadsheet,
+    Link2,
     Mail,
     MapPin,
     Package,
@@ -80,6 +81,8 @@ interface QuotationRecord {
     insurance_amount: number | string | null;
     notes: string | null;
     amount_paid?: number | string | null;
+    show_online_payment?: boolean;
+    terms?: Array<{ ar: string; en: string }> | null;
     items: Array<{
         product_id: number | null;
         product_name: string;
@@ -93,16 +96,23 @@ interface QuotationRecord {
     }>;
 }
 
+interface QuotationTerm {
+    ar: string;
+    en: string;
+}
+
 interface Props {
     quotation: QuotationRecord;
     products: Product[];
     categories: Category[];
     selectedBrand: Brand | null;
+    defaultTerms?: QuotationTerm[];
 }
 
 const props = withDefaults(defineProps<Props>(), {
     categories: () => [],
     selectedBrand: null,
+    defaultTerms: () => [],
 });
 
 function toDateInput(value: string | null | undefined): string {
@@ -125,6 +135,17 @@ const breadcrumbs: BreadcrumbItem[] = [
     { title: `تعديل ${props.quotation.quotation_number}`, href: route('quotations.edit', props.quotation.id) },
 ];
 
+const cloneTerms = (terms: QuotationTerm[] = []): QuotationTerm[] =>
+    terms.map((term) => ({ ar: term.ar, en: term.en }));
+
+const initialTerms = (): QuotationTerm[] => {
+    if (Array.isArray(props.quotation.terms)) {
+        return cloneTerms(props.quotation.terms);
+    }
+
+    return cloneTerms(props.defaultTerms);
+};
+
 const form = useForm({
     brand_id: (props.quotation.brand_id ?? props.selectedBrand?.id ?? null) as number | null,
     customer_name: props.quotation.customer_name || '',
@@ -142,7 +163,9 @@ const form = useForm({
     dismantling_at: toDateTimeLocal(props.quotation.dismantling_at),
     insurance_amount: Number(props.quotation.insurance_amount || 0),
     amount_paid: Number(props.quotation.amount_paid || 0),
+    show_online_payment: Boolean(props.quotation.show_online_payment),
     notes: props.quotation.notes || '',
+    terms: initialTerms(),
     items: props.quotation.items.map((item) => ({
         product_id: item.product_id || null,
         product_name: item.product_name,
@@ -155,6 +178,18 @@ const form = useForm({
         insurance_amount: Number(item.product?.insurance_amount || 0),
     })) as QuotationItem[],
 });
+
+function addTerm() {
+    form.terms.push({ ar: '', en: '' });
+}
+
+function removeTerm(index: number) {
+    form.terms.splice(index, 1);
+}
+
+function resetTermsToDefault() {
+    form.terms = cloneTerms(props.defaultTerms);
+}
 
 const selectedCategoryId = ref<number | ''>('');
 const selectedProductId = ref<number | null>(null);
@@ -742,6 +777,106 @@ watch(
                                         class="rounded-xl resize-none"
                                     />
                                 </div>
+
+                                <div class="sm:col-span-2">
+                                    <label
+                                        for="show_online_payment"
+                                        class="flex cursor-pointer items-start gap-3 rounded-xl border-2 border-primary/30 bg-primary/5 p-4 transition hover:border-primary/50 hover:bg-primary/10"
+                                    >
+                                        <input
+                                            id="show_online_payment"
+                                            v-model="form.show_online_payment"
+                                            type="checkbox"
+                                            class="mt-1 size-4 shrink-0 rounded border-input text-primary accent-primary"
+                                        />
+                                        <div class="space-y-1">
+                                            <div class="flex items-center gap-1.5 text-sm font-semibold text-foreground">
+                                                <Link2 class="h-4 w-4 text-primary" />
+                                                إظهار الدفع الإلكتروني في عرض السعر
+                                            </div>
+                                            <p class="text-xs leading-relaxed text-muted-foreground">
+                                                عند التفعيل تظهر جزئية Online Payment / الدفع الإلكتروني مع رابط الدفع داخل ملف PDF (يحتاج مبلغ متبقي على العميل).
+                                            </p>
+                                        </div>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- Terms & Conditions -->
+                    <section class="overflow-hidden rounded-2xl border border-border/60 bg-card shadow-sm">
+                        <div class="flex flex-wrap items-center justify-between gap-3 border-b border-border/60 bg-muted/30 px-5 py-4">
+                            <div class="flex items-center gap-3">
+                                <div class="flex h-9 w-9 items-center justify-center rounded-lg bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300">
+                                    <FileSpreadsheet class="h-4 w-4" />
+                                </div>
+                                <div>
+                                    <h2 class="font-semibold text-foreground">الشروط والأحكام</h2>
+                                    <p class="text-xs text-muted-foreground">يمكنك تعديل أو حذف أي بند قبل حفظ العرض</p>
+                                </div>
+                            </div>
+                            <div class="flex flex-wrap gap-2">
+                                <Button type="button" variant="outline" size="sm" class="gap-1.5 rounded-lg" @click="resetTermsToDefault">
+                                    استعادة الافتراضي
+                                </Button>
+                                <Button type="button" size="sm" class="gap-1.5 rounded-lg" @click="addTerm">
+                                    <Plus class="h-4 w-4" />
+                                    إضافة شرط
+                                </Button>
+                            </div>
+                        </div>
+
+                        <div class="space-y-4 p-5 sm:p-6">
+                            <div
+                                v-if="form.terms.length === 0"
+                                class="rounded-xl border border-dashed border-border bg-muted/10 px-4 py-8 text-center text-sm text-muted-foreground"
+                            >
+                                لا توجد شروط حالياً. أضف شرطاً أو استعد الشروط الافتراضية.
+                            </div>
+
+                            <div
+                                v-for="(term, index) in form.terms"
+                                :key="index"
+                                class="space-y-3 rounded-xl border border-border/60 bg-muted/10 p-4"
+                            >
+                                <div class="flex items-center justify-between gap-3">
+                                    <span class="text-sm font-semibold text-foreground">شرط {{ index + 1 }}</span>
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        class="h-8 gap-1.5 rounded-lg text-rose-600 hover:bg-rose-50 hover:text-rose-700 dark:hover:bg-rose-950/30"
+                                        @click="removeTerm(index)"
+                                    >
+                                        <Trash2 class="h-4 w-4" />
+                                        حذف
+                                    </Button>
+                                </div>
+                                <div class="grid gap-3 sm:grid-cols-2">
+                                    <div class="space-y-2">
+                                        <Label :for="`term-ar-${index}`" class="text-xs text-muted-foreground">العربي</Label>
+                                        <Textarea
+                                            :id="`term-ar-${index}`"
+                                            v-model="term.ar"
+                                            rows="3"
+                                            dir="rtl"
+                                            class="rounded-xl resize-none text-sm"
+                                            placeholder="نص الشرط بالعربي"
+                                        />
+                                    </div>
+                                    <div class="space-y-2">
+                                        <Label :for="`term-en-${index}`" class="text-xs text-muted-foreground">English</Label>
+                                        <Textarea
+                                            :id="`term-en-${index}`"
+                                            v-model="term.en"
+                                            rows="3"
+                                            dir="ltr"
+                                            class="rounded-xl resize-none text-sm"
+                                            placeholder="Term text in English"
+                                        />
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </section>
@@ -1088,6 +1223,27 @@ watch(
                                     </span>
                                 </div>
                             </div>
+
+                            <label
+                                for="show_online_payment_summary"
+                                class="flex cursor-pointer items-start gap-3 rounded-xl border border-border/60 bg-muted/20 p-4 transition hover:bg-muted/30"
+                            >
+                                <input
+                                    id="show_online_payment_summary"
+                                    v-model="form.show_online_payment"
+                                    type="checkbox"
+                                    class="mt-1 size-4 shrink-0 rounded border-input text-primary accent-primary"
+                                />
+                                <div class="space-y-1">
+                                    <div class="flex items-center gap-1.5 text-sm font-medium text-foreground">
+                                        <Link2 class="h-4 w-4 text-primary" />
+                                        إظهار الدفع الإلكتروني في عرض السعر
+                                    </div>
+                                    <p class="text-xs leading-relaxed text-muted-foreground">
+                                        يظهر رابط الدفع في ملف PDF عند وجود مبلغ متبقي.
+                                    </p>
+                                </div>
+                            </label>
 
                             <div class="space-y-2 pt-1">
                                 <Button

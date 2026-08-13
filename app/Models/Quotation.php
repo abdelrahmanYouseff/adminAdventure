@@ -21,12 +21,14 @@ class Quotation extends Model
         'installation_at',
         'dismantling_at',
         'notes',
+        'terms',
         'subtotal',
         'discount_total',
         'tax_amount',
         'insurance_amount',
         'total_amount',
         'amount_paid',
+        'show_online_payment',
         'payment_token',
         'status',
         'user_id',
@@ -43,6 +45,8 @@ class Quotation extends Model
         'insurance_amount' => 'decimal:2',
         'total_amount' => 'decimal:2',
         'amount_paid' => 'decimal:2',
+        'show_online_payment' => 'boolean',
+        'terms' => 'array',
     ];
 
     public function amountDue(): float
@@ -68,6 +72,10 @@ class Quotation extends Model
 
     public function paymentUrl(): ?string
     {
+        if (! $this->show_online_payment) {
+            return null;
+        }
+
         if ($this->amountDue() <= 0.009) {
             return null;
         }

@@ -41,8 +41,9 @@ class QuotationPdfService
             mkdir($tempDir, 0755, true);
         }
 
-        $bottomMargin = round(16 * $scale, 2);
+        $bottomMargin = round(18 * $scale, 2);
         $isArabic = $data->isArabic();
+        $generatedAt = now()->format('d-m-Y ga');
 
         $mpdf = new Mpdf([
             'mode' => 'utf-8',
@@ -52,7 +53,7 @@ class QuotationPdfService
             'margin_top' => round(12 * $scale, 2),
             'margin_bottom' => $bottomMargin,
             'margin_header' => 4,
-            'margin_footer' => round(6 * $scale, 2),
+            'margin_footer' => round(9 * $scale, 2),
             'default_font' => 'dejavusans',
             'directionality' => $isArabic ? 'rtl' : 'ltr',
             'tempDir' => $tempDir,
@@ -72,6 +73,7 @@ class QuotationPdfService
         $mpdf->SetHTMLFooter(View::make($footerView, [
             'data' => $data,
             'scale' => $scale,
+            'generatedAt' => $generatedAt,
         ])->render());
 
         $mpdf->WriteHTML(View::make($bodyView, [

@@ -12,6 +12,7 @@ use App\Models\Product;
 use App\Models\User;
 use App\Services\QuotationPdfService;
 use App\Support\OrderInsuranceCalculator;
+use App\Support\QuotationDefaultTerms;
 use App\Support\QuotationPdfData;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -132,6 +133,7 @@ class QuotationController extends Controller
             'selectedBrand' => $selectedBrand,
             'products' => $products,
             'categories' => $categories,
+            'defaultTerms' => QuotationDefaultTerms::all(),
         ]);
     }
 
@@ -362,7 +364,11 @@ class QuotationController extends Controller
             'dismantling_at' => 'nullable|date|after_or_equal:installation_at',
             'insurance_amount' => 'nullable|numeric|min:0',
             'amount_paid' => 'nullable|numeric|min:0',
+            'show_online_payment' => 'nullable|boolean',
             'notes' => 'nullable|string',
+            'terms' => 'nullable|array',
+            'terms.*.ar' => 'nullable|string|max:2000',
+            'terms.*.en' => 'nullable|string|max:2000',
             'items' => 'required|array|min:1',
             'items.*.product_id' => [
                 'nullable',
@@ -436,6 +442,7 @@ class QuotationController extends Controller
                 'installation_at' => $request->input('installation_at') ?: null,
                 'dismantling_at' => $request->input('dismantling_at') ?: null,
                 'notes' => $request->notes,
+                'terms' => QuotationDefaultTerms::sanitize($request->input('terms')),
                 'user_id' => auth()->id(),
             ]);
 
@@ -484,6 +491,7 @@ class QuotationController extends Controller
                 'insurance_amount' => $insuranceAmount,
                 'total_amount' => $totalAmount,
                 'amount_paid' => $amountPaid,
+                'show_online_payment' => $request->boolean('show_online_payment'),
             ]);
 
             DB::commit();
@@ -577,6 +585,7 @@ class QuotationController extends Controller
             'products' => $products,
             'categories' => $categories,
             'selectedBrand' => $quotation->brand,
+            'defaultTerms' => QuotationDefaultTerms::all(),
         ]);
     }
 
@@ -597,7 +606,11 @@ class QuotationController extends Controller
             'dismantling_at' => 'nullable|date|after_or_equal:installation_at',
             'insurance_amount' => 'nullable|numeric|min:0',
             'amount_paid' => 'nullable|numeric|min:0',
+            'show_online_payment' => 'nullable|boolean',
             'notes' => 'nullable|string',
+            'terms' => 'nullable|array',
+            'terms.*.ar' => 'nullable|string|max:2000',
+            'terms.*.en' => 'nullable|string|max:2000',
             'items' => 'required|array|min:1',
             'items.*.product_id' => 'nullable|integer|exists:products,id',
             'items.*.product_name' => 'nullable|string|max:255',
@@ -634,6 +647,7 @@ class QuotationController extends Controller
                 'installation_at' => $request->input('installation_at') ?: null,
                 'dismantling_at' => $request->input('dismantling_at') ?: null,
                 'notes' => $request->notes,
+                'terms' => QuotationDefaultTerms::sanitize($request->input('terms')),
             ]);
 
             // Delete existing items
@@ -684,6 +698,7 @@ class QuotationController extends Controller
                 'insurance_amount' => $insuranceAmount,
                 'total_amount' => $totalAmount,
                 'amount_paid' => $amountPaid,
+                'show_online_payment' => $request->boolean('show_online_payment'),
             ]);
 
             DB::commit();
