@@ -29,6 +29,8 @@ class Order extends Model
         'insurance_original_amount',
         'insurance_status',
         'insurance_refunded_at',
+        'insurance_refund_requested_at',
+        'insurance_refund_requested_by',
         'currency',
         'status',
         'payment_method',
@@ -65,6 +67,7 @@ class Order extends Model
         'dismantling_at' => 'datetime',
         'whatsapp_notified_at' => 'datetime',
         'insurance_refunded_at' => 'datetime',
+        'insurance_refund_requested_at' => 'datetime',
         'work_order_approved_at' => 'datetime',
         'warehouse_returned_at' => 'datetime',
         'warehouse_rejected_at' => 'datetime',
@@ -233,6 +236,11 @@ class Order extends Model
     public function warehouseReturnedBy()
     {
         return $this->belongsTo(User::class, 'warehouse_returned_by');
+    }
+
+    public function insuranceRefundRequestedBy()
+    {
+        return $this->belongsTo(User::class, 'insurance_refund_requested_by');
     }
 
     public function warehouseRejectedBy()

@@ -318,6 +318,14 @@ Route::get('insurance-deposits', [\App\Http\Controllers\InsuranceDepositControll
     ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,accounts'])
     ->name('insurance-deposits.index');
 
+Route::get('insurance-deposits/create', [\App\Http\Controllers\InsuranceDepositController::class, 'create'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,accounts'])
+    ->name('insurance-deposits.create');
+
+Route::post('insurance-deposits', [\App\Http\Controllers\InsuranceDepositController::class, 'store'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,accounts'])
+    ->name('insurance-deposits.store');
+
 Route::get('returns', [\App\Http\Controllers\ProductReturnController::class, 'index'])
     ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,warehouse_keeper,workers_manager'])
     ->name('returns.index');

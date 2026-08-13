@@ -1,13 +1,21 @@
 <!DOCTYPE html>
-<html lang="{{ str_replace('_', '-', app()->getLocale()) }}"  @class(['dark' => ($appearance ?? 'system') == 'dark'])>
+<html
+    lang="{{ str_replace('_', '-', app()->getLocale()) }}"
+    @class([
+        'dark' => ($appearance ?? 'system') == 'dark',
+        'theme-salla' => ($adminTheme ?? 'default') == 'salla',
+    ])
+    data-admin-theme="{{ $adminTheme ?? 'default' }}"
+>
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
 
-        {{-- Inline script to detect system dark mode preference and apply it immediately --}}
+        {{-- Inline script to detect system dark mode preference and apply theme immediately --}}
         <script>
             (function() {
                 const appearance = '{{ $appearance ?? "system" }}';
+                const adminTheme = localStorage.getItem('admin_theme') || '{{ $adminTheme ?? "default" }}';
 
                 if (appearance === 'system') {
                     const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
@@ -15,6 +23,14 @@
                     if (prefersDark) {
                         document.documentElement.classList.add('dark');
                     }
+                }
+
+                if (adminTheme === 'salla') {
+                    document.documentElement.classList.add('theme-salla');
+                    document.documentElement.dataset.adminTheme = 'salla';
+                } else {
+                    document.documentElement.classList.remove('theme-salla');
+                    document.documentElement.dataset.adminTheme = 'default';
                 }
             })();
         </script>
@@ -27,6 +43,14 @@
 
             html.dark {
                 background-color: oklch(0.145 0 0);
+            }
+
+            html.theme-salla {
+                background-color: #f4f5f8;
+            }
+
+            html.theme-salla.dark {
+                background-color: #0f1115;
             }
         </style>
 
@@ -49,7 +73,7 @@
         <link rel="apple-touch-icon" href="/assets/logo.png">
 
         <link rel="preconnect" href="https://fonts.bunny.net">
-        <link href="https://fonts.bunny.net/css?family=instrument-sans:400,500,600|noto-kufi-arabic:400,500,600,700" rel="stylesheet" />
+        <link href="https://fonts.bunny.net/css?family=instrument-sans:400,500,600|noto-kufi-arabic:400,500,600,700|ibm-plex-sans-arabic:400,500,600,700" rel="stylesheet" />
 
         @vite(['resources/js/app.ts', "resources/js/pages/{$page['component']}.vue"])
         @inertiaHead

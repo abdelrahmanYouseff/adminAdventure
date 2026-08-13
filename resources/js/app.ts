@@ -9,6 +9,7 @@ import { route as ziggyRoute, ZiggyVue } from 'ziggy-js';
 import type { Config } from 'ziggy-js';
 import { Ziggy as fallbackZiggy } from './ziggy';
 import { initializeTheme } from './composables/useAppearance';
+import { initializeAdminTheme } from './composables/useAdminTheme';
 
 declare global {
     interface Window {
@@ -55,8 +56,27 @@ createInertiaApp({
             .mount(el);
     },
     progress: {
-        color: '#4B5563',
+        color: typeof document !== 'undefined' && document.documentElement.classList.contains('theme-salla')
+            ? '#6C2BD9'
+            : '#4B5563',
     },
 });
 
 initializeTheme();
+initializeAdminTheme();
+
+if (typeof document !== 'undefined') {
+    const syncProgressColor = () => {
+        const isSalla = document.documentElement.classList.contains('theme-salla');
+        const bar = document.querySelector('#nprogress .bar') as HTMLElement | null;
+        if (bar) {
+            bar.style.background = isSalla ? '#6C2BD9' : '#4B5563';
+        }
+    };
+
+    syncProgressColor();
+    new MutationObserver(syncProgressColor).observe(document.documentElement, {
+        attributes: true,
+        attributeFilter: ['class'],
+    });
+}

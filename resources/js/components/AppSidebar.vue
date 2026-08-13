@@ -4,11 +4,31 @@ import NavUser from '@/components/NavUser.vue';
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar';
 import { type Auth, type NavItem, type StaffRole } from '@/types';
 import { Link, usePage } from '@inertiajs/vue3';
-import { LayoutGrid, ShoppingBag, Users, Package, FileText, FileSpreadsheet, ShoppingCart, Tags, MessageCircle, HardHat, ShieldCheck, Receipt, Building2, Search, Undo2 } from 'lucide-vue-next';
+import {
+    LayoutGrid,
+    ShoppingBag,
+    Users,
+    Package,
+    FileText,
+    FileSpreadsheet,
+    ShoppingCart,
+    Tags,
+    MessageCircle,
+    HardHat,
+    ShieldCheck,
+    Receipt,
+    Building2,
+    Search,
+    Undo2,
+    Wallet,
+} from 'lucide-vue-next';
 import AppLogo from './AppLogo.vue';
 import { computed, ref } from 'vue';
 
-type NavItemWithRoles = NavItem & { roles: StaffRole[] };
+type NavItemWithRoles = NavItem & {
+    roles: StaffRole[];
+    children?: (NavItem & { roles: StaffRole[] })[];
+};
 
 const page = usePage();
 const userRole = computed(() => (page.props.auth as Auth | undefined)?.user?.role ?? null);
@@ -58,12 +78,6 @@ const allNavItems: NavItemWithRoles[] = [
         roles: ['admin', 'general_manager', 'manager'],
     },
     {
-        title: 'سندات القبض',
-        href: '/payment-receipts',
-        icon: Receipt,
-        roles: ['admin', 'general_manager', 'manager', 'accounts'],
-    },
-    {
         title: 'أوامر العمل',
         href: '/worker-orders',
         icon: HardHat,
@@ -82,16 +96,29 @@ const allNavItems: NavItemWithRoles[] = [
         roles: ['admin', 'manager'],
     },
     {
-        title: 'الفواتير',
-        href: '/invoices',
-        icon: FileText,
+        title: 'الحسابات',
+        icon: Wallet,
         roles: ['admin', 'general_manager', 'manager', 'accounts'],
-    },
-    {
-        title: 'استرداد التأمين',
-        href: '/insurance-deposits',
-        icon: ShieldCheck,
-        roles: ['admin', 'general_manager', 'manager', 'accounts'],
+        children: [
+            {
+                title: 'الفواتير',
+                href: '/invoices',
+                icon: FileText,
+                roles: ['admin', 'general_manager', 'manager', 'accounts'],
+            },
+            {
+                title: 'سندات القبض',
+                href: '/payment-receipts',
+                icon: Receipt,
+                roles: ['admin', 'general_manager', 'manager', 'accounts'],
+            },
+            {
+                title: 'استرداد التأمين',
+                href: '/insurance-deposits',
+                icon: ShieldCheck,
+                roles: ['admin', 'general_manager', 'manager', 'accounts'],
+            },
+        ],
     },
     {
         title: 'عروض الأسعار',
@@ -107,6 +134,15 @@ const allNavItems: NavItemWithRoles[] = [
     },
 ];
 
+function stripRoles(item: NavItemWithRoles): NavItem {
+    const { roles: _roles, children, ...rest } = item;
+
+    return {
+        ...rest,
+        children: children?.map(({ roles: _childRoles, ...child }) => child),
+    };
+}
+
 const roleNavItems = computed(() => {
     const role = userRole.value;
     if (!role) {
@@ -114,8 +150,23 @@ const roleNavItems = computed(() => {
     }
 
     return allNavItems
-        .filter((item) => item.roles.includes(role as StaffRole))
-        .map(({ roles: _roles, ...item }) => item);
+        .map((item) => {
+            if (item.children?.length) {
+                const children = item.children.filter((child) => child.roles.includes(role as StaffRole));
+                if (children.length === 0) {
+                    return null;
+                }
+
+                return stripRoles({ ...item, children });
+            }
+
+            if (!item.roles.includes(role as StaffRole)) {
+                return null;
+            }
+
+            return stripRoles(item);
+        })
+        .filter((item): item is NavItem => item !== null);
 });
 
 const mainNavItems = computed(() => {
@@ -124,7 +175,25 @@ const mainNavItems = computed(() => {
         return roleNavItems.value;
     }
 
-    return roleNavItems.value.filter((item) => item.title.toLowerCase().includes(query));
+    return roleNavItems.value
+        .map((item) => {
+            const titleMatch = item.title.toLowerCase().includes(query);
+
+            if (item.children?.length) {
+                const children = titleMatch
+                    ? item.children
+                    : item.children.filter((child) => child.title.toLowerCase().includes(query));
+
+                if (children.length === 0) {
+                    return null;
+                }
+
+                return { ...item, children };
+            }
+
+            return titleMatch ? item : null;
+        })
+        .filter((item): item is NavItem => item !== null);
 });
 
 const homeHref = computed(() => {
@@ -160,7 +229,7 @@ const homeHref = computed(() => {
             </SidebarMenu>
 
             <div class="group-data-[collapsible=icon]:hidden px-0.5">
-                <label class="flex h-10 items-center gap-2.5 rounded-full border border-gray-200 bg-white px-3.5 text-gray-400 transition-colors focus-within:border-teal-300 focus-within:ring-2 focus-within:ring-teal-100 dark:border-neutral-700 dark:bg-neutral-900 dark:focus-within:border-teal-700 dark:focus-within:ring-teal-950">
+                <label class="flex h-10 items-center gap-2.5 rounded-full border border-gray-200 bg-white px-3.5 text-gray-400 transition-colors focus-within:border-[var(--nav-accent)]/40 focus-within:ring-2 focus-within:ring-[var(--nav-accent-soft)] dark:border-neutral-700 dark:bg-neutral-900 dark:focus-within:border-[var(--nav-accent)] dark:focus-within:ring-[var(--nav-accent-soft-dark)]">
                     <Search class="size-4 shrink-0 stroke-[1.75]" />
                     <input
                         v-model="searchQuery"

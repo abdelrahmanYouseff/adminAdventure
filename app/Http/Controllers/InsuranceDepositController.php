@@ -56,6 +56,88 @@ class InsuranceDepositController extends Controller
         ]);
     }
 
+    public function create(Request $request): Response
+    {
+        $search = trim($request->string('search')->toString());
+
+        $query = $this->requestableDepositsQuery()
+            ->with(['invoice:id,invoice_number', 'warehouseReturnedBy:id,customer_name'])
+            ->orderByDesc('warehouse_returned_at');
+
+        if ($search !== '') {
+            $query->where(function (Builder $q) use ($search) {
+                $q->where('order_number', 'like', "%{$search}%")
+                    ->orWhere('customer_name', 'like', "%{$search}%")
+                    ->orWhere('customer_phone', 'like', "%{$search}%");
+            });
+        }
+
+        $candidates = $query
+            ->paginate(30)
+            ->withQueryString()
+            ->through(fn (Order $order) => [
+                'id' => $order->id,
+                'order_number' => $order->order_number,
+                'invoice_number' => $order->invoice?->invoice_number,
+                'customer_name' => $order->customer_name,
+                'customer_phone' => $order->customer_phone,
+                'insurance_amount' => (float) $order->insurance_amount,
+                'activity_date' => $order->activity_date?->format('Y-m-d'),
+                'warehouse_returned_at' => $order->warehouse_returned_at?->toIso8601String(),
+                'warehouse_returned_by_name' => $order->warehouseReturnedBy?->name,
+            ]);
+
+        return Inertia::render('InsuranceDeposits/Create', [
+            'candidates' => $candidates,
+            'filters' => [
+                'search' => $search,
+            ],
+        ]);
+    }
+
+    public function store(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'order_ids' => ['required', 'array', 'min:1'],
+            'order_ids.*' => ['integer', 'distinct'],
+        ], [
+            'order_ids.required' => 'اختر عميلاً واحداً على الأقل.',
+            'order_ids.min' => 'اختر عميلاً واحداً على الأقل.',
+        ]);
+
+        $orderIds = array_values(array_unique(array_map('intval', $validated['order_ids'])));
+
+        $orders = $this->requestableDepositsQuery()
+            ->whereIn('id', $orderIds)
+            ->get();
+
+        if ($orders->isEmpty()) {
+            return back()->with('error', 'لا توجد طلبات صالحة لإنشاء طلب استرداد. يجب أن يكون الاسترجاع مغلقاً ومعتمداً.');
+        }
+
+        $now = now();
+        $userId = $request->user()?->id;
+        $count = 0;
+
+        foreach ($orders as $order) {
+            $updates = [
+                'insurance_refund_requested_at' => $now,
+                'insurance_refund_requested_by' => $userId,
+            ];
+
+            if (! in_array($order->insurance_status, ['refunded', 'withheld'], true)) {
+                $updates['insurance_status'] = 'pending';
+            }
+
+            $order->update($updates);
+            $count++;
+        }
+
+        return redirect()
+            ->route('insurance-deposits.index', ['status' => 'pending'])
+            ->with('success', "تم إنشاء طلب استرداد التأمين لـ {$count} عميل.");
+    }
+
     public function show(Request $request, Order $order): Response
     {
         abort_unless($this->isEligibleDeposit($order), 404);
@@ -186,13 +268,30 @@ class InsuranceDepositController extends Controller
     }
 
     /**
-     * تظهر مبالغ التأمين فقط بعد تأكيد أمين المستودع لاسترجاع المنتجات.
+     * تظهر في قائمة الاسترداد فقط بعد إنشاء طلب استرداد يدوياً.
      */
     private function eligibleDepositsQuery(): Builder
     {
         return Order::query()
             ->whereNotNull('work_order_approved_at')
             ->whereNotNull('warehouse_returned_at')
+            ->whereNotNull('insurance_refund_requested_at')
+            ->where(function ($query) {
+                $query->where('insurance_amount', '>', 0)
+                    ->orWhere('insurance_original_amount', '>', 0);
+            });
+    }
+
+    /**
+     * العملاء المتاحون لإنشاء طلب استرداد: استرجاع مغلق ومعتمد + تأمين + لم يُطلب بعد.
+     */
+    private function requestableDepositsQuery(): Builder
+    {
+        return Order::query()
+            ->whereNotNull('work_order_approved_at')
+            ->whereNotNull('warehouse_returned_at')
+            ->whereNull('insurance_refund_requested_at')
+            ->whereNotIn('insurance_status', ['refunded', 'withheld'])
             ->where(function ($query) {
                 $query->where('insurance_amount', '>', 0)
                     ->orWhere('insurance_original_amount', '>', 0);
@@ -203,6 +302,7 @@ class InsuranceDepositController extends Controller
     {
         return filled($order->work_order_approved_at)
             && filled($order->warehouse_returned_at)
+            && filled($order->insurance_refund_requested_at)
             && ((float) $order->insurance_amount > 0 || (float) $order->insurance_original_amount > 0);
     }
 

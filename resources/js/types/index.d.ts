@@ -12,9 +12,10 @@ export interface BreadcrumbItem {
 
 export interface NavItem {
     title: string;
-    href: string;
+    href?: string;
     icon?: LucideIcon;
     isActive?: boolean;
+    children?: NavItem[];
 }
 
 export type StaffRole = 'admin' | 'general_manager' | 'manager' | 'accounts' | 'workers_manager' | 'worker' | 'warehouse_keeper';

@@ -462,9 +462,14 @@ class ModuleController extends Controller
     private function insuranceData(string $search): array
     {
         $query = Order::query()
-            ->whereNotNull('insurance_amount')
-            ->where('insurance_amount', '>', 0)
-            ->latest('updated_at');
+            ->whereNotNull('insurance_refund_requested_at')
+            ->whereNotNull('warehouse_returned_at')
+            ->whereNotNull('work_order_approved_at')
+            ->where(function ($q) {
+                $q->where('insurance_amount', '>', 0)
+                    ->orWhere('insurance_original_amount', '>', 0);
+            })
+            ->latest('insurance_refund_requested_at');
 
         if ($search !== '') {
             $query->where(function ($q) use ($search) {
@@ -475,7 +480,14 @@ class ModuleController extends Controller
 
         return [
             'stats' => [
-                ['label' => 'معلّق', 'value' => Order::query()->where('insurance_status', 'pending')->where('insurance_amount', '>', 0)->count()],
+                ['label' => 'معلّق', 'value' => Order::query()
+                    ->whereNotNull('insurance_refund_requested_at')
+                    ->where('insurance_status', 'pending')
+                    ->where(function ($q) {
+                        $q->where('insurance_amount', '>', 0)
+                            ->orWhere('insurance_original_amount', '>', 0);
+                    })
+                    ->count()],
             ],
             'items' => $query->limit(40)->get()->map(fn (Order $order) => [
                 'id' => $order->id,

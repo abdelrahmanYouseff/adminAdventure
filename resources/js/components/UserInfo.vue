@@ -31,7 +31,7 @@ const displayName = computed(() => (props.user.name?.trim() || props.user.email 
     >
         <AvatarImage v-if="showAvatar" :src="user.avatar!" :alt="displayName" />
         <AvatarFallback
-            class="bg-teal-50 text-teal-700 dark:bg-teal-950 dark:text-teal-300"
+            class="bg-[var(--nav-accent-soft)] text-[var(--nav-accent-text)] dark:bg-[var(--nav-accent-soft-dark)] dark:text-[var(--nav-accent)]"
             :class="profileStyle ? 'rounded-full' : 'rounded-lg'"
         >
             {{ getInitials(displayName) }}

@@ -4,7 +4,7 @@ import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { Button } from '@/components/ui/button';
 import { formatCurrency, formatDate, formatDateTime } from '@/lib/formatNumber';
-import { ChevronDown, MessageSquareText, Pencil, ShieldCheck, Check, X } from 'lucide-vue-next';
+import { ChevronDown, MessageSquareText, Pencil, Plus, ShieldCheck, Check, X } from 'lucide-vue-next';
 import Swal from 'sweetalert2';
 
 interface ApprovalStep {
@@ -289,14 +289,22 @@ async function markWithheld(deposit: Deposit) {
                 <div>
                     <h1 class="text-2xl font-bold text-slate-900">استرداد التأمين</h1>
                     <p class="mt-1 text-sm text-slate-500">
-                        يظهر السجل بعد تعميد مدير العمال، ثم المسئول ← المدير العام ← المحاسب قبل الاسترداد
+                        لا يظهر أي عميل تلقائياً — أنشئ طلب استرداد للعملاء الذين أُغلق استرجاعهم واعتمد، ثم سلسلة التعميدات: مدير العمال ← المسئول ← المدير العام ← المحاسب
                     </p>
                 </div>
-                <div class="inline-flex items-center gap-2 rounded-2xl bg-emerald-50 px-4 py-3 text-emerald-800 ring-1 ring-emerald-100">
-                    <ShieldCheck class="h-5 w-5" />
-                    <div>
-                        <p class="text-xs">بانتظار الاسترداد</p>
-                        <p class="text-lg font-bold tabular-nums">{{ formatCurrency(stats.pending_amount) }}</p>
+                <div class="flex flex-wrap items-center gap-3">
+                    <Link href="/insurance-deposits/create">
+                        <Button class="rounded-xl bg-emerald-600 hover:bg-emerald-700">
+                            <Plus class="ml-1 h-4 w-4" />
+                            إنشاء طلب استرداد
+                        </Button>
+                    </Link>
+                    <div class="inline-flex items-center gap-2 rounded-2xl bg-emerald-50 px-4 py-3 text-emerald-800 ring-1 ring-emerald-100">
+                        <ShieldCheck class="h-5 w-5" />
+                        <div>
+                            <p class="text-xs">بانتظار الاسترداد</p>
+                            <p class="text-lg font-bold tabular-nums">{{ formatCurrency(stats.pending_amount) }}</p>
+                        </div>
                     </div>
                 </div>
             </div>
