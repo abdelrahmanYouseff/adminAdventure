@@ -43,7 +43,7 @@ class QuotationPdfService
 
         $bottomMargin = round(18 * $scale, 2);
         $isArabic = $data->isArabic();
-        $generatedAt = now()->format('d-m-Y ga');
+        $generatedAt = now()->format('d-m-Y g:ia');
 
         $mpdf = new Mpdf([
             'mode' => 'utf-8',

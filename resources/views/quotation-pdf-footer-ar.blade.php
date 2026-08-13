@@ -3,7 +3,7 @@
     /** @var float $scale */
     $scale = $scale ?? 1.0;
     $pt = fn (float $size) => round($size * $scale, 2).'pt';
-    $generatedAt = $generatedAt ?? now()->format('d-m-Y ga');
+    $generatedAt = $generatedAt ?? now()->format('d-m-Y g:ia');
 @endphp
 <table width="100%" cellpadding="0" cellspacing="0" style="font-family: dejavusans, sans-serif; font-size: {{ $pt(6.5) }}; color: #1a1a1a; border-top: 1px solid #333; padding-top: {{ $pt(3) }};">
     <tr>
