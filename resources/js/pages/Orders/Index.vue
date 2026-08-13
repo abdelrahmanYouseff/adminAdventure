@@ -41,7 +41,7 @@ import {
     Wrench,
     X,
 } from 'lucide-vue-next';
-import { formatCurrency, formatDate, formatDateTime, formatInteger } from '@/lib/formatNumber';
+import { formatCurrency, formatDate, formatDateTime, formatInteger, formatPrice } from '@/lib/formatNumber';
 
 interface InstallationPhoto {
     product_name: string;
@@ -87,6 +87,7 @@ interface Order {
     currency: string;
     payment_method: string;
     status: string;
+    status_detail?: string | null;
     activity_date: string | null;
     activity_time: string | null;
     can_edit_activity_time?: boolean;
@@ -816,11 +817,11 @@ function locationMapsUrl(address: string | null): string | null {
                                 </div>
                             </td>
                             <td class="px-2.5 py-2.5 font-semibold tabular-nums text-gray-900 dark:text-white" dir="ltr">
-                                {{ formatCurrency(Number(order.total_amount) || 0, order.currency) }}
+                                {{ formatPrice(Number(order.total_amount) || 0) }}
                             </td>
                             <td class="px-2.5 py-2.5 tabular-nums text-gray-700 dark:text-neutral-200" dir="ltr">
                                 <span v-if="vatAmount(order) > 0">
-                                    {{ formatCurrency(vatAmount(order), order.currency) }}
+                                    {{ formatPrice(vatAmount(order)) }}
                                 </span>
                                 <span v-else class="text-gray-400">-</span>
                             </td>
@@ -829,7 +830,7 @@ function locationMapsUrl(address: string | null): string | null {
                                     v-if="paidAmount(order) > 0"
                                     class="font-semibold text-emerald-600 dark:text-emerald-400"
                                 >
-                                    {{ formatCurrency(paidAmount(order), order.currency) }}
+                                    {{ formatPrice(paidAmount(order)) }}
                                 </span>
                                 <span v-else class="text-gray-400">-</span>
                             </td>
@@ -838,7 +839,7 @@ function locationMapsUrl(address: string | null): string | null {
                                     v-if="dueAmount(order) > 0"
                                     class="font-semibold text-red-600 dark:text-red-400"
                                 >
-                                    {{ formatCurrency(dueAmount(order), order.currency) }}
+                                    {{ formatPrice(dueAmount(order)) }}
                                 </span>
                                 <span v-else class="text-gray-400">-</span>
                             </td>
@@ -945,12 +946,20 @@ function locationMapsUrl(address: string | null): string | null {
                                 </div>
                             </td>
                             <td class="px-2.5 py-2.5">
-                                <span
-                                    class="inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold"
-                                    :class="statusBadgeClass(order.status)"
-                                >
-                                    {{ getStatusText(order.status) }}
-                                </span>
+                                <div class="flex min-w-[7.5rem] flex-col items-start gap-1">
+                                    <span
+                                        class="inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold"
+                                        :class="statusBadgeClass(order.status)"
+                                    >
+                                        {{ getStatusText(order.status) }}
+                                    </span>
+                                    <span
+                                        v-if="order.status_detail"
+                                        class="max-w-[10rem] text-[10px] leading-snug text-sky-700 dark:text-sky-400"
+                                    >
+                                        {{ order.status_detail }}
+                                    </span>
+                                </div>
                             </td>
                             <td class="px-3 py-2.5">
                                 <div class="flex items-center justify-end gap-1">

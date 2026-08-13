@@ -122,6 +122,7 @@ class OrderController extends Controller
             $installMeta = $this->installationColumnMeta($order, (bool) $canEditTime);
             $order->setAttribute('installation', $installMeta);
             $order->setAttribute('dismantling', $this->dismantlingColumnMeta($order));
+            $order->setAttribute('status_detail', $this->orderStatusDetail($order));
 
             return $order;
         });
@@ -1306,6 +1307,34 @@ class OrderController extends Controller
             'insurance' => $insurance,
             'grand' => round($grand, 2),
         ];
+    }
+
+    /**
+     * Human-readable waiting reason under the status badge (mainly for processing).
+     */
+    private function orderStatusDetail(Order $order): ?string
+    {
+        if ($order->status !== 'processing') {
+            return null;
+        }
+
+        $pendingReceipt = round((float) ($order->pending_payment_sum ?? 0), 2);
+        if ($pendingReceipt > 0.009) {
+            return 'بانتظار اعتماد المحاسب';
+        }
+
+        $due = round((float) ($order->getAttribute('due_amount') ?? $order->remaining_amount ?? 0), 2);
+        $paid = round((float) ($order->amount_paid ?? 0), 2);
+
+        if ($paid > 0.009 && $due > 0.009) {
+            return 'بانتظار استكمال السداد';
+        }
+
+        if ($due > 0.009) {
+            return 'بانتظار السداد';
+        }
+
+        return 'قيد المراجعة';
     }
 
     /**

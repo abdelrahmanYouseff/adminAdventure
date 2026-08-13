@@ -83,8 +83,23 @@ const customQuantity = ref(1);
 const paymentProofPreviews = ref<string[]>([]);
 const customerLookupStatus = ref<'idle' | 'loading' | 'found' | 'not_found'>('idle');
 const customerLookupMessage = ref('');
+const customerFirstName = ref('');
+const customerSecondName = ref('');
+const nameFilledFromLookup = ref(false);
+const nameValidationError = ref('');
 let phoneLookupTimer: ReturnType<typeof setTimeout> | null = null;
 let phoneLookupRequestId = 0;
+
+const isSecondNameRequired = computed(
+    () => !(nameFilledFromLookup.value && customerFirstName.value.trim() !== ''),
+);
+
+function composeCustomerName(): string {
+    return [customerFirstName.value, customerSecondName.value]
+        .map((part) => part.trim())
+        .filter(Boolean)
+        .join(' ');
+}
 
 function clearPaymentProofPreview() {
     paymentProofPreviews.value.forEach((url) => URL.revokeObjectURL(url));
@@ -225,6 +240,22 @@ function updateItemPrice(index: number) {
 }
 
 function submit() {
+    nameValidationError.value = '';
+
+    const first = customerFirstName.value.trim();
+    const second = customerSecondName.value.trim();
+
+    if (!first) {
+        nameValidationError.value = 'الاسم الأول مطلوب.';
+        return;
+    }
+
+    if (isSecondNameRequired.value && !second) {
+        nameValidationError.value = 'الاسم الثاني مطلوب.';
+        return;
+    }
+
+    form.customer_name = composeCustomerName();
     form.post(route('orders.store'), { forceFormData: true });
 }
 
@@ -262,12 +293,18 @@ async function lookupCustomerByPhone(phone: string) {
         if (!data?.success || !data.customer) {
             customerLookupStatus.value = 'not_found';
             customerLookupMessage.value = data?.message || 'لا يوجد عميل بهذا الرقم.';
+            nameFilledFromLookup.value = false;
             return;
         }
 
         const customer = data.customer;
         if (customer.customer_name) {
+            customerFirstName.value = customer.customer_name;
+            customerSecondName.value = '';
             form.customer_name = customer.customer_name;
+            nameFilledFromLookup.value = true;
+        } else {
+            nameFilledFromLookup.value = false;
         }
         if (customer.customer_email) {
             form.customer_email = customer.customer_email;
@@ -311,6 +348,7 @@ watch(
         if (!isLookupReady(trimmed)) {
             customerLookupStatus.value = 'idle';
             customerLookupMessage.value = '';
+            nameFilledFromLookup.value = false;
             return;
         }
 
@@ -413,22 +451,46 @@ watch(grandTotal, (total) => {
                                     {{ customerLookupMessage }} يمكنك إدخال البيانات يدوياً.
                                 </p>
                                 <p v-else class="text-xs text-muted-foreground">
-                                    اكتب رقم الجوال وسيتم تعبئة الاسم والبريد والعنوان تلقائياً إن وُجد.
+                                    اكتب رقم الجوال وسيتم تعبئة الاسم الأول والبريد والعنوان تلقائياً إن وُجد.
                                 </p>
                             </div>
 
-                            <div class="space-y-2 sm:col-span-2">
-                                <Label for="customer_name">
-                                    اسم العميل <span class="text-red-500">*</span>
+                            <div class="space-y-2">
+                                <Label for="customer_first_name">
+                                    الاسم الأول <span class="text-red-500">*</span>
                                 </Label>
                                 <Input
-                                    id="customer_name"
-                                    v-model="form.customer_name"
-                                    placeholder="مثال: أحمد محمد"
+                                    id="customer_first_name"
+                                    v-model="customerFirstName"
+                                    placeholder="مثال: أحمد"
                                     class="h-11 rounded-xl"
                                     required
+                                    @input="nameValidationError = ''"
                                 />
                             </div>
+
+                            <div class="space-y-2">
+                                <Label for="customer_second_name">
+                                    الاسم الثاني
+                                    <span v-if="isSecondNameRequired" class="text-red-500">*</span>
+                                    <span v-else class="text-xs font-normal text-muted-foreground">(اختياري)</span>
+                                </Label>
+                                <Input
+                                    id="customer_second_name"
+                                    v-model="customerSecondName"
+                                    placeholder="مثال: محمد"
+                                    class="h-11 rounded-xl"
+                                    :required="isSecondNameRequired"
+                                    @input="nameValidationError = ''"
+                                />
+                            </div>
+
+                            <p
+                                v-if="nameValidationError || form.errors.customer_name"
+                                class="text-xs text-red-600 sm:col-span-2"
+                            >
+                                {{ nameValidationError || form.errors.customer_name }}
+                            </p>
 
                             <div class="space-y-2 sm:col-span-2">
                                 <Label for="customer_email" class="flex items-center gap-1.5">

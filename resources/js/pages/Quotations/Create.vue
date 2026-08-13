@@ -143,8 +143,25 @@ const insuranceManual = ref(false);
 const customerLookupStatus = ref<'idle' | 'loading' | 'found' | 'not_found'>('idle');
 const customerLookupMessage = ref('');
 const customerType = ref<'individual' | 'company'>('individual');
+const customerFirstName = ref('');
+const customerSecondName = ref('');
+const nameFilledFromLookup = ref(false);
+const nameValidationError = ref('');
 let phoneLookupTimer: ReturnType<typeof setTimeout> | null = null;
 let phoneLookupRequestId = 0;
+
+const isSecondNameRequired = computed(
+    () =>
+        customerType.value === 'individual'
+        && !(nameFilledFromLookup.value && customerFirstName.value.trim() !== ''),
+);
+
+function composeCustomerName(): string {
+    return [customerFirstName.value, customerSecondName.value]
+        .map((part) => part.trim())
+        .filter(Boolean)
+        .join(' ');
+}
 
 const filteredProducts = computed(() => {
     if (selectedCategoryId.value === '' || selectedCategoryId.value == null) {
@@ -291,9 +308,30 @@ function resetInsuranceToSuggested() {
 }
 
 const submit = () => {
+    nameValidationError.value = '';
+
     if (customerType.value !== 'company') {
         form.company_tax_number = '';
+
+        const first = customerFirstName.value.trim();
+        const second = customerSecondName.value.trim();
+
+        if (!first) {
+            nameValidationError.value = 'الاسم الأول مطلوب.';
+            return;
+        }
+
+        if (isSecondNameRequired.value && !second) {
+            nameValidationError.value = 'الاسم الثاني مطلوب.';
+            return;
+        }
+
+        form.customer_name = composeCustomerName();
+    } else if (!form.customer_name.trim()) {
+        nameValidationError.value = 'اسم الشركة مطلوب.';
+        return;
     }
+
     form.post(route('quotations.store'), {
         preserveScroll: true,
         onError: () => {
@@ -361,6 +399,7 @@ function setCustomerType(type: 'individual' | 'company') {
     if (type !== 'company') {
         form.company_tax_number = '';
     }
+    nameValidationError.value = '';
 }
 
 function digitsOnly(value: string): string {
@@ -399,13 +438,32 @@ async function lookupCustomerByPhone(phone: string) {
         if (!data?.success || !data.customer) {
             customerLookupStatus.value = 'not_found';
             customerLookupMessage.value = data?.message || 'لا يوجد عميل بهذا الرقم.';
+            nameFilledFromLookup.value = false;
             setCustomerType('individual');
             return;
         }
 
         const customer = data.customer;
+        const resolvedType =
+            customer.customer_type === 'company' || customer.source === 'company_client'
+                ? 'company'
+                : 'individual';
+        setCustomerType(resolvedType);
+
         if (customer.customer_name) {
-            form.customer_name = customer.customer_name;
+            if (resolvedType === 'company') {
+                form.customer_name = customer.customer_name;
+                customerFirstName.value = '';
+                customerSecondName.value = '';
+                nameFilledFromLookup.value = false;
+            } else {
+                customerFirstName.value = customer.customer_name;
+                customerSecondName.value = '';
+                form.customer_name = customer.customer_name;
+                nameFilledFromLookup.value = true;
+            }
+        } else {
+            nameFilledFromLookup.value = false;
         }
         if (customer.customer_email) {
             form.customer_email = customer.customer_email;
@@ -417,11 +475,6 @@ async function lookupCustomerByPhone(phone: string) {
             form.customer_address = customer.customer_address;
         }
 
-        const resolvedType =
-            customer.customer_type === 'company' || customer.source === 'company_client'
-                ? 'company'
-                : 'individual';
-        setCustomerType(resolvedType);
         if (resolvedType === 'company') {
             form.company_tax_number = customer.company_tax_number || '';
         }
@@ -458,6 +511,7 @@ watch(
         if (!isLookupReady(trimmed)) {
             customerLookupStatus.value = 'idle';
             customerLookupMessage.value = '';
+            nameFilledFromLookup.value = false;
             return;
         }
 
@@ -662,20 +716,62 @@ watch(
                                     </div>
                                 </div>
 
-                                <div class="space-y-2 sm:col-span-2">
+                                <template v-if="customerType === 'individual'">
+                                    <div class="space-y-2">
+                                        <Label for="customer_first_name" class="flex items-center gap-1.5">
+                                            <User class="h-3.5 w-3.5 text-muted-foreground" />
+                                            الاسم الأول
+                                            <span class="text-red-500">*</span>
+                                        </Label>
+                                        <Input
+                                            id="customer_first_name"
+                                            v-model="customerFirstName"
+                                            placeholder="مثال: أحمد"
+                                            class="h-11 rounded-xl"
+                                            required
+                                            @input="nameValidationError = ''"
+                                        />
+                                    </div>
+
+                                    <div class="space-y-2">
+                                        <Label for="customer_second_name" class="flex items-center gap-1.5">
+                                            الاسم الثاني
+                                            <span v-if="isSecondNameRequired" class="text-red-500">*</span>
+                                            <span v-else class="text-xs font-normal text-muted-foreground">(اختياري)</span>
+                                        </Label>
+                                        <Input
+                                            id="customer_second_name"
+                                            v-model="customerSecondName"
+                                            placeholder="مثال: محمد"
+                                            class="h-11 rounded-xl"
+                                            :required="isSecondNameRequired"
+                                            @input="nameValidationError = ''"
+                                        />
+                                    </div>
+                                </template>
+
+                                <div v-else class="space-y-2 sm:col-span-2">
                                     <Label for="customer_name" class="flex items-center gap-1.5">
-                                        <User class="h-3.5 w-3.5 text-muted-foreground" />
-                                        اسم العميل
+                                        <Building2 class="h-3.5 w-3.5 text-muted-foreground" />
+                                        اسم الشركة
                                         <span class="text-red-500">*</span>
                                     </Label>
                                     <Input
                                         id="customer_name"
                                         v-model="form.customer_name"
-                                        placeholder="مثال: أحمد محمد"
+                                        placeholder="مثال: شركة المغامرة"
                                         class="h-11 rounded-xl"
                                         required
+                                        @input="nameValidationError = ''"
                                     />
                                 </div>
+
+                                <p
+                                    v-if="nameValidationError || form.errors.customer_name"
+                                    class="text-xs text-red-600 sm:col-span-2"
+                                >
+                                    {{ nameValidationError || form.errors.customer_name }}
+                                </p>
 
                                 <div class="space-y-2">
                                     <Label for="customer_email" class="flex items-center gap-1.5">
