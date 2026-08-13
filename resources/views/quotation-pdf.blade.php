@@ -228,6 +228,13 @@
                     / Email:
                     <span dir="ltr">{{ $data->customerEmail() }}</span>
                 </div>
+                @if($data->companyTaxNumber())
+                    <div style="margin-top: {{ $pt(2) }};">
+                        <span class="meta-label" style="font-family: xbriyaz, dejavusans, sans-serif;">الرقم الضريبي</span>
+                        / Tax ID:
+                        <span dir="ltr">{{ $data->companyTaxNumber() }}</span>
+                    </div>
+                @endif
             </div>
         </td>
         <td width="4%"></td>
