@@ -24,6 +24,7 @@ import {
 } from 'lucide-vue-next';
 import AppLogo from './AppLogo.vue';
 import { computed, ref } from 'vue';
+import { useAdminTheme } from '@/composables/useAdminTheme';
 
 type NavItemWithRoles = NavItem & {
     roles: StaffRole[];
@@ -33,6 +34,7 @@ type NavItemWithRoles = NavItem & {
 const page = usePage();
 const userRole = computed(() => (page.props.auth as Auth | undefined)?.user?.role ?? null);
 const searchQuery = ref('');
+const { isSalla } = useAdminTheme();
 
 const allNavItems: NavItemWithRoles[] = [
     {
@@ -229,27 +231,35 @@ const homeHref = computed(() => {
         side="right"
         collapsible="icon"
         variant="sidebar"
-        class="!bg-white dark:!bg-[hsl(0,0%,11%)] border-s border-gray-100 dark:border-neutral-800 shadow-[0_0_0_1px_rgba(0,0,0,0.02)]"
+        :class="isSalla
+            ? '!bg-[#12141c] border-s-0 shadow-none'
+            : '!bg-white dark:!bg-[hsl(0,0%,11%)] border-s border-gray-100 dark:border-neutral-800 shadow-[0_0_0_1px_rgba(0,0,0,0.02)]'"
     >
-        <SidebarHeader class="gap-3 p-4 pb-2">
+        <SidebarHeader :class="isSalla ? 'gap-4 p-4 pb-3' : 'gap-3 p-4 pb-2'">
             <SidebarMenu>
                 <SidebarMenuItem>
                     <SidebarMenuButton size="lg" as-child class="min-h-0 rounded-xl p-0 hover:bg-transparent">
                         <Link :href="homeHref" class="flex items-center gap-3 py-1">
-                            <AppLogo />
+                            <AppLogo admin />
                         </Link>
                     </SidebarMenuButton>
                 </SidebarMenuItem>
             </SidebarMenu>
 
             <div class="group-data-[collapsible=icon]:hidden px-0.5">
-                <label class="flex h-10 items-center gap-2.5 rounded-full border border-gray-200 bg-white px-3.5 text-gray-400 transition-colors focus-within:border-[var(--nav-accent)]/40 focus-within:ring-2 focus-within:ring-[var(--nav-accent-soft)] dark:border-neutral-700 dark:bg-neutral-900 dark:focus-within:border-[var(--nav-accent)] dark:focus-within:ring-[var(--nav-accent-soft-dark)]">
+                <label
+                    :class="isSalla
+                        ? 'flex h-10 items-center gap-2.5 rounded-xl border border-white/10 bg-white/5 px-3.5 text-white/40 transition-colors focus-within:border-[#7048e8]/50 focus-within:ring-2 focus-within:ring-[#7048e8]/20'
+                        : 'flex h-10 items-center gap-2.5 rounded-full border border-gray-200 bg-white px-3.5 text-gray-400 transition-colors focus-within:border-[var(--nav-accent)]/40 focus-within:ring-2 focus-within:ring-[var(--nav-accent-soft)] dark:border-neutral-700 dark:bg-neutral-900 dark:focus-within:border-[var(--nav-accent)] dark:focus-within:ring-[var(--nav-accent-soft-dark)]'"
+                >
                     <Search class="size-4 shrink-0 stroke-[1.75]" />
                     <input
                         v-model="searchQuery"
                         type="search"
                         placeholder="بحث"
-                        class="w-full bg-transparent text-sm text-gray-700 outline-none placeholder:text-gray-400 dark:text-neutral-200 dark:placeholder:text-neutral-500"
+                        :class="isSalla
+                            ? 'w-full bg-transparent text-sm text-white outline-none placeholder:text-white/35'
+                            : 'w-full bg-transparent text-sm text-gray-700 outline-none placeholder:text-gray-400 dark:text-neutral-200 dark:placeholder:text-neutral-500'"
                     />
                 </label>
             </div>
@@ -259,7 +269,11 @@ const homeHref = computed(() => {
             <NavMain :items="mainNavItems" />
         </SidebarContent>
 
-        <SidebarFooter class="border-t border-gray-100 bg-white p-3 dark:border-neutral-800 dark:bg-[hsl(0,0%,11%)]">
+        <SidebarFooter
+            :class="isSalla
+                ? 'border-t border-white/10 bg-transparent p-3'
+                : 'border-t border-gray-100 bg-white p-3 dark:border-neutral-800 dark:bg-[hsl(0,0%,11%)]'"
+        >
             <NavUser />
         </SidebarFooter>
     </Sidebar>

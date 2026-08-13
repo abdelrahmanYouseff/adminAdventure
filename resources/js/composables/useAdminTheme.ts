@@ -1,4 +1,4 @@
-import { onMounted, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 
 export type AdminTheme = 'default' | 'salla';
 
@@ -40,7 +40,7 @@ export function initializeAdminTheme() {
     applyAdminTheme(getStoredAdminTheme());
 }
 
-const adminTheme = ref<AdminTheme>('default');
+const adminTheme = ref<AdminTheme>(getStoredAdminTheme());
 
 export function useAdminTheme() {
     onMounted(() => {
@@ -57,6 +57,7 @@ export function useAdminTheme() {
 
     return {
         adminTheme,
+        isSalla: computed(() => adminTheme.value === 'salla'),
         updateAdminTheme,
     };
 }

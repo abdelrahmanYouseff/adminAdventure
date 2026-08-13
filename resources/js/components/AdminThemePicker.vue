@@ -21,9 +21,9 @@ const themes: {
     {
         value: 'salla',
         title: 'ثيم سلة',
-        description: 'واجهة إدارية أنيقة مستوحاة من سلة، بنفس محتوى لوحة التحكم',
-        previewClass: 'from-[#f3eeff] via-white to-[#f4f5f8]',
-        accents: ['bg-[#6C2BD9]', 'bg-[#C4B5FD]', 'bg-[#A78BFA]'],
+        description: 'واجهة إدارية كاملة مستوحاة من سلة: سايدبار داكن وألوان بنفسجية، بنفس صفحاتكم',
+        previewClass: 'from-[#12141c] via-[#1a1d27] to-[#f3f4f8]',
+        accents: ['bg-[#7048e8]', 'bg-[#8b6cf0]', 'bg-[#c4b5fd]'],
     },
 ];
 </script>

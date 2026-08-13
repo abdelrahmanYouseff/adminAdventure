@@ -46,11 +46,11 @@
             }
 
             html.theme-salla {
-                background-color: #f4f5f8;
+                background-color: #f3f4f8;
             }
 
             html.theme-salla.dark {
-                background-color: #0f1115;
+                background-color: #0e1016;
             }
         </style>
 

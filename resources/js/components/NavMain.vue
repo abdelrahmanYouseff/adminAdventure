@@ -15,12 +15,14 @@ import { type NavItem } from '@/types';
 import { Link, usePage } from '@inertiajs/vue3';
 import { ChevronDown } from 'lucide-vue-next';
 import { computed } from 'vue';
+import { useAdminTheme } from '@/composables/useAdminTheme';
 
 const props = defineProps<{
     items: NavItem[];
 }>();
 
 const page = usePage();
+const { isSalla } = useAdminTheme();
 
 const isItemActive = (href?: string) => {
     if (!href) {
@@ -60,17 +62,32 @@ const activeHref = computed(() => {
     return null;
 });
 
-const navButtonClass =
-    'rounded-xl text-gray-500 hover:text-[var(--nav-accent-text)] data-[active=true]:bg-[var(--nav-accent-soft)] data-[active=true]:text-[var(--nav-accent-text)] dark:text-neutral-400 dark:hover:text-[var(--nav-accent)] dark:data-[active=true]:bg-[var(--nav-accent-soft-dark)] dark:data-[active=true]:text-[var(--nav-accent)]';
+const navButtonClass = computed(() =>
+    isSalla.value
+        ? 'rounded-[0.7rem] text-[#c5c9d6] hover:text-white data-[active=true]:bg-[#7048e8] data-[active=true]:text-white'
+        : 'rounded-xl text-gray-500 hover:text-[var(--nav-accent-text)] data-[active=true]:bg-[var(--nav-accent-soft)] data-[active=true]:text-[var(--nav-accent-text)] dark:text-neutral-400 dark:hover:text-[var(--nav-accent)] dark:data-[active=true]:bg-[var(--nav-accent-soft-dark)] dark:data-[active=true]:text-[var(--nav-accent)]',
+);
 
-const navIconClass = (active: boolean) =>
-    active ? 'text-[var(--nav-accent)] dark:text-[var(--nav-accent)]' : 'opacity-80';
+const navIconClass = (active: boolean) => {
+    if (isSalla.value) {
+        return active ? 'text-white' : 'text-[#9aa0b2]';
+    }
+
+    return active ? 'text-[var(--nav-accent)] dark:text-[var(--nav-accent)]' : 'opacity-80';
+};
+
+const subButtonClass = computed(() =>
+    isSalla.value
+        ? 'h-9 rounded-lg text-[#8b90a0] hover:bg-white/5 hover:text-white data-[active=true]:bg-[#7048e8]/25 data-[active=true]:font-semibold data-[active=true]:text-white'
+        : 'h-9 rounded-lg text-gray-500 hover:bg-[var(--nav-accent-soft)] hover:text-[var(--nav-accent-text)] data-[active=true]:bg-[var(--nav-accent-soft)] data-[active=true]:font-semibold data-[active=true]:text-[var(--nav-accent-text)] dark:text-neutral-400 dark:hover:text-[var(--nav-accent)] dark:data-[active=true]:bg-[var(--nav-accent-soft-dark)] dark:data-[active=true]:text-[var(--nav-accent)]',
+);
 </script>
 
 <template>
     <SidebarGroup class="px-4 py-2">
         <SidebarGroupLabel
-            class="mb-2 h-auto px-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-gray-400 dark:text-neutral-500"
+            class="mb-2 h-auto px-3 text-[11px] font-semibold uppercase tracking-[0.14em]"
+            :class="isSalla ? 'text-[#6d7385]' : 'text-gray-400 dark:text-neutral-500'"
         >
             القائمة الرئيسية
         </SidebarGroupLabel>
@@ -85,14 +102,14 @@ const navIconClass = (active: boolean) =>
                     >
                         <SidebarMenuItem class="relative">
                             <span
-                                v-if="hasActiveChild(item)"
+                                v-if="hasActiveChild(item) && !isSalla"
                                 class="pointer-events-none absolute inset-y-1 start-0 w-[3px] rounded-full bg-[var(--nav-accent)]"
                                 aria-hidden="true"
                             />
                             <CollapsibleTrigger as-child>
                                 <SidebarMenuButton
                                     size="lg"
-                                    :is-active="hasActiveChild(item)"
+                                    :is-active="isSalla ? false : hasActiveChild(item)"
                                     :tooltip="item.title"
                                     :class="navButtonClass"
                                 >
@@ -114,7 +131,8 @@ const navIconClass = (active: boolean) =>
                                         <SidebarMenuSubButton
                                             as-child
                                             :is-active="activeHref === child.href"
-                                            class="h-9 rounded-lg text-gray-500 hover:bg-[var(--nav-accent-soft)] hover:text-[var(--nav-accent-text)] data-[active=true]:bg-[var(--nav-accent-soft)] data-[active=true]:font-semibold data-[active=true]:text-[var(--nav-accent-text)] dark:text-neutral-400 dark:hover:text-[var(--nav-accent)] dark:data-[active=true]:bg-[var(--nav-accent-soft-dark)] dark:data-[active=true]:text-[var(--nav-accent)]"
+                                            class="h-9 rounded-lg"
+                                            :class="subButtonClass"
                                         >
                                             <Link :href="child.href || '#'" class="flex w-full items-center gap-2.5">
                                                 <component
@@ -134,7 +152,7 @@ const navIconClass = (active: boolean) =>
 
                     <SidebarMenuItem v-else class="relative">
                         <span
-                            v-if="activeHref === item.href"
+                            v-if="activeHref === item.href && !isSalla"
                             class="pointer-events-none absolute inset-y-1 start-0 w-[3px] rounded-full bg-[var(--nav-accent)]"
                             aria-hidden="true"
                         />

@@ -7,10 +7,12 @@ import { usePage } from '@inertiajs/vue3';
 import { ChevronLeft } from 'lucide-vue-next';
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 import UserMenuContent from './UserMenuContent.vue';
+import { useAdminTheme } from '@/composables/useAdminTheme';
 
 const page = usePage();
 const user = page.props.auth?.user as User | null;
 const { isMobile, state } = useSidebar();
+const { isSalla } = useAdminTheme();
 
 const now = ref(new Date());
 let timer: ReturnType<typeof setInterval> | null = null;
@@ -53,14 +55,17 @@ const dateLabel = computed(() =>
                 <DropdownMenuTrigger as-child>
                     <SidebarMenuButton
                         size="lg"
-                        class="h-auto rounded-xl px-2 py-2.5 hover:bg-gray-50 data-[state=open]:bg-gray-50 dark:hover:bg-neutral-900 dark:data-[state=open]:bg-neutral-900"
+                        :class="isSalla
+                            ? 'h-auto rounded-xl px-2 py-2.5 hover:bg-white/5 data-[state=open]:bg-white/5'
+                            : 'h-auto rounded-xl px-2 py-2.5 hover:bg-gray-50 data-[state=open]:bg-gray-50 dark:hover:bg-neutral-900 dark:data-[state=open]:bg-neutral-900'"
                     >
                         <UserInfo
                             :user="user"
                             profile-style
+                            on-dark
                             :meta-line="`${timeLabel}  ${dateLabel}`"
                         />
-                        <ChevronLeft class="ms-auto size-4 shrink-0 text-gray-400 group-data-[collapsible=icon]:hidden" />
+                        <ChevronLeft :class="isSalla ? 'ms-auto size-4 shrink-0 text-white/35 group-data-[collapsible=icon]:hidden' : 'ms-auto size-4 shrink-0 text-gray-400 group-data-[collapsible=icon]:hidden'" />
                     </SidebarMenuButton>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent

@@ -26,7 +26,7 @@ const breadcrumbItems: BreadcrumbItem[] = [
                 <div class="space-y-6">
                     <HeadingSmall
                         title="ثيم لوحة التحكم"
-                        description="اختر شكل الواجهة الإدارية. ثيم سلة يطبّق ألواناً وتخطيطاً مستوحى من سلة على النظام بالكامل مع الإبقاء على محتواكم."
+                        description="ثيم سلة كامل: سايدبار داكن، ألوان بنفسجية، وكروت لوحة التحكم — مع الإبقاء على محتواكم وصفحاتكم."
                     />
                     <AdminThemePicker />
                 </div>
