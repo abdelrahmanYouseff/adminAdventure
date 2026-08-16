@@ -185,8 +185,11 @@
         </tr>
     </table>
 
-    @if ($receipt->notes)
-        <p style="margin-top: 16px;"><strong>ملاحظات:</strong> {{ $receipt->notes }}</p>
+    @if (filled($order->notes))
+        <p style="margin-top: 16px; white-space: pre-wrap;"><strong>ملاحظات الطلب:</strong> {{ $order->notes }}</p>
+    @endif
+    @if (filled($receipt->notes) && trim((string) $receipt->notes) !== trim((string) ($order->notes ?? '')))
+        <p style="margin-top: 8px; white-space: pre-wrap;"><strong>ملاحظات السند:</strong> {{ $receipt->notes }}</p>
     @endif
 
     <div class="footer">

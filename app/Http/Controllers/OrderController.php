@@ -531,7 +531,10 @@ class OrderController extends Controller
                     $request->user(),
                     $validated['payment_method'],
                     'settlement',
-                    'سداد من تعديل الطلب — بانتظار اعتماد المحاسب',
+                    $this->paymentReceiptNotes(
+                        $validated['notes'] ?? null,
+                        'سداد من تعديل الطلب — بانتظار اعتماد المحاسب',
+                    ),
                     $proofImages !== [] ? $proofImages : null,
                     $accountNumber,
                 );
@@ -756,7 +759,10 @@ class OrderController extends Controller
                     $request->user(),
                     $validated['payment_method'],
                     'initial',
-                    'سند قبض عند إنشاء الطلب — بانتظار اعتماد المحاسب',
+                    $this->paymentReceiptNotes(
+                        $validated['notes'] ?? null,
+                        'سند قبض عند إنشاء الطلب — بانتظار اعتماد المحاسب',
+                    ),
                     $proofImages !== [] ? $proofImages : null,
                 );
             } catch (\Throwable $e) {
@@ -1492,6 +1498,13 @@ class OrderController extends Controller
             'progress_done' => $pickedUp,
             'progress_total' => $total,
         ];
+    }
+
+    private function paymentReceiptNotes(?string $orderNotes, string $fallback): string
+    {
+        $orderNotes = trim((string) $orderNotes);
+
+        return $orderNotes !== '' ? $orderNotes : $fallback;
     }
 
     /**

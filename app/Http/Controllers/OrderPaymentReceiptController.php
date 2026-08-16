@@ -26,7 +26,7 @@ class OrderPaymentReceiptController extends Controller
 
         $receipts = OrderPaymentReceipt::query()
             ->with([
-                'order:id,user_id,order_number,customer_name,customer_phone,customer_email,address,total_amount,amount_paid,currency',
+                'order:id,user_id,order_number,customer_name,customer_phone,customer_email,address,total_amount,amount_paid,currency,notes',
                 'order.user:id,customer_name,phone,phone_secondary,email,iban,iban_image',
                 'recordedBy:id,customer_name',
                 'approvedBy:id,customer_name',
@@ -88,9 +88,11 @@ class OrderPaymentReceiptController extends Controller
                         'order_number' => $order->order_number,
                         'customer_name' => $order->customer_name,
                         'currency' => $order->currency ?: 'SAR',
+                        'notes' => $order->notes,
                     ] : null,
                     'customer' => $customer,
                     'recorded_by_name' => $receipt->recordedBy?->customer_name,
+                    'notes' => $receipt->notes,
                     'proof_image_url' => $receipt->proof_image_url,
                     'proof_image_urls' => $receipt->proof_image_urls,
                     'account_number' => $receipt->account_number,

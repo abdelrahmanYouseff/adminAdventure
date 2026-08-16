@@ -34,6 +34,7 @@ import {
     Phone,
     Receipt,
     Search,
+    StickyNote,
     UserRound,
     XCircle,
 } from 'lucide-vue-next';
@@ -75,9 +76,11 @@ interface ReceiptRow {
         order_number: string;
         customer_name: string;
         currency: string;
+        notes?: string | null;
     } | null;
     customer: CustomerProfile | null;
     recorded_by_name?: string | null;
+    notes?: string | null;
     proof_image_url?: string | null;
     proof_image_urls?: string[];
     account_number?: string | null;
@@ -336,6 +339,36 @@ function statusLabel(row: ReceiptRow): string {
     return 'بانتظار الاعتماد';
 }
 
+const SYSTEM_RECEIPT_NOTES = [
+    'سند قبض عند إنشاء الطلب — بانتظار اعتماد المحاسب',
+    'سداد من تعديل الطلب — بانتظار اعتماد المحاسب',
+    'سداد من قائمة الطلبات — بانتظار اعتماد المحاسب',
+    'سند قبض عند إنشاء الطلب',
+];
+
+function orderNotes(row: ReceiptRow): string | null {
+    const notes = row.order?.notes?.trim();
+    return notes || null;
+}
+
+function receiptNotes(row: ReceiptRow): string | null {
+    const notes = row.notes?.trim();
+    if (!notes || SYSTEM_RECEIPT_NOTES.includes(notes)) {
+        return null;
+    }
+
+    const fromOrder = orderNotes(row);
+    if (fromOrder && notes === fromOrder) {
+        return null;
+    }
+
+    return notes;
+}
+
+function hasNotes(row: ReceiptRow): boolean {
+    return Boolean(orderNotes(row) || receiptNotes(row));
+}
+
 function statusBadgeClass(row: ReceiptRow): string {
     if (row.is_approved) {
         return 'bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-300 dark:ring-emerald-900/50';
@@ -504,6 +537,13 @@ function statusBadgeClass(row: ReceiptRow): string {
                                             <span v-if="row.created_at" dir="ltr">{{ formatDate(row.created_at) }}</span>
                                             <span v-else>—</span>
                                         </p>
+                                        <span
+                                            v-if="hasNotes(row)"
+                                            class="mt-1 inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-800 ring-1 ring-inset ring-amber-100 dark:bg-amber-950/40 dark:text-amber-300 dark:ring-amber-900/50"
+                                        >
+                                            <StickyNote class="size-3" />
+                                            ملاحظات
+                                        </span>
                                     </div>
                                 </td>
                                 <td class="px-3 py-4">
@@ -752,6 +792,30 @@ function statusBadgeClass(row: ReceiptRow): string {
                                                     </div>
                                                     <p v-else class="text-sm text-gray-400">لا توجد صور مرفقة</p>
                                                 </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div
+                                        v-if="hasNotes(row)"
+                                        class="mt-4 rounded-xl border border-amber-200 bg-amber-50/70 p-4 dark:border-amber-900/50 dark:bg-amber-950/20"
+                                    >
+                                        <div class="mb-3 flex items-center gap-2">
+                                            <StickyNote class="size-4 text-amber-700 dark:text-amber-300" />
+                                            <p class="font-semibold text-gray-900 dark:text-white">الملاحظات</p>
+                                        </div>
+                                        <div class="space-y-3">
+                                            <div v-if="orderNotes(row)">
+                                                <p class="text-xs text-amber-800/80 dark:text-amber-300/80">ملاحظات الطلب</p>
+                                                <p class="mt-1 whitespace-pre-wrap text-sm font-medium leading-relaxed text-gray-900 dark:text-white">
+                                                    {{ orderNotes(row) }}
+                                                </p>
+                                            </div>
+                                            <div v-if="receiptNotes(row)">
+                                                <p class="text-xs text-amber-800/80 dark:text-amber-300/80">ملاحظات السند</p>
+                                                <p class="mt-1 whitespace-pre-wrap text-sm font-medium leading-relaxed text-gray-900 dark:text-white">
+                                                    {{ receiptNotes(row) }}
+                                                </p>
                                             </div>
                                         </div>
                                     </div>
