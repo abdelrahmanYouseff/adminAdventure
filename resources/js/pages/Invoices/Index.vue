@@ -224,14 +224,21 @@ function openInvoice(invoice: InvoiceItem) {
     router.visit(route('invoices.show', invoice.id));
 }
 
-function exportInvoices() {
-    // Exports every matching invoice across all pages (not only the current page).
+function exportQuery(): string {
     const params = new URLSearchParams();
     if (props.selectedBrandId) params.set('brand', String(props.selectedBrandId));
     const search = (props.filters?.search || searchQuery.value || '').trim();
     if (search) params.set('search', search);
     const query = params.toString();
-    window.open(route('invoices.export') + (query ? `?${query}` : ''), '_blank');
+    return query ? `?${query}` : '';
+}
+
+function exportInvoicesCsv() {
+    window.open(route('invoices.export') + exportQuery(), '_blank');
+}
+
+function exportInvoicesXlsx() {
+    window.open(route('invoices.export.xlsx') + exportQuery(), '_blank');
 }
 
 </script>
@@ -253,9 +260,13 @@ function exportInvoices() {
                 </p>
             </div>
             <div class="flex flex-wrap items-center gap-2">
-                <Button variant="outline" size="sm" class="gap-2 rounded-xl" @click="exportInvoices">
+                <Button variant="outline" size="sm" class="gap-2 rounded-xl" @click="exportInvoicesCsv">
                     <Download class="size-4" />
                     تصدير CSV
+                </Button>
+                <Button variant="outline" size="sm" class="gap-2 rounded-xl" @click="exportInvoicesXlsx">
+                    <Download class="size-4" />
+                    تصدير Excel
                 </Button>
             </div>
         </div>

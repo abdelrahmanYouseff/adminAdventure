@@ -2,12 +2,16 @@
 
 namespace App\Http\Controllers;
 
+use App\Exports\InvoicesExport;
 use App\Models\Brand;
 use App\Models\Invoice;
 use App\Services\InvoicePdfService;
 use App\Support\InvoicePdfData;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
+use Maatwebsite\Excel\Facades\Excel;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class InvoiceController extends Controller
 {
@@ -112,17 +116,9 @@ class InvoiceController extends Controller
     /**
      * Export all matching final invoices (every page) as CSV.
      */
-    public function export(Request $request)
+    public function export(Request $request): StreamedResponse
     {
-        $invoices = $this->finalInvoicesQuery($request)
-            ->with([
-                'user:id,customer_name,email',
-                'brand:id,name',
-                'order:id,invoice_id,customer_name',
-            ])
-            ->orderBy('created_at', 'desc')
-            ->get();
-
+        $invoices = $this->exportInvoices($request);
         $filename = 'invoices-'.now()->format('Y-m-d-His').'.csv';
 
         $headers = [
@@ -133,37 +129,43 @@ class InvoiceController extends Controller
         $callback = function () use ($invoices) {
             $file = fopen('php://output', 'w');
 
-            // Excel-friendly UTF-8 BOM so Arabic columns (اسم العميل) display correctly.
+            // Excel-friendly UTF-8 BOM so Arabic columns display correctly.
             fwrite($file, "\xEF\xBB\xBF");
 
-            fputcsv($file, [
-                'رقم الفاتورة',
-                'اسم العميل',
-                'المبلغ',
-                'العملة',
-                'الحالة',
-                'طريقة الدفع',
-                'البراند',
-                'تاريخ الإنشاء',
-            ]);
+            $export = new InvoicesExport($invoices);
+            fputcsv($file, $export->headings());
 
             foreach ($invoices as $invoice) {
-                fputcsv($file, [
-                    $invoice->invoice_number,
-                    $this->invoiceCustomerName($invoice),
-                    $invoice->amount,
-                    'SAR',
-                    $invoice->status === 'paid' ? 'مدفوعة' : ucfirst((string) $invoice->status),
-                    $invoice->payment_method ?: '—',
-                    $invoice->brand?->name ?: '—',
-                    optional($invoice->created_at)->format('Y-m-d H:i:s'),
-                ]);
+                fputcsv($file, $export->map($invoice));
             }
 
             fclose($file);
         };
 
         return response()->stream($callback, 200, $headers);
+    }
+
+    /**
+     * Export all matching final invoices (every page) as XLSX.
+     */
+    public function exportXlsx(Request $request): BinaryFileResponse
+    {
+        $invoices = $this->exportInvoices($request);
+        $filename = 'invoices-'.now()->format('Y-m-d-His').'.xlsx';
+
+        return Excel::download(new InvoicesExport($invoices), $filename);
+    }
+
+    private function exportInvoices(Request $request)
+    {
+        return $this->finalInvoicesQuery($request)
+            ->with([
+                'user:id,customer_name,email',
+                'brand:id,name',
+                'order:id,invoice_id,customer_name',
+            ])
+            ->orderBy('created_at', 'desc')
+            ->get();
     }
 
     /**
@@ -205,18 +207,6 @@ class InvoiceController extends Controller
                         ->orWhereHas('brand', fn ($brand) => $brand->where('name', 'like', "%{$search}%"));
                 });
             });
-    }
-
-    private function invoiceCustomerName(Invoice $invoice): string
-    {
-        $name = trim((string) (
-            $invoice->order?->customer_name
-            ?: $invoice->user?->customer_name
-            ?: $invoice->user?->name
-            ?: ''
-        ));
-
-        return $name !== '' ? $name : '—';
     }
 
     private function isFinalInvoice(Invoice $invoice): bool

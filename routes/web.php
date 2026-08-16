@@ -294,6 +294,18 @@ Route::get('invoices', [InvoiceController::class, 'index'])
     ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,accounts'])
     ->name('invoices.index');
 
+Route::get('invoices/export/csv', [InvoiceController::class, 'export'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,accounts'])
+    ->name('invoices.export');
+
+Route::get('invoices/export/xlsx', [InvoiceController::class, 'exportXlsx'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,accounts'])
+    ->name('invoices.export.xlsx');
+
+Route::patch('invoices/update-overdue', [InvoiceController::class, 'updateOverdueInvoices'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,accounts'])
+    ->name('invoices.update-overdue');
+
 Route::get('invoices/{invoice}', [InvoiceController::class, 'show'])
     ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,accounts'])
     ->name('invoices.show');
@@ -305,14 +317,6 @@ Route::get('invoices/{invoice}/pdf', [InvoiceController::class, 'generatePdf'])
 Route::patch('invoices/{invoice}/status', [InvoiceController::class, 'updateStatus'])
     ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,accounts'])
     ->name('invoices.update-status');
-
-Route::get('invoices/export/csv', [InvoiceController::class, 'export'])
-    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,accounts'])
-    ->name('invoices.export');
-
-Route::patch('invoices/update-overdue', [InvoiceController::class, 'updateOverdueInvoices'])
-    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,accounts'])
-    ->name('invoices.update-overdue');
 
 Route::get('insurance-deposits', [\App\Http\Controllers\InsuranceDepositController::class, 'index'])
     ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,accounts'])
