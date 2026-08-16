@@ -18,9 +18,10 @@ class ProductController extends Controller
     public function index()
     {
         $brands = Brand::query()
-            ->withCount('products')
+            ->withCount(['products' => fn ($query) => $query->where('show_on_storefront', true)])
             ->with([
                 'products' => fn ($query) => $query
+                    ->where('show_on_storefront', true)
                     ->latest()
                     ->limit(4)
                     ->select(['id', 'brand_id', 'product_name', 'image']),
@@ -51,6 +52,7 @@ class ProductController extends Controller
         $brand->load([
             'products' => fn ($query) => $query
                 ->with('category:id,category_name')
+                ->where('show_on_storefront', true)
                 ->when($categoryId, fn ($q) => $q->where('category_id', $categoryId))
                 ->latest(),
         ]);
@@ -59,7 +61,10 @@ class ProductController extends Controller
             'brand' => $brand,
             'categories' => $categories,
             'selectedCategoryId' => $categoryId,
-            'totalProducts' => Product::query()->where('brand_id', $brand->id)->count(),
+            'totalProducts' => Product::query()
+                ->where('brand_id', $brand->id)
+                ->where('show_on_storefront', true)
+                ->count(),
         ]);
     }
 
@@ -101,6 +106,7 @@ class ProductController extends Controller
         ]);
 
         $data['insurance_amount'] = 0;
+        $data['show_on_storefront'] = true;
 
         if ($request->hasFile('image')) {
             $data['image'] = $request->file('image')->store('products', 'public');

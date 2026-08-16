@@ -225,9 +225,11 @@ function openInvoice(invoice: InvoiceItem) {
 }
 
 function exportInvoices() {
+    // Exports every matching invoice across all pages (not only the current page).
     const params = new URLSearchParams();
     if (props.selectedBrandId) params.set('brand', String(props.selectedBrandId));
-    if (searchQuery.value.trim()) params.set('search', searchQuery.value.trim());
+    const search = (props.filters?.search || searchQuery.value || '').trim();
+    if (search) params.set('search', search);
     const query = params.toString();
     window.open(route('invoices.export') + (query ? `?${query}` : ''), '_blank');
 }

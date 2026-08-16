@@ -174,7 +174,7 @@ class OrderController extends Controller
     public function create()
     {
         $products = Product::query()
-            ->active()
+            ->catalog()
             ->orderBy('product_name')
             ->get(['id', 'product_name', 'description', 'price', 'image', 'insurance_amount']);
 
@@ -199,7 +199,7 @@ class OrderController extends Controller
         $order->load(['products']);
 
         $products = Product::query()
-            ->active()
+            ->catalog()
             ->orderBy('product_name')
             ->get(['id', 'product_name', 'description', 'price', 'image', 'insurance_amount']);
 
@@ -354,10 +354,12 @@ class OrderController extends Controller
         $products = $productIds === []
             ? collect()
             : Product::whereIn('id', $productIds)->get(['id', 'product_name'])->keyBy('id');
+        $brandIdForCustom = Product::resolveBrandIdForIds($productIds);
         $insurance = OrderInsuranceCalculator::fromLines($validated['items']);
         $insuranceTotal = $insurance['total'];
 
         $itemsForOrder = [];
+        $attachLines = [];
         $totalAmount = 0;
         $discountTotal = 0;
 
@@ -371,9 +373,21 @@ class OrderController extends Controller
 
             $productId = ! empty($item['product_id']) ? (int) $item['product_id'] : null;
             $catalog = $productId ? ($products[$productId] ?? null) : null;
-            $name = $catalog
-                ? (string) $catalog->product_name
-                : trim((string) ($item['product_name'] ?? 'صنف مخصص'));
+
+            if (! $catalog) {
+                $custom = Product::createCustomLine(
+                    (string) ($item['product_name'] ?? 'صنف مخصص'),
+                    isset($item['description']) ? (string) $item['description'] : null,
+                    $price,
+                    $brandIdForCustom,
+                );
+                $productId = $custom->id;
+                $name = $custom->product_name;
+            } else {
+                $name = (string) $catalog->product_name;
+            }
+
+            $unitInsurance = (float) ($insurance['unit_by_product'][$productId] ?? 0);
 
             $itemsForOrder[] = [
                 'product_id' => $productId,
@@ -384,11 +398,19 @@ class OrderController extends Controller
                 'price' => $price,
                 'discount_amount' => $discountAmount,
                 'amount' => $lineTotal,
-                'insurance_amount' => $productId
-                    ? (float) ($insurance['unit_by_product'][$productId] ?? 0)
-                    : 0.0,
+                'insurance_amount' => $unitInsurance,
+            ];
+
+            $attachLines[] = [
+                'product_id' => $productId,
+                'quantity' => $qty,
+                'price' => $price,
+                'discount_amount' => $discountAmount,
+                'insurance_amount' => $unitInsurance,
             ];
         }
+
+        $productIds = collect($attachLines)->pluck('product_id')->unique()->values()->all();
 
         $chargeSubtotal = round($totalAmount, 2);
         $taxAmount = round($chargeSubtotal * 0.15, 2);
@@ -424,10 +446,10 @@ class OrderController extends Controller
             $order,
             $validated,
             $itemsForOrder,
+            $attachLines,
             $chargeAmount,
             $discountTotal,
             $taxAmount,
-            $insurance,
             $insuranceTotal,
             $productIds,
             $committed,
@@ -478,16 +500,12 @@ class OrderController extends Controller
             }
 
             $order->products()->detach();
-            foreach ($validated['items'] as $item) {
-                $productId = ! empty($item['product_id']) ? (int) $item['product_id'] : null;
-                if (! $productId) {
-                    continue;
-                }
-                $order->products()->attach($productId, [
-                    'quantity' => (int) $item['quantity'],
-                    'price' => (float) $item['unit_price'],
-                    'discount_amount' => (float) ($item['discount_amount'] ?? 0),
-                    'insurance_amount' => (float) ($insurance['unit_by_product'][$productId] ?? 0),
+            foreach ($attachLines as $line) {
+                $order->products()->attach($line['product_id'], [
+                    'quantity' => $line['quantity'],
+                    'price' => $line['price'],
+                    'discount_amount' => $line['discount_amount'],
+                    'insurance_amount' => $line['insurance_amount'],
                 ]);
             }
 
@@ -598,12 +616,14 @@ class OrderController extends Controller
         $products = $productIds === []
             ? collect()
             : Product::whereIn('id', $productIds)->get(['id', 'product_name'])->keyBy('id');
+        $brandIdForCustom = Product::resolveBrandIdForIds($productIds);
         $insurance = OrderInsuranceCalculator::fromLines($validated['items']);
         $insuranceTotal = $insurance['total'];
 
         $itemsForOrder = [];
         $totalAmount = 0;
         $discountTotal = 0;
+        $attachLines = [];
 
         foreach ($validated['items'] as $item) {
             $qty = (int) $item['quantity'];
@@ -615,9 +635,23 @@ class OrderController extends Controller
 
             $productId = ! empty($item['product_id']) ? (int) $item['product_id'] : null;
             $catalog = $productId ? ($products[$productId] ?? null) : null;
-            $name = $catalog
-                ? (string) $catalog->product_name
-                : trim((string) ($item['product_name'] ?? 'صنف مخصص'));
+
+            if (! $catalog) {
+                $custom = Product::createCustomLine(
+                    (string) ($item['product_name'] ?? 'صنف مخصص'),
+                    isset($item['description']) ? (string) $item['description'] : null,
+                    $price,
+                    $brandIdForCustom,
+                );
+                $productId = $custom->id;
+                $name = $custom->product_name;
+            } else {
+                $name = (string) $catalog->product_name;
+            }
+
+            $unitInsurance = $productId
+                ? (float) ($insurance['unit_by_product'][$productId] ?? 0)
+                : 0.0;
 
             $itemsForOrder[] = [
                 'product_id' => $productId,
@@ -628,11 +662,19 @@ class OrderController extends Controller
                 'price' => $price,
                 'discount_amount' => $discountAmount,
                 'amount' => $lineTotal,
-                'insurance_amount' => $productId
-                    ? (float) ($insurance['unit_by_product'][$productId] ?? 0)
-                    : 0.0,
+                'insurance_amount' => $unitInsurance,
+            ];
+
+            $attachLines[] = [
+                'product_id' => $productId,
+                'quantity' => $qty,
+                'price' => $price,
+                'discount_amount' => $discountAmount,
+                'insurance_amount' => $unitInsurance,
             ];
         }
+
+        $productIds = collect($attachLines)->pluck('product_id')->unique()->values()->all();
 
         $chargeSubtotal = round($totalAmount, 2);
         $taxAmount = round($chargeSubtotal * 0.15, 2);
@@ -660,12 +702,12 @@ class OrderController extends Controller
         $order = DB::transaction(function () use (
             $validated,
             $itemsForOrder,
+            $attachLines,
             $chargeAmount,
             $discountTotal,
             $taxAmount,
             $initialStatus,
             $userId,
-            $insurance,
             $insuranceTotal,
         ) {
             $order = Order::create([
@@ -692,16 +734,12 @@ class OrderController extends Controller
                 'user_id' => $userId,
             ]);
 
-            foreach ($validated['items'] as $item) {
-                $productId = ! empty($item['product_id']) ? (int) $item['product_id'] : null;
-                if (! $productId) {
-                    continue;
-                }
-                $order->products()->attach($productId, [
-                    'quantity' => (int) $item['quantity'],
-                    'price' => (float) $item['unit_price'],
-                    'discount_amount' => (float) ($item['discount_amount'] ?? 0),
-                    'insurance_amount' => (float) ($insurance['unit_by_product'][$productId] ?? 0),
+            foreach ($attachLines as $line) {
+                $order->products()->attach($line['product_id'], [
+                    'quantity' => $line['quantity'],
+                    'price' => $line['price'],
+                    'discount_amount' => $line['discount_amount'],
+                    'insurance_amount' => $line['insurance_amount'],
                 ]);
             }
 

@@ -100,7 +100,7 @@ class QuotationController extends Controller
         $brands = Brand::query()
             ->where('is_active', true)
             ->withCount([
-                'products' => fn ($query) => $query->where('status', 'active'),
+                'products' => fn ($query) => $query->catalog(),
             ])
             ->orderBy('name')
             ->get(['id', 'name', 'slug', 'description', 'logo', 'is_active']);
@@ -115,7 +115,7 @@ class QuotationController extends Controller
 
         if ($selectedBrand) {
             $products = Product::query()
-                ->where('status', 'active')
+                ->catalog()
                 ->where('brand_id', $selectedBrand->id)
                 ->with('category:id,category_name')
                 ->orderBy('product_name')
@@ -123,7 +123,7 @@ class QuotationController extends Controller
 
             $categories = Category::query()
                 ->where('brand_id', $selectedBrand->id)
-                ->whereHas('products', fn ($q) => $q->where('status', 'active')->where('brand_id', $selectedBrand->id))
+                ->whereHas('products', fn ($q) => $q->catalog()->where('brand_id', $selectedBrand->id))
                 ->orderBy('category_name')
                 ->get(['id', 'category_name', 'brand_id']);
         }
@@ -451,6 +451,17 @@ class QuotationController extends Controller
             foreach ($request->items as $item) {
                 $productId = ! empty($item['product_id']) ? (int) $item['product_id'] : null;
                 $product = $productId ? Product::find($productId) : null;
+
+                if (! $product) {
+                    $product = Product::createCustomLine(
+                        (string) ($item['product_name'] ?? 'صنف مخصص'),
+                        isset($item['description']) ? (string) $item['description'] : null,
+                        (float) $item['unit_price'],
+                        $request->brand_id ? (int) $request->brand_id : null,
+                    );
+                    $productId = $product->id;
+                }
+
                 $quantity = (int) $item['quantity'];
                 $unitPrice = round((float) $item['unit_price'], 2);
                 $discountAmount = round((float) ($item['discount_amount'] ?? 0), 2);
@@ -461,12 +472,8 @@ class QuotationController extends Controller
                 QuotationItem::create([
                     'quotation_id' => $quotation->id,
                     'product_id' => $productId,
-                    'product_name' => $product
-                        ? $product->product_name
-                        : trim((string) ($item['product_name'] ?? 'صنف مخصص')),
-                    'description' => $product
-                        ? $product->description
-                        : ($item['description'] ?? null),
+                    'product_name' => $product->product_name,
+                    'description' => $product->description ?: ($item['description'] ?? null),
                     'statement' => trim((string) ($item['statement'] ?? '')) ?: null,
                     'quantity' => $quantity,
                     'unit_price' => $unitPrice,
@@ -563,7 +570,7 @@ class QuotationController extends Controller
         $brandId = $quotation->brand_id;
 
         $products = Product::query()
-            ->where('status', 'active')
+            ->catalog()
             ->when($brandId, fn ($query) => $query->where('brand_id', $brandId))
             ->with('category:id,category_name')
             ->orderBy('product_name')
@@ -572,7 +579,7 @@ class QuotationController extends Controller
         $categories = Category::query()
             ->when($brandId, fn ($query) => $query->where('brand_id', $brandId))
             ->whereHas('products', function ($q) use ($brandId) {
-                $q->where('status', 'active');
+                $q->catalog();
                 if ($brandId) {
                     $q->where('brand_id', $brandId);
                 }
@@ -658,6 +665,17 @@ class QuotationController extends Controller
             foreach ($request->items as $item) {
                 $productId = ! empty($item['product_id']) ? (int) $item['product_id'] : null;
                 $product = $productId ? Product::find($productId) : null;
+
+                if (! $product) {
+                    $product = Product::createCustomLine(
+                        (string) ($item['product_name'] ?? 'صنف مخصص'),
+                        isset($item['description']) ? (string) $item['description'] : null,
+                        (float) $item['unit_price'],
+                        $quotation->brand_id ? (int) $quotation->brand_id : null,
+                    );
+                    $productId = $product->id;
+                }
+
                 $quantity = (int) $item['quantity'];
                 $unitPrice = round((float) $item['unit_price'], 2);
                 $discountAmount = round((float) ($item['discount_amount'] ?? 0), 2);
@@ -668,12 +686,8 @@ class QuotationController extends Controller
                 QuotationItem::create([
                     'quotation_id' => $quotation->id,
                     'product_id' => $productId,
-                    'product_name' => $product
-                        ? $product->product_name
-                        : trim((string) ($item['product_name'] ?? 'صنف مخصص')),
-                    'description' => $product
-                        ? $product->description
-                        : ($item['description'] ?? null),
+                    'product_name' => $product->product_name,
+                    'description' => $product->description ?: ($item['description'] ?? null),
                     'statement' => trim((string) ($item['statement'] ?? '')) ?: null,
                     'quantity' => $quantity,
                     'unit_price' => $unitPrice,

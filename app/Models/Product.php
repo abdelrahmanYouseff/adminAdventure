@@ -18,6 +18,7 @@ class Product extends Model
         'price',
         'insurance_amount',
         'status',
+        'show_on_storefront',
         'image',
         'category_id',
         'brand_id',
@@ -26,6 +27,7 @@ class Product extends Model
     protected $casts = [
         'price' => 'decimal:2',
         'insurance_amount' => 'decimal:2',
+        'show_on_storefront' => 'boolean',
     ];
 
     protected $appends = ['image_url'];
@@ -40,13 +42,25 @@ class Product extends Model
     }
 
     /**
+     * Catalog products for admin pickers (orders/quotations): active + visible on store.
+     * Custom one-off lines stay out of the picker list.
+     */
+    public function scopeCatalog($query)
+    {
+        return $query
+            ->where('status', 'active')
+            ->where('show_on_storefront', true);
+    }
+
+    /**
      * Scope: products visible on the public website (Adventure World brand only).
-     * Internal brands (e.g. WStation, Plate) stay admin-only.
+     * Internal brands (e.g. WStation, Plate) and custom order/quotation lines stay hidden.
      */
     public function scopeStorefront($query)
     {
         return $query
             ->where('status', 'active')
+            ->where('show_on_storefront', true)
             ->where('brand_id', Brand::storefront()->id);
     }
 
@@ -68,6 +82,7 @@ class Product extends Model
     public function isStorefrontVisible(): bool
     {
         return $this->status === 'active'
+            && (bool) $this->show_on_storefront
             && (int) $this->brand_id === (int) Brand::storefront()->id;
     }
 
@@ -80,7 +95,31 @@ class Product extends Model
             fn ($query) => $query
                 ->where('brand_id', Brand::storefront()->id)
                 ->where('status', 'active')
+                ->where('show_on_storefront', true)
         );
+    }
+
+    /**
+     * Create an internal product for a one-off line from orders/quotations.
+     * Never appears on the public website.
+     */
+    public static function createCustomLine(
+        string $name,
+        ?string $description,
+        float $unitPrice,
+        ?int $brandId = null,
+    ): self {
+        return static::query()->create([
+            'product_name' => trim($name) !== '' ? trim($name) : 'صنف مخصص',
+            'description' => filled($description) ? trim($description) : null,
+            'price' => round(max(0, $unitPrice), 2),
+            'insurance_amount' => 0,
+            'status' => 'active',
+            'show_on_storefront' => false,
+            'brand_id' => $brandId ?: Brand::default()->id,
+            'category_id' => null,
+            'image' => null,
+        ]);
     }
 
     /**

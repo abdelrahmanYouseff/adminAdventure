@@ -21,35 +21,12 @@ class InvoiceController extends Controller
         $perPage = (int) $request->query('per_page', 15);
         $perPage = in_array($perPage, [10, 15, 25, 50], true) ? $perPage : 15;
 
-        $invoices = Invoice::with([
-            'user:id,customer_name,email,phone',
-            'brand:id,name,slug',
-            'order:id,invoice_id,status,payment_status,customer_name,customer_email,customer_phone',
-        ])
-            ->where('status', 'paid')
-            ->where(function ($query) {
-                $query->whereDoesntHave('order')
-                    ->orWhereHas('order', fn ($order) => $order
-                        ->where('status', 'paid')
-                        ->where('payment_status', 'paid'));
-            })
-            ->when($brandId, fn ($query) => $query->where('brand_id', $brandId))
-            ->when($search !== '', function ($query) use ($search) {
-                $query->where(function ($inner) use ($search) {
-                    $inner->where('invoice_number', 'like', "%{$search}%")
-                        ->orWhereHas('user', function ($user) use ($search) {
-                            $user->where('customer_name', 'like', "%{$search}%")
-                                ->orWhere('email', 'like', "%{$search}%")
-                                ->orWhere('phone', 'like', "%{$search}%");
-                        })
-                        ->orWhereHas('order', function ($order) use ($search) {
-                            $order->where('customer_name', 'like', "%{$search}%")
-                                ->orWhere('customer_email', 'like', "%{$search}%")
-                                ->orWhere('customer_phone', 'like', "%{$search}%");
-                        })
-                        ->orWhereHas('brand', fn ($brand) => $brand->where('name', 'like', "%{$search}%"));
-                });
-            })
+        $invoices = $this->finalInvoicesQuery($request)
+            ->with([
+                'user:id,customer_name,email,phone',
+                'brand:id,name,slug',
+                'order:id,invoice_id,status,payment_status,customer_name,customer_email,customer_phone',
+            ])
             ->orderBy('created_at', 'desc')
             ->paginate($perPage)
             ->withQueryString();
@@ -133,60 +110,53 @@ class InvoiceController extends Controller
     }
 
     /**
-     * Export invoices
+     * Export all matching final invoices (every page) as CSV.
      */
     public function export(Request $request)
     {
-        $query = Invoice::with([
-            'user:id,customer_name,email',
-            'order:id,invoice_id,customer_name',
-        ])->where('status', 'paid');
+        $invoices = $this->finalInvoicesQuery($request)
+            ->with([
+                'user:id,customer_name,email',
+                'brand:id,name',
+                'order:id,invoice_id,customer_name',
+            ])
+            ->orderBy('created_at', 'desc')
+            ->get();
 
-        if ($request->has('brand') && $request->brand !== 'all') {
-            $query->where('brand_id', $request->brand);
-        }
+        $filename = 'invoices-'.now()->format('Y-m-d-His').'.csv';
 
-        if ($request->has('date_from')) {
-            $query->whereDate('created_at', '>=', $request->date_from);
-        }
-
-        if ($request->has('date_to')) {
-            $query->whereDate('created_at', '<=', $request->date_to);
-        }
-
-        $invoices = $query->orderBy('created_at', 'desc')->get();
-
-        // Return CSV data
         $headers = [
-            'Content-Type' => 'text/csv',
-            'Content-Disposition' => 'attachment; filename="invoices.csv"',
+            'Content-Type' => 'text/csv; charset=UTF-8',
+            'Content-Disposition' => 'attachment; filename="'.$filename.'"',
         ];
 
-        $callback = function() use ($invoices) {
+        $callback = function () use ($invoices) {
             $file = fopen('php://output', 'w');
 
-            // Add headers
+            // Excel-friendly UTF-8 BOM so Arabic columns (اسم العميل) display correctly.
+            fwrite($file, "\xEF\xBB\xBF");
+
             fputcsv($file, [
-                'Invoice Number',
-                'Customer Name',
-                'Amount',
-                'Currency',
-                'Status',
-                'Payment Method',
-                'Created Date'
+                'رقم الفاتورة',
+                'اسم العميل',
+                'المبلغ',
+                'العملة',
+                'الحالة',
+                'طريقة الدفع',
+                'البراند',
+                'تاريخ الإنشاء',
             ]);
 
-            // Add data
             foreach ($invoices as $invoice) {
                 fputcsv($file, [
                     $invoice->invoice_number,
-                    $invoice->order?->customer_name
-                        ?: ($invoice->user?->customer_name ?: $invoice->user?->name ?: '—'),
+                    $this->invoiceCustomerName($invoice),
                     $invoice->amount,
                     'SAR',
-                    ucfirst($invoice->status),
-                    ucfirst($invoice->payment_method ?? 'N/A'),
-                    $invoice->created_at->format('Y-m-d H:i:s')
+                    $invoice->status === 'paid' ? 'مدفوعة' : ucfirst((string) $invoice->status),
+                    $invoice->payment_method ?: '—',
+                    $invoice->brand?->name ?: '—',
+                    optional($invoice->created_at)->format('Y-m-d H:i:s'),
                 ]);
             }
 
@@ -194,6 +164,59 @@ class InvoiceController extends Controller
         };
 
         return response()->stream($callback, 200, $headers);
+    }
+
+    /**
+     * Same final-invoice set as the index listing (unpaginated for export).
+     */
+    private function finalInvoicesQuery(Request $request)
+    {
+        $brandId = $request->query('brand');
+        if ($brandId === 'all' || $brandId === '' || $brandId === null) {
+            $brandId = null;
+        }
+
+        $search = trim((string) $request->query('search', ''));
+
+        return Invoice::query()
+            ->where('status', 'paid')
+            ->where(function ($query) {
+                $query->whereDoesntHave('order')
+                    ->orWhereHas('order', fn ($order) => $order
+                        ->where('status', 'paid')
+                        ->where('payment_status', 'paid'));
+            })
+            ->when($brandId, fn ($query) => $query->where('brand_id', $brandId))
+            ->when($request->filled('date_from'), fn ($query) => $query->whereDate('created_at', '>=', $request->date_from))
+            ->when($request->filled('date_to'), fn ($query) => $query->whereDate('created_at', '<=', $request->date_to))
+            ->when($search !== '', function ($query) use ($search) {
+                $query->where(function ($inner) use ($search) {
+                    $inner->where('invoice_number', 'like', "%{$search}%")
+                        ->orWhereHas('user', function ($user) use ($search) {
+                            $user->where('customer_name', 'like', "%{$search}%")
+                                ->orWhere('email', 'like', "%{$search}%")
+                                ->orWhere('phone', 'like', "%{$search}%");
+                        })
+                        ->orWhereHas('order', function ($order) use ($search) {
+                            $order->where('customer_name', 'like', "%{$search}%")
+                                ->orWhere('customer_email', 'like', "%{$search}%")
+                                ->orWhere('customer_phone', 'like', "%{$search}%");
+                        })
+                        ->orWhereHas('brand', fn ($brand) => $brand->where('name', 'like', "%{$search}%"));
+                });
+            });
+    }
+
+    private function invoiceCustomerName(Invoice $invoice): string
+    {
+        $name = trim((string) (
+            $invoice->order?->customer_name
+            ?: $invoice->user?->customer_name
+            ?: $invoice->user?->name
+            ?: ''
+        ));
+
+        return $name !== '' ? $name : '—';
     }
 
     private function isFinalInvoice(Invoice $invoice): bool
