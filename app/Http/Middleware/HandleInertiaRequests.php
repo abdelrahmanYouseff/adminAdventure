@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Support\SidebarNavBadges;
 use Closure;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
@@ -65,6 +66,7 @@ class HandleInertiaRequests extends Middleware
                 'location' => $request->url(),
             ],
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
+            'sidebarBadges' => fn () => SidebarNavBadges::forUser($request->user()),
             'flash' => fn () => [
                 'success' => $request->session()->get('success'),
                 'error' => $request->session()->get('error'),

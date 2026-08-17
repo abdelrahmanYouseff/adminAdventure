@@ -34,6 +34,11 @@ type NavItemWithRoles = NavItem & {
 
 const page = usePage();
 const userRole = computed(() => (page.props.auth as Auth | undefined)?.user?.role ?? null);
+const sidebarBadges = computed(() => (page.props.sidebarBadges as {
+    work_orders?: number;
+    returns?: number;
+    payment_receipts?: number;
+} | undefined) ?? {});
 const searchQuery = ref('');
 const { isSalla } = useAdminTheme();
 
@@ -157,12 +162,36 @@ const allNavItems: NavItemWithRoles[] = [
     },
 ];
 
+function badgeForHref(href?: string): number | undefined {
+    const badges = sidebarBadges.value;
+
+    if (href === '/worker-orders' || href === route('worker-orders.index')) {
+        return badges.work_orders || undefined;
+    }
+
+    if (href === '/returns' || href === route('returns.index')) {
+        return badges.returns || undefined;
+    }
+
+    if (href === '/payment-receipts' || href === route('payment-receipts.index')) {
+        return badges.payment_receipts || undefined;
+    }
+
+    return undefined;
+}
+
 function stripRoles(item: NavItemWithRoles): NavItem {
     const { roles: _roles, children, ...rest } = item;
+    const mappedChildren = children?.map(({ roles: _childRoles, ...child }) => ({
+        ...child,
+        badge: badgeForHref(child.href),
+    }));
+    const childrenBadgeTotal = mappedChildren?.reduce((sum, child) => sum + (child.badge ?? 0), 0) ?? 0;
 
     return {
         ...rest,
-        children: children?.map(({ roles: _childRoles, ...child }) => child),
+        badge: childrenBadgeTotal || badgeForHref(item.href),
+        children: mappedChildren,
     };
 }
 
@@ -171,6 +200,8 @@ const roleNavItems = computed(() => {
     if (!role) {
         return [];
     }
+
+    void sidebarBadges.value;
 
     return allNavItems
         .map((item) => {

@@ -81,6 +81,17 @@ const subButtonClass = computed(() =>
         ? 'h-9 rounded-lg text-[#8b90a0] hover:bg-white/5 hover:text-white data-[active=true]:bg-[#7048e8]/25 data-[active=true]:font-semibold data-[active=true]:text-white'
         : 'h-9 rounded-lg text-gray-500 hover:bg-[var(--nav-accent-soft)] hover:text-[var(--nav-accent-text)] data-[active=true]:bg-[var(--nav-accent-soft)] data-[active=true]:font-semibold data-[active=true]:text-[var(--nav-accent-text)] dark:text-neutral-400 dark:hover:text-[var(--nav-accent)] dark:data-[active=true]:bg-[var(--nav-accent-soft-dark)] dark:data-[active=true]:text-[var(--nav-accent)]',
 );
+
+function formatBadge(count?: number): string {
+    if (!count) {
+        return '';
+    }
+
+    return count > 99 ? '99+' : String(count);
+}
+
+const badgeClass =
+    'inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-red-500 px-1.5 text-[10px] font-bold leading-none text-white';
 </script>
 
 <template>
@@ -97,13 +108,18 @@ const subButtonClass = computed(() =>
                     <Collapsible
                         v-if="item.children?.length"
                         as-child
-                        :default-open="hasActiveChild(item)"
+                        :default-open="hasActiveChild(item) || Boolean(item.badge)"
                         class="group/collapsible"
                     >
                         <SidebarMenuItem class="relative">
                             <span
                                 v-if="hasActiveChild(item) && !isSalla"
                                 class="pointer-events-none absolute inset-y-1 start-0 w-[3px] rounded-full bg-[var(--nav-accent)]"
+                                aria-hidden="true"
+                            />
+                            <span
+                                v-if="item.badge"
+                                class="pointer-events-none absolute top-1 start-1 z-10 hidden h-2 w-2 rounded-full bg-red-500 ring-2 ring-white group-data-[collapsible=icon]:block dark:ring-neutral-900"
                                 aria-hidden="true"
                             />
                             <CollapsibleTrigger as-child>
@@ -119,8 +135,16 @@ const subButtonClass = computed(() =>
                                         :class="navIconClass(hasActiveChild(item))"
                                     />
                                     <span class="truncate">{{ item.title }}</span>
+                                    <div
+                                        v-if="item.badge"
+                                        class="ms-auto group-data-[state=open]/collapsible:hidden"
+                                        :class="badgeClass"
+                                    >
+                                        {{ formatBadge(item.badge) }}
+                                    </div>
                                     <ChevronDown
-                                        class="ms-auto size-4 shrink-0 opacity-60 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-180"
+                                        class="size-4 shrink-0 opacity-60 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-180"
+                                        :class="item.badge ? 'group-data-[state=open]/collapsible:ms-auto' : 'ms-auto'"
                                     />
                                 </SidebarMenuButton>
                             </CollapsibleTrigger>
@@ -134,14 +158,20 @@ const subButtonClass = computed(() =>
                                             class="h-9 rounded-lg"
                                             :class="subButtonClass"
                                         >
-                                            <Link :href="child.href || '#'" class="flex w-full items-center gap-2.5">
+                                            <Link :href="child.href || '#'" class="flex w-full min-w-0 items-center gap-2.5">
                                                 <component
                                                     v-if="child.icon"
                                                     :is="child.icon"
                                                     class="size-4 shrink-0 stroke-[1.75]"
                                                     :class="navIconClass(activeHref === child.href)"
                                                 />
-                                                <span class="truncate">{{ child.title }}</span>
+                                                <span class="min-w-0 flex-1 truncate">{{ child.title }}</span>
+                                                <div
+                                                    v-if="child.badge"
+                                                    :class="badgeClass"
+                                                >
+                                                    {{ formatBadge(child.badge) }}
+                                                </div>
                                             </Link>
                                         </SidebarMenuSubButton>
                                     </SidebarMenuSubItem>
@@ -154,6 +184,11 @@ const subButtonClass = computed(() =>
                         <span
                             v-if="activeHref === item.href && !isSalla"
                             class="pointer-events-none absolute inset-y-1 start-0 w-[3px] rounded-full bg-[var(--nav-accent)]"
+                            aria-hidden="true"
+                        />
+                        <span
+                            v-if="item.badge"
+                            class="pointer-events-none absolute top-1 start-1 z-10 hidden h-2 w-2 rounded-full bg-red-500 ring-2 ring-white group-data-[collapsible=icon]:block dark:ring-neutral-900"
                             aria-hidden="true"
                         />
                         <SidebarMenuButton
@@ -169,7 +204,13 @@ const subButtonClass = computed(() =>
                                     class="size-[1.15rem] shrink-0 stroke-[1.75]"
                                     :class="navIconClass(activeHref === item.href)"
                                 />
-                                <span class="truncate">{{ item.title }}</span>
+                                <span class="min-w-0 flex-1 truncate">{{ item.title }}</span>
+                                <div
+                                    v-if="item.badge"
+                                    :class="badgeClass"
+                                >
+                                    {{ formatBadge(item.badge) }}
+                                </div>
                             </Link>
                         </SidebarMenuButton>
                     </SidebarMenuItem>

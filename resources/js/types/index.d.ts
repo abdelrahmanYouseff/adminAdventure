@@ -15,6 +15,7 @@ export interface NavItem {
     href?: string;
     icon?: LucideIcon;
     isActive?: boolean;
+    badge?: number;
     children?: NavItem[];
 }
 
@@ -26,6 +27,11 @@ export type AppPageProps<T extends Record<string, unknown> = Record<string, unkn
     auth: Auth;
     ziggy: { location: string };
     sidebarOpen: boolean;
+    sidebarBadges?: {
+        work_orders: number;
+        returns: number;
+        payment_receipts: number;
+    };
 };
 
 export interface User {
