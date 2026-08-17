@@ -3,13 +3,6 @@ import { computed, ref, watch } from 'vue';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import AppLayout from '@/layouts/AppLayout.vue';
 import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuSeparator,
-    DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import {
     Dialog,
     DialogContent,
     DialogDescription,
@@ -30,7 +23,6 @@ import {
     FileText,
     Mail,
     MapPin,
-    MoreVertical,
     Phone,
     Receipt,
     Search,
@@ -48,6 +40,7 @@ interface CustomerProfile {
     address: string | null;
     iban: string | null;
     iban_image_url: string | null;
+    tax_number?: string | null;
     source: string;
     type: string | null;
 }
@@ -78,7 +71,6 @@ interface ReceiptRow {
         currency: string;
         notes?: string | null;
     } | null;
-    customer: CustomerProfile | null;
     recorded_by_name?: string | null;
     notes?: string | null;
     proof_image_url?: string | null;
@@ -86,11 +78,41 @@ interface ReceiptRow {
     account_number?: string | null;
 }
 
+interface OrderGroup {
+    id: number | null;
+    order_number: string | null;
+    customer_name: string | null;
+    currency: string;
+    notes: string | null;
+    total_amount: number;
+    amount_paid: number;
+    remaining_amount: number;
+    receipts: ReceiptRow[];
+}
+
+interface CustomerGroup {
+    key: string;
+    customer: CustomerProfile;
+    orders_count: number;
+    receipts_count: number;
+    pending_count: number;
+    approved_count: number;
+    rejected_count: number;
+    pending_amount: number;
+    total_amount: number;
+    remaining_amount: number;
+    currency: string;
+    latest_receipt_id: number;
+    latest_at: string | null;
+    has_notes: boolean;
+    orders: OrderGroup[];
+}
+
 type StatusTab = 'all' | 'pending' | 'approved' | 'rejected';
 
 interface Props {
-    receipts: {
-        data: ReceiptRow[];
+    groups: {
+        data: CustomerGroup[];
         current_page: number;
         last_page: number;
         total: number;
@@ -127,8 +149,7 @@ defineOptions({ layout: AppLayout });
 const searchInput = ref(props.filters?.search ?? '');
 const statusFilter = ref<StatusTab>((props.filters?.status as StatusTab) || 'all');
 const perPage = ref(props.filters?.per_page || 15);
-const selectedIds = ref<number[]>([]);
-const expandedReceiptId = ref<number | null>(null);
+const expandedGroupKey = ref<string | null>(null);
 const approveForm = useForm({});
 const approvingId = ref<number | null>(null);
 const rejectDialogOpen = ref(false);
@@ -150,34 +171,34 @@ const summaryCards = computed(() => [
         label: 'إجمالي السندات',
         value: props.statusCounts.all,
         unit: 'سند',
-        hint: 'عرض كل السندات',
+        hint: 'عرض كل العملاء',
     },
     {
         key: 'pending' as const,
         label: 'بانتظار الاعتماد',
         value: props.statusCounts.pending,
         unit: 'سند',
-        hint: 'عرض المعلقة',
+        hint: 'عملاء لديهم سند معلّق',
     },
     {
         key: 'approved' as const,
         label: 'معتمدة',
         value: props.statusCounts.approved,
         unit: 'سند',
-        hint: 'عرض المعتمدة',
+        hint: 'عملاء لديهم سند معتمد',
     },
     {
         key: 'rejected' as const,
         label: 'مرفوضة',
         value: props.statusCounts.rejected ?? 0,
         unit: 'سند',
-        hint: 'عرض المرفوضة',
+        hint: 'عملاء لديهم سند مرفوض',
     },
 ]);
 
 const pageNumbers = computed(() => {
-    const total = props.receipts.last_page;
-    const current = props.receipts.current_page;
+    const total = props.groups.last_page;
+    const current = props.groups.current_page;
     if (total <= 7) {
         return Array.from({ length: total }, (_, i) => i + 1);
     }
@@ -193,20 +214,13 @@ const pageNumbers = computed(() => {
     return pages;
 });
 
-const allVisibleSelected = computed(
-    () =>
-        props.receipts.data.length > 0
-        && props.receipts.data.every((row) => selectedIds.value.includes(row.id)),
-);
-
 watch(
     () => props.filters,
     (filters) => {
         searchInput.value = filters?.search ?? '';
         statusFilter.value = (filters?.status as StatusTab) || 'all';
         perPage.value = filters?.per_page || 15;
-        selectedIds.value = [];
-        expandedReceiptId.value = null;
+        expandedGroupKey.value = null;
     },
 );
 
@@ -233,7 +247,7 @@ function onSearchSubmit() {
 }
 
 function goToPage(pageNum: number) {
-    if (pageNum >= 1 && pageNum <= props.receipts.last_page) {
+    if (pageNum >= 1 && pageNum <= props.groups.last_page) {
         applyFilters(pageNum);
     }
 }
@@ -242,29 +256,8 @@ function tabCount(tab: StatusTab): number {
     return props.statusCounts?.[tab] ?? 0;
 }
 
-function toggleSelectAll() {
-    if (allVisibleSelected.value) {
-        const visible = new Set(props.receipts.data.map((row) => row.id));
-        selectedIds.value = selectedIds.value.filter((id) => !visible.has(id));
-        return;
-    }
-
-    selectedIds.value = Array.from(new Set([
-        ...selectedIds.value,
-        ...props.receipts.data.map((row) => row.id),
-    ]));
-}
-
-function toggleSelect(id: number) {
-    if (selectedIds.value.includes(id)) {
-        selectedIds.value = selectedIds.value.filter((item) => item !== id);
-        return;
-    }
-    selectedIds.value = [...selectedIds.value, id];
-}
-
-function toggleExpand(row: ReceiptRow) {
-    expandedReceiptId.value = expandedReceiptId.value === row.id ? null : row.id;
+function toggleExpand(group: CustomerGroup) {
+    expandedGroupKey.value = expandedGroupKey.value === group.key ? null : group.key;
 }
 
 function approveReceipt(row: ReceiptRow) {
@@ -308,9 +301,9 @@ function receiptPdfUrl(row: ReceiptRow): string | null {
     return `/orders/${row.order.id}/payment-receipts/${row.id}`;
 }
 
-function orderUrl(row: ReceiptRow): string | null {
-    if (!row.order) return null;
-    return `/orders/${row.order.id}`;
+function orderUrl(order: OrderGroup): string | null {
+    if (!order.id) return null;
+    return `/orders/${order.id}`;
 }
 
 function paymentMethodLabel(method: string | null): string {
@@ -346,27 +339,49 @@ const SYSTEM_RECEIPT_NOTES = [
     'سند قبض عند إنشاء الطلب',
 ];
 
-function orderNotes(row: ReceiptRow): string | null {
-    const notes = row.order?.notes?.trim();
-    return notes || null;
-}
-
-function receiptNotes(row: ReceiptRow): string | null {
+function displayReceiptNotes(row: ReceiptRow, orderNotes: string | null): string | null {
     const notes = row.notes?.trim();
     if (!notes || SYSTEM_RECEIPT_NOTES.includes(notes)) {
         return null;
     }
 
-    const fromOrder = orderNotes(row);
-    if (fromOrder && notes === fromOrder) {
+    if (orderNotes?.trim() && notes === orderNotes.trim()) {
         return null;
     }
 
     return notes;
 }
 
-function hasNotes(row: ReceiptRow): boolean {
-    return Boolean(orderNotes(row) || receiptNotes(row));
+function groupNotes(group: CustomerGroup): string[] {
+    const notes: string[] = [];
+    for (const order of group.orders) {
+        const orderNote = order.notes?.trim();
+        if (orderNote && !notes.includes(orderNote)) {
+            notes.push(orderNote);
+        }
+        for (const receipt of order.receipts) {
+            const extra = displayReceiptNotes(receipt, order.notes);
+            if (extra && !notes.includes(extra)) {
+                notes.push(extra);
+            }
+        }
+    }
+    return notes;
+}
+
+function proofUrls(row: ReceiptRow): string[] {
+    if (row.proof_image_urls?.length) {
+        return row.proof_image_urls;
+    }
+    return row.proof_image_url ? [row.proof_image_url] : [];
+}
+
+function firstPendingReceipt(group: CustomerGroup): ReceiptRow | null {
+    for (const order of group.orders) {
+        const pending = order.receipts.find((receipt) => receipt.can_approve);
+        if (pending) return pending;
+    }
+    return null;
 }
 
 function statusBadgeClass(row: ReceiptRow): string {
@@ -391,7 +406,7 @@ function statusBadgeClass(row: ReceiptRow): string {
                     سندات القبض
                 </h1>
                 <p class="mt-1 text-sm text-gray-500 dark:text-neutral-400">
-                    اعتماد المبالغ المحصّلة؛ عند اعتماد أول مبلغ يصدر أمر العمل
+                    كل عميل يظهر مرة واحدة، مع كل طلباته وإيصالات الدفع السابقة مرتّبة
                 </p>
             </div>
         </div>
@@ -455,7 +470,7 @@ function statusBadgeClass(row: ReceiptRow): string {
                         <input
                             v-model="searchInput"
                             type="search"
-                            placeholder="ابحث برقم السند أو الطلب أو العميل..."
+                            placeholder="ابحث بالعميل أو رقم الطلب أو السند..."
                             class="w-full bg-transparent text-sm text-gray-800 outline-none placeholder:text-gray-400 dark:text-neutral-100"
                         />
                     </label>
@@ -473,72 +488,51 @@ function statusBadgeClass(row: ReceiptRow): string {
                         <option :value="25">25</option>
                         <option :value="50">50</option>
                     </select>
-                    <span>من {{ formatInteger(receipts.total) }} نتيجة</span>
+                    <span>من {{ formatInteger(groups.total) }} عميل</span>
                 </div>
             </div>
 
             <div class="overflow-x-auto">
-                <table class="w-full min-w-[1100px] border-collapse text-sm">
+                <table class="w-full min-w-[980px] border-collapse text-sm">
                     <thead>
                         <tr class="border-b border-gray-100 text-start dark:border-neutral-800">
-                            <th class="w-12 px-4 py-3.5">
-                                <input
-                                    type="checkbox"
-                                    class="size-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                                    :checked="allVisibleSelected"
-                                    @change="toggleSelectAll"
-                                />
-                            </th>
                             <th class="w-10 px-2 py-3.5" />
-                            <th class="px-3 py-3.5 text-start text-[13px] font-semibold text-gray-700 dark:text-neutral-200">السند</th>
                             <th class="px-3 py-3.5 text-start text-[13px] font-semibold text-gray-700 dark:text-neutral-200">العميل</th>
-                            <th class="px-3 py-3.5 text-start text-[13px] font-semibold text-gray-700 dark:text-neutral-200">المبلغ</th>
-                            <th class="px-3 py-3.5 text-start text-[13px] font-semibold text-gray-700 dark:text-neutral-200">الإجمالي</th>
+                            <th class="px-3 py-3.5 text-start text-[13px] font-semibold text-gray-700 dark:text-neutral-200">الطلبات</th>
+                            <th class="px-3 py-3.5 text-start text-[13px] font-semibold text-gray-700 dark:text-neutral-200">معلّق</th>
                             <th class="px-3 py-3.5 text-start text-[13px] font-semibold text-gray-700 dark:text-neutral-200">المتبقي</th>
                             <th class="px-3 py-3.5 text-start text-[13px] font-semibold text-gray-700 dark:text-neutral-200">الحالة</th>
                             <th class="px-4 py-3.5 text-end text-[13px] font-semibold text-gray-700 dark:text-neutral-200" />
                         </tr>
                     </thead>
                     <tbody>
-                        <tr v-if="receipts.data.length === 0">
-                            <td colspan="9" class="px-4 py-16 text-center text-gray-500 dark:text-neutral-400">
+                        <tr v-if="groups.data.length === 0">
+                            <td colspan="7" class="px-4 py-16 text-center text-gray-500 dark:text-neutral-400">
                                 لا توجد سندات مطابقة للبحث أو الفلتر الحالي.
                             </td>
                         </tr>
-                        <template v-for="row in receipts.data" :key="row.id">
+                        <template v-for="group in groups.data" :key="group.key">
                             <tr
                                 class="cursor-pointer border-b border-gray-100 transition hover:bg-gray-50/70 dark:border-neutral-800 dark:hover:bg-neutral-800/40"
-                                :class="expandedReceiptId === row.id ? 'bg-gray-50/80 dark:bg-neutral-800/30' : ''"
-                                @click="toggleExpand(row)"
+                                :class="expandedGroupKey === group.key ? 'bg-gray-50/80 dark:bg-neutral-800/30' : ''"
+                                @click="toggleExpand(group)"
                             >
-                                <td class="px-4 py-4" @click.stop>
-                                    <input
-                                        type="checkbox"
-                                        class="size-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                                        :checked="selectedIds.includes(row.id)"
-                                        @change="toggleSelect(row.id)"
-                                    />
-                                </td>
                                 <td class="px-2 py-4 text-center">
                                     <ChevronDown
                                         class="mx-auto size-4 text-gray-400 transition-transform"
-                                        :class="expandedReceiptId === row.id ? 'rotate-180' : ''"
+                                        :class="expandedGroupKey === group.key ? 'rotate-180' : ''"
                                     />
                                 </td>
                                 <td class="px-3 py-4">
-                                    <div class="flex flex-col items-start gap-0.5">
-                                        <p class="font-semibold tabular-nums text-gray-900 dark:text-white" dir="ltr">
-                                            {{ row.receipt_number }}
+                                    <div class="flex min-w-0 flex-col items-start gap-0.5">
+                                        <p class="font-semibold text-gray-900 dark:text-white">
+                                            {{ group.customer?.name || group.orders[0]?.customer_name || '—' }}
                                         </p>
-                                        <p class="text-xs text-gray-400">
-                                            طلب:
-                                            <span class="tabular-nums" dir="ltr">{{ row.order?.order_number || '—' }}</span>
-                                            ·
-                                            <span v-if="row.created_at" dir="ltr">{{ formatDate(row.created_at) }}</span>
-                                            <span v-else>—</span>
+                                        <p class="text-xs tabular-nums text-gray-400" dir="ltr">
+                                            {{ group.customer?.phone || '—' }}
                                         </p>
                                         <span
-                                            v-if="hasNotes(row)"
+                                            v-if="group.has_notes"
                                             class="mt-1 inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-800 ring-1 ring-inset ring-amber-100 dark:bg-amber-950/40 dark:text-amber-300 dark:ring-amber-900/50"
                                         >
                                             <StickyNote class="size-3" />
@@ -547,176 +541,124 @@ function statusBadgeClass(row: ReceiptRow): string {
                                     </div>
                                 </td>
                                 <td class="px-3 py-4">
-                                    <div class="flex min-w-0 flex-col items-start gap-0.5">
-                                        <p class="font-semibold text-gray-900 dark:text-white">
-                                            {{ row.order?.customer_name || '—' }}
-                                        </p>
-                                        <p class="text-xs text-gray-400">
-                                            {{ typeLabel(row.type) }} · {{ paymentMethodLabel(row.payment_method) }}
-                                        </p>
-                                    </div>
+                                    <p class="font-semibold tabular-nums text-gray-900 dark:text-white">
+                                        {{ formatInteger(group.orders_count) }}
+                                        <span class="text-xs font-medium text-gray-400">طلب</span>
+                                    </p>
+                                    <p class="text-xs text-gray-400">
+                                        {{ formatInteger(group.receipts_count) }} سند
+                                        <span v-if="group.latest_at"> · {{ formatDate(group.latest_at) }}</span>
+                                    </p>
                                 </td>
                                 <td class="px-3 py-4 font-semibold tabular-nums text-gray-900 dark:text-white" dir="ltr">
-                                    {{ formatCurrency(row.amount, row.order?.currency || 'SAR') }}
-                                </td>
-                                <td class="px-3 py-4 tabular-nums text-gray-600 dark:text-neutral-300" dir="ltr">
-                                    {{ formatCurrency(row.total_amount, row.order?.currency || 'SAR') }}
+                                    {{ formatCurrency(group.pending_amount, group.currency) }}
                                 </td>
                                 <td class="px-3 py-4 font-semibold tabular-nums" dir="ltr">
-                                    <span :class="row.remaining_amount > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400'">
-                                        {{ formatCurrency(row.remaining_amount, row.order?.currency || 'SAR') }}
+                                    <span :class="group.remaining_amount > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400'">
+                                        {{ formatCurrency(group.remaining_amount, group.currency) }}
                                     </span>
                                 </td>
                                 <td class="px-3 py-4">
-                                    <div class="flex flex-col items-start gap-1">
+                                    <div class="flex flex-wrap items-center gap-1.5">
                                         <span
-                                            class="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold"
-                                            :class="statusBadgeClass(row)"
+                                            v-if="group.pending_count"
+                                            class="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-800 ring-1 ring-inset ring-amber-100 dark:bg-amber-950/40 dark:text-amber-300 dark:ring-amber-900/50"
                                         >
-                                            <CheckCircle2 v-if="row.is_approved" class="size-3.5" />
-                                            <XCircle v-else-if="row.is_rejected" class="size-3.5" />
-                                            {{ statusLabel(row) }}
+                                            {{ formatInteger(group.pending_count) }} معلّق
                                         </span>
                                         <span
-                                            v-if="row.is_approved && row.approved_by_name"
-                                            class="text-[11px] text-gray-400"
+                                            v-if="group.approved_count"
+                                            class="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-300 dark:ring-emerald-900/50"
                                         >
-                                            {{ row.approved_by_name }}
+                                            {{ formatInteger(group.approved_count) }} معتمد
                                         </span>
                                         <span
-                                            v-else-if="row.is_rejected && row.rejected_by_name"
-                                            class="text-[11px] text-gray-400"
+                                            v-if="group.rejected_count"
+                                            class="inline-flex items-center rounded-full bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-700 ring-1 ring-inset ring-red-100 dark:bg-red-950/40 dark:text-red-300 dark:ring-red-900/50"
                                         >
-                                            {{ row.rejected_by_name }}
-                                        </span>
-                                        <span
-                                            v-if="row.is_rejected && row.rejection_reason"
-                                            class="max-w-[220px] text-[11px] leading-snug text-red-600/90 dark:text-red-400"
-                                        >
-                                            السبب: {{ row.rejection_reason }}
+                                            {{ formatInteger(group.rejected_count) }} مرفوض
                                         </span>
                                     </div>
                                 </td>
                                 <td class="px-4 py-4" @click.stop>
-                                    <div class="flex items-center justify-end gap-2">
+                                    <div v-if="group.pending_count === 1 && firstPendingReceipt(group)" class="flex items-center justify-end gap-2">
                                         <button
-                                            v-if="row.can_approve"
                                             type="button"
                                             class="inline-flex h-8 items-center gap-1.5 rounded-lg bg-blue-600 px-3 text-xs font-medium text-white transition hover:bg-blue-700 disabled:opacity-60"
-                                            :disabled="approvingId === row.id || rejectForm.processing"
-                                            @click="approveReceipt(row)"
+                                            :disabled="approvingId === firstPendingReceipt(group)!.id || rejectForm.processing"
+                                            @click="approveReceipt(firstPendingReceipt(group)!)"
                                         >
                                             <CheckCircle2 class="size-3.5" />
-                                            {{ approvingId === row.id ? 'جاري...' : 'اعتماد' }}
+                                            {{ approvingId === firstPendingReceipt(group)!.id ? 'جاري...' : 'اعتماد' }}
                                         </button>
                                         <button
-                                            v-if="row.can_reject"
                                             type="button"
                                             class="inline-flex h-8 items-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 text-xs font-medium text-red-700 transition hover:bg-red-50 disabled:opacity-60 dark:border-red-900/60 dark:bg-neutral-900 dark:text-red-300 dark:hover:bg-red-950/40"
-                                            :disabled="approvingId === row.id || rejectForm.processing"
-                                            @click="openRejectDialog(row)"
+                                            :disabled="approvingId !== null || rejectForm.processing"
+                                            @click="openRejectDialog(firstPendingReceipt(group)!)"
                                         >
                                             <XCircle class="size-3.5" />
                                             رفض
                                         </button>
-                                        <DropdownMenu>
-                                            <DropdownMenuTrigger as-child>
-                                                <button
-                                                    type="button"
-                                                    class="inline-flex size-8 items-center justify-center rounded-lg text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-neutral-800 dark:hover:text-neutral-200"
-                                                >
-                                                    <MoreVertical class="size-4" />
-                                                </button>
-                                            </DropdownMenuTrigger>
-                                            <DropdownMenuContent align="end" class="min-w-44">
-                                                <DropdownMenuItem v-if="receiptPdfUrl(row)" as-child>
-                                                    <a
-                                                        :href="receiptPdfUrl(row)!"
-                                                        target="_blank"
-                                                        rel="noopener"
-                                                        class="gap-2"
-                                                    >
-                                                        <FileText class="size-4" />
-                                                        عرض السند
-                                                    </a>
-                                                </DropdownMenuItem>
-                                                <DropdownMenuItem v-if="orderUrl(row)" as-child>
-                                                    <Link :href="orderUrl(row)!" class="gap-2">
-                                                        <Eye class="size-4" />
-                                                        عرض الطلب
-                                                    </Link>
-                                                </DropdownMenuItem>
-                                                <DropdownMenuSeparator v-if="row.can_approve || row.can_reject" />
-                                                <DropdownMenuItem
-                                                    v-if="row.can_approve"
-                                                    class="gap-2"
-                                                    :disabled="approvingId === row.id"
-                                                    @click="approveReceipt(row)"
-                                                >
-                                                    <CheckCircle2 class="size-4" />
-                                                    اعتماد المبلغ
-                                                </DropdownMenuItem>
-                                                <DropdownMenuItem
-                                                    v-if="row.can_reject"
-                                                    class="gap-2 text-red-600 focus:text-red-700"
-                                                    :disabled="rejectForm.processing"
-                                                    @click="openRejectDialog(row)"
-                                                >
-                                                    <XCircle class="size-4" />
-                                                    رفض السند
-                                                </DropdownMenuItem>
-                                            </DropdownMenuContent>
-                                        </DropdownMenu>
                                     </div>
+                                    <p v-else-if="group.pending_count > 1" class="text-end text-xs text-gray-400">
+                                        افتح التفاصيل لاعتماد السندات
+                                    </p>
                                 </td>
                             </tr>
 
-                            <tr v-if="expandedReceiptId === row.id" class="border-b border-gray-100 bg-gray-50/70 dark:border-neutral-800 dark:bg-neutral-800/20">
-                                <td colspan="9" class="p-4">
+                            <tr v-if="expandedGroupKey === group.key" class="border-b border-gray-100 bg-gray-50/70 dark:border-neutral-800 dark:bg-neutral-800/20">
+                                <td colspan="7" class="p-4">
                                     <div class="grid gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(260px,1fr)]">
                                         <div class="rounded-xl border border-gray-200 bg-white p-4 dark:border-neutral-700 dark:bg-neutral-900">
                                             <div class="mb-3 flex items-center gap-2">
                                                 <UserRound class="size-4 text-gray-400" />
                                                 <p class="font-semibold text-gray-900 dark:text-white">بيانات العميل</p>
                                                 <span
-                                                    v-if="row.customer?.type"
+                                                    v-if="group.customer?.type"
                                                     class="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-600 dark:bg-neutral-800 dark:text-neutral-300"
                                                 >
-                                                    {{ row.customer.type }}
+                                                    {{ group.customer.type }}
                                                 </span>
                                             </div>
                                             <div class="grid gap-3 sm:grid-cols-2">
                                                 <div>
                                                     <p class="text-xs text-gray-400">الاسم</p>
                                                     <p class="mt-0.5 font-medium text-gray-900 dark:text-white">
-                                                        {{ row.customer?.name || row.order?.customer_name || '—' }}
+                                                        {{ group.customer?.name || group.orders[0]?.customer_name || '—' }}
                                                     </p>
                                                 </div>
                                                 <div>
                                                     <p class="text-xs text-gray-400">الجوال</p>
                                                     <p class="mt-0.5 flex items-center gap-1.5 font-medium tabular-nums text-gray-900 dark:text-white" dir="ltr">
                                                         <Phone class="size-3.5 text-gray-400" />
-                                                        {{ row.customer?.phone || '—' }}
+                                                        {{ group.customer?.phone || '—' }}
                                                     </p>
                                                 </div>
                                                 <div>
                                                     <p class="text-xs text-gray-400">جوال إضافي</p>
                                                     <p class="mt-0.5 font-medium tabular-nums text-gray-900 dark:text-white" dir="ltr">
-                                                        {{ row.customer?.phone_secondary || 'غير مسجّل' }}
+                                                        {{ group.customer?.phone_secondary || 'غير مسجّل' }}
                                                     </p>
                                                 </div>
                                                 <div>
                                                     <p class="text-xs text-gray-400">البريد</p>
                                                     <p class="mt-0.5 flex items-center gap-1.5 font-medium text-gray-900 dark:text-white">
                                                         <Mail class="size-3.5 shrink-0 text-gray-400" />
-                                                        <span class="truncate">{{ row.customer?.email || '—' }}</span>
+                                                        <span class="truncate">{{ group.customer?.email || '—' }}</span>
+                                                    </p>
+                                                </div>
+                                                <div v-if="group.customer?.tax_number" class="sm:col-span-2">
+                                                    <p class="text-xs text-gray-400">الرقم الضريبي</p>
+                                                    <p class="mt-0.5 font-medium tabular-nums text-gray-900 dark:text-white" dir="ltr">
+                                                        {{ group.customer.tax_number }}
                                                     </p>
                                                 </div>
                                                 <div class="sm:col-span-2">
                                                     <p class="text-xs text-gray-400">العنوان</p>
                                                     <p class="mt-0.5 flex items-start gap-1.5 font-medium text-gray-900 dark:text-white">
                                                         <MapPin class="mt-0.5 size-3.5 shrink-0 text-gray-400" />
-                                                        <span>{{ row.customer?.address || '—' }}</span>
+                                                        <span>{{ group.customer?.address || '—' }}</span>
                                                     </p>
                                                 </div>
                                                 <div class="sm:col-span-2">
@@ -725,20 +667,15 @@ function statusBadgeClass(row: ReceiptRow): string {
                                                         الملاحظات
                                                     </p>
                                                     <div
-                                                        v-if="orderNotes(row) || receiptNotes(row)"
+                                                        v-if="groupNotes(group).length"
                                                         class="mt-1 space-y-2 rounded-lg bg-amber-50 px-3 py-2 dark:bg-amber-950/30"
                                                     >
                                                         <p
-                                                            v-if="orderNotes(row)"
+                                                            v-for="note in groupNotes(group)"
+                                                            :key="note"
                                                             class="whitespace-pre-wrap text-sm font-medium leading-relaxed text-gray-900 dark:text-white"
                                                         >
-                                                            {{ orderNotes(row) }}
-                                                        </p>
-                                                        <p
-                                                            v-if="receiptNotes(row)"
-                                                            class="whitespace-pre-wrap text-sm font-medium leading-relaxed text-gray-900 dark:text-white"
-                                                        >
-                                                            {{ receiptNotes(row) }}
+                                                            {{ note }}
                                                         </p>
                                                     </div>
                                                     <p v-else class="mt-0.5 text-sm text-gray-400">لا توجد ملاحظات على الطلب</p>
@@ -755,66 +692,183 @@ function statusBadgeClass(row: ReceiptRow): string {
                                                 <div>
                                                     <p class="text-xs text-gray-400">رقم الآيبان</p>
                                                     <p
-                                                        v-if="row.customer?.iban"
+                                                        v-if="group.customer?.iban"
                                                         class="mt-0.5 break-all font-medium tabular-nums text-gray-900 dark:text-white"
                                                         dir="ltr"
                                                     >
-                                                        {{ row.customer.iban }}
+                                                        {{ group.customer.iban }}
                                                     </p>
                                                     <p v-else class="mt-0.5 text-sm text-gray-400">غير مسجّل</p>
                                                 </div>
                                                 <div>
                                                     <p class="mb-1.5 text-xs text-gray-400">صورة الآيبان</p>
                                                     <a
-                                                        v-if="row.customer?.iban_image_url"
-                                                        :href="row.customer.iban_image_url"
+                                                        v-if="group.customer?.iban_image_url"
+                                                        :href="group.customer.iban_image_url"
                                                         target="_blank"
                                                         rel="noopener"
                                                         class="block overflow-hidden rounded-lg border border-gray-200 dark:border-neutral-700"
                                                         @click.stop
                                                     >
                                                         <img
-                                                            :src="row.customer.iban_image_url"
+                                                            :src="group.customer.iban_image_url"
                                                             alt="صورة الآيبان"
                                                             class="max-h-48 w-full bg-gray-50 object-contain dark:bg-neutral-800"
                                                         />
                                                     </a>
                                                     <p v-else class="text-sm text-gray-400">لا توجد صورة مسجّلة</p>
                                                 </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="mt-4 space-y-4">
+                                        <div
+                                            v-for="order in group.orders"
+                                            :key="order.id || order.order_number"
+                                            class="rounded-xl border border-gray-200 bg-white p-4 dark:border-neutral-700 dark:bg-neutral-900"
+                                        >
+                                            <div class="mb-4 flex flex-wrap items-start justify-between gap-3">
                                                 <div>
-                                                    <p class="mb-1.5 text-xs text-gray-400">رقم الحساب</p>
-                                                    <p
-                                                        v-if="row.account_number"
-                                                        class="mt-0.5 break-all font-medium tabular-nums text-gray-900 dark:text-white"
-                                                        dir="ltr"
-                                                    >
-                                                        {{ row.account_number }}
+                                                    <p class="font-semibold text-gray-900 dark:text-white" dir="ltr">
+                                                        {{ order.order_number || '—' }}
                                                     </p>
-                                                    <p v-else class="mt-0.5 text-sm text-gray-400">غير مسجّل</p>
+                                                    <p class="mt-0.5 text-xs text-gray-400">
+                                                        إجمالي
+                                                        <span class="tabular-nums" dir="ltr">{{ formatCurrency(order.total_amount, order.currency) }}</span>
+                                                        · مدفوع
+                                                        <span class="tabular-nums" dir="ltr">{{ formatCurrency(order.amount_paid, order.currency) }}</span>
+                                                        · متبقي
+                                                        <span class="tabular-nums" dir="ltr">{{ formatCurrency(order.remaining_amount, order.currency) }}</span>
+                                                    </p>
                                                 </div>
-                                                <div>
-                                                    <p class="mb-1.5 text-xs text-gray-400">صور التحويل / إيصال الدفع</p>
-                                                    <div
-                                                        v-if="(row.proof_image_urls?.length || (row.proof_image_url ? 1 : 0))"
-                                                        class="grid grid-cols-2 gap-2"
+                                                <Link
+                                                    v-if="orderUrl(order)"
+                                                    :href="orderUrl(order)!"
+                                                    class="inline-flex h-8 items-center gap-1.5 rounded-lg border border-gray-200 px-3 text-xs font-medium text-gray-700 transition hover:bg-gray-50 dark:border-neutral-700 dark:text-neutral-200 dark:hover:bg-neutral-800"
+                                                    @click.stop
+                                                >
+                                                    <Eye class="size-3.5" />
+                                                    عرض الطلب
+                                                </Link>
+                                            </div>
+
+                                            <p class="mb-2 text-xs font-semibold text-gray-500">سجل الإيصالات حسب الدفعات</p>
+                                            <div class="space-y-3">
+                                                <div
+                                                    v-for="receipt in order.receipts"
+                                                    :key="receipt.id"
+                                                    class="rounded-xl border border-gray-100 p-3 dark:border-neutral-800"
+                                                >
+                                                    <div class="flex flex-wrap items-start justify-between gap-3">
+                                                        <div>
+                                                            <p class="font-semibold tabular-nums text-gray-900 dark:text-white" dir="ltr">
+                                                                {{ receipt.receipt_number }}
+                                                            </p>
+                                                            <p class="mt-0.5 text-xs text-gray-400">
+                                                                {{ typeLabel(receipt.type) }}
+                                                                · {{ paymentMethodLabel(receipt.payment_method) }}
+                                                                <span v-if="receipt.created_at"> · {{ formatDate(receipt.created_at) }}</span>
+                                                                <span v-if="receipt.recorded_by_name"> · {{ receipt.recorded_by_name }}</span>
+                                                            </p>
+                                                        </div>
+                                                        <div class="flex flex-wrap items-center gap-2">
+                                                            <span
+                                                                class="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold"
+                                                                :class="statusBadgeClass(receipt)"
+                                                            >
+                                                                <CheckCircle2 v-if="receipt.is_approved" class="size-3.5" />
+                                                                <XCircle v-else-if="receipt.is_rejected" class="size-3.5" />
+                                                                {{ statusLabel(receipt) }}
+                                                            </span>
+                                                            <span class="text-sm font-semibold tabular-nums text-gray-900 dark:text-white" dir="ltr">
+                                                                {{ formatCurrency(receipt.amount, order.currency) }}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+
+                                                    <p
+                                                        v-if="receipt.is_rejected && receipt.rejection_reason"
+                                                        class="mt-2 text-xs leading-snug text-red-600/90 dark:text-red-400"
                                                     >
+                                                        السبب: {{ receipt.rejection_reason }}
+                                                        <span v-if="receipt.rejected_by_name"> — {{ receipt.rejected_by_name }}</span>
+                                                    </p>
+                                                    <p
+                                                        v-else-if="receipt.is_approved && receipt.approved_by_name"
+                                                        class="mt-2 text-xs text-gray-400"
+                                                    >
+                                                        اعتمد بواسطة {{ receipt.approved_by_name }}
+                                                    </p>
+
+                                                    <p
+                                                        v-if="displayReceiptNotes(receipt, order.notes)"
+                                                        class="mt-2 whitespace-pre-wrap text-xs text-gray-600 dark:text-neutral-300"
+                                                    >
+                                                        {{ displayReceiptNotes(receipt, order.notes) }}
+                                                    </p>
+
+                                                    <div class="mt-3">
+                                                        <p class="mb-1.5 text-xs text-gray-400">صور التحويل / إيصال الدفع</p>
+                                                        <div v-if="proofUrls(receipt).length" class="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                                                            <a
+                                                                v-for="(url, imgIndex) in proofUrls(receipt)"
+                                                                :key="`${receipt.id}-proof-${imgIndex}`"
+                                                                :href="url"
+                                                                target="_blank"
+                                                                rel="noopener"
+                                                                class="block overflow-hidden rounded-lg border border-gray-200 dark:border-neutral-700"
+                                                                @click.stop
+                                                            >
+                                                                <img
+                                                                    :src="url"
+                                                                    :alt="`صورة إيصال الدفع ${imgIndex + 1}`"
+                                                                    class="aspect-square w-full bg-gray-50 object-cover dark:bg-neutral-800"
+                                                                />
+                                                            </a>
+                                                        </div>
+                                                        <p v-else class="text-sm text-gray-400">لا توجد صور مرفقة</p>
+                                                    </div>
+
+                                                    <div v-if="receipt.account_number" class="mt-2">
+                                                        <p class="text-xs text-gray-400">رقم الحساب</p>
+                                                        <p class="mt-0.5 break-all text-sm font-medium tabular-nums" dir="ltr">
+                                                            {{ receipt.account_number }}
+                                                        </p>
+                                                    </div>
+
+                                                    <div class="mt-3 flex flex-wrap items-center gap-2" @click.stop>
+                                                        <button
+                                                            v-if="receipt.can_approve"
+                                                            type="button"
+                                                            class="inline-flex h-8 items-center gap-1.5 rounded-lg bg-blue-600 px-3 text-xs font-medium text-white transition hover:bg-blue-700 disabled:opacity-60"
+                                                            :disabled="approvingId === receipt.id || rejectForm.processing"
+                                                            @click="approveReceipt(receipt)"
+                                                        >
+                                                            <CheckCircle2 class="size-3.5" />
+                                                            {{ approvingId === receipt.id ? 'جاري...' : 'اعتماد' }}
+                                                        </button>
+                                                        <button
+                                                            v-if="receipt.can_reject"
+                                                            type="button"
+                                                            class="inline-flex h-8 items-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 text-xs font-medium text-red-700 transition hover:bg-red-50 disabled:opacity-60 dark:border-red-900/60 dark:bg-neutral-900 dark:text-red-300 dark:hover:bg-red-950/40"
+                                                            :disabled="approvingId !== null || rejectForm.processing"
+                                                            @click="openRejectDialog(receipt)"
+                                                        >
+                                                            <XCircle class="size-3.5" />
+                                                            رفض
+                                                        </button>
                                                         <a
-                                                            v-for="(url, imgIndex) in (row.proof_image_urls?.length ? row.proof_image_urls : [row.proof_image_url!])"
-                                                            :key="`${row.id}-proof-${imgIndex}`"
-                                                            :href="url"
+                                                            v-if="receiptPdfUrl(receipt)"
+                                                            :href="receiptPdfUrl(receipt)!"
                                                             target="_blank"
                                                             rel="noopener"
-                                                            class="block overflow-hidden rounded-lg border border-gray-200 dark:border-neutral-700"
-                                                            @click.stop
+                                                            class="inline-flex h-8 items-center gap-1.5 rounded-lg border border-gray-200 px-3 text-xs font-medium text-gray-700 transition hover:bg-gray-50 dark:border-neutral-700 dark:text-neutral-200 dark:hover:bg-neutral-800"
                                                         >
-                                                            <img
-                                                                :src="url"
-                                                                :alt="`صورة إيصال الدفع ${imgIndex + 1}`"
-                                                                class="aspect-square w-full bg-gray-50 object-cover dark:bg-neutral-800"
-                                                            />
+                                                            <FileText class="size-3.5" />
+                                                            عرض السند
                                                         </a>
                                                     </div>
-                                                    <p v-else class="text-sm text-gray-400">لا توجد صور مرفقة</p>
                                                 </div>
                                             </div>
                                         </div>
@@ -828,15 +882,15 @@ function statusBadgeClass(row: ReceiptRow): string {
 
             <div class="flex flex-col gap-3 border-t border-gray-100 px-4 py-4 dark:border-neutral-800 sm:flex-row sm:items-center sm:justify-between">
                 <p class="text-sm text-gray-500 dark:text-neutral-400">
-                    عرض {{ formatInteger(receipts.from ?? 0) }} - {{ formatInteger(receipts.to ?? 0) }} من {{ formatInteger(receipts.total) }}
+                    عرض {{ formatInteger(groups.from ?? 0) }} - {{ formatInteger(groups.to ?? 0) }} من {{ formatInteger(groups.total) }} عميل
                 </p>
 
-                <div v-if="receipts.last_page > 1" class="flex items-center justify-center gap-1.5 sm:justify-end">
+                <div v-if="groups.last_page > 1" class="flex items-center justify-center gap-1.5 sm:justify-end">
                     <button
                         type="button"
                         class="inline-flex size-8 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-500 transition hover:bg-gray-50 disabled:opacity-40 dark:border-neutral-700 dark:bg-neutral-900 dark:hover:bg-neutral-800"
-                        :disabled="receipts.current_page <= 1"
-                        @click="goToPage(receipts.current_page - 1)"
+                        :disabled="groups.current_page <= 1"
+                        @click="goToPage(groups.current_page - 1)"
                     >
                         <ChevronRight class="size-4" />
                     </button>
@@ -848,7 +902,7 @@ function statusBadgeClass(row: ReceiptRow): string {
                             type="button"
                             class="inline-flex size-8 items-center justify-center rounded-lg text-sm font-medium transition"
                             :class="
-                                receipts.current_page === item
+                                groups.current_page === item
                                     ? 'bg-gray-100 text-gray-900 dark:bg-neutral-700 dark:text-white'
                                     : 'text-gray-500 hover:bg-gray-50 dark:text-neutral-300 dark:hover:bg-neutral-800'
                             "
@@ -861,8 +915,8 @@ function statusBadgeClass(row: ReceiptRow): string {
                     <button
                         type="button"
                         class="inline-flex size-8 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-500 transition hover:bg-gray-50 disabled:opacity-40 dark:border-neutral-700 dark:bg-neutral-900 dark:hover:bg-neutral-800"
-                        :disabled="receipts.current_page >= receipts.last_page"
-                        @click="goToPage(receipts.current_page + 1)"
+                        :disabled="groups.current_page >= groups.last_page"
+                        @click="goToPage(groups.current_page + 1)"
                     >
                         <ChevronLeft class="size-4" />
                     </button>
