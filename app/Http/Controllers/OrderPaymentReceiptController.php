@@ -214,8 +214,8 @@ class OrderPaymentReceiptController extends Controller
     }
 
     /**
-     * Group identity for a customer: same phone (or user) stays one row
-     * even if they have several orders and receipts with mixed statuses.
+     * Group by the order's customer name so the same client stays one row,
+     * not the staff/user account that recorded the order.
      */
     private function customerGroupKey(?Order $order): string
     {
@@ -223,21 +223,25 @@ class OrderPaymentReceiptController extends Controller
             return 'unknown:0';
         }
 
+        $name = $this->normalizedCustomerName((string) ($order->customer_name ?? ''));
         $phone = $this->normalizedPhone((string) ($order->customer_phone ?? ''));
+
+        if ($name !== '') {
+            return 'name:'.$name.($phone !== '' ? '|phone:'.$phone : '');
+        }
+
         if ($phone !== '') {
             return 'phone:'.$phone;
         }
 
-        if ($order->user_id) {
-            return 'user:'.$order->user_id;
-        }
-
-        $name = trim(mb_strtolower(preg_replace('/\s+/u', ' ', (string) ($order->customer_name ?? '')) ?? ''));
-        if ($name !== '') {
-            return 'name:'.$name;
-        }
-
         return 'order:'.$order->id;
+    }
+
+    private function normalizedCustomerName(string $name): string
+    {
+        $name = trim(mb_strtolower(preg_replace('/\s+/u', ' ', $name) ?? ''));
+
+        return $name;
     }
 
     /**
@@ -279,6 +283,15 @@ class OrderPaymentReceiptController extends Controller
             ->values();
 
         $customer = $this->mergeCustomerProfiles($profiles);
+        $customerName = $orders
+            ->pluck('customer_name')
+            ->filter(fn ($name) => filled(trim((string) $name)))
+            ->countBy()
+            ->sortDesc()
+            ->keys()
+            ->first();
+        $customer['name'] = $customerName ?: ($customer['name'] ?? null);
+
         $allReceipts = $orders->flatMap(fn (array $order) => $order['receipts']);
         $pendingReceipts = $allReceipts->where('approval_status', OrderPaymentReceipt::STATUS_PENDING);
         $currency = $orders->pluck('currency')->filter()->first() ?: 'SAR';
@@ -286,12 +299,14 @@ class OrderPaymentReceiptController extends Controller
         return [
             'key' => $this->customerGroupKey($receipts->first()?->order),
             'customer' => $customer,
+            'customer_name' => $customer['name'],
             'orders_count' => $orders->count(),
             'receipts_count' => $allReceipts->count(),
             'pending_count' => $pendingReceipts->count(),
             'approved_count' => $allReceipts->where('approval_status', OrderPaymentReceipt::STATUS_APPROVED)->count(),
             'rejected_count' => $allReceipts->where('approval_status', OrderPaymentReceipt::STATUS_REJECTED)->count(),
             'pending_amount' => round((float) $pendingReceipts->sum('amount'), 2),
+            'amount_paid' => round((float) $orders->sum('amount_paid'), 2),
             'total_amount' => round((float) $orders->sum('total_amount'), 2),
             'remaining_amount' => round((float) $orders->sum('remaining_amount'), 2),
             'currency' => $currency,
@@ -357,7 +372,8 @@ class OrderPaymentReceiptController extends Controller
      */
     private function mergeCustomerProfiles(Collection $profiles): array
     {
-        $preferred = $profiles->firstWhere('source', 'company_client')
+                $preferred = $profiles->firstWhere('source', 'company_client')
+            ?? $profiles->firstWhere('source', 'order')
             ?? $profiles->firstWhere('source', 'user')
             ?? $profiles->first()
             ?? [

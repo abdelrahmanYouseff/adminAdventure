@@ -93,12 +93,14 @@ interface OrderGroup {
 interface CustomerGroup {
     key: string;
     customer: CustomerProfile;
+    customer_name?: string | null;
     orders_count: number;
     receipts_count: number;
     pending_count: number;
     approved_count: number;
     rejected_count: number;
     pending_amount: number;
+    amount_paid: number;
     total_amount: number;
     remaining_amount: number;
     currency: string;
@@ -376,6 +378,13 @@ function proofUrls(row: ReceiptRow): string[] {
     return row.proof_image_url ? [row.proof_image_url] : [];
 }
 
+function customerDisplayName(group: CustomerGroup): string {
+    return group.customer_name
+        || group.orders[0]?.customer_name
+        || group.customer?.name
+        || '—';
+}
+
 function firstPendingReceipt(group: CustomerGroup): ReceiptRow | null {
     for (const order of group.orders) {
         const pending = order.receipts.find((receipt) => receipt.can_approve);
@@ -495,14 +504,14 @@ function statusBadgeClass(row: ReceiptRow): string {
             <div class="overflow-x-auto">
                 <table class="w-full min-w-[980px] border-collapse text-sm">
                     <thead>
-                        <tr class="border-b border-gray-100 text-start dark:border-neutral-800">
+                        <tr class="border-b border-gray-100 dark:border-neutral-800">
                             <th class="w-10 px-2 py-3.5" />
-                            <th class="px-3 py-3.5 text-start text-[13px] font-semibold text-gray-700 dark:text-neutral-200">العميل</th>
-                            <th class="px-3 py-3.5 text-start text-[13px] font-semibold text-gray-700 dark:text-neutral-200">الطلبات</th>
-                            <th class="px-3 py-3.5 text-start text-[13px] font-semibold text-gray-700 dark:text-neutral-200">معلّق</th>
+                            <th class="px-3 py-3.5 text-start text-[13px] font-semibold text-gray-700 dark:text-neutral-200">اسم العميل</th>
+                            <th class="px-3 py-3.5 text-start text-[13px] font-semibold text-gray-700 dark:text-neutral-200">المبلغ المدفوع</th>
                             <th class="px-3 py-3.5 text-start text-[13px] font-semibold text-gray-700 dark:text-neutral-200">المتبقي</th>
+                            <th class="px-3 py-3.5 text-start text-[13px] font-semibold text-gray-700 dark:text-neutral-200">الإجمالي</th>
                             <th class="px-3 py-3.5 text-start text-[13px] font-semibold text-gray-700 dark:text-neutral-200">الحالة</th>
-                            <th class="px-4 py-3.5 text-end text-[13px] font-semibold text-gray-700 dark:text-neutral-200" />
+                            <th class="w-40 px-4 py-3.5" />
                         </tr>
                     </thead>
                     <tbody>
@@ -523,10 +532,10 @@ function statusBadgeClass(row: ReceiptRow): string {
                                         :class="expandedGroupKey === group.key ? 'rotate-180' : ''"
                                     />
                                 </td>
-                                <td class="px-3 py-4">
+                                <td class="px-3 py-4 text-start">
                                     <div class="flex min-w-0 flex-col items-start gap-0.5">
                                         <p class="font-semibold text-gray-900 dark:text-white">
-                                            {{ group.customer?.name || group.orders[0]?.customer_name || '—' }}
+                                            {{ customerDisplayName(group) }}
                                         </p>
                                         <p class="text-xs tabular-nums text-gray-400" dir="ltr">
                                             {{ group.customer?.phone || '—' }}
@@ -540,26 +549,22 @@ function statusBadgeClass(row: ReceiptRow): string {
                                         </span>
                                     </div>
                                 </td>
-                                <td class="px-3 py-4">
-                                    <p class="font-semibold tabular-nums text-gray-900 dark:text-white">
-                                        {{ formatInteger(group.orders_count) }}
-                                        <span class="text-xs font-medium text-gray-400">طلب</span>
-                                    </p>
-                                    <p class="text-xs text-gray-400">
-                                        {{ formatInteger(group.receipts_count) }} سند
-                                        <span v-if="group.latest_at"> · {{ formatDate(group.latest_at) }}</span>
-                                    </p>
+                                <td class="px-3 py-4 text-start font-semibold tabular-nums text-gray-900 dark:text-white">
+                                    <span dir="ltr">{{ formatCurrency(group.amount_paid, group.currency) }}</span>
                                 </td>
-                                <td class="px-3 py-4 font-semibold tabular-nums text-gray-900 dark:text-white" dir="ltr">
-                                    {{ formatCurrency(group.pending_amount, group.currency) }}
-                                </td>
-                                <td class="px-3 py-4 font-semibold tabular-nums" dir="ltr">
-                                    <span :class="group.remaining_amount > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400'">
+                                <td class="px-3 py-4 text-start font-semibold tabular-nums">
+                                    <span
+                                        dir="ltr"
+                                        :class="group.remaining_amount > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400'"
+                                    >
                                         {{ formatCurrency(group.remaining_amount, group.currency) }}
                                     </span>
                                 </td>
-                                <td class="px-3 py-4">
-                                    <div class="flex flex-wrap items-center gap-1.5">
+                                <td class="px-3 py-4 text-start font-semibold tabular-nums text-gray-900 dark:text-white">
+                                    <span dir="ltr">{{ formatCurrency(group.total_amount, group.currency) }}</span>
+                                </td>
+                                <td class="px-3 py-4 text-start">
+                                    <div class="flex flex-wrap items-center justify-start gap-1.5">
                                         <span
                                             v-if="group.pending_count"
                                             class="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-800 ring-1 ring-inset ring-amber-100 dark:bg-amber-950/40 dark:text-amber-300 dark:ring-amber-900/50"
@@ -625,7 +630,7 @@ function statusBadgeClass(row: ReceiptRow): string {
                                                 <div>
                                                     <p class="text-xs text-gray-400">الاسم</p>
                                                     <p class="mt-0.5 font-medium text-gray-900 dark:text-white">
-                                                        {{ group.customer?.name || group.orders[0]?.customer_name || '—' }}
+                                                        {{ customerDisplayName(group) }}
                                                     </p>
                                                 </div>
                                                 <div>
