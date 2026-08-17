@@ -47,10 +47,6 @@ class WorkerOrderController extends Controller
 
         return Inertia::render('WorkerOrders/Show', [
             'workOrder' => WorkOrderPresenter::detail($order),
-            'whatsappTestDefaults' => [
-                'test_phone' => (string) config('services.whatsapp.test_customer_phone', '966538778559'),
-                'customer_phone' => $order->customer_phone,
-            ],
             'availableWorkers' => WorkOrderPresenter::availableWorkers(),
         ]);
     }
@@ -84,16 +80,12 @@ class WorkerOrderController extends Controller
         $pdf = $pdfService->render($data);
         $filename = 'delivery-note-'.$data->referenceNumber().'.pdf';
 
-        $validated = $request->validate([
-            'phone' => ['required', 'string', 'max:20'],
-        ], [
-            'phone.required' => 'رقم الجوال مطلوب.',
-        ]);
-
-        $to = WhatsAppCloudService::normalizePhone($validated['phone']);
+        $to = WhatsAppCloudService::normalizePhone(
+            (string) ($order->customer_phone ?: $request->input('phone', '')),
+        );
 
         if (strlen($to) < 11) {
-            return back()->with('error', 'رقم الجوال غير صالح. مثال: 966538778559 أو 0538778559');
+            return back()->with('error', 'لا يمكن الإرسال: رقم جوال العميل غير مسجّل أو غير صالح.');
         }
 
         $upload = $whatsApp->uploadMedia($pdf, 'application/pdf', $filename);
@@ -118,9 +110,8 @@ class WorkerOrderController extends Controller
 
         return back()->with(
             'success',
-            'تم إرسال اختبار واتساب إلى +'.$to
-            .' — رابط إذن التسليم: '.$publicUrl
-            .' — message_id='.($send['message_id'] ?? '—'),
+            'تم إرسال إذن التسليم عبر واتساب إلى رقم العميل +'.$to
+            .' — رابط إذن التسليم: '.$publicUrl,
         );
     }
 

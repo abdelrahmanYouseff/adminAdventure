@@ -31,7 +31,7 @@ import {
     ShieldCheck,
     Clock,
     Wallet,
-    FlaskConical,
+    MessageCircle,
 } from 'lucide-vue-next';
 import { formatCurrency, formatDate, formatDateTime } from '@/lib/formatNumber';
 import Swal from 'sweetalert2';
@@ -131,18 +131,10 @@ interface WorkOrder {
 interface Props {
     workOrder: WorkOrder;
     availableWorkers?: AvailableWorker[];
-    whatsappTestDefaults?: {
-        test_phone?: string | null;
-        customer_phone?: string | null;
-    };
 }
 
 const props = withDefaults(defineProps<Props>(), {
     availableWorkers: () => [],
-    whatsappTestDefaults: () => ({
-        test_phone: '966538778559',
-        customer_phone: null,
-    }),
 });
 
 defineOptions({ layout: AppLayout });
@@ -336,67 +328,35 @@ function printDeliveryNote() {
     window.open(`${props.workOrder.delivery_note_url}?v=${Date.now()}`, '_blank');
 }
 
-async function testDeliveryWhatsApp() {
+function sendDeliveryWhatsApp() {
     if (testingWhatsApp.value) return;
 
-    const defaultPhone =
-        props.whatsappTestDefaults?.test_phone
-        || props.whatsappTestDefaults?.customer_phone
-        || props.workOrder.customer_phone
-        || '966538778559';
-
-    try {
-        const prompt = await Swal.fire({
-            title: 'اختبار واتساب',
-            text: 'أدخل رقم الجوال المستلم',
-            input: 'tel',
-            inputValue: String(defaultPhone || ''),
-            inputPlaceholder: '9665XXXXXXXX',
-            inputAttributes: {
-                dir: 'ltr',
-                autocomplete: 'tel',
-            },
-            showCancelButton: true,
-            confirmButtonText: 'إرسال',
-            cancelButtonText: 'إلغاء',
-            confirmButtonColor: '#059669',
-            cancelButtonColor: '#64748B',
-            reverseButtons: true,
-            focusConfirm: false,
-            inputValidator: (value) => {
-                if (!value || !String(value).trim()) {
-                    return 'أدخل رقم الجوال';
-                }
-                return null;
-            },
-        });
-
-        if (!prompt.isConfirmed || !prompt.value) return;
-
-        testingWhatsApp.value = true;
-        router.post(
-            `/worker-orders/${encodeURIComponent(props.workOrder.reference_number)}/test-delivery-whatsapp`,
-            { phone: String(prompt.value).trim() },
-            {
-                preserveScroll: true,
-                onFinish: () => {
-                    testingWhatsApp.value = false;
-                },
-                onError: () => {
-                    testingWhatsApp.value = false;
-                },
-            },
-        );
-    } catch (error) {
-        testingWhatsApp.value = false;
-        console.error('WhatsApp test dialog failed', error);
-        await Swal.fire({
+    const customerPhone = props.workOrder.customer_phone?.trim() || '';
+    if (!customerPhone) {
+        Swal.fire({
             icon: 'error',
-            title: 'تعذر فتح نافذة الإرسال',
-            text: 'حدّث الصفحة وحاول مرة أخرى.',
+            title: 'لا يوجد رقم للعميل',
+            text: 'سجّل رقم جوال العميل على الطلب أولاً ثم أعد المحاولة.',
             confirmButtonText: 'حسناً',
+            confirmButtonColor: '#2563EB',
         });
+        return;
     }
+
+    testingWhatsApp.value = true;
+    router.post(
+        `/worker-orders/${encodeURIComponent(props.workOrder.reference_number)}/test-delivery-whatsapp`,
+        {},
+        {
+            preserveScroll: true,
+            onFinish: () => {
+                testingWhatsApp.value = false;
+            },
+            onError: () => {
+                testingWhatsApp.value = false;
+            },
+        },
+    );
 }
 
 async function approveWorkOrder() {
@@ -611,11 +571,12 @@ watch(dialogOpen, (isOpen) => { if (!isOpen) closeCompleteDialog(); });
                         <Button
                             variant="outline"
                             class="h-11 rounded-xl border-emerald-200 bg-emerald-50 text-emerald-800 shadow-sm hover:bg-emerald-100"
-                            :disabled="testingWhatsApp"
-                            @click="testDeliveryWhatsApp"
+                            :disabled="testingWhatsApp || !workOrder.customer_phone"
+                            :title="workOrder.customer_phone ? 'إرسال إذن التسليم لرقم العميل' : 'لا يوجد رقم جوال للعميل'"
+                            @click="sendDeliveryWhatsApp"
                         >
-                            <FlaskConical class="ms-1.5 h-4 w-4" />
-                            {{ testingWhatsApp ? 'جاري الإرسال...' : 'اختبار واتساب' }}
+                            <MessageCircle class="ms-1.5 h-4 w-4" />
+                            {{ testingWhatsApp ? 'جاري الإرسال...' : 'إرسال عبر الواتساب' }}
                         </Button>
                         <Button
                             class="h-11 rounded-xl bg-[#2563EB] shadow-sm hover:bg-[#1D4ED8]"
