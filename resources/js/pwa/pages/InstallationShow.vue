@@ -8,6 +8,7 @@ import {
     Camera,
     CheckCircle2,
     ExternalLink,
+    Images,
     MapPin,
     MessageSquareText,
     Package,
@@ -67,7 +68,9 @@ const selectedProduct = ref<ProductLine | null>(null);
 const dialogOpen = ref(false);
 const photoPreview = ref<string | null>(null);
 const photoError = ref<string | null>(null);
-const fileInputRef = ref<HTMLInputElement | null>(null);
+const cameraInputRef = ref<HTMLInputElement | null>(null);
+const galleryInputRef = ref<HTMLInputElement | null>(null);
+let photoChangeSeq = 0;
 
 const installForm = useForm({
     installation_photo: null as File | null,
@@ -141,26 +144,87 @@ function openInstallCapture(product: ProductLine) {
     installForm.clearErrors();
     photoError.value = null;
     clearPreview();
+    resetFileInputs();
     dialogOpen.value = true;
 }
 
+const MAX_PHOTO_BYTES = 5 * 1024 * 1024;
+const MAX_PHOTO_EDGE = 1920;
+
+function isAllowedImageType(type: string): boolean {
+    return ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/bmp'].includes(type);
+}
+
+async function preparePhotoFile(file: File): Promise<File> {
+    if (file.size <= MAX_PHOTO_BYTES && isAllowedImageType(file.type)) {
+        return file;
+    }
+
+    try {
+        const bitmap = await createImageBitmap(file);
+        const scale = Math.min(1, MAX_PHOTO_EDGE / Math.max(bitmap.width, bitmap.height));
+        const width = Math.max(1, Math.round(bitmap.width * scale));
+        const height = Math.max(1, Math.round(bitmap.height * scale));
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+            bitmap.close();
+            return file;
+        }
+        ctx.drawImage(bitmap, 0, 0, width, height);
+        bitmap.close();
+
+        const blob = await new Promise<Blob | null>((resolve) => {
+            canvas.toBlob(resolve, 'image/jpeg', 0.82);
+        });
+
+        if (!blob) return file;
+
+        return new File([blob], file.name.replace(/\.[^.]+$/, '') + '.jpg', {
+            type: 'image/jpeg',
+            lastModified: Date.now(),
+        });
+    } catch {
+        return file;
+    }
+}
+
+function resetFileInputs() {
+    if (cameraInputRef.value) cameraInputRef.value.value = '';
+    if (galleryInputRef.value) galleryInputRef.value.value = '';
+}
+
 function closeCapture() {
+    photoChangeSeq += 1;
     dialogOpen.value = false;
     selectedProduct.value = null;
     installForm.reset();
     installForm.clearErrors();
     photoError.value = null;
     clearPreview();
-    if (fileInputRef.value) fileInputRef.value.value = '';
+    resetFileInputs();
 }
 
-function handlePhotoChange(event: Event) {
-    const file = (event.target as HTMLInputElement).files?.[0] ?? null;
+async function handlePhotoChange(event: Event) {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0] ?? null;
+    const seq = ++photoChangeSeq;
     clearPreview();
-    photoPreview.value = file ? URL.createObjectURL(file) : null;
     photoError.value = null;
-    installForm.installation_photo = file;
     installForm.clearErrors('installation_photo');
+
+    if (!file) {
+        installForm.installation_photo = null;
+        return;
+    }
+
+    const prepared = await preparePhotoFile(file);
+    if (seq !== photoChangeSeq) return;
+
+    photoPreview.value = URL.createObjectURL(prepared);
+    installForm.installation_photo = prepared;
 }
 
 function submitCapture() {
@@ -447,24 +511,38 @@ function confirmLeave() {
 
                     <div class="space-y-4 overflow-y-auto px-5 py-4">
                         <input
-                            ref="fileInputRef"
+                            ref="cameraInputRef"
                             type="file"
                             accept="image/*"
                             capture="environment"
                             class="hidden"
                             @change="handlePhotoChange"
                         />
-                        <button
-                            type="button"
-                            class="flex w-full flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-sky-200 bg-sky-50/50 px-4 py-8 text-sky-700"
-                            @click="fileInputRef?.click()"
-                        >
-                            <Camera class="h-8 w-8" />
-                            <p class="font-semibold">
-                                {{ isDismantling ? t('open_camera_dismantle') : t('open_camera_install') }}
-                            </p>
-                            <p class="text-xs opacity-80">{{ t('or_gallery') }}</p>
-                        </button>
+                        <input
+                            ref="galleryInputRef"
+                            type="file"
+                            accept="image/*"
+                            class="hidden"
+                            @change="handlePhotoChange"
+                        />
+                        <div class="grid grid-cols-2 gap-3">
+                            <button
+                                type="button"
+                                class="flex flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-sky-200 bg-sky-50/50 px-3 py-6 text-sky-700"
+                                @click="cameraInputRef?.click()"
+                            >
+                                <Camera class="h-7 w-7" />
+                                <p class="text-center text-sm font-semibold">{{ t('open_camera') }}</p>
+                            </button>
+                            <button
+                                type="button"
+                                class="flex flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-emerald-200 bg-emerald-50/50 px-3 py-6 text-emerald-700"
+                                @click="galleryInputRef?.click()"
+                            >
+                                <Images class="h-7 w-7" />
+                                <p class="text-center text-sm font-semibold">{{ t('choose_gallery') }}</p>
+                            </button>
+                        </div>
 
                         <img
                             v-if="photoPreview"
