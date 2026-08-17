@@ -21,6 +21,7 @@ import {
     Search,
     Undo2,
     Wallet,
+    BarChart3,
 } from 'lucide-vue-next';
 import AppLogo from './AppLogo.vue';
 import { computed, ref } from 'vue';
@@ -135,6 +136,12 @@ const allNavItems: NavItemWithRoles[] = [
                 roles: ['admin', 'general_manager', 'manager', 'accounts'],
             },
         ],
+    },
+    {
+        title: 'التقارير',
+        href: '/reports',
+        icon: BarChart3,
+        roles: ['admin', 'general_manager', 'manager', 'accounts'],
     },
     {
         title: 'عروض الأسعار',

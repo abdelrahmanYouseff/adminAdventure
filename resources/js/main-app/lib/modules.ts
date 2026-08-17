@@ -1,4 +1,5 @@
 import {
+    BarChart3,
     Building2,
     FileSpreadsheet,
     FileText,
@@ -58,6 +59,7 @@ const iconMap: Record<string, LucideIcon> = {
     'file-text': FileText,
     'shield-check': ShieldCheck,
     'file-spreadsheet': FileSpreadsheet,
+    'bar-chart-3': BarChart3,
     'message-circle': MessageCircle,
 };
 

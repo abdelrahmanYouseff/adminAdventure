@@ -132,6 +132,10 @@ Route::get('dashboard', [DashboardController::class, 'index'])
     ->middleware(['auth', 'verified', 'role:admin,general_manager,manager'])
     ->name('dashboard');
 
+Route::get('reports', [\App\Http\Controllers\ReportController::class, 'index'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,accounts'])
+    ->name('reports.index');
+
 Route::middleware(['auth', 'verified', 'admin'])->prefix('settings')->name('settings.')->group(function () {
     Route::get('whatsapp', [\App\Http\Controllers\Settings\WhatsappNotificationSettingsController::class, 'index'])
         ->name('whatsapp.index');

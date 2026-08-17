@@ -147,6 +147,15 @@ class MainAppModules
                 'roles' => [User::ROLE_ADMIN, User::ROLE_GENERAL_MANAGER, User::ROLE_MANAGER, User::ROLE_ACCOUNTS],
             ],
             [
+                'key' => 'reports',
+                'title' => 'التقارير',
+                'description' => 'تقارير المبيعات والمقارنة بين الفترات',
+                'icon' => 'bar-chart-3',
+                'tone' => 'blue',
+                'desktop_path' => '/reports',
+                'roles' => [User::ROLE_ADMIN, User::ROLE_GENERAL_MANAGER, User::ROLE_MANAGER, User::ROLE_ACCOUNTS],
+            ],
+            [
                 'key' => 'whatsapp',
                 'title' => 'إعدادات واتساب',
                 'description' => 'ربط وإعداد إشعارات واتساب',
