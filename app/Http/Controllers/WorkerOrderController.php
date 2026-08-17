@@ -383,6 +383,7 @@ class WorkerOrderController extends Controller
                 'workerOrders as total_lines',
                 'workerOrders as pending_lines' => fn ($q) => $q->where('status', 'pending'),
                 'workerOrders as completed_lines' => fn ($q) => $q->where('status', 'completed'),
+                'workerAssemblers as assigned_workers_count' => fn ($q) => $q->installation(),
             ]);
 
         if ($status === 'pending') {

@@ -33,6 +33,8 @@ class WorkOrderPresenter
             && ! $isApproved
             && ($photosReady || $canApproveWithoutPhotos);
 
+        $isAssigned = self::hasAssignedInstallationWorkers($order);
+
         return [
             'id' => $order->id,
             'reference_number' => $order->invoice?->invoice_number ?? $order->order_number,
@@ -52,6 +54,7 @@ class WorkOrderPresenter
             'photos_ready' => $photosReady,
             'is_approved' => $isApproved,
             'can_approve' => $canApprove,
+            'is_assigned' => $isAssigned,
             'approved_at' => $order->work_order_approved_at?->toIso8601String(),
             'currency' => $order->currency ?: 'SAR',
             'total_amount' => (float) $order->total_amount,
@@ -62,6 +65,21 @@ class WorkOrderPresenter
                 'image_url' => $line->product_image_url,
             ])->values()->all(),
         ];
+    }
+
+    private static function hasAssignedInstallationWorkers(Order $order): bool
+    {
+        if (isset($order->assigned_workers_count)) {
+            return (int) $order->assigned_workers_count > 0;
+        }
+
+        if ($order->relationLoaded('workerAssemblers')) {
+            return $order->workerAssemblers->contains(
+                fn (WorkerOrderAssembler $assembler) => $assembler->isInstallation(),
+            );
+        }
+
+        return $order->workerAssemblers()->installation()->exists();
     }
 
     /**

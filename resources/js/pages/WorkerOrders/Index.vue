@@ -43,6 +43,7 @@ interface WorkOrderItem {
     approved_at?: string | null;
     currency?: string;
     remaining_amount?: number;
+    is_assigned?: boolean;
     preview_products: PreviewProduct[];
 }
 
@@ -527,7 +528,7 @@ watch(
                     </div>
 
                     <div class="overflow-x-auto">
-                        <table class="w-full min-w-[980px] border-collapse text-sm">
+                        <table class="w-full min-w-[1100px] border-collapse text-sm">
                             <thead>
                                 <tr class="border-b border-gray-100 text-start dark:border-neutral-800">
                                     <th class="w-12 px-4 py-3.5">
@@ -543,12 +544,13 @@ watch(
                                     <th class="px-3 py-3.5 text-start text-[13px] font-semibold text-gray-700 dark:text-neutral-200">يوم الفعالية</th>
                                     <th class="px-3 py-3.5 text-start text-[13px] font-semibold text-gray-700 dark:text-neutral-200">المنتجات</th>
                                     <th class="px-3 py-3.5 text-start text-[13px] font-semibold text-gray-700 dark:text-neutral-200">الحالة</th>
+                                    <th class="px-3 py-3.5 text-start text-[13px] font-semibold text-gray-700 dark:text-neutral-200">تعيين</th>
                                     <th class="px-4 py-3.5 text-end text-[13px] font-semibold text-gray-700 dark:text-neutral-200">إجراءات</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 <tr v-if="workOrders.data.length === 0">
-                                    <td colspan="7" class="px-4 py-16 text-center text-gray-500 dark:text-neutral-400">
+                                    <td colspan="8" class="px-4 py-16 text-center text-gray-500 dark:text-neutral-400">
                                         لا توجد أوامر عمل مطابقة للبحث أو الفلتر الحالي.
                                     </td>
                                 </tr>
@@ -638,6 +640,16 @@ watch(
                                                 معتمد
                                             </span>
                                         </div>
+                                    </td>
+                                    <td class="px-3 py-4">
+                                        <span
+                                            class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold"
+                                            :class="item.is_assigned
+                                                ? 'bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-300 dark:ring-emerald-900/50'
+                                                : 'bg-amber-50 text-amber-700 ring-1 ring-inset ring-amber-100 dark:bg-amber-950/40 dark:text-amber-300 dark:ring-amber-900/50'"
+                                        >
+                                            {{ item.is_assigned ? 'تم التعيين' : 'لم يتم التعيين' }}
+                                        </span>
                                     </td>
                                     <td class="px-4 py-4" @click.stop>
                                         <div class="flex items-center justify-end gap-1.5">
