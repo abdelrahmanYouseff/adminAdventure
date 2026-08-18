@@ -171,8 +171,6 @@ watch(
                 text: success,
                 confirmButtonText: 'حسناً',
                 confirmButtonColor: '#2563EB',
-                timer: 3200,
-                timerProgressBar: true,
             });
             return;
         }

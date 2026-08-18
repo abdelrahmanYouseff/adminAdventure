@@ -77,35 +77,34 @@ class WhatsAppCloudService
     }
 
     /**
-     * Send the delivery-note PDF with the system public URL.
+     * Deliver the note with the approved Meta template.
      *
-     * Prefers a regular document message so WhatsApp does not attach the
-     * Meta template's Visit Website button (still pointing at the shop).
+     * Session document/text messages often return HTTP 200 (accepted) and then
+     * never arrive if the customer has not replied within 24 hours. Do not treat
+     * those as a successful send.
      *
-     * @return array{success: bool, message_id: ?string, error: ?string, status: ?int, mode: string, to: string, used_template: bool}
+     * @return array{success: bool, message_id: ?string, error: ?string, status: ?int, mode: string, to: string, used_template: bool, from: string}
      */
     public function sendDeliveryNoteToCustomer(
         string $to,
         string $mediaId,
         string $filename,
         string $publicUrl,
+        ?string $urlButtonSuffix = null,
     ): array {
-        $caption = 'إذن التسليم: '.$publicUrl;
-        $document = $this->sendDocumentWithReport($to, $mediaId, $filename, $caption);
-
-        if ($document['success']) {
-            $this->sendDeliveryNotePublicLink($to, $publicUrl);
-            $document['used_template'] = false;
-
-            return $document;
-        }
-
-        $template = $this->sendDeliveryNoteTemplate($to, $mediaId, $filename, null, $publicUrl);
+        $from = $this->cloudSendingDisplayPhone();
+        $template = $this->sendDeliveryNoteTemplate($to, $mediaId, $filename, $urlButtonSuffix, $publicUrl);
         $template['used_template'] = true;
+        $template['from'] = $from;
 
-        if ($template['success']) {
-            $this->sendDeliveryNotePublicLink($to, $publicUrl);
+        if (! $template['success']) {
+            $template['error'] = ($template['error'] ?? 'فشل إرسال قالب واتساب')
+                .' — واتساب يقبل رسالة الجلسة ثم لا يوصلها إذا لم يراسل العميل خلال 24 ساعة.';
+
+            return $template;
         }
+
+        $this->sendDeliveryNotePublicLink($to, $publicUrl);
 
         return $template;
     }
@@ -223,33 +222,34 @@ class WhatsAppCloudService
         ];
 
         $buttonUrl = strtolower((string) ($resolved['button_url'] ?? ''));
-        $buttonIsSystemUrl = str_contains($buttonUrl, 'admin.adventureksa.com');
         $buttonIsShopUrl = $this->containsShopDomain($buttonUrl);
+        $buttonIsSystemUrl = str_contains($buttonUrl, 'admin.adventureksa.com');
+        $hasSuffix = is_string($urlButtonSuffix) && $urlButtonSuffix !== '';
 
-        $includeUrlButton = $buttonIsSystemUrl
-            && ! $buttonIsShopUrl
-            && filter_var(config('services.whatsapp.delivery_note_url_button', false), FILTER_VALIDATE_BOOLEAN)
-            && is_string($urlButtonSuffix)
-            && $urlButtonSuffix !== '';
+        $urlButtonComponent = [
+            'type' => 'button',
+            'sub_type' => 'url',
+            'index' => '0',
+            'parameters' => [[
+                'type' => 'text',
+                'text' => (string) $urlButtonSuffix,
+            ]],
+        ];
 
         $componentSets = [];
 
-        if ($includeUrlButton) {
-            $componentSets[] = [
-                $headerComponent,
-                [
-                    'type' => 'button',
-                    'sub_type' => 'url',
-                    'index' => '0',
-                    'parameters' => [[
-                        'type' => 'text',
-                        'text' => $urlButtonSuffix,
-                    ]],
-                ],
-            ];
+        // Never complete a shop.adventurksa.com button. Try the PDF header alone first.
+        $componentSets[] = [$headerComponent];
+
+        if ($hasSuffix && $buttonIsSystemUrl && ! $buttonIsShopUrl) {
+            $componentSets[] = [$headerComponent, $urlButtonComponent];
         }
 
-        $componentSets[] = [$headerComponent];
+        // Meta rejects some templates unless the URL button parameter is present.
+        // Use it last so the message still arrives; follow-up sends the admin URL.
+        if ($hasSuffix && ($buttonUrl === '' || $buttonIsShopUrl)) {
+            $componentSets[] = [$headerComponent, $urlButtonComponent];
+        }
 
         $last = [
             'success' => false,
@@ -717,16 +717,20 @@ class WhatsAppCloudService
      */
     private function parseMessageResponse(\Illuminate\Http\Client\Response $response, string $recipient, string $mode): array
     {
-        if ($response->successful()) {
-            Log::info('WhatsApp message sent', [
+        $messageId = $response->json('messages.0.id');
+        $messageStatus = $response->json('messages.0.message_status');
+
+        if ($response->successful() && is_string($messageId) && $messageId !== '') {
+            Log::info('WhatsApp message accepted', [
                 'to' => $recipient,
                 'mode' => $mode,
-                'message_id' => $response->json('messages.0.id'),
+                'message_id' => $messageId,
+                'message_status' => $messageStatus,
             ]);
 
             return [
                 'success' => true,
-                'message_id' => $response->json('messages.0.id'),
+                'message_id' => $messageId,
                 'error' => null,
                 'status' => $response->status(),
             ];
@@ -736,6 +740,10 @@ class WhatsAppCloudService
         $errorMessage = is_array($errorBody)
             ? ($errorBody['error']['message'] ?? json_encode($errorBody, JSON_UNESCAPED_UNICODE))
             : (string) $errorBody;
+
+        if ($response->successful() && (! is_string($messageId) || $messageId === '')) {
+            $errorMessage = 'واتساب أرجع نجاحاً بدون معرّف رسالة — الرسالة لم تُقبل فعلياً.';
+        }
 
         Log::error('WhatsApp send failed', [
             'to' => $recipient,
@@ -814,6 +822,32 @@ class WhatsAppCloudService
         }
 
         return '+'.$digits;
+    }
+
+    /**
+     * Display number of the Cloud API sender (PHONE_NUMBER_ID), not WHATSAPP_BUSINESS_PHONE.
+     */
+    public function cloudSendingDisplayPhone(): string
+    {
+        $phoneNumberId = (string) config('services.whatsapp.phone_number_id');
+        $version = (string) config('services.whatsapp.graph_version', 'v21.0');
+
+        if ($phoneNumberId === '' || ! $this->isApiConfigured()) {
+            return 'رقم واتساب السحابي';
+        }
+
+        $response = $this->client()->get(
+            "https://graph.facebook.com/{$version}/{$phoneNumberId}",
+            ['fields' => 'display_phone_number']
+        );
+
+        $display = $response->json('display_phone_number');
+
+        if (is_string($display) && $display !== '') {
+            return $display;
+        }
+
+        return 'رقم واتساب السحابي';
     }
 
     /**

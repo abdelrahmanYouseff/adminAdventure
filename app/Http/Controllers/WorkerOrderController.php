@@ -98,24 +98,25 @@ class WorkerOrderController extends Controller
 
         $shortLink = $shortLinks->createDeliveryNoteLink($order);
         $deliveryNoteUrl = $shortLinks->publicUrl($shortLink);
+        $buttonSuffix = $shortLinks->whatsappButtonSuffix($shortLink);
 
         $send = $whatsApp->sendDeliveryNoteToCustomer(
             $to,
             $upload['media_id'],
             $filename,
             $deliveryNoteUrl,
+            $buttonSuffix,
         );
 
         if (! $send['success']) {
             return back()->with('error', 'فشل إرسال إذن التسليم عبر واتساب: '.($send['error'] ?? 'خطأ غير معروف'));
         }
 
-        $message = 'تم إرسال إذن التسليم عبر واتساب إلى +'.$to
-            .' — رابط النظام: '.$deliveryNoteUrl;
-
-        if ($send['used_template'] ?? false) {
-            $message .= ' — إن ظهر زر المتجر فهو من قالب Meta القديم؛ أنشئ قالباً جديداً بدون رابط shop.adventurksa.com';
-        }
+        $from = $send['from'] ?? $whatsApp->cloudSendingDisplayPhone();
+        $message = 'واتساب قبل الرسالة إلى +'.$to
+            .' من رقم '.$from
+            .' — افتح محادثة هذا الرقم تحديداً.'
+            .' رابط النظام: '.$deliveryNoteUrl;
 
         return back()->with('success', $message);
     }
