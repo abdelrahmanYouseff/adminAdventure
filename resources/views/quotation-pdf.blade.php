@@ -149,18 +149,10 @@
 </head>
 <body>
 
-{{-- Top header: company + logo --}}
+{{-- Top header: logo --}}
 <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom: {{ $pt(4) }};">
     <tr>
-        <td width="65%" valign="top">
-            <div style="font-size: {{ $pt(7) }};">
-                <span class="meta-label">CR. No. / <span style="font-family: xbriyaz, dejavusans, sans-serif;">سجل تجاري</span>:</span>
-                {{ $data->commercialRegister() }}
-                &nbsp;|&nbsp;
-                <span class="meta-label">VAT Number / <span style="font-family: xbriyaz, dejavusans, sans-serif;">الرقم الضريبي</span>:</span>
-                {{ $data->vatNumber() }}
-            </div>
-        </td>
+        <td width="65%" valign="top"></td>
         <td width="35%" align="right" valign="top">
             @if($data->hasLogo())
                 <img src="{{ $data->logoPath() }}" alt="{{ $data->logoAlt() }}" height="{{ round(78 * $scale) }}" style="max-width: {{ round(180 * $scale) }}px;">
@@ -183,6 +175,13 @@
             <div style="margin-top: {{ $pt(2) }};" dir="ltr">{{ $data->companyPhone() }}</div>
             <div style="margin-top: {{ $pt(2) }};" dir="ltr">{{ $data->companyEmail() }}</div>
             <div style="margin-top: {{ $pt(2) }};" dir="ltr">{{ $data->companyWebsite() }}</div>
+            <div style="margin-top: {{ $pt(2) }};">
+                <span class="meta-label">CR. No. / <span style="font-family: xbriyaz, dejavusans, sans-serif;">سجل تجاري</span>:</span>
+                {{ $data->commercialRegister() }}
+                &nbsp;|&nbsp;
+                <span class="meta-label">VAT Number / <span style="font-family: xbriyaz, dejavusans, sans-serif;">الرقم الضريبي</span>:</span>
+                {{ $data->vatNumber() }}
+            </div>
         </td>
         <td width="4%"></td>
         <td width="38%" valign="top" align="right" class="meta-block" dir="rtl">

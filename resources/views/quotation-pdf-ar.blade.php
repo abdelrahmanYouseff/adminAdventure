@@ -109,13 +109,7 @@
 
 <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom: {{ $pt(4) }};">
     <tr>
-        <td width="65%" valign="top">
-            <div style="font-size: {{ $pt(7) }};">
-                سجل تجاري: <span class="ltr">{{ $data->commercialRegister() }}</span>
-                &nbsp;|&nbsp;
-                الرقم الضريبي: <span class="ltr">{{ $data->vatNumber() }}</span>
-            </div>
-        </td>
+        <td width="65%" valign="top"></td>
         <td width="35%" align="left" valign="top">
             @if($data->hasLogo())
                 <img src="{{ $data->logoPath() }}" alt="{{ $data->logoAlt() }}" height="{{ round(78 * $scale) }}" style="max-width: {{ round(180 * $scale) }}px;">
@@ -132,7 +126,12 @@
             <div style="font-weight: bold;">{{ $data->companyLegalNameAr() }}</div>
             <div>{{ $data->companyAddress() }}</div>
             <div>هاتف: <span class="ltr">{{ $data->companyPhone() }}</span> &nbsp;|&nbsp; البريد: <span class="ltr">{{ $data->companyEmail() }}</span></div>
-            <div>الموقع: <span class="ltr">{{ $data->companyWebsite() }}</span> &nbsp;|&nbsp; الرقم الضريبي: <span class="ltr">{{ $data->vatNumber() }}</span></div>
+            <div>الموقع: <span class="ltr">{{ $data->companyWebsite() }}</span></div>
+            <div>
+                سجل تجاري: <span class="ltr">{{ $data->commercialRegister() }}</span>
+                &nbsp;|&nbsp;
+                الرقم الضريبي: <span class="ltr">{{ $data->vatNumber() }}</span>
+            </div>
         </td>
         <td width="4%"></td>
         <td width="38%" valign="top" class="meta-block">
