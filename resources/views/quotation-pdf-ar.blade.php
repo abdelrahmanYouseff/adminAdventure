@@ -110,9 +110,10 @@
 <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom: {{ $pt(4) }};">
     <tr>
         <td width="65%" valign="top">
-            <div class="company-name">{{ $data->companyLegalNameAr() }}</div>
-            <div style="font-size: {{ $pt(7) }}; margin-top: {{ $pt(2) }};">
+            <div style="font-size: {{ $pt(7) }};">
                 سجل تجاري: <span class="ltr">{{ $data->commercialRegister() }}</span>
+                &nbsp;|&nbsp;
+                الرقم الضريبي: <span class="ltr">{{ $data->vatNumber() }}</span>
             </div>
         </td>
         <td width="35%" align="left" valign="top">
