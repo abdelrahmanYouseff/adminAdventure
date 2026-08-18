@@ -77,13 +77,10 @@ class WhatsAppCloudService
     }
 
     /**
-     * Deliver the note with the approved Meta template.
+     * Deliver the note: approved Meta template (PDF + dynamic link button),
+     * then a follow-up session message with the same link as plain text/CTA.
      *
-     * Session document/text messages often return HTTP 200 (accepted) and then
-     * never arrive if the customer has not replied within 24 hours. Do not treat
-     * those as a successful send.
-     *
-     * @return array{success: bool, message_id: ?string, error: ?string, status: ?int, mode: string, to: string, used_template: bool, from: string}
+     * @return array{success: bool, message_id: ?string, error: ?string, status: ?int, mode: string, to: string, from: string}
      */
     public function sendDeliveryNoteToCustomer(
         string $to,
@@ -92,73 +89,22 @@ class WhatsAppCloudService
         string $publicUrl,
         ?string $urlButtonSuffix = null,
     ): array {
-        $from = $this->cloudSendingDisplayPhone();
-        $template = $this->sendDeliveryNoteTemplate($to, $mediaId, $filename, $urlButtonSuffix);
-        $template['used_template'] = true;
-        $template['from'] = $from;
+        $result = $this->sendDeliveryNoteTemplate($to, $mediaId, $filename, $urlButtonSuffix);
+        $result['from'] = $this->cloudSendingDisplayPhone();
 
-        if (! $template['success']) {
-            return $template;
+        if (! $result['success']) {
+            return $result;
         }
 
         $this->sendDeliveryNotePublicLink($to, $publicUrl);
-
-        return $template;
-    }
-
-    /**
-     * @return array{success: bool, message_id: ?string, error: ?string, status: ?int, mode: string, to: string}
-     */
-    public function sendDocumentWithReport(
-        string $to,
-        string $mediaId,
-        string $filename,
-        ?string $caption = null,
-    ): array {
-        if (! $this->isApiConfigured()) {
-            return [
-                'success' => false,
-                'message_id' => null,
-                'error' => 'واتساب غير مفعّل أو الإعدادات ناقصة',
-                'status' => null,
-                'mode' => 'document',
-                'to' => self::normalizePhone($to),
-            ];
-        }
-
-        $phoneNumberId = (string) config('services.whatsapp.phone_number_id');
-        $version = (string) config('services.whatsapp.graph_version', 'v21.0');
-        $recipient = self::normalizePhone($to);
-
-        $document = [
-            'id' => $mediaId,
-            'filename' => $filename,
-        ];
-
-        if (is_string($caption) && $caption !== '') {
-            $document['caption'] = mb_substr($caption, 0, 1024);
-        }
-
-        $response = $this->client()->post(
-            "https://graph.facebook.com/{$version}/{$phoneNumberId}/messages",
-            [
-                'messaging_product' => 'whatsapp',
-                'recipient_type' => 'individual',
-                'to' => $recipient,
-                'type' => 'document',
-                'document' => $document,
-            ]
-        );
-
-        $result = $this->parseMessageResponse($response, $recipient, 'document');
-        $result['mode'] = 'document';
-        $result['to'] = $recipient;
 
         return $result;
     }
 
     /**
-     * Send the approved delivery-note Meta template with a PDF header.
+     * Send the approved delivery-note Meta template with a PDF header and,
+     * when a suffix is given, a dynamic URL button (Website URL in Meta must
+     * be ".../{{1}}"; only the code/path suffix is sent as {{1}}).
      *
      * @return array{success: bool, message_id: ?string, error: ?string, status: ?int, mode: string, to: string}
      */
@@ -167,11 +113,10 @@ class WhatsAppCloudService
         string $mediaId,
         string $filename,
         ?string $urlButtonSuffix = null,
-        ?string $bodyText = null,
     ): array {
         $resolved = $this->resolveDeliveryNoteTemplate();
 
-        if (($resolved['error'] ?? null) && ! ($resolved['name'] ?? '')) {
+        if ($resolved['error'] !== null) {
             return [
                 'success' => false,
                 'message_id' => null,
@@ -182,30 +127,8 @@ class WhatsAppCloudService
             ];
         }
 
-        if (($resolved['error'] ?? null) && filled($resolved['status'] ?? null) && strtoupper((string) $resolved['status']) !== 'APPROVED') {
-            return [
-                'success' => false,
-                'message_id' => null,
-                'error' => $resolved['error'],
-                'status' => null,
-                'mode' => 'template:'.$resolved['name'].'/'.$resolved['language'],
-                'to' => self::normalizePhone($to),
-            ];
-        }
-
-        $template = (string) ($resolved['name'] ?? '');
-        $configuredLanguage = (string) ($resolved['language'] ?? '');
-
-        if ($template === '') {
-            return [
-                'success' => false,
-                'message_id' => null,
-                'error' => 'اضبط WHATSAPP_DELIVERY_NOTE_TEMPLATE في .env باسم القالب المعتمد في Meta.',
-                'status' => null,
-                'mode' => 'template:missing',
-                'to' => self::normalizePhone($to),
-            ];
-        }
+        $templateName = $resolved['name'];
+        $language = $resolved['language'];
 
         $headerComponent = [
             'type' => 'header',
@@ -218,87 +141,38 @@ class WhatsAppCloudService
             ]],
         ];
 
-        $hasSuffix = is_string($urlButtonSuffix) && $urlButtonSuffix !== '';
-        $componentSets = [[$headerComponent]];
+        $components = [$headerComponent];
 
-        if ($hasSuffix) {
-            $componentSets[] = [
-                $headerComponent,
-                [
-                    'type' => 'button',
-                    'sub_type' => 'url',
-                    'index' => '0',
-                    'parameters' => [[
-                        'type' => 'text',
-                        'text' => $urlButtonSuffix,
-                    ]],
-                ],
+        if (is_string($urlButtonSuffix) && $urlButtonSuffix !== '') {
+            $components[] = [
+                'type' => 'button',
+                'sub_type' => 'url',
+                'index' => '0',
+                'parameters' => [[
+                    'type' => 'text',
+                    'text' => $urlButtonSuffix,
+                ]],
             ];
         }
 
-        $last = [
-            'success' => false,
-            'message_id' => null,
-            'error' => 'تعذر إرسال تمبلت إذن التسليم',
-            'status' => null,
-            'mode' => 'template:'.$template,
-            'to' => self::normalizePhone($to),
-        ];
+        $result = $this->sendTemplateWithReport($to, $templateName, $language, $components);
+        $result['mode'] = 'template:'.$templateName.'/'.$language;
+        $result['to'] = self::normalizePhone($to);
 
-        $names = array_values(array_unique(array_filter([trim($template)])));
-
-        foreach ($names as $name) {
-            foreach ($this->deliveryNoteLanguageFallbacks($configuredLanguage) as $language) {
-                foreach ($componentSets as $index => $components) {
-                    $result = $this->sendTemplateWithReport($to, $name, $language, $components);
-                    $result['mode'] = 'template:'.$name.'/'.$language.'#'.$index;
-                    $result['to'] = self::normalizePhone($to);
-
-                    if ($result['success']) {
-                        Log::info('WhatsApp delivery-note template matched', [
-                            'name' => $name,
-                            'language' => $language,
-                        ]);
-
-                        return $result;
-                    }
-
-                    $last = $result;
-                    $error = strtolower((string) ($result['error'] ?? ''));
-
-                    if (str_contains($error, '132001') || str_contains($error, 'translation')) {
-                        break;
-                    }
-
-                    $parameterIssue = str_contains($error, 'parameter')
-                        || str_contains($error, 'button')
-                        || str_contains($error, 'component')
-                        || str_contains($error, '132018')
-                        || str_contains($error, '132000');
-
-                    if (! $parameterIssue) {
-                        return $result;
-                    }
-                }
-            }
+        if (! $result['success']) {
+            $result['error'] = $this->deliveryNoteSendError((string) ($result['error'] ?? ''), $templateName, $language);
         }
 
-        $last['error'] = $this->deliveryNoteSendError($last, $template);
-
-        return $last;
+        return $result;
     }
 
-    /**
-     * @param  array{success: bool, message_id: ?string, error: ?string, status: ?int, mode?: string, to?: string}  $last
-     */
-    private function deliveryNoteSendError(array $last, string $template): string
+    private function deliveryNoteSendError(string $error, string $template, string $language): string
     {
-        $error = (string) ($last['error'] ?? '');
         $lower = strtolower($error);
 
         if (str_contains($lower, '132001') || str_contains($lower, 'translation')) {
-            return 'القالب '.$template.' غير موجود أو غير معتمد بهذه اللغة في واتساب (خطأ 132001). '
-                .'اللغة في .env يجب أن تطابق لغة القالب في Meta حرفياً (en وليس en_US إذا كان English).';
+            return "القالب {$template} غير موجود بهذه اللغة ({$language}) في واتساب (خطأ 132001). "
+                .'راجع اسم القالب ولغته بالضبط في Meta Business Manager.';
         }
 
         if ($error !== '') {
@@ -309,172 +183,72 @@ class WhatsAppCloudService
     }
 
     /**
-     * @return list<string>
-     */
-    private function deliveryNoteLanguageFallbacks(string $configured): array
-    {
-        $configured = trim($configured);
-
-        return array_values(array_unique(array_filter([
-            $configured !== '' ? $configured : null,
-            $configured === 'en' ? 'en_US' : null,
-            $configured === 'en_US' ? 'en' : null,
-            'ar',
-            'en_US',
-            'en',
-        ])));
-    }
-
-    /**
-     * @return array{name: string, language: string, status: ?string, error: ?string, button_url?: ?string}
+     * Resolve the configured delivery-note template's exact name/language,
+     * trusting Meta's own Approved status. Falls back to the raw .env values
+     * if the template list cannot be read (missing business_management scope).
+     *
+     * @return array{name: string, language: string, error: ?string}
      */
     private function resolveDeliveryNoteTemplate(): array
     {
-        $configuredName = trim((string) config('services.whatsapp.delivery_note_template', ''));
-        $configuredLang = trim((string) config('services.whatsapp.delivery_note_template_language', 'ar'));
+        $name = trim((string) config('services.whatsapp.delivery_note_template', ''));
+        $language = trim((string) config('services.whatsapp.delivery_note_template_language', 'ar'));
 
-        $list = $this->listMessageTemplates(true);
+        if ($name === '') {
+            return [
+                'name' => '',
+                'language' => $language,
+                'error' => 'اضبط WHATSAPP_DELIVERY_NOTE_TEMPLATE في .env باسم القالب المعتمد في Meta.',
+            ];
+        }
+
+        $list = $this->listMessageTemplates();
 
         if (! $list['success']) {
-            return [
-                'name' => $configuredName,
-                'language' => $configuredLang,
-                'status' => null,
-                'error' => null,
-                'button_url' => null,
-            ];
+            // Can't verify — attempt the send as configured and let Meta's
+            // own error (if any) surface back to the caller.
+            return ['name' => $name, 'language' => $language, 'error' => null];
         }
 
-        $approved = array_values(array_filter(
-            $list['templates'],
-            fn (array $template) => strtoupper($template['status']) === 'APPROVED'
-        ));
+        $exactMatch = $this->findTemplate($list['templates'], $name, $language);
 
-        $withoutShop = array_values(array_filter(
-            $approved,
-            fn (array $template) => ! $this->templateContainsShopDomain($template)
-        ));
+        if ($exactMatch) {
+            if (strtoupper($exactMatch['status']) !== 'APPROVED') {
+                return [
+                    'name' => $name,
+                    'language' => $language,
+                    'error' => "القالب {$name} ({$language}) حالته {$exactMatch['status']} وليس Approved بعد.",
+                ];
+            }
 
-        $match = $this->firstTemplate($withoutShop, $configuredName, $configuredLang)
-            ?? $this->firstTemplate($withoutShop, $configuredName, null)
-            ?? $this->firstTemplateWithAdminButton($withoutShop)
-            ?? $this->firstDocumentHeaderTemplate($withoutShop)
-            ?? $this->firstTemplateByNeedle($withoutShop, ['deliver_note', 'delivery_note', 'deliver'])
-            ?? $this->firstTemplate($approved, $configuredName, $configuredLang)
-            ?? $this->firstTemplate($approved, $configuredName, null);
-
-        if ($match) {
-            return [
-                'name' => $match['name'],
-                'language' => $match['language'],
-                'status' => $match['status'],
-                'error' => null,
-                'button_url' => $this->templateButtonUrl($match),
-            ];
+            return ['name' => $name, 'language' => $language, 'error' => null];
         }
 
-        $pending = $this->firstDocumentHeaderTemplate($list['templates'])
-            ?? $this->firstTemplateByNeedle($list['templates'], ['deliver_note', 'delivery_note', $configuredName]);
+        $anyLanguageMatch = $this->findTemplate($list['templates'], $name, null);
 
-        if ($pending && strtoupper($pending['status']) !== 'APPROVED') {
+        if ($anyLanguageMatch) {
             return [
-                'name' => $pending['name'],
-                'language' => $pending['language'],
-                'status' => $pending['status'],
-                'error' => "القالب {$pending['name']} ({$pending['language']}) حالته {$pending['status']} وليس معتمدًا بعد.",
+                'name' => $name,
+                'language' => $anyLanguageMatch['language'],
+                'error' => strtoupper($anyLanguageMatch['status']) === 'APPROVED'
+                    ? null
+                    : "القالب {$name} ({$anyLanguageMatch['language']}) حالته {$anyLanguageMatch['status']} وليس Approved بعد.",
             ];
         }
 
         return [
-            'name' => $configuredName,
-            'language' => $configuredLang,
-            'status' => null,
-            'error' => null,
-            'button_url' => null,
+            'name' => $name,
+            'language' => $language,
+            'error' => "القالب {$name} غير موجود في حساب واتساب — تأكد من الاسم في Meta Business Manager.",
         ];
     }
 
     /**
-     * @param  array<string, mixed>  $template
+     * @param  list<array{name: string, language: string, status: string, category: string}>  $templates
+     * @return array{name: string, language: string, status: string, category: string}|null
      */
-    private function templateContainsShopDomain(array $template): bool
+    private function findTemplate(array $templates, string $name, ?string $language): ?array
     {
-        return $this->containsShopDomain($this->templateButtonUrl($template) ?? '');
-    }
-
-    private function containsShopDomain(string $value): bool
-    {
-        $value = strtolower($value);
-
-        return str_contains($value, 'shop.adventurksa')
-            || str_contains($value, 'shop.adventureksa');
-    }
-
-    /**
-     * @param  array<string, mixed>  $template
-     */
-    private function templateButtonUrl(array $template): ?string
-    {
-        $components = $template['components'] ?? [];
-
-        if (! is_array($components)) {
-            return null;
-        }
-
-        foreach ($components as $component) {
-            if (! is_array($component)) {
-                continue;
-            }
-
-            $buttons = $component['buttons'] ?? [];
-
-            if (! is_array($buttons)) {
-                continue;
-            }
-
-            foreach ($buttons as $button) {
-                if (! is_array($button)) {
-                    continue;
-                }
-
-                $url = $button['url'] ?? null;
-
-                if (is_string($url) && $url !== '') {
-                    return $url;
-                }
-            }
-        }
-
-        return null;
-    }
-
-    /**
-     * @param  list<array{name: string, language: string, status: string, category: string, components?: mixed}>  $templates
-     * @return array{name: string, language: string, status: string, category: string, components?: mixed}|null
-     */
-    private function firstTemplateWithAdminButton(array $templates): ?array
-    {
-        foreach ($templates as $template) {
-            $url = strtolower((string) $this->templateButtonUrl($template));
-
-            if (str_contains($url, 'admin.adventureksa.com')) {
-                return $template;
-            }
-        }
-
-        return null;
-    }
-
-    /**
-     * @param  list<array{name: string, language: string, status: string, category: string, components?: mixed}>  $templates
-     * @return array{name: string, language: string, status: string, category: string, components?: mixed}|null
-     */
-    private function firstTemplate(array $templates, string $name, ?string $language): ?array
-    {
-        if ($name === '') {
-            return null;
-        }
-
         foreach ($templates as $template) {
             if ($template['name'] !== $name) {
                 continue;
@@ -485,60 +259,6 @@ class WhatsAppCloudService
             }
 
             return $template;
-        }
-
-        return null;
-    }
-
-    /**
-     * @param  list<array{name: string, language: string, status: string, category: string, components?: mixed}>  $templates
-     * @param  list<string>  $needles
-     * @return array{name: string, language: string, status: string, category: string, components?: mixed}|null
-     */
-    private function firstTemplateByNeedle(array $templates, array $needles): ?array
-    {
-        foreach ($needles as $needle) {
-            $needle = strtolower(trim($needle));
-
-            if ($needle === '') {
-                continue;
-            }
-
-            foreach ($templates as $template) {
-                if (str_contains(strtolower($template['name']), $needle)) {
-                    return $template;
-                }
-            }
-        }
-
-        return null;
-    }
-
-    /**
-     * @param  list<array{name: string, language: string, status: string, category: string, components?: mixed}>  $templates
-     * @return array{name: string, language: string, status: string, category: string, components?: mixed}|null
-     */
-    private function firstDocumentHeaderTemplate(array $templates): ?array
-    {
-        foreach ($templates as $template) {
-            $components = $template['components'] ?? [];
-
-            if (! is_array($components)) {
-                continue;
-            }
-
-            foreach ($components as $component) {
-                if (! is_array($component)) {
-                    continue;
-                }
-
-                $type = strtoupper((string) ($component['type'] ?? ''));
-                $format = strtoupper((string) ($component['format'] ?? ''));
-
-                if ($type === 'HEADER' && $format === 'DOCUMENT') {
-                    return $template;
-                }
-            }
         }
 
         return null;

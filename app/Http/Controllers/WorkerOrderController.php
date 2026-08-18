@@ -113,9 +113,9 @@ class WorkerOrderController extends Controller
         }
 
         $from = $send['from'] ?? $whatsApp->cloudSendingDisplayPhone();
-        $message = 'تم إرسال ملف إذن التسليم إلى +'.$to
+        $message = 'تم إرسال إذن التسليم عبر واتساب إلى +'.$to
             .' من رقم '.$from
-            .' — لا تضغط زر المتجر. افتح ملف PDF أو هذا الرابط: '.$deliveryNoteUrl;
+            .' — رابط النظام: '.$deliveryNoteUrl;
 
         return back()->with('success', $message);
     }
