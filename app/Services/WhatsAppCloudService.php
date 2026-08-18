@@ -88,8 +88,32 @@ class WhatsAppCloudService
         ?string $urlButtonSuffix = null,
         ?string $bodyText = null,
     ): array {
-        $template = trim((string) config('services.whatsapp.delivery_note_template', ''));
-        $language = (string) config('services.whatsapp.delivery_note_template_language', 'ar');
+        $resolved = $this->resolveDeliveryNoteTemplate();
+
+        if (($resolved['error'] ?? null) && ! ($resolved['name'] ?? '')) {
+            return [
+                'success' => false,
+                'message_id' => null,
+                'error' => $resolved['error'],
+                'status' => null,
+                'mode' => 'template:missing',
+                'to' => self::normalizePhone($to),
+            ];
+        }
+
+        if (($resolved['error'] ?? null) && filled($resolved['status'] ?? null) && strtoupper((string) $resolved['status']) !== 'APPROVED') {
+            return [
+                'success' => false,
+                'message_id' => null,
+                'error' => $resolved['error'],
+                'status' => null,
+                'mode' => 'template:'.$resolved['name'].'/'.$resolved['language'],
+                'to' => self::normalizePhone($to),
+            ];
+        }
+
+        $template = (string) ($resolved['name'] ?? '');
+        $configuredLanguage = (string) ($resolved['language'] ?? '');
 
         if ($template === '') {
             return [
@@ -113,50 +137,28 @@ class WhatsAppCloudService
             ]],
         ];
 
-        $bodyComponent = null;
-        if (is_string($bodyText) && $bodyText !== '') {
-            $bodyComponent = [
-                'type' => 'body',
-                'parameters' => [[
-                    'type' => 'text',
-                    'text' => mb_substr($bodyText, 0, 1024),
-                ]],
-            ];
-        }
-
         $includeUrlButton = filter_var(config('services.whatsapp.delivery_note_url_button', false), FILTER_VALIDATE_BOOLEAN)
             && is_string($urlButtonSuffix)
             && $urlButtonSuffix !== '';
 
-        $buttonComponent = null;
+        $componentSets = [];
+
         if ($includeUrlButton) {
-            $buttonComponent = [
-                'type' => 'button',
-                'sub_type' => 'url',
-                'index' => '0',
-                'parameters' => [[
-                    'type' => 'text',
-                    'text' => $urlButtonSuffix,
-                ]],
+            $componentSets[] = [
+                $headerComponent,
+                [
+                    'type' => 'button',
+                    'sub_type' => 'url',
+                    'index' => '0',
+                    'parameters' => [[
+                        'type' => 'text',
+                        'text' => $urlButtonSuffix,
+                    ]],
+                ],
             ];
         }
 
-        $attempts = [];
-        $full = [$headerComponent];
-        if ($bodyComponent) {
-            $full[] = $bodyComponent;
-        }
-        if ($buttonComponent) {
-            $full[] = $buttonComponent;
-        }
-        $attempts[] = $full;
-
-        if ($bodyComponent && $buttonComponent) {
-            $attempts[] = [$headerComponent, $buttonComponent];
-            $attempts[] = [$headerComponent, $bodyComponent];
-        }
-
-        $attempts[] = [$headerComponent];
+        $componentSets[] = [$headerComponent];
 
         $last = [
             'success' => false,
@@ -167,29 +169,216 @@ class WhatsAppCloudService
             'to' => self::normalizePhone($to),
         ];
 
-        foreach ($attempts as $index => $components) {
-            $result = $this->sendTemplateWithReport($to, $template, $language, $components);
-            $result['mode'] = 'template:'.$template.'#'.$index;
-            $result['to'] = self::normalizePhone($to);
+        $names = $this->deliveryNoteNameFallbacks($template);
 
-            if ($result['success']) {
-                return $result;
-            }
+        foreach ($names as $name) {
+            foreach ($this->deliveryNoteLanguageFallbacks($configuredLanguage) as $language) {
+                foreach ($componentSets as $index => $components) {
+                    $result = $this->sendTemplateWithReport($to, $name, $language, $components);
+                    $result['mode'] = 'template:'.$name.'/'.$language.'#'.$index;
+                    $result['to'] = self::normalizePhone($to);
 
-            $last = $result;
-            $error = strtolower((string) ($result['error'] ?? ''));
-            $parameterIssue = str_contains($error, 'parameter')
-                || str_contains($error, 'button')
-                || str_contains($error, 'component')
-                || str_contains($error, '132018')
-                || str_contains($error, '132000');
+                    if ($result['success']) {
+                        Log::info('WhatsApp delivery-note template matched', [
+                            'name' => $name,
+                            'language' => $language,
+                        ]);
 
-            if (! $parameterIssue) {
-                return $result;
+                        return $result;
+                    }
+
+                    $last = $result;
+                    $error = strtolower((string) ($result['error'] ?? ''));
+
+                    if (str_contains($error, '132001') || str_contains($error, 'translation')) {
+                        break;
+                    }
+
+                    $parameterIssue = str_contains($error, 'parameter')
+                        || str_contains($error, 'button')
+                        || str_contains($error, 'component')
+                        || str_contains($error, '132018')
+                        || str_contains($error, '132000');
+
+                    if (! $parameterIssue) {
+                        return $result;
+                    }
+                }
             }
         }
 
+        $last['error'] = 'القالب '.$template.' غير موجود أو غير معتمد بهذه اللغة في واتساب (خطأ 132001). '
+            .'راجع الاسم واللغة وحالة Approved في Meta Business Manager.';
+
         return $last;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function deliveryNoteLanguageFallbacks(string $configured): array
+    {
+        $configured = trim($configured);
+
+        return array_values(array_unique(array_filter([
+            $configured !== '' ? $configured : null,
+            $configured === 'en' ? 'en_US' : null,
+            $configured === 'en_US' ? 'en' : null,
+            'ar',
+            'en_US',
+            'en',
+        ])));
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function deliveryNoteNameFallbacks(string $configured): array
+    {
+        return array_values(array_unique(array_filter([
+            trim($configured),
+            'order_deliver_note',
+            'order_delivery_note',
+            'delivery_note',
+            'order_deliver_note_v2',
+        ])));
+    }
+
+    /**
+     * @return array{name: string, language: string, status: ?string, error: ?string}
+     */
+    private function resolveDeliveryNoteTemplate(): array
+    {
+        $configuredName = trim((string) config('services.whatsapp.delivery_note_template', ''));
+        $configuredLang = trim((string) config('services.whatsapp.delivery_note_template_language', 'ar'));
+
+        $list = $this->listMessageTemplates(true);
+
+        if (! $list['success']) {
+            return [
+                'name' => $configuredName,
+                'language' => $configuredLang,
+                'status' => null,
+                'error' => null,
+            ];
+        }
+
+        $approved = array_values(array_filter(
+            $list['templates'],
+            fn (array $template) => strtoupper($template['status']) === 'APPROVED'
+        ));
+
+        $match = $this->firstTemplate($approved, $configuredName, $configuredLang)
+            ?? $this->firstTemplate($approved, $configuredName, null)
+            ?? $this->firstDocumentHeaderTemplate($approved)
+            ?? $this->firstTemplateByNeedle($approved, ['deliver_note', 'delivery_note', 'deliver']);
+
+        if ($match) {
+            return [
+                'name' => $match['name'],
+                'language' => $match['language'],
+                'status' => $match['status'],
+                'error' => null,
+            ];
+        }
+
+        $pending = $this->firstDocumentHeaderTemplate($list['templates'])
+            ?? $this->firstTemplateByNeedle($list['templates'], ['deliver_note', 'delivery_note', $configuredName]);
+
+        if ($pending && strtoupper($pending['status']) !== 'APPROVED') {
+            return [
+                'name' => $pending['name'],
+                'language' => $pending['language'],
+                'status' => $pending['status'],
+                'error' => "القالب {$pending['name']} ({$pending['language']}) حالته {$pending['status']} وليس معتمدًا بعد.",
+            ];
+        }
+
+        return [
+            'name' => $configuredName,
+            'language' => $configuredLang,
+            'status' => null,
+            'error' => null,
+        ];
+    }
+
+    /**
+     * @param  list<array{name: string, language: string, status: string, category: string, components?: mixed}>  $templates
+     * @return array{name: string, language: string, status: string, category: string, components?: mixed}|null
+     */
+    private function firstTemplate(array $templates, string $name, ?string $language): ?array
+    {
+        if ($name === '') {
+            return null;
+        }
+
+        foreach ($templates as $template) {
+            if ($template['name'] !== $name) {
+                continue;
+            }
+
+            if ($language !== null && $template['language'] !== $language) {
+                continue;
+            }
+
+            return $template;
+        }
+
+        return null;
+    }
+
+    /**
+     * @param  list<array{name: string, language: string, status: string, category: string, components?: mixed}>  $templates
+     * @param  list<string>  $needles
+     * @return array{name: string, language: string, status: string, category: string, components?: mixed}|null
+     */
+    private function firstTemplateByNeedle(array $templates, array $needles): ?array
+    {
+        foreach ($needles as $needle) {
+            $needle = strtolower(trim($needle));
+
+            if ($needle === '') {
+                continue;
+            }
+
+            foreach ($templates as $template) {
+                if (str_contains(strtolower($template['name']), $needle)) {
+                    return $template;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param  list<array{name: string, language: string, status: string, category: string, components?: mixed}>  $templates
+     * @return array{name: string, language: string, status: string, category: string, components?: mixed}|null
+     */
+    private function firstDocumentHeaderTemplate(array $templates): ?array
+    {
+        foreach ($templates as $template) {
+            $components = $template['components'] ?? [];
+
+            if (! is_array($components)) {
+                continue;
+            }
+
+            foreach ($components as $component) {
+                if (! is_array($component)) {
+                    continue;
+                }
+
+                $type = strtoupper((string) ($component['type'] ?? ''));
+                $format = strtoupper((string) ($component['format'] ?? ''));
+
+                if ($type === 'HEADER' && $format === 'DOCUMENT') {
+                    return $template;
+                }
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -568,6 +757,11 @@ class WhatsAppCloudService
             return ['success' => false, 'waba_id' => null, 'error' => 'واتساب غير مفعّل'];
         }
 
+        $fromToken = $this->wabaIdFromAccessToken();
+        if ($fromToken) {
+            return ['success' => true, 'waba_id' => $fromToken, 'error' => null];
+        }
+
         $phoneNumberId = (string) config('services.whatsapp.phone_number_id');
         $version = (string) config('services.whatsapp.graph_version', 'v21.0');
 
@@ -591,10 +785,51 @@ class WhatsAppCloudService
         return ['success' => true, 'waba_id' => $wabaId, 'error' => null];
     }
 
+    private function wabaIdFromAccessToken(): ?string
+    {
+        $token = (string) config('services.whatsapp.access_token');
+        $version = (string) config('services.whatsapp.graph_version', 'v21.0');
+
+        $response = $this->client()->get(
+            "https://graph.facebook.com/{$version}/debug_token",
+            ['input_token' => $token]
+        );
+
+        if (! $response->successful()) {
+            return null;
+        }
+
+        $scopes = $response->json('data.granular_scopes') ?? [];
+
+        if (! is_array($scopes)) {
+            return null;
+        }
+
+        foreach ($scopes as $scope) {
+            if (! is_array($scope)) {
+                continue;
+            }
+
+            $name = (string) ($scope['scope'] ?? '');
+
+            if (! in_array($name, ['whatsapp_business_management', 'whatsapp_business_messaging'], true)) {
+                continue;
+            }
+
+            $ids = $scope['target_ids'] ?? [];
+
+            if (is_array($ids) && isset($ids[0]) && is_string($ids[0]) && $ids[0] !== '') {
+                return $ids[0];
+            }
+        }
+
+        return null;
+    }
+
     /**
-     * @return array{success: bool, templates: list<array{name: string, language: string, status: string, category: string}>, error: ?string}
+     * @return array{success: bool, templates: list<array{name: string, language: string, status: string, category: string, components?: mixed}>, error: ?string}
      */
-    public function listMessageTemplates(): array
+    public function listMessageTemplates(bool $withComponents = false): array
     {
         $account = $this->resolveBusinessAccountId();
         if (! $account['success']) {
@@ -604,7 +839,11 @@ class WhatsAppCloudService
         $version = (string) config('services.whatsapp.graph_version', 'v21.0');
         $templates = [];
         $url = "https://graph.facebook.com/{$version}/{$account['waba_id']}/message_templates";
-        $params = ['limit' => 100, 'fields' => 'name,language,status,category'];
+        $fields = 'name,language,status,category';
+        if ($withComponents) {
+            $fields .= ',components';
+        }
+        $params = ['limit' => 100, 'fields' => $fields];
 
         do {
             $response = $this->client()->get($url, $params);
@@ -625,6 +864,7 @@ class WhatsAppCloudService
                     'language' => (string) ($row['language'] ?? '—'),
                     'status' => (string) ($row['status'] ?? '—'),
                     'category' => (string) ($row['category'] ?? '—'),
+                    'components' => $row['components'] ?? null,
                 ];
             }
 
