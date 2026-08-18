@@ -83,6 +83,44 @@ class OrderPaymentReceiptService
     }
 
     /**
+     * Append transfer/receipt images to an existing pending receipt.
+     *
+     * @param  list<string>  $paths
+     */
+    public function attachProofImages(OrderPaymentReceipt $receipt, array $paths): OrderPaymentReceipt
+    {
+        $paths = array_values(array_filter(
+            $paths,
+            fn ($path) => is_string($path) && trim($path) !== '',
+        ));
+
+        if ($paths === []) {
+            return $receipt;
+        }
+
+        $existing = $receipt->getAttributes()['proof_image'] ?? null;
+        $current = [];
+
+        if (is_array($existing)) {
+            $current = $existing;
+        } elseif (is_string($existing) && trim($existing) !== '') {
+            $decoded = json_decode($existing, true);
+            $current = is_array($decoded) ? $decoded : [$existing];
+        }
+
+        $merged = array_values(array_unique(array_filter(array_map(
+            fn ($path) => is_string($path) ? trim($path) : '',
+            array_merge($current, $paths),
+        ))));
+
+        $receipt->update([
+            'proof_image' => $merged !== [] ? array_slice($merged, 0, 10) : null,
+        ]);
+
+        return $receipt->refresh();
+    }
+
+    /**
      * Approve a pending receipt: apply its amount to the order's balance and
      * status. Idempotent — approving an already-approved receipt is a no-op.
      *

@@ -47,6 +47,13 @@ interface OrderItem {
     total_price: number;
 }
 
+interface PendingReceipt {
+    id: number;
+    receipt_number: string;
+    amount: number;
+    proof_image_urls: string[];
+}
+
 interface Props {
     products: Product[];
     order: {
@@ -68,6 +75,7 @@ interface Props {
         insurance_amount: number;
         total_amount: number;
         settle_available?: number;
+        pending_receipts?: PendingReceipt[];
         items: OrderItem[];
     };
 }
@@ -184,6 +192,8 @@ const newPayment = computed(() => Math.max(0, Number(form.amount_paid) || 0));
 const remainingAmount = computed(() =>
     roundMoney(Math.max(0, grandTotal.value - approvedPaid.value - newPayment.value)),
 );
+const pendingReceipts = computed(() => props.order.pending_receipts ?? []);
+const canAttachReceipt = computed(() => settleAvailable.value > 0 || pendingReceipts.value.length > 0);
 const itemsCount = computed(() =>
     form.items.reduce((sum, item) => sum + Number(item.quantity || 0), 0),
 );
@@ -271,7 +281,6 @@ function submit() {
     form.clearErrors('amount_paid');
 
     // PHP does not populate request body for multipart PUT. Always spoof as POST + _method.
-    const hasProof = form.payment_proof.length > 0;
     form
         .transform((data) => ({
             ...data,
@@ -279,7 +288,7 @@ function submit() {
             amount_paid: Number(data.amount_paid) || 0,
         }))
         .post(route('orders.update', props.order.id), {
-            forceFormData: hasProof,
+            forceFormData: true,
             onFinish: () => {
                 form.transform((data) => data);
             },
@@ -949,9 +958,46 @@ watch(
                                     </span>
                                 </div>
                             </div>
+                        </div>
 
-                            <div v-if="newPayment > 0" class="space-y-2">
-                                <Label for="payment_proof" class="text-sm font-medium">صور التحويل / إيصال الدفع</Label>
+                        <div v-if="canAttachReceipt" class="space-y-3 rounded-xl border border-border/60 p-4">
+                            <div v-if="pendingReceipts.length" class="space-y-2">
+                                <p class="text-sm font-medium">سندات بانتظار الاعتماد</p>
+                                <div
+                                    v-for="receipt in pendingReceipts"
+                                    :key="receipt.id"
+                                    class="rounded-xl bg-muted/40 px-3 py-2 text-xs"
+                                >
+                                    <div class="flex items-center justify-between gap-2">
+                                        <span class="font-semibold tabular-nums" dir="ltr">{{ receipt.receipt_number }}</span>
+                                        <span class="font-semibold tabular-nums" dir="ltr">{{ formatCurrency(receipt.amount) }}</span>
+                                    </div>
+                                    <div v-if="receipt.proof_image_urls.length" class="mt-2 grid grid-cols-3 gap-1.5">
+                                        <a
+                                            v-for="(url, index) in receipt.proof_image_urls"
+                                            :key="url"
+                                            :href="url"
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            class="overflow-hidden rounded-lg border border-border/60"
+                                        >
+                                            <img :src="url" :alt="`إيصال ${index + 1}`" class="aspect-square w-full object-cover" />
+                                        </a>
+                                    </div>
+                                    <p v-else class="mt-1 text-amber-700">لا يوجد إيصال مرفق على هذا السند بعد.</p>
+                                </div>
+                            </div>
+
+                            <div class="space-y-2">
+                                <Label for="payment_proof" class="text-sm font-medium">إرفاق إيصال الدفع</Label>
+                                <p class="text-xs text-muted-foreground">
+                                    أرفق صور التحويل البنكي أو إيصال المبلغ.
+                                    {{ newPayment > 0
+                                        ? 'ستُرفق مع سند السداد الجديد.'
+                                        : pendingReceipts.length
+                                            ? 'ستُرفق على آخر سند معلّق بانتظار المحاسب.'
+                                            : 'أدخل مبلغ السداد ثم أرفق الإيصال.' }}
+                                </p>
                                 <label
                                     for="payment_proof"
                                     class="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border bg-muted/30 px-4 py-5 text-center transition hover:bg-muted/50"
@@ -996,7 +1042,7 @@ watch(
                                 <p v-if="form.errors.payment_proof" class="text-xs text-red-600">
                                     {{ form.errors.payment_proof }}
                                 </p>
-                                <p class="text-xs text-amber-700 dark:text-amber-300">
+                                <p v-if="newPayment > 0" class="text-xs text-amber-700 dark:text-amber-300">
                                     سيُسجَّل المبلغ كسند قبض بانتظار اعتماد المحاسب.
                                 </p>
                             </div>
@@ -1006,7 +1052,7 @@ watch(
                             v-else
                             class="rounded-xl bg-muted/40 px-3 py-2 text-xs leading-relaxed text-muted-foreground"
                         >
-                            لا يوجد مبلغ متاح للسداد حالياً (مسدد بالكامل أو توجد سندات بانتظار الاعتماد).
+                            لا يوجد مبلغ متاح للسداد حالياً، ولا توجد سندات معلّقة لإرفاق إيصال عليها.
                         </p>
 
                         <p

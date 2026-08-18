@@ -243,9 +243,11 @@ class OrderController extends Controller
 
         $rawTime = $order->getAttributes()['activity_time'] ?? null;
         $breakdown = $this->orderChargeBreakdown($order);
-        $pendingSum = round((float) $order->paymentReceipts()
+        $pendingReceipts = $order->paymentReceipts()
             ->where('approval_status', OrderPaymentReceipt::STATUS_PENDING)
-            ->sum('amount'), 2);
+            ->latest()
+            ->get();
+        $pendingSum = round((float) $pendingReceipts->sum('amount'), 2);
 
         return Inertia::render('Orders/Edit', [
             'order' => [
@@ -272,6 +274,12 @@ class OrderController extends Controller
                     - (float) ($order->amount_paid ?? 0)
                     - $pendingSum
                 ), 2),
+                'pending_receipts' => $pendingReceipts->map(fn (OrderPaymentReceipt $receipt) => [
+                    'id' => $receipt->id,
+                    'receipt_number' => $receipt->receipt_number,
+                    'amount' => (float) $receipt->amount,
+                    'proof_image_urls' => $receipt->proof_image_urls,
+                ])->values()->all(),
                 'items' => $items,
             ],
             'products' => $products,
@@ -513,10 +521,9 @@ class OrderController extends Controller
         });
 
         $successMessage = 'تم تحديث الطلب بنجاح.';
+        $proofImages = $this->storePaymentProofImages($request);
 
         if ($newPayment > 0.009) {
-            $proofImages = $this->storePaymentProofImages($request);
-
             $accountNumber = isset($validated['account_number'])
                 ? trim((string) $validated['account_number'])
                 : null;
@@ -546,6 +553,22 @@ class OrderController extends Controller
                     ->route('orders.edit', $order)
                     ->with('error', 'تم حفظ التعديلات لكن فشل تسجيل السداد: '.$e->getMessage());
             }
+        } elseif ($proofImages !== []) {
+            $pendingReceipt = $order->paymentReceipts()
+                ->where('approval_status', OrderPaymentReceipt::STATUS_PENDING)
+                ->latest()
+                ->first();
+
+            if (! $pendingReceipt) {
+                $this->deleteStoredPaymentProofs($proofImages);
+
+                return redirect()
+                    ->route('orders.edit', $order)
+                    ->with('error', 'تم حفظ التعديلات. لإرفاق إيصال أدخل مبلغ سداد جديد أو سجّل سند قبض أولاً.');
+            }
+
+            app(OrderPaymentReceiptService::class)->attachProofImages($pendingReceipt, $proofImages);
+            $successMessage = 'تم تحديث الطلب وإرفاق الإيصال بالسند '.$pendingReceipt->receipt_number.'.';
         }
 
         return redirect()
