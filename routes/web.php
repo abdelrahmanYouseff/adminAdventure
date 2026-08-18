@@ -1,20 +1,18 @@
 <?php
 
-use App\Http\Controllers\ProductController;
 use App\Http\Controllers\BrandController;
 use App\Http\Controllers\CategoryController;
-use App\Http\Controllers\PackageController;
-use App\Http\Controllers\InvoiceController;
-use App\Http\Controllers\QuotationController;
-use App\Http\Controllers\OrderController;
-use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\DashboardController;
-use Illuminate\Support\Facades\Auth;
-
-use Inertia\Inertia;
-
+use App\Http\Controllers\InvoiceController;
+use App\Http\Controllers\OrderController;
+use App\Http\Controllers\PackageController;
 use App\Http\Controllers\PaymentController;
+use App\Http\Controllers\ProductController;
+use App\Http\Controllers\QuotationController;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Route;
+use Inertia\Inertia;
 
 Route::get('/', function () {
     return redirect()->route('home');
@@ -119,9 +117,9 @@ Route::get('/home', function (Request $request) {
     }
 
     return Inertia::render('Home', [
-        'products'         => $products,
-        'categories'       => $categories,
-        'payment_success'  => $paymentSuccess,
+        'products' => $products,
+        'categories' => $categories,
+        'payment_success' => $paymentSuccess,
     ]);
 })->name('home');
 
@@ -273,9 +271,6 @@ Route::delete('company-clients/{companyClient}', [\App\Http\Controllers\CompanyC
     ->middleware(['auth', 'verified', 'role:admin,general_manager,manager'])
     ->name('company-clients.destroy');
 
-
-
-
 Route::get('users', [\App\Http\Controllers\UserController::class, 'index'])
     ->middleware(['auth', 'verified', 'admin'])
     ->name('users');
@@ -291,6 +286,14 @@ Route::put('users/{user}', [\App\Http\Controllers\UserController::class, 'update
 Route::delete('users/{user}', [\App\Http\Controllers\UserController::class, 'destroy'])
     ->middleware(['auth', 'verified', 'admin'])
     ->name('users.destroy');
+
+Route::post('users/{user}/impersonate', [\App\Http\Controllers\ImpersonationController::class, 'start'])
+    ->middleware(['auth', 'verified', 'admin'])
+    ->name('users.impersonate');
+
+Route::post('impersonation/stop', [\App\Http\Controllers\ImpersonationController::class, 'stop'])
+    ->middleware(['auth'])
+    ->name('impersonation.stop');
 
 // Package routes
 Route::resource('packages', PackageController::class)->middleware(['auth', 'verified', 'admin']);

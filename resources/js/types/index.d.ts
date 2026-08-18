@@ -27,6 +27,12 @@ export type AppPageProps<T extends Record<string, unknown> = Record<string, unkn
     auth: Auth;
     ziggy: { location: string };
     sidebarOpen: boolean;
+    impersonation?: {
+        active: boolean;
+        admin_name: string | null;
+        as_name: string | null;
+        as_role: string | null;
+    } | null;
     sidebarBadges?: {
         work_orders: number;
         returns: number;

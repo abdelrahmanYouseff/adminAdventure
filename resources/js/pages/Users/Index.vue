@@ -10,6 +10,7 @@ import {
     ChevronLeft,
     ChevronRight,
     Filter,
+    LogIn,
     Mail,
     Pencil,
     Phone,
@@ -21,6 +22,7 @@ import {
     Eye,
     EyeOff,
 } from 'lucide-vue-next';
+import Swal from 'sweetalert2';
 import { formatDate, formatInteger } from '@/lib/formatNumber';
 import type { StaffRole } from '@/types';
 
@@ -79,6 +81,9 @@ defineOptions({ layout: AppLayout });
 const page = usePage();
 const successMessage = computed(() => page.props.flash?.success as string | undefined);
 const errorMessage = computed(() => page.props.flash?.error as string | undefined);
+const authUser = computed(() => page.props.auth?.user as { id: number; role?: StaffRole | null } | null);
+const isImpersonating = computed(() => Boolean(page.props.impersonation?.active));
+const canImpersonate = computed(() => authUser.value?.role === 'admin' && !isImpersonating.value);
 
 const activeTab = ref<RoleTab>('all');
 const searchQuery = ref('');
@@ -285,6 +290,26 @@ function deleteUser(user: User) {
         router.delete(route('users.destroy', user.id), { preserveScroll: true });
     }
 }
+
+async function impersonateUser(user: User) {
+    if (!canImpersonate.value || user.id === authUser.value?.id) {
+        return;
+    }
+
+    const result = await Swal.fire({
+        icon: 'question',
+        title: 'دخول سريع؟',
+        text: `سيتم تسجيل الدخول كـ «${user.name}» (${roleLabels[user.role]}). يمكنك الرجوع لحساب الأدمن من الشريط الأصفر في أي وقت.`,
+        showCancelButton: true,
+        confirmButtonText: 'دخول',
+        cancelButtonText: 'إلغاء',
+        confirmButtonColor: '#2563eb',
+    });
+
+    if (result.isConfirmed) {
+        router.post(route('users.impersonate', user.id));
+    }
+}
 </script>
 
 <template>
@@ -479,6 +504,15 @@ function deleteUser(user: User) {
                             </td>
                             <td class="px-4 py-4">
                                 <div class="flex items-center justify-end gap-1.5">
+                                    <button
+                                        v-if="canImpersonate && user.id !== authUser?.id"
+                                        type="button"
+                                        class="inline-flex size-8 items-center justify-center rounded-lg border border-emerald-200 text-emerald-600 transition hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700 dark:border-emerald-900 dark:hover:border-emerald-800 dark:hover:bg-emerald-950/40 dark:hover:text-emerald-300"
+                                        title="دخول سريع بهذا المستخدم"
+                                        @click="impersonateUser(user)"
+                                    >
+                                        <LogIn class="size-3.5 stroke-[1.75]" />
+                                    </button>
                                     <button
                                         type="button"
                                         class="inline-flex size-8 items-center justify-center rounded-lg border border-gray-200 text-gray-500 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-600 dark:border-neutral-700 dark:hover:border-blue-900 dark:hover:bg-blue-950/40 dark:hover:text-blue-300"

@@ -2,6 +2,8 @@
 
 namespace App\Http\Middleware;
 
+use App\Http\Controllers\ImpersonationController;
+use App\Models\User;
 use App\Support\SidebarNavBadges;
 use Closure;
 use Illuminate\Http\Request;
@@ -62,6 +64,22 @@ class HandleInertiaRequests extends Middleware
                     'role' => $request->user()->role,
                 ] : null,
             ],
+            'impersonation' => function () use ($request) {
+                $adminId = $request->session()->get(ImpersonationController::SESSION_KEY);
+
+                if (! $adminId || ! $request->user()) {
+                    return null;
+                }
+
+                $admin = User::query()->find($adminId);
+
+                return [
+                    'active' => true,
+                    'admin_name' => $admin?->name,
+                    'as_name' => $request->user()->name,
+                    'as_role' => $request->user()->roleLabel(),
+                ];
+            },
             'ziggy' => fn () => [
                 'location' => $request->url(),
             ],

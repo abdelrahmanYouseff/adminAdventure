@@ -2,16 +2,24 @@
 import UserInfo from '@/components/UserInfo.vue';
 import { DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import type { User } from '@/types';
-import { Link, router } from '@inertiajs/vue3';
-import { LogOut, Settings } from 'lucide-vue-next';
+import { Link, router, usePage } from '@inertiajs/vue3';
+import { computed } from 'vue';
+import { LogOut, Settings, Undo2 } from 'lucide-vue-next';
 
 interface Props {
     user: User;
 }
 
+const page = usePage();
+const isImpersonating = computed(() => Boolean(page.props.impersonation?.active));
+
 const handleLogout = () => {
     router.flushAll();
 };
+
+function stopImpersonation() {
+    router.post(route('impersonation.stop'));
+}
 
 defineProps<Props>();
 </script>
@@ -23,6 +31,15 @@ defineProps<Props>();
         </div>
     </DropdownMenuLabel>
     <DropdownMenuSeparator />
+    <DropdownMenuGroup v-if="isImpersonating">
+        <DropdownMenuItem as-child>
+            <button type="button" class="flex w-full items-center" @click="stopImpersonation">
+                <Undo2 class="mr-2 h-4 w-4" />
+                العودة لحساب الأدمن
+            </button>
+        </DropdownMenuItem>
+    </DropdownMenuGroup>
+    <DropdownMenuSeparator v-if="isImpersonating" />
     <DropdownMenuGroup>
         <DropdownMenuItem :as-child="true">
             <Link class="block w-full" :href="route('profile.edit')" prefetch as="button">

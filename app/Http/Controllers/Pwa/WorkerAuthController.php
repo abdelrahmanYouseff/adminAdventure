@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Pwa;
 
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\ImpersonationController;
 use App\Models\User;
 use App\Services\AuthenticaOtpService;
 use Illuminate\Http\RedirectResponse;
@@ -15,6 +16,7 @@ use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
+use Symfony\Component\HttpFoundation\Response as HttpResponse;
 
 class WorkerAuthController extends Controller
 {
@@ -231,8 +233,12 @@ class WorkerAuthController extends Controller
         return Inertia::location('/worker-app');
     }
 
-    public function destroy(Request $request): RedirectResponse
+    public function destroy(Request $request): RedirectResponse|HttpResponse
     {
+        if ($response = ImpersonationController::interceptLogout($request)) {
+            return $response;
+        }
+
         Auth::guard('web')->logout();
 
         $request->session()->invalidate();

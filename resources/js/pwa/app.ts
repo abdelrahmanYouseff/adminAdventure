@@ -3,7 +3,8 @@ import '../../css/app.css';
 import { createInertiaApp } from '@inertiajs/vue3';
 import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
 import type { DefineComponent } from 'vue';
-import { createApp, h, watch } from 'vue';
+import { Fragment, createApp, h, watch } from 'vue';
+import ImpersonationBanner from '../components/ImpersonationBanner.vue';
 import { route as ziggyRoute, ZiggyVue } from 'ziggy-js';
 import type { Config } from 'ziggy-js';
 import { Ziggy as fallbackZiggy } from '../ziggy';
@@ -42,7 +43,13 @@ createInertiaApp({
         window.route = ((name?: string, params?: unknown, absolute?: boolean) =>
             ziggyRoute(name as never, params as never, absolute, ziggyConfig)) as typeof ziggyRoute;
 
-        const vueApp = createApp({ render: () => h(App, props) })
+        const vueApp = createApp({
+            render: () =>
+                h(Fragment, null, [
+                    h(ImpersonationBanner),
+                    h(App, props),
+                ]),
+        })
             .use(plugin)
             .use(ZiggyVue, ziggyConfig);
 
