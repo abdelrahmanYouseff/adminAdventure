@@ -97,28 +97,24 @@ class WorkerOrderController extends Controller
         }
 
         $shortLink = $shortLinks->createDeliveryNoteLink($order);
-        $buttonSuffix = $shortLinks->whatsappButtonSuffix($shortLink);
         $deliveryNoteUrl = $shortLinks->publicUrl($shortLink);
 
-        $send = $whatsApp->sendDeliveryNoteTemplate(
+        $send = $whatsApp->sendDeliveryNoteToCustomer(
             $to,
             $upload['media_id'],
             $filename,
-            $buttonSuffix,
             $deliveryNoteUrl,
         );
 
         if (! $send['success']) {
-            return back()->with('error', 'فشل إرسال تمبلت واتساب: '.($send['error'] ?? 'خطأ غير معروف'));
+            return back()->with('error', 'فشل إرسال إذن التسليم عبر واتساب: '.($send['error'] ?? 'خطأ غير معروف'));
         }
 
-        $linkSend = $whatsApp->sendDeliveryNotePublicLink($to, $deliveryNoteUrl);
-
         $message = 'تم إرسال إذن التسليم عبر واتساب إلى +'.$to
-            .' — رابط إذن التسليم: '.$deliveryNoteUrl;
+            .' — رابط النظام: '.$deliveryNoteUrl;
 
-        if (! $linkSend['success']) {
-            $message .= ' — زر القالب ما زال على رابط المتجر؛ غيّر رابط الزر في Meta إلى https://admin.adventureksa.com/d/{{1}}';
+        if ($send['used_template'] ?? false) {
+            $message .= ' — إن ظهر زر المتجر فهو من قالب Meta القديم؛ أنشئ قالباً جديداً بدون رابط shop.adventurksa.com';
         }
 
         return back()->with('success', $message);

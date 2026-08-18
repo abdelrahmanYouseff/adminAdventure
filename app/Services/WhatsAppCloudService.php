@@ -77,6 +77,91 @@ class WhatsAppCloudService
     }
 
     /**
+     * Send the delivery-note PDF with the system public URL.
+     *
+     * Prefers a regular document message so WhatsApp does not attach the
+     * Meta template's Visit Website button (still pointing at the shop).
+     *
+     * @return array{success: bool, message_id: ?string, error: ?string, status: ?int, mode: string, to: string, used_template: bool}
+     */
+    public function sendDeliveryNoteToCustomer(
+        string $to,
+        string $mediaId,
+        string $filename,
+        string $publicUrl,
+    ): array {
+        $caption = 'إذن التسليم: '.$publicUrl;
+        $document = $this->sendDocumentWithReport($to, $mediaId, $filename, $caption);
+
+        if ($document['success']) {
+            $this->sendDeliveryNotePublicLink($to, $publicUrl);
+            $document['used_template'] = false;
+
+            return $document;
+        }
+
+        $template = $this->sendDeliveryNoteTemplate($to, $mediaId, $filename, null, $publicUrl);
+        $template['used_template'] = true;
+
+        if ($template['success']) {
+            $this->sendDeliveryNotePublicLink($to, $publicUrl);
+        }
+
+        return $template;
+    }
+
+    /**
+     * @return array{success: bool, message_id: ?string, error: ?string, status: ?int, mode: string, to: string}
+     */
+    public function sendDocumentWithReport(
+        string $to,
+        string $mediaId,
+        string $filename,
+        ?string $caption = null,
+    ): array {
+        if (! $this->isApiConfigured()) {
+            return [
+                'success' => false,
+                'message_id' => null,
+                'error' => 'واتساب غير مفعّل أو الإعدادات ناقصة',
+                'status' => null,
+                'mode' => 'document',
+                'to' => self::normalizePhone($to),
+            ];
+        }
+
+        $phoneNumberId = (string) config('services.whatsapp.phone_number_id');
+        $version = (string) config('services.whatsapp.graph_version', 'v21.0');
+        $recipient = self::normalizePhone($to);
+
+        $document = [
+            'id' => $mediaId,
+            'filename' => $filename,
+        ];
+
+        if (is_string($caption) && $caption !== '') {
+            $document['caption'] = mb_substr($caption, 0, 1024);
+        }
+
+        $response = $this->client()->post(
+            "https://graph.facebook.com/{$version}/{$phoneNumberId}/messages",
+            [
+                'messaging_product' => 'whatsapp',
+                'recipient_type' => 'individual',
+                'to' => $recipient,
+                'type' => 'document',
+                'document' => $document,
+            ]
+        );
+
+        $result = $this->parseMessageResponse($response, $recipient, 'document');
+        $result['mode'] = 'document';
+        $result['to'] = $recipient;
+
+        return $result;
+    }
+
+    /**
      * Send the approved delivery-note Meta template with a PDF header.
      *
      * @return array{success: bool, message_id: ?string, error: ?string, status: ?int, mode: string, to: string}
@@ -137,7 +222,13 @@ class WhatsAppCloudService
             ]],
         ];
 
-        $includeUrlButton = filter_var(config('services.whatsapp.delivery_note_url_button', false), FILTER_VALIDATE_BOOLEAN)
+        $buttonUrl = strtolower((string) ($resolved['button_url'] ?? ''));
+        $buttonIsSystemUrl = str_contains($buttonUrl, 'admin.adventureksa.com');
+        $buttonIsShopUrl = $this->containsShopDomain($buttonUrl);
+
+        $includeUrlButton = $buttonIsSystemUrl
+            && ! $buttonIsShopUrl
+            && filter_var(config('services.whatsapp.delivery_note_url_button', false), FILTER_VALIDATE_BOOLEAN)
             && is_string($urlButtonSuffix)
             && $urlButtonSuffix !== '';
 
@@ -169,7 +260,7 @@ class WhatsAppCloudService
             'to' => self::normalizePhone($to),
         ];
 
-        $names = $this->deliveryNoteNameFallbacks($template);
+        $names = array_values(array_unique(array_filter([trim($template)])));
 
         foreach ($names as $name) {
             foreach ($this->deliveryNoteLanguageFallbacks($configuredLanguage) as $language) {
@@ -231,21 +322,7 @@ class WhatsAppCloudService
     }
 
     /**
-     * @return list<string>
-     */
-    private function deliveryNoteNameFallbacks(string $configured): array
-    {
-        return array_values(array_unique(array_filter([
-            trim($configured),
-            'order_deliver_note',
-            'order_delivery_note',
-            'delivery_note',
-            'order_deliver_note_v2',
-        ])));
-    }
-
-    /**
-     * @return array{name: string, language: string, status: ?string, error: ?string}
+     * @return array{name: string, language: string, status: ?string, error: ?string, button_url?: ?string}
      */
     private function resolveDeliveryNoteTemplate(): array
     {
@@ -260,6 +337,7 @@ class WhatsAppCloudService
                 'language' => $configuredLang,
                 'status' => null,
                 'error' => null,
+                'button_url' => null,
             ];
         }
 
@@ -268,10 +346,18 @@ class WhatsAppCloudService
             fn (array $template) => strtoupper($template['status']) === 'APPROVED'
         ));
 
-        $match = $this->firstTemplate($approved, $configuredName, $configuredLang)
-            ?? $this->firstTemplate($approved, $configuredName, null)
-            ?? $this->firstDocumentHeaderTemplate($approved)
-            ?? $this->firstTemplateByNeedle($approved, ['deliver_note', 'delivery_note', 'deliver']);
+        $withoutShop = array_values(array_filter(
+            $approved,
+            fn (array $template) => ! $this->templateContainsShopDomain($template)
+        ));
+
+        $match = $this->firstTemplate($withoutShop, $configuredName, $configuredLang)
+            ?? $this->firstTemplate($withoutShop, $configuredName, null)
+            ?? $this->firstTemplateWithAdminButton($withoutShop)
+            ?? $this->firstDocumentHeaderTemplate($withoutShop)
+            ?? $this->firstTemplateByNeedle($withoutShop, ['deliver_note', 'delivery_note', 'deliver'])
+            ?? $this->firstTemplate($approved, $configuredName, $configuredLang)
+            ?? $this->firstTemplate($approved, $configuredName, null);
 
         if ($match) {
             return [
@@ -279,6 +365,7 @@ class WhatsAppCloudService
                 'language' => $match['language'],
                 'status' => $match['status'],
                 'error' => null,
+                'button_url' => $this->templateButtonUrl($match),
             ];
         }
 
@@ -299,7 +386,79 @@ class WhatsAppCloudService
             'language' => $configuredLang,
             'status' => null,
             'error' => null,
+            'button_url' => null,
         ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $template
+     */
+    private function templateContainsShopDomain(array $template): bool
+    {
+        return $this->containsShopDomain($this->templateButtonUrl($template) ?? '');
+    }
+
+    private function containsShopDomain(string $value): bool
+    {
+        $value = strtolower($value);
+
+        return str_contains($value, 'shop.adventurksa')
+            || str_contains($value, 'shop.adventureksa');
+    }
+
+    /**
+     * @param  array<string, mixed>  $template
+     */
+    private function templateButtonUrl(array $template): ?string
+    {
+        $components = $template['components'] ?? [];
+
+        if (! is_array($components)) {
+            return null;
+        }
+
+        foreach ($components as $component) {
+            if (! is_array($component)) {
+                continue;
+            }
+
+            $buttons = $component['buttons'] ?? [];
+
+            if (! is_array($buttons)) {
+                continue;
+            }
+
+            foreach ($buttons as $button) {
+                if (! is_array($button)) {
+                    continue;
+                }
+
+                $url = $button['url'] ?? null;
+
+                if (is_string($url) && $url !== '') {
+                    return $url;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param  list<array{name: string, language: string, status: string, category: string, components?: mixed}>  $templates
+     * @return array{name: string, language: string, status: string, category: string, components?: mixed}|null
+     */
+    private function firstTemplateWithAdminButton(array $templates): ?array
+    {
+        foreach ($templates as $template) {
+            $url = strtolower((string) $this->templateButtonUrl($template));
+
+            if (str_contains($url, 'admin.adventureksa.com')) {
+                return $template;
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -437,7 +596,7 @@ class WhatsAppCloudService
     {
         $cta = $this->sendCtaUrlWithReport(
             $to,
-            'إذن التسليم جاهز للعرض على النظام',
+            "إذن التسليم جاهز على النظام:\n".$url,
             'عرض الطلب',
             $url,
         );
