@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref } from 'vue';
-import { Head, Link, useForm, usePage } from '@inertiajs/vue3';
+import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
 import {
     ArrowLeft,
     ArrowRight,
@@ -14,6 +14,7 @@ import {
     Package,
     Phone,
     ShieldAlert,
+    Trash2,
     X,
 } from 'lucide-vue-next';
 import { formatDate, formatDateTime } from '@/lib/formatNumber';
@@ -48,6 +49,7 @@ interface Installation {
     pending_count: number;
     completed_count: number;
     is_approved: boolean;
+    can_replace_photos?: boolean;
     status: 'pending' | 'completed';
     task_type?: 'installation' | 'dismantling' | 'both';
     task_label?: string;
@@ -63,6 +65,7 @@ const props = defineProps<Props>();
 const page = usePage();
 const { t, isRtl, dir } = useI18n();
 const successMessage = computed(() => page.props.flash?.success as string | undefined);
+const errorMessage = computed(() => page.props.flash?.error as string | undefined);
 
 const selectedProduct = ref<ProductLine | null>(null);
 const dialogOpen = ref(false);
@@ -70,6 +73,8 @@ const photoPreview = ref<string | null>(null);
 const photoError = ref<string | null>(null);
 const cameraInputRef = ref<HTMLInputElement | null>(null);
 const galleryInputRef = ref<HTMLInputElement | null>(null);
+const photoToDelete = ref<ProductLine | null>(null);
+const deletingPhoto = ref(false);
 let photoChangeSeq = 0;
 
 const installForm = useForm({
@@ -91,6 +96,7 @@ const finishedProducts = computed(() =>
 const notes = computed(() => props.installation.notes ?? []);
 
 const isDismantling = computed(() => props.installation.task_type === 'dismantling');
+const canReplacePhotos = computed(() => Boolean(props.installation.can_replace_photos));
 
 const pageTitle = computed(() =>
     isDismantling.value
@@ -242,6 +248,29 @@ function submitCapture() {
     });
 }
 
+function askDeletePhoto(product: ProductLine) {
+    if (!canReplacePhotos.value) return;
+    photoToDelete.value = product;
+}
+
+function closeDeletePhoto() {
+    if (deletingPhoto.value) return;
+    photoToDelete.value = null;
+}
+
+function confirmDeletePhoto() {
+    if (!photoToDelete.value || deletingPhoto.value) return;
+
+    deletingPhoto.value = true;
+    router.delete(`/worker-app/installations/lines/${photoToDelete.value.id}/photo`, {
+        preserveScroll: true,
+        onFinish: () => {
+            deletingPhoto.value = false;
+            photoToDelete.value = null;
+        },
+    });
+}
+
 onBeforeUnmount(() => {
     clearPreview();
 });
@@ -302,6 +331,12 @@ function confirmLeave() {
                 class="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800"
             >
                 {{ successMessage }}
+            </div>
+            <div
+                v-if="errorMessage"
+                class="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-800"
+            >
+                {{ errorMessage }}
             </div>
 
             <section class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -465,21 +500,67 @@ function confirmLeave() {
                             class="h-full w-full object-cover"
                         />
                     </div>
-                    <div class="flex items-center justify-between gap-2 p-4">
-                        <div class="min-w-0">
-                            <p class="truncate font-semibold text-slate-900">{{ product.product_name }}</p>
-                            <p v-if="product.completed_at" class="mt-0.5 text-xs text-slate-500">
-                                {{ formatDateTime(product.completed_at) }}
-                            </p>
+                    <div class="space-y-3 p-4">
+                        <div class="flex items-center justify-between gap-2">
+                            <div class="min-w-0">
+                                <p class="truncate font-semibold text-slate-900">{{ product.product_name }}</p>
+                                <p v-if="product.completed_at" class="mt-0.5 text-xs text-slate-500">
+                                    {{ formatDateTime(product.completed_at) }}
+                                </p>
+                            </div>
+                            <span class="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700 ring-1 ring-emerald-100">
+                                <CheckCircle2 class="h-3.5 w-3.5" />
+                                {{ t('completed') }}
+                            </span>
                         </div>
-                        <span class="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700 ring-1 ring-emerald-100">
-                            <CheckCircle2 class="h-3.5 w-3.5" />
-                            {{ t('completed') }}
-                        </span>
+                        <button
+                            v-if="canReplacePhotos"
+                            type="button"
+                            class="inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl border border-rose-200 bg-rose-50 text-sm font-semibold text-rose-700 transition active:scale-[0.99] hover:bg-rose-100"
+                            @click="askDeletePhoto(product)"
+                        >
+                            <Trash2 class="h-4 w-4" />
+                            {{ t('replace_photo') }}
+                        </button>
                     </div>
                 </article>
             </section>
         </main>
+
+        <Teleport to="body">
+            <div
+                v-if="photoToDelete"
+                class="fixed inset-0 z-[210] flex items-center justify-center p-5"
+                role="dialog"
+                aria-modal="true"
+                :dir="dir"
+            >
+                <button type="button" class="absolute inset-0 bg-slate-900/50" :aria-label="t('close')" @click="closeDeletePhoto" />
+                <div class="relative z-10 w-full max-w-sm rounded-3xl bg-white p-5 shadow-2xl">
+                    <h2 class="text-lg font-bold text-slate-900">{{ t('delete_photo_title') }}</h2>
+                    <p class="mt-1 truncate text-sm font-medium text-slate-700">{{ photoToDelete.product_name }}</p>
+                    <p class="mt-2 text-sm leading-relaxed text-slate-500">{{ t('delete_photo_body') }}</p>
+                    <div class="mt-5 grid grid-cols-2 gap-2">
+                        <button
+                            type="button"
+                            class="h-12 rounded-2xl border border-slate-200 bg-white text-sm font-semibold text-slate-700 disabled:opacity-60"
+                            :disabled="deletingPhoto"
+                            @click="closeDeletePhoto"
+                        >
+                            {{ t('cancel') }}
+                        </button>
+                        <button
+                            type="button"
+                            class="h-12 rounded-2xl bg-rose-600 text-sm font-semibold text-white disabled:opacity-60"
+                            :disabled="deletingPhoto"
+                            @click="confirmDeletePhoto"
+                        >
+                            {{ deletingPhoto ? t('deleting') : t('replace_photo') }}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </Teleport>
 
         <Teleport to="body">
             <div

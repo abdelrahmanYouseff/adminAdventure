@@ -54,6 +54,8 @@ Route::middleware(['pwa'])->prefix('worker-app')->name('pwa.')->group(function (
             ->name('installations.show');
         Route::post('installations/lines/{workerOrder}/complete', [\App\Http\Controllers\Pwa\WorkerInstallationController::class, 'complete'])
             ->name('installations.complete');
+        Route::delete('installations/lines/{workerOrder}/photo', [\App\Http\Controllers\Pwa\WorkerInstallationController::class, 'destroyPhoto'])
+            ->name('installations.photo.destroy');
         Route::post('installations/{order}/notes', [\App\Http\Controllers\Pwa\WorkerInstallationController::class, 'storeNote'])
             ->name('installations.notes.store');
         Route::post('logout', [\App\Http\Controllers\Pwa\WorkerAuthController::class, 'destroy'])

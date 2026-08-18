@@ -58,6 +58,9 @@ class WorkerInstallationController extends Controller
                 'pending_count' => $pendingCount,
                 'completed_count' => $completedCount,
                 'is_approved' => (bool) $order->work_order_approved_at,
+                'can_replace_photos' => $isDismantling
+                    ? blank($order->warehouse_returned_at)
+                    : blank($order->work_order_approved_at),
                 'status' => $pendingCount > 0 ? 'pending' : 'completed',
                 'task_type' => $isDismantling ? 'dismantling' : ($assignmentType === 'both' ? 'both' : 'installation'),
                 'task_label' => $isDismantling ? 'فك' : ($assignmentType === 'both' ? 'تركيب + فك' : 'تركيب'),
@@ -188,6 +191,71 @@ class WorkerInstallationController extends Controller
         return redirect()
             ->route('pwa.installations.show', $workerOrder->order_id)
             ->with('success', 'تم تسجيل صورة التركيب بنجاح.');
+    }
+
+    public function destroyPhoto(Request $request, WorkerOrder $workerOrder): RedirectResponse
+    {
+        $user = $request->user();
+        $workerOrder->loadMissing('order');
+
+        abort_unless(
+            $workerOrder->order && $workerOrder->order->isAssignedToWorker($user),
+            403,
+            'هذا الطلب غير معيّن لك.',
+        );
+
+        $order = $workerOrder->order;
+        $isDismantling = $order->workerIsInDismantlingPhase($user);
+
+        if ($isDismantling) {
+            abort_if(
+                filled($order->warehouse_returned_at),
+                403,
+                'لا يمكن حذف الصورة بعد تأكيد المستودع.',
+            );
+
+            if (blank($workerOrder->pickup_photo)) {
+                return back()->with('error', 'لا توجد صورة فك لحذفها.');
+            }
+
+            Storage::disk('public')->delete($workerOrder->pickup_photo);
+
+            $workerOrder->update([
+                'pickup_photo' => null,
+                'pickup_at' => null,
+                'pickup_by' => null,
+                'pickup_condition' => null,
+            ]);
+
+            return redirect()
+                ->route('pwa.installations.show', $order)
+                ->with('success', 'تم حذف صورة الفك. يمكنك رفع صورة جديدة.');
+        }
+
+        abort_if(
+            filled($order->work_order_approved_at),
+            403,
+            'لا يمكن حذف الصورة بعد تعميد أمر العمل.',
+        );
+
+        if (blank($workerOrder->installation_photo) && $workerOrder->status !== 'completed') {
+            return back()->with('error', 'لا توجد صورة تركيب لحذفها.');
+        }
+
+        if ($workerOrder->installation_photo) {
+            Storage::disk('public')->delete($workerOrder->installation_photo);
+        }
+
+        $workerOrder->update([
+            'installation_photo' => null,
+            'status' => 'pending',
+            'completed_at' => null,
+            'completed_by' => null,
+        ]);
+
+        return redirect()
+            ->route('pwa.installations.show', $order)
+            ->with('success', 'تم حذف صورة التركيب. يمكنك رفع صورة جديدة.');
     }
 
     private function resolveMapUrl(?string $address): ?string
