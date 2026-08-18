@@ -48,8 +48,9 @@ class ShortLinkService
     /**
      * Value passed to Meta URL button {{1}}.
      *
-     * Template website URL must be the admin host, not the Salla shop:
+     * Website URL in Meta must be exactly:
      * https://admin.adventureksa.com/d/{{1}}
+     * Sample for {{1}}: kQz9abcd   (the code only, not a full URL)
      */
     public function whatsappButtonSuffix(ShortLink $link): string
     {
@@ -65,6 +66,10 @@ class ShortLinkService
 
         if ($mode === 'path') {
             return 'd/'.$link->code;
+        }
+
+        if ($mode === 'dn') {
+            return $link->code;
         }
 
         return $link->code;

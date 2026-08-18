@@ -24,6 +24,9 @@ Route::post('track/app-download', [\App\Http\Controllers\AppDownloadClickControl
 Route::get('d/{code}', [\App\Http\Controllers\ShortLinkController::class, 'show'])
     ->where('code', '[A-Za-z0-9]{6,16}')
     ->name('short-links.show');
+Route::get('dn/{code}', [\App\Http\Controllers\ShortLinkController::class, 'show'])
+    ->where('code', '[A-Za-z0-9]{6,16}')
+    ->name('short-links.show.dn');
 
 /*
 |--------------------------------------------------------------------------
