@@ -22,10 +22,10 @@ Route::post('track/app-download', [\App\Http\Controllers\AppDownloadClickControl
     ->name('track.app-download');
 
 Route::get('d/{code}', [\App\Http\Controllers\ShortLinkController::class, 'show'])
-    ->where('code', '[A-Za-z0-9]{6,16}')
+    ->where('code', '[A-Za-z0-9._-]{4,64}')
     ->name('short-links.show');
 Route::get('dn/{code}', [\App\Http\Controllers\ShortLinkController::class, 'show'])
-    ->where('code', '[A-Za-z0-9]{6,16}')
+    ->where('code', '[A-Za-z0-9._-]{4,64}')
     ->name('short-links.show.dn');
 
 /*

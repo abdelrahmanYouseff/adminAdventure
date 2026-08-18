@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Order;
 use App\Models\ShortLink;
 use App\Services\DeliveryNotePdfService;
 use App\Services\ShortLinkService;
@@ -17,7 +18,23 @@ class ShortLinkController extends Controller
         WorkerOrderSyncService $syncService,
         ShortLinkService $shortLinks,
     ): Response {
-        $link = ShortLink::query()->where('code', $code)->firstOrFail();
+        $link = ShortLink::query()->where('code', $code)->first()
+            ?? ShortLink::query()
+                ->where('type', ShortLink::TYPE_DELIVERY_NOTE)
+                ->where('target_key', $code)
+                ->latest('id')
+                ->first();
+
+        if (! $link) {
+            $order = Order::query()
+                ->where('order_number', $code)
+                ->orWhereHas('invoice', fn ($query) => $query->where('invoice_number', $code))
+                ->first();
+
+            abort_unless($order, 404);
+
+            $link = $shortLinks->createDeliveryNoteLink($order);
+        }
 
         $link->increment('hits');
 

@@ -42,37 +42,21 @@ class ShortLinkService
 
     public function publicUrl(ShortLink $link): string
     {
-        return rtrim(PublicAppUrl::base(), '/').'/d/'.$link->code;
+        return rtrim(PublicAppUrl::base(), '/').'/dn/'.$this->whatsappButtonSuffix($link);
     }
 
     /**
      * Value passed to Meta URL button {{1}}.
      *
-     * Website URL in Meta must be exactly:
-     * https://admin.adventureksa.com/d/{{1}}
-     * Sample for {{1}}: kQz9abcd   (the code only, not a full URL)
+     * Website URL in Meta is:
+     * https://admin.adventurksa.com/dn/{{1}}
+     * so this must be the delivery-note id only (e.g. S-202608142), not a full URL.
      */
     public function whatsappButtonSuffix(ShortLink $link): string
     {
-        $mode = (string) config('services.whatsapp.delivery_note_button_mode', 'code');
+        $id = trim((string) ($link->target_key ?: ''));
 
-        if ($mode === 'system') {
-            $key = (string) ($link->target_key ?: '');
-
-            if ($key !== '') {
-                return 'worker-orders/'.$key.'/delivery-note';
-            }
-        }
-
-        if ($mode === 'path') {
-            return 'd/'.$link->code;
-        }
-
-        if ($mode === 'dn') {
-            return $link->code;
-        }
-
-        return $link->code;
+        return $id !== '' ? $id : $link->code;
     }
 
     private function uniqueCode(int $length = 8): string
