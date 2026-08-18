@@ -418,6 +418,14 @@ Route::get('orders/{order}', [OrderController::class, 'show'])
     ->middleware(['auth', 'verified', 'role:admin,general_manager,manager'])
     ->name('orders.show');
 
+Route::get('order-journey', [\App\Http\Controllers\OrderJourneyController::class, 'index'])
+    ->middleware(['auth', 'verified', 'role:admin'])
+    ->name('order-journey.index');
+
+Route::get('order-journey/{order}', [\App\Http\Controllers\OrderJourneyController::class, 'show'])
+    ->middleware(['auth', 'verified', 'role:admin'])
+    ->name('order-journey.show');
+
 Route::patch('orders/{order}/activity-time', [OrderController::class, 'updateActivityTime'])
     ->middleware(['auth', 'verified', 'role:admin,general_manager,manager'])
     ->name('orders.update-activity-time');

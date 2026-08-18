@@ -22,6 +22,7 @@ import {
     Undo2,
     Wallet,
     BarChart3,
+    Route,
 } from 'lucide-vue-next';
 import AppLogo from './AppLogo.vue';
 import { computed, ref } from 'vue';
@@ -85,6 +86,12 @@ const allNavItems: NavItemWithRoles[] = [
         href: '/orders',
         icon: ShoppingCart,
         roles: ['admin', 'general_manager', 'manager'],
+    },
+    {
+        title: 'رحلة الطلب',
+        href: '/order-journey',
+        icon: Route,
+        roles: ['admin'],
     },
     {
         title: 'أوامر العمل',
