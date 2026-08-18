@@ -93,14 +93,11 @@ class WhatsAppCloudService
         ?string $urlButtonSuffix = null,
     ): array {
         $from = $this->cloudSendingDisplayPhone();
-        $template = $this->sendDeliveryNoteTemplate($to, $mediaId, $filename, null, $publicUrl);
+        $template = $this->sendDeliveryNoteTemplate($to, $mediaId, $filename, $urlButtonSuffix);
         $template['used_template'] = true;
         $template['from'] = $from;
 
         if (! $template['success']) {
-            $template['error'] = ($template['error'] ?? 'فشل إرسال قالب واتساب')
-                .' — واتساب يقبل رسالة الجلسة ثم لا يوصلها إذا لم يراسل العميل خلال 24 ساعة.';
-
             return $template;
         }
 
@@ -221,46 +218,22 @@ class WhatsAppCloudService
             ]],
         ];
 
-        $buttonUrl = strtolower((string) ($resolved['button_url'] ?? ''));
-        $buttonIsShopUrl = $this->containsShopDomain($buttonUrl);
-        $buttonIsSystemUrl = str_contains($buttonUrl, 'admin.adventureksa.com');
         $hasSuffix = is_string($urlButtonSuffix) && $urlButtonSuffix !== '';
+        $componentSets = [[$headerComponent]];
 
-        $componentSets = [];
-
-        $bodyComponent = null;
-        if (is_string($bodyText) && trim($bodyText) !== '') {
-            $bodyComponent = [
-                'type' => 'body',
-                'parameters' => [[
-                    'type' => 'text',
-                    'text' => mb_substr(trim($bodyText), 0, 1024),
-                ]],
+        if ($hasSuffix) {
+            $componentSets[] = [
+                $headerComponent,
+                [
+                    'type' => 'button',
+                    'sub_type' => 'url',
+                    'index' => '0',
+                    'parameters' => [[
+                        'type' => 'text',
+                        'text' => $urlButtonSuffix,
+                    ]],
+                ],
             ];
-            $componentSets[] = [$headerComponent, $bodyComponent];
-        }
-
-        $componentSets[] = [$headerComponent];
-
-        // Only fill a URL button whose domain is already admin.adventureksa.com.
-        // Filling {{1}} on the Salla template produces shop.adventurksa.com/...
-        if ($hasSuffix && $buttonIsSystemUrl && ! $buttonIsShopUrl) {
-            $urlButtonComponent = [
-                'type' => 'button',
-                'sub_type' => 'url',
-                'index' => '0',
-                'parameters' => [[
-                    'type' => 'text',
-                    'text' => $urlButtonSuffix,
-                ]],
-            ];
-
-            $withButton = [$headerComponent, $urlButtonComponent];
-            if ($bodyComponent) {
-                $withButton = [$headerComponent, $bodyComponent, $urlButtonComponent];
-            }
-
-            array_unshift($componentSets, $withButton);
         }
 
         $last = [
@@ -310,10 +283,29 @@ class WhatsAppCloudService
             }
         }
 
-        $last['error'] = 'القالب '.$template.' غير موجود أو غير معتمد بهذه اللغة في واتساب (خطأ 132001). '
-            .'راجع الاسم واللغة وحالة Approved في Meta Business Manager.';
+        $last['error'] = $this->deliveryNoteSendError($last, $template);
 
         return $last;
+    }
+
+    /**
+     * @param  array{success: bool, message_id: ?string, error: ?string, status: ?int, mode?: string, to?: string}  $last
+     */
+    private function deliveryNoteSendError(array $last, string $template): string
+    {
+        $error = (string) ($last['error'] ?? '');
+        $lower = strtolower($error);
+
+        if (str_contains($lower, '132001') || str_contains($lower, 'translation')) {
+            return 'القالب '.$template.' غير موجود أو غير معتمد بهذه اللغة في واتساب (خطأ 132001). '
+                .'اللغة في .env يجب أن تطابق لغة القالب في Meta حرفياً (en وليس en_US إذا كان English).';
+        }
+
+        if ($error !== '') {
+            return $error;
+        }
+
+        return 'تعذر إرسال تمبلت إذن التسليم '.$template;
     }
 
     /**

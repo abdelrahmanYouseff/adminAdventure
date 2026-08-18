@@ -105,6 +105,7 @@ class WorkerOrderController extends Controller
             $upload['media_id'],
             $filename,
             $deliveryNoteUrl,
+            $shortLinks->whatsappButtonSuffix($shortLink),
         );
 
         if (! $send['success']) {
