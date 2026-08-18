@@ -86,6 +86,7 @@ class WhatsAppCloudService
         string $mediaId,
         string $filename,
         ?string $urlButtonSuffix = null,
+        ?string $bodyText = null,
     ): array {
         $template = trim((string) config('services.whatsapp.delivery_note_template', ''));
         $language = (string) config('services.whatsapp.delivery_note_template_language', 'ar');
@@ -112,15 +113,24 @@ class WhatsAppCloudService
             ]],
         ];
 
-        $components = [$headerComponent];
+        $bodyComponent = null;
+        if (is_string($bodyText) && $bodyText !== '') {
+            $bodyComponent = [
+                'type' => 'body',
+                'parameters' => [[
+                    'type' => 'text',
+                    'text' => mb_substr($bodyText, 0, 1024),
+                ]],
+            ];
+        }
 
-        // زر الرابط ثابت غالباً في القالب — لا نرسل parameters إلا إذا فُعّل صراحة
         $includeUrlButton = filter_var(config('services.whatsapp.delivery_note_url_button', false), FILTER_VALIDATE_BOOLEAN)
             && is_string($urlButtonSuffix)
             && $urlButtonSuffix !== '';
 
+        $buttonComponent = null;
         if ($includeUrlButton) {
-            $components[] = [
+            $buttonComponent = [
                 'type' => 'button',
                 'sub_type' => 'url',
                 'index' => '0',
@@ -131,24 +141,126 @@ class WhatsAppCloudService
             ];
         }
 
-        $result = $this->sendTemplateWithReport($to, $template, $language, $components);
-        $result['mode'] = 'template:'.$template.($includeUrlButton ? '+button' : '');
-        $result['to'] = self::normalizePhone($to);
+        $attempts = [];
+        $full = [$headerComponent];
+        if ($bodyComponent) {
+            $full[] = $bodyComponent;
+        }
+        if ($buttonComponent) {
+            $full[] = $buttonComponent;
+        }
+        $attempts[] = $full;
 
-        $error = strtolower((string) ($result['error'] ?? ''));
-        $parameterIssue = str_contains($error, 'parameter')
-            || str_contains($error, 'button')
-            || str_contains($error, '132018');
-
-        if (! $result['success'] && $includeUrlButton && $parameterIssue) {
-            $retry = $this->sendTemplateWithReport($to, $template, $language, [$headerComponent]);
-            $retry['mode'] = 'template:'.$template.'(header-only)';
-            $retry['to'] = self::normalizePhone($to);
-
-            return $retry;
+        if ($bodyComponent && $buttonComponent) {
+            $attempts[] = [$headerComponent, $buttonComponent];
+            $attempts[] = [$headerComponent, $bodyComponent];
         }
 
+        $attempts[] = [$headerComponent];
+
+        $last = [
+            'success' => false,
+            'message_id' => null,
+            'error' => 'تعذر إرسال تمبلت إذن التسليم',
+            'status' => null,
+            'mode' => 'template:'.$template,
+            'to' => self::normalizePhone($to),
+        ];
+
+        foreach ($attempts as $index => $components) {
+            $result = $this->sendTemplateWithReport($to, $template, $language, $components);
+            $result['mode'] = 'template:'.$template.'#'.$index;
+            $result['to'] = self::normalizePhone($to);
+
+            if ($result['success']) {
+                return $result;
+            }
+
+            $last = $result;
+            $error = strtolower((string) ($result['error'] ?? ''));
+            $parameterIssue = str_contains($error, 'parameter')
+                || str_contains($error, 'button')
+                || str_contains($error, 'component')
+                || str_contains($error, '132018')
+                || str_contains($error, '132000');
+
+            if (! $parameterIssue) {
+                return $result;
+            }
+        }
+
+        return $last;
+    }
+
+    /**
+     * Session CTA with a full URL. Works only inside the 24-hour customer window.
+     *
+     * @return array{success: bool, message_id: ?string, error: ?string, status: ?int, mode?: string}
+     */
+    public function sendCtaUrlWithReport(string $to, string $body, string $buttonText, string $url): array
+    {
+        if (! $this->isApiConfigured()) {
+            return [
+                'success' => false,
+                'message_id' => null,
+                'error' => 'واتساب غير مفعّل أو الإعدادات ناقصة',
+                'status' => null,
+            ];
+        }
+
+        $phoneNumberId = (string) config('services.whatsapp.phone_number_id');
+        $version = (string) config('services.whatsapp.graph_version', 'v21.0');
+        $recipient = self::normalizePhone($to);
+
+        $response = $this->client()->post(
+            "https://graph.facebook.com/{$version}/{$phoneNumberId}/messages",
+            [
+                'messaging_product' => 'whatsapp',
+                'recipient_type' => 'individual',
+                'to' => $recipient,
+                'type' => 'interactive',
+                'interactive' => [
+                    'type' => 'cta_url',
+                    'body' => [
+                        'text' => mb_substr($body, 0, 1024),
+                    ],
+                    'action' => [
+                        'name' => 'cta_url',
+                        'parameters' => [
+                            'display_text' => mb_substr($buttonText, 0, 20),
+                            'url' => $url,
+                        ],
+                    ],
+                ],
+            ]
+        );
+
+        $result = $this->parseMessageResponse($response, $recipient, 'cta_url');
+        $result['mode'] = 'cta_url';
+
         return $result;
+    }
+
+    /**
+     * @return array{success: bool, message_id: ?string, error: ?string, status: ?int, mode?: string}
+     */
+    public function sendDeliveryNotePublicLink(string $to, string $url): array
+    {
+        $cta = $this->sendCtaUrlWithReport(
+            $to,
+            'إذن التسليم جاهز للعرض على النظام',
+            'عرض الطلب',
+            $url,
+        );
+
+        if ($cta['success']) {
+            return $cta;
+        }
+
+        $text = $this->sendTextWithReport($to, "إذن التسليم:\n".$url);
+        $text['mode'] = 'text-link';
+
+        return $text;
     }
 
     /**

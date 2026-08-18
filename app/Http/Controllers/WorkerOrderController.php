@@ -105,17 +105,23 @@ class WorkerOrderController extends Controller
             $upload['media_id'],
             $filename,
             $buttonSuffix,
+            $deliveryNoteUrl,
         );
 
         if (! $send['success']) {
             return back()->with('error', 'فشل إرسال تمبلت واتساب: '.($send['error'] ?? 'خطأ غير معروف'));
         }
 
-        return back()->with(
-            'success',
-            'تم إرسال إذن التسليم عبر واتساب إلى +'.$to
-            .' — رابط إذن التسليم: '.$deliveryNoteUrl,
-        );
+        $linkSend = $whatsApp->sendDeliveryNotePublicLink($to, $deliveryNoteUrl);
+
+        $message = 'تم إرسال إذن التسليم عبر واتساب إلى +'.$to
+            .' — رابط إذن التسليم: '.$deliveryNoteUrl;
+
+        if (! $linkSend['success']) {
+            $message .= ' — زر القالب ما زال على رابط المتجر؛ غيّر رابط الزر في Meta إلى https://admin.adventureksa.com/d/{{1}}';
+        }
+
+        return back()->with('success', $message);
     }
 
     public function complete(Request $request, WorkerOrder $workerOrder)
