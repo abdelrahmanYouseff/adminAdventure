@@ -150,12 +150,11 @@
 <body>
 
 {{-- Top header: logo --}}
-<table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom: {{ $pt(4) }};">
+<table width="100%" cellpadding="0" cellspacing="0" dir="ltr" style="margin-bottom: {{ $pt(4) }};">
     <tr>
-        <td width="65%" valign="top"></td>
-        <td width="35%" align="right" valign="top">
+        <td align="left" valign="top">
             @if($data->hasLogo())
-                <img src="{{ $data->logoPath() }}" alt="{{ $data->logoAlt() }}" height="{{ round(78 * $scale) }}" style="max-width: {{ round(180 * $scale) }}px;">
+                <img src="{{ $data->logoPath() }}" alt="{{ $data->logoAlt() }}" height="{{ round(108 * $scale) }}" style="max-width: {{ round(250 * $scale) }}px;">
             @endif
         </td>
     </tr>
@@ -178,7 +177,8 @@
             <div style="margin-top: {{ $pt(2) }};">
                 <span class="meta-label">CR. No. / <span style="font-family: xbriyaz, dejavusans, sans-serif;">سجل تجاري</span>:</span>
                 {{ $data->commercialRegister() }}
-                &nbsp;|&nbsp;
+            </div>
+            <div style="margin-top: {{ $pt(2) }};">
                 <span class="meta-label">VAT Number / <span style="font-family: xbriyaz, dejavusans, sans-serif;">الرقم الضريبي</span>:</span>
                 {{ $data->vatNumber() }}
             </div>
