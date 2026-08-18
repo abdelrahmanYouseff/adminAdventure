@@ -48,7 +48,7 @@ class OrderPaymentReceiptController extends Controller
         }
 
         $groups = $receipts
-            ->groupBy(fn (OrderPaymentReceipt $receipt) => $this->customerGroupKey($receipt->order))
+            ->groupBy(fn (OrderPaymentReceipt $receipt) => $this->orderGroupKey($receipt))
             ->map(fn (Collection $items) => $this->serializeCustomerGroup($items, $profilesByOrderId, $canApprove))
             ->values();
 
@@ -214,34 +214,12 @@ class OrderPaymentReceiptController extends Controller
     }
 
     /**
-     * Group by the order's customer name so the same client stays one row,
-     * not the staff/user account that recorded the order.
+     * One table row per order so a customer's second order never merges
+     * into the first order's receipt.
      */
-    private function customerGroupKey(?Order $order): string
+    private function orderGroupKey(OrderPaymentReceipt $receipt): string
     {
-        if (! $order) {
-            return 'unknown:0';
-        }
-
-        $name = $this->normalizedCustomerName((string) ($order->customer_name ?? ''));
-        $phone = $this->normalizedPhone((string) ($order->customer_phone ?? ''));
-
-        if ($name !== '') {
-            return 'name:'.$name.($phone !== '' ? '|phone:'.$phone : '');
-        }
-
-        if ($phone !== '') {
-            return 'phone:'.$phone;
-        }
-
-        return 'order:'.$order->id;
-    }
-
-    private function normalizedCustomerName(string $name): string
-    {
-        $name = trim(mb_strtolower(preg_replace('/\s+/u', ' ', $name) ?? ''));
-
-        return $name;
+        return 'order:'.($receipt->order_id ?: 0);
     }
 
     /**
@@ -294,10 +272,15 @@ class OrderPaymentReceiptController extends Controller
 
         $allReceipts = $orders->flatMap(fn (array $order) => $order['receipts']);
         $pendingReceipts = $allReceipts->where('approval_status', OrderPaymentReceipt::STATUS_PENDING);
+        $recordedReceipts = $allReceipts->where('approval_status', '!=', OrderPaymentReceipt::STATUS_REJECTED);
         $currency = $orders->pluck('currency')->filter()->first() ?: 'SAR';
+        $totalAmount = round((float) $orders->sum('total_amount'), 2);
+        $recordedPaid = round((float) $recordedReceipts->sum('amount'), 2);
 
         return [
-            'key' => $this->customerGroupKey($receipts->first()?->order),
+            'key' => $receipts->first()
+                ? $this->orderGroupKey($receipts->first())
+                : 'order:0',
             'customer' => $customer,
             'customer_name' => $customer['name'],
             'orders_count' => $orders->count(),
@@ -306,9 +289,9 @@ class OrderPaymentReceiptController extends Controller
             'approved_count' => $allReceipts->where('approval_status', OrderPaymentReceipt::STATUS_APPROVED)->count(),
             'rejected_count' => $allReceipts->where('approval_status', OrderPaymentReceipt::STATUS_REJECTED)->count(),
             'pending_amount' => round((float) $pendingReceipts->sum('amount'), 2),
-            'amount_paid' => round((float) $orders->sum('amount_paid'), 2),
-            'total_amount' => round((float) $orders->sum('total_amount'), 2),
-            'remaining_amount' => round((float) $orders->sum('remaining_amount'), 2),
+            'amount_paid' => $recordedPaid,
+            'total_amount' => $totalAmount,
+            'remaining_amount' => round(max(0, $totalAmount - $recordedPaid), 2),
             'currency' => $currency,
             'latest_receipt_id' => (int) $receipts->max('id'),
             'latest_at' => optional($receipts->sortByDesc('id')->first()?->created_at)?->toIso8601String(),
@@ -372,21 +355,21 @@ class OrderPaymentReceiptController extends Controller
      */
     private function mergeCustomerProfiles(Collection $profiles): array
     {
-                $preferred = $profiles->firstWhere('source', 'company_client')
+        $preferred = $profiles->firstWhere('source', 'company_client')
             ?? $profiles->firstWhere('source', 'order')
             ?? $profiles->firstWhere('source', 'user')
             ?? $profiles->first()
             ?? [
-                'name' => null,
-                'phone' => null,
-                'phone_secondary' => null,
-                'email' => null,
-                'address' => null,
-                'iban' => null,
-                'iban_image_url' => null,
-                'tax_number' => null,
-                'source' => 'order',
-                'type' => null,
+        'name' => null,
+        'phone' => null,
+        'phone_secondary' => null,
+        'email' => null,
+        'address' => null,
+        'iban' => null,
+        'iban_image_url' => null,
+        'tax_number' => null,
+        'source' => 'order',
+        'type' => null,
             ];
 
         foreach ($profiles as $profile) {
@@ -398,25 +381,6 @@ class OrderPaymentReceiptController extends Controller
         }
 
         return $preferred;
-    }
-
-    private function normalizedPhone(string $phone): string
-    {
-        $digits = preg_replace('/\D+/', '', $phone) ?? '';
-
-        if ($digits === '') {
-            return '';
-        }
-
-        if (str_starts_with($digits, '966')) {
-            $digits = substr($digits, 3);
-        }
-
-        if (str_starts_with($digits, '0')) {
-            $digits = substr($digits, 1);
-        }
-
-        return $digits;
     }
 
     /**

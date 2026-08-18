@@ -14,8 +14,9 @@ use RuntimeException;
 class OrderPaymentReceiptService
 {
     /**
-     * Record a payment as a PENDING receipt. It does not touch the order's
-     * approved balance or status until an accountant approves it.
+     * Record a payment as a PENDING receipt. Extra payments on the same order
+     * update that order's existing voucher instead of opening a new one.
+     * A new order always gets its own receipt, even for the same customer.
      */
     public function recordPayment(
         Order $order,
@@ -52,16 +53,31 @@ class OrderPaymentReceiptService
             $available = round(max(0, $total - $committed), 2);
 
             if ($amount > $available + 0.009) {
-                throw new RuntimeException('مبلغ السداد أكبر من المتبقي غير المخصّص على العميل.');
+                throw new RuntimeException('مبلغ السداد أكبر من المتبقي غير المخصّص على هذا الطلب.');
             }
-
-            // Provisional snapshot relative to the approved balance; recomputed on approval.
-            $projectedRemaining = round(max(0, $total - ($committed + $amount)), 2);
 
             if ($paymentMethod) {
                 $locked->payment_method = $paymentMethod;
                 $locked->save();
             }
+
+            $existing = $this->receiptToAccumulate($locked);
+
+            if ($existing) {
+                return $this->accumulateOnReceipt(
+                    $existing,
+                    $locked,
+                    $amount,
+                    $approvedPaid,
+                    $user,
+                    $paymentMethod,
+                    $notes,
+                    $proofImages,
+                    $accountNumber,
+                );
+            }
+
+            $projectedRemaining = round(max(0, $total - ($committed + $amount)), 2);
 
             return OrderPaymentReceipt::create([
                 'order_id' => $locked->id,
@@ -147,14 +163,20 @@ class OrderPaymentReceiptService
             /** @var Order $locked */
             $locked = Order::query()->lockForUpdate()->findOrFail($lockedReceipt->order_id);
 
-            $hadApprovedBefore = $locked->paymentReceipts()
-                ->where('approval_status', OrderPaymentReceipt::STATUS_APPROVED)
-                ->exists();
+            $hadApprovedBefore = $lockedReceipt->approved_at !== null
+                || $locked->paymentReceipts()
+                    ->where('approval_status', OrderPaymentReceipt::STATUS_APPROVED)
+                    ->where('id', '!=', $lockedReceipt->id)
+                    ->exists();
 
             $total = round((float) $locked->total_amount, 2);
             $paidBefore = round((float) ($locked->amount_paid ?? 0), 2);
             $amount = round((float) $lockedReceipt->amount, 2);
-            $paidAfter = round(min($total, $paidBefore + $amount), 2);
+            $previouslyApplied = $lockedReceipt->approved_at !== null
+                ? round((float) $lockedReceipt->amount_paid_after, 2)
+                : 0.0;
+            $delta = round(max(0, $amount - $previouslyApplied), 2);
+            $paidAfter = round(min($total, $paidBefore + $delta), 2);
             $remainingAfter = round(max(0, $total - $paidAfter), 2);
 
             $lockedReceipt->fill([
@@ -358,5 +380,114 @@ class OrderPaymentReceiptService
         }
 
         return $rows;
+    }
+
+    /**
+     * One live voucher per order: pending first, otherwise the single approved
+     * receipt so later payments on this order stay on the same record.
+     */
+    private function receiptToAccumulate(Order $order): ?OrderPaymentReceipt
+    {
+        $receipts = OrderPaymentReceipt::query()
+            ->where('order_id', $order->id)
+            ->whereIn('approval_status', [
+                OrderPaymentReceipt::STATUS_PENDING,
+                OrderPaymentReceipt::STATUS_APPROVED,
+            ])
+            ->orderByDesc('id')
+            ->lockForUpdate()
+            ->get();
+
+        $pending = $receipts->first(
+            fn (OrderPaymentReceipt $receipt) => $receipt->isPending(),
+        );
+
+        if ($pending) {
+            return $pending;
+        }
+
+        if ($receipts->count() === 1) {
+            return $receipts->first();
+        }
+
+        return null;
+    }
+
+    /**
+     * @param  list<string>  $proofImages
+     */
+    private function accumulateOnReceipt(
+        OrderPaymentReceipt $receipt,
+        Order $order,
+        float $increment,
+        float $approvedPaid,
+        ?User $user,
+        ?string $paymentMethod,
+        ?string $notes,
+        array $proofImages,
+        ?string $accountNumber,
+    ): OrderPaymentReceipt {
+        $total = round((float) $order->total_amount, 2);
+        $currentAmount = round((float) $receipt->amount, 2);
+        $newAmount = round($currentAmount + $increment, 2);
+        $previouslyApplied = $receipt->approved_at !== null
+            ? round((float) $receipt->amount_paid_after, 2)
+            : 0.0;
+        $projectedPaid = round(min($total, $approvedPaid + ($newAmount - $previouslyApplied)), 2);
+        $projectedRemaining = round(max(0, $total - $projectedPaid), 2);
+
+        $payload = [
+            'amount' => $newAmount,
+            'total_amount' => $total,
+            'amount_paid_before' => $approvedPaid,
+            'remaining_after' => $projectedRemaining,
+            'approval_status' => OrderPaymentReceipt::STATUS_PENDING,
+            'notes' => $this->mergeNotes($receipt->notes, $notes),
+        ];
+
+        if ($receipt->approved_at === null) {
+            $payload['amount_paid_after'] = $projectedPaid;
+        }
+
+        if ($paymentMethod) {
+            $payload['payment_method'] = $paymentMethod;
+        }
+
+        if ($accountNumber !== null && trim($accountNumber) !== '') {
+            $payload['account_number'] = trim($accountNumber);
+        }
+
+        if ($user && ! $receipt->recorded_by) {
+            $payload['recorded_by'] = $user->id;
+        }
+
+        $receipt->fill($payload);
+        $receipt->save();
+
+        if ($proofImages !== []) {
+            return $this->attachProofImages($receipt, $proofImages);
+        }
+
+        return $receipt->refresh();
+    }
+
+    private function mergeNotes(?string $existing, ?string $incoming): ?string
+    {
+        $existing = trim((string) $existing);
+        $incoming = trim((string) $incoming);
+
+        if ($incoming === '') {
+            return $existing !== '' ? $existing : null;
+        }
+
+        if ($existing === '' || $existing === $incoming) {
+            return $incoming;
+        }
+
+        if (str_contains($existing, $incoming)) {
+            return $existing;
+        }
+
+        return $existing."\n".$incoming;
     }
 }

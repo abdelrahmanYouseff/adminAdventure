@@ -2,6 +2,7 @@
 import { Head, Link } from '@inertiajs/vue3';
 import { ref, computed, onMounted } from 'vue';
 import AppLogo from '@/components/AppLogo.vue';
+import FloatingWhatsApp from '@/components/FloatingWhatsApp.vue';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Copy, Check, MessageCircle } from 'lucide-vue-next';
@@ -212,5 +213,6 @@ const whatsappUrl = computed(() => {
                 </div>
             </div>
         </div>
+        <FloatingWhatsApp />
     </div>
 </template>

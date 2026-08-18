@@ -72,6 +72,12 @@ Route::middleware(['main-app'])->prefix('main-app')->name('main.')->group(functi
     Route::post('login', [\App\Http\Controllers\MainApp\AuthController::class, 'store'])
         ->middleware('throttle:10,1')
         ->name('login.store');
+    Route::post('login/otp/send', [\App\Http\Controllers\MainApp\AuthController::class, 'sendOtp'])
+        ->middleware('throttle:10,1')
+        ->name('login.otp.send');
+    Route::post('login/otp/verify', [\App\Http\Controllers\MainApp\AuthController::class, 'verifyOtp'])
+        ->middleware('throttle:20,1')
+        ->name('login.otp.verify');
 
     Route::middleware(['auth', 'main-app.staff'])->group(function () {
         Route::get('/', [\App\Http\Controllers\MainApp\WorkOrderController::class, 'index'])

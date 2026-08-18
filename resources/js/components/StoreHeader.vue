@@ -4,12 +4,14 @@ import { Link, usePage } from '@inertiajs/vue3';
 import { ShoppingCart, User } from 'lucide-vue-next';
 import { useStoreCart } from '@/composables/useStoreCart';
 import StoreUserMenu from '@/components/StoreUserMenu.vue';
+import FloatingWhatsApp from '@/components/FloatingWhatsApp.vue';
 
 withDefaults(
     defineProps<{
         showLoginButton?: boolean;
+        showWhatsApp?: boolean;
     }>(),
-    { showLoginButton: false },
+    { showLoginButton: false, showWhatsApp: true },
 );
 
 const emit = defineEmits<{
@@ -74,4 +76,5 @@ onMounted(() => syncFromStorage());
             </nav>
         </div>
     </header>
+    <FloatingWhatsApp v-if="showWhatsApp" />
 </template>

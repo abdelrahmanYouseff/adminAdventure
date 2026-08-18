@@ -1,42 +1,9 @@
 <script setup lang="ts">
-import { computed } from 'vue';
-import { usePage } from '@inertiajs/vue3';
-
 /**
  * زر واتساب ثابت على واجهة المتجر العامة فقط — يمين الشاشة.
- * مخفي داخل لوحة التحكم وPWA العمال وصفحات تسجيل الدخول.
+ * يُدرج من صفحات الموقع الإلكتروني، وليس من لوحة التحكم.
  * يمكن ضبط الرقم عبر VITE_WHATSAPP_NUMBER في .env (أرقام فقط، مع رمز الدولة).
  */
-const page = usePage();
-
-const isPublicStorefront = computed(() => {
-    const component = page.component;
-    const url = page.url.split('?')[0] ?? page.url;
-
-    if (
-        component === 'Store/Cart'
-        || url.startsWith('/store/cart')
-        || url.startsWith('/login')
-        || component.startsWith('auth/')
-        || url.startsWith('/worker-app')
-    ) {
-        return false;
-    }
-
-    return (
-        component === 'Home'
-        || component === 'Privacy'
-        || component.startsWith('Store/')
-        || component.startsWith('Payment/')
-        || url === '/home'
-        || url.startsWith('/store')
-        || url === '/privacy'
-        || url.startsWith('/payment')
-    );
-});
-
-const hidden = computed(() => !isPublicStorefront.value);
-
 const raw =
     (import.meta.env.VITE_WHATSAPP_NUMBER as string | undefined)?.trim() ||
     '966500000000';
@@ -47,7 +14,6 @@ const href = `https://wa.me/${digits}?text=${encodeURIComponent('مرحباً، 
 
 <template>
     <a
-        v-if="!hidden"
         :href="href"
         target="_blank"
         rel="noopener noreferrer"

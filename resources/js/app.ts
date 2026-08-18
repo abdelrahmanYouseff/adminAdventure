@@ -3,8 +3,7 @@ import '../css/app.css';
 import { createInertiaApp } from '@inertiajs/vue3';
 import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
 import type { DefineComponent } from 'vue';
-import { Fragment, createApp, h } from 'vue';
-import FloatingWhatsApp from './components/FloatingWhatsApp.vue';
+import { createApp, h } from 'vue';
 import { route as ziggyRoute, ZiggyVue } from 'ziggy-js';
 import type { Config } from 'ziggy-js';
 import { Ziggy as fallbackZiggy } from './ziggy';
@@ -45,11 +44,7 @@ createInertiaApp({
             ziggyRoute(name as never, params as never, absolute, ziggyConfig)) as typeof ziggyRoute;
 
         createApp({
-            render: () =>
-                h(Fragment, null, [
-                    h(App, props),
-                    h(FloatingWhatsApp),
-                ]),
+            render: () => h(App, props),
         })
             .use(plugin)
             .use(ZiggyVue, ziggyConfig)

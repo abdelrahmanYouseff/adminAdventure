@@ -48,7 +48,7 @@ const summaryBenefits = [
         :class="cartItems.length > 0 ? 'max-lg:pb-[calc(5.5rem+env(safe-area-inset-bottom,0px))]' : ''"
         style="font-family: 'Noto Kufi Arabic', sans-serif"
     >
-        <StoreHeader />
+        <StoreHeader :show-whats-app="false" />
 
         <!-- ── Empty cart ── -->
         <div

@@ -174,28 +174,28 @@ const summaryCards = computed(() => [
         label: 'إجمالي السندات',
         value: props.statusCounts.all,
         unit: 'سند',
-        hint: 'عرض كل العملاء',
+        hint: 'عرض كل السندات',
     },
     {
         key: 'pending' as const,
         label: 'بانتظار الاعتماد',
         value: props.statusCounts.pending,
         unit: 'سند',
-        hint: 'عملاء لديهم سند معلّق',
+        hint: 'سندات معلّقة بانتظار المحاسب',
     },
     {
         key: 'approved' as const,
         label: 'معتمدة',
         value: props.statusCounts.approved,
         unit: 'سند',
-        hint: 'عملاء لديهم سند معتمد',
+        hint: 'سندات معتمدة',
     },
     {
         key: 'rejected' as const,
         label: 'مرفوضة',
         value: props.statusCounts.rejected ?? 0,
         unit: 'سند',
-        hint: 'عملاء لديهم سند مرفوض',
+        hint: 'سندات مرفوضة',
     },
 ]);
 
@@ -386,6 +386,15 @@ function customerDisplayName(group: CustomerGroup): string {
         || '—';
 }
 
+function receiptIdentifiers(group: CustomerGroup): string[] {
+    const numbers = group.orders
+        .flatMap((order) => [...order.receipts].reverse())
+        .map((receipt) => receipt.receipt_number)
+        .filter((value): value is string => Boolean(value));
+
+    return [...new Set(numbers)];
+}
+
 function firstPendingReceipt(group: CustomerGroup): ReceiptRow | null {
     for (const order of group.orders) {
         const pending = order.receipts.find((receipt) => receipt.can_approve);
@@ -416,7 +425,7 @@ function statusBadgeClass(row: ReceiptRow): string {
                     سندات القبض
                 </h1>
                 <p class="mt-1 text-sm text-gray-500 dark:text-neutral-400">
-                    كل عميل يظهر مرة واحدة، مع كل طلباته وإيصالات الدفع السابقة مرتّبة
+                    كل طلب له سند قبض مستقل. الدفعات الإضافية على نفس الطلب تُحدّث نفس السند
                 </p>
             </div>
         </div>
@@ -498,16 +507,17 @@ function statusBadgeClass(row: ReceiptRow): string {
                         <option :value="25">25</option>
                         <option :value="50">50</option>
                     </select>
-                    <span>من {{ formatInteger(groups.total) }} عميل</span>
+                    <span>من {{ formatInteger(groups.total) }} طلب</span>
                 </div>
             </div>
 
             <div class="overflow-x-auto">
-                <table class="w-full min-w-[980px] border-collapse text-sm">
+                <table class="w-full min-w-[1080px] border-collapse text-sm">
                     <thead>
                         <tr class="border-b border-gray-100 dark:border-neutral-800">
                             <th class="w-10 px-2 py-3.5" />
                             <th class="px-3 py-3.5 text-start text-[13px] font-semibold text-gray-700 dark:text-neutral-200">اسم العميل</th>
+                            <th class="px-3 py-3.5 text-start text-[13px] font-semibold text-gray-700 dark:text-neutral-200">الرقم التعريفي</th>
                             <th class="px-3 py-3.5 text-start text-[13px] font-semibold text-gray-700 dark:text-neutral-200">المبلغ المدفوع</th>
                             <th class="px-3 py-3.5 text-start text-[13px] font-semibold text-gray-700 dark:text-neutral-200">المتبقي</th>
                             <th class="px-3 py-3.5 text-start text-[13px] font-semibold text-gray-700 dark:text-neutral-200">الإجمالي</th>
@@ -517,7 +527,7 @@ function statusBadgeClass(row: ReceiptRow): string {
                     </thead>
                     <tbody>
                         <tr v-if="groups.data.length === 0">
-                            <td colspan="7" class="px-4 py-16 text-center text-gray-500 dark:text-neutral-400">
+                            <td colspan="8" class="px-4 py-16 text-center text-gray-500 dark:text-neutral-400">
                                 لا توجد سندات مطابقة للبحث أو الفلتر الحالي.
                             </td>
                         </tr>
@@ -538,6 +548,9 @@ function statusBadgeClass(row: ReceiptRow): string {
                                         <p class="font-semibold text-gray-900 dark:text-white">
                                             {{ customerDisplayName(group) }}
                                         </p>
+                                        <p v-if="group.orders[0]?.order_number" class="text-xs font-medium tabular-nums text-gray-500 dark:text-neutral-400" dir="ltr">
+                                            {{ group.orders[0].order_number }}
+                                        </p>
                                         <p class="text-xs tabular-nums text-gray-400" dir="ltr">
                                             {{ group.customer?.phone || '—' }}
                                         </p>
@@ -549,6 +562,19 @@ function statusBadgeClass(row: ReceiptRow): string {
                                             ملاحظات
                                         </span>
                                     </div>
+                                </td>
+                                <td class="px-3 py-4 text-start">
+                                    <div v-if="receiptIdentifiers(group).length" class="flex flex-col items-start gap-1">
+                                        <span
+                                            v-for="number in receiptIdentifiers(group)"
+                                            :key="number"
+                                            class="inline-flex rounded-md bg-gray-50 px-2 py-0.5 font-semibold tabular-nums text-gray-800 ring-1 ring-inset ring-gray-100 dark:bg-neutral-800 dark:text-neutral-100 dark:ring-neutral-700"
+                                            dir="ltr"
+                                        >
+                                            {{ number }}
+                                        </span>
+                                    </div>
+                                    <span v-else class="text-gray-400">—</span>
                                 </td>
                                 <td class="px-3 py-4 text-start font-semibold tabular-nums text-gray-900 dark:text-white">
                                     <span dir="ltr">{{ formatCurrency(group.amount_paid, group.currency) }}</span>
@@ -614,7 +640,7 @@ function statusBadgeClass(row: ReceiptRow): string {
                             </tr>
 
                             <tr v-if="expandedGroupKey === group.key" class="border-b border-gray-100 bg-gray-50/70 dark:border-neutral-800 dark:bg-neutral-800/20">
-                                <td colspan="7" class="p-4">
+                                <td colspan="8" class="p-4">
                                     <div class="grid gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(260px,1fr)]">
                                         <div class="rounded-xl border border-gray-200 bg-white p-4 dark:border-neutral-700 dark:bg-neutral-900">
                                             <div class="mb-3 flex items-center gap-2">

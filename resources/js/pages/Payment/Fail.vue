@@ -2,6 +2,7 @@
 import { Head, Link } from '@inertiajs/vue3';
 import { ref, onMounted } from 'vue';
 import AppLogo from '@/components/AppLogo.vue';
+import FloatingWhatsApp from '@/components/FloatingWhatsApp.vue';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 
@@ -82,5 +83,6 @@ onMounted(() => {
                 </div>
             </div>
         </div>
+        <FloatingWhatsApp />
     </div>
 </template>
