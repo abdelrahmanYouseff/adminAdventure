@@ -14,7 +14,6 @@ use App\Services\WhatsAppCloudService;
 use App\Services\WorkerOrderSyncService;
 use App\Support\DeliveryNotePdfData;
 use App\Support\OrderInsuranceCalculator;
-use App\Support\PublicAppUrl;
 use App\Support\WorkOrderPresenter;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -99,7 +98,7 @@ class WorkerOrderController extends Controller
 
         $shortLink = $shortLinks->createDeliveryNoteLink($order);
         $buttonSuffix = $shortLinks->whatsappButtonSuffix($shortLink);
-        $deliveryNoteUrl = rtrim(PublicAppUrl::base(), '/').'/'.$buttonSuffix;
+        $deliveryNoteUrl = $shortLinks->publicUrl($shortLink);
 
         $send = $whatsApp->sendDeliveryNoteTemplate(
             $to,

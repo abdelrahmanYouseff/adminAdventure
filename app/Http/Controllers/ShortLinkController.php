@@ -17,8 +17,6 @@ class ShortLinkController extends Controller
     ): Response {
         $link = ShortLink::query()->where('code', $code)->firstOrFail();
 
-        abort_if($link->isExpired(), 410, 'انتهت صلاحية الرابط.');
-
         $link->increment('hits');
 
         return match ($link->type) {

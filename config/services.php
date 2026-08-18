@@ -81,10 +81,9 @@ return [
         'delivery_note_template_language' => env('WHATSAPP_DELIVERY_NOTE_TEMPLATE_LANGUAGE', 'ar'),
         // إن كان زر «عرض الطلب» ديناميكياً في القالب (URL/.../{{1}})
         'delivery_note_url_button' => env('WHATSAPP_DELIVERY_NOTE_URL_BUTTON', true),
-        // system => قالب الزر: https://domain/{{1}} والقيمة worker-orders/{key}/delivery-note
-        // path   => قالب الزر: https://domain/{{1}} والقيمة d/{code}
-        // code   => قالب الزر: https://domain/d/{{1}} والقيمة {code}
-        'delivery_note_button_mode' => env('WHATSAPP_DELIVERY_NOTE_BUTTON_MODE', 'system'),
+        // code => قالب الزر في Meta: https://admin.adventureksa.com/d/{{1}}
+        // path => قالب الزر: https://admin.adventureksa.com/{{1}} والقيمة d/{code}
+        'delivery_note_button_mode' => env('WHATSAPP_DELIVERY_NOTE_BUTTON_MODE', 'code'),
         'waba_id' => env('WHATSAPP_WABA_ID'),
         'dispatch_sync' => env('WHATSAPP_DISPATCH_SYNC', true),
         'graph_version' => env('WHATSAPP_GRAPH_VERSION', 'v21.0'),

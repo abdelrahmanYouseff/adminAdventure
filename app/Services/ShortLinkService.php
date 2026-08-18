@@ -9,7 +9,7 @@ use Illuminate\Support\Str;
 
 class ShortLinkService
 {
-    public function createDeliveryNoteLink(Order $order, int $daysValid = 90): ShortLink
+    public function createDeliveryNoteLink(Order $order): ShortLink
     {
         $order->loadMissing('invoice:id,invoice_number');
         $targetKey = $order->invoice?->invoice_number ?? $order->order_number;
@@ -17,16 +17,13 @@ class ShortLinkService
         $existing = ShortLink::query()
             ->where('type', ShortLink::TYPE_DELIVERY_NOTE)
             ->where('order_id', $order->id)
-            ->where(function ($query) {
-                $query->whereNull('expires_at')->orWhere('expires_at', '>', now());
-            })
             ->latest('id')
             ->first();
 
         if ($existing) {
             $existing->fill([
                 'target_key' => $targetKey,
-                'expires_at' => now()->addDays($daysValid),
+                'expires_at' => null,
             ]);
             $existing->save();
 
@@ -38,7 +35,7 @@ class ShortLinkService
             'type' => ShortLink::TYPE_DELIVERY_NOTE,
             'order_id' => $order->id,
             'target_key' => $targetKey,
-            'expires_at' => now()->addDays($daysValid),
+            'expires_at' => null,
             'hits' => 0,
         ]);
     }
@@ -51,12 +48,12 @@ class ShortLinkService
     /**
      * Value passed to Meta URL button {{1}}.
      *
-     * Template website URL should be: https://your-domain/{{1}}
-     * so the final link becomes the delivery note on this system.
+     * Template website URL must be the admin host, not the Salla shop:
+     * https://admin.adventureksa.com/d/{{1}}
      */
     public function whatsappButtonSuffix(ShortLink $link): string
     {
-        $mode = (string) config('services.whatsapp.delivery_note_button_mode', 'system');
+        $mode = (string) config('services.whatsapp.delivery_note_button_mode', 'code');
 
         if ($mode === 'system') {
             $key = (string) ($link->target_key ?: '');
@@ -66,11 +63,11 @@ class ShortLinkService
             }
         }
 
-        if ($mode === 'code') {
-            return $link->code;
+        if ($mode === 'path') {
+            return 'd/'.$link->code;
         }
 
-        return 'd/'.$link->code;
+        return $link->code;
     }
 
     private function uniqueCode(int $length = 8): string
