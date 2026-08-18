@@ -23,6 +23,7 @@ import {
     Wallet,
     BarChart3,
     Route,
+    Settings,
 } from 'lucide-vue-next';
 import AppLogo from './AppLogo.vue';
 import { computed, ref } from 'vue';
@@ -166,6 +167,12 @@ const allNavItems: NavItemWithRoles[] = [
         href: '/settings/whatsapp',
         icon: MessageCircle,
         roles: ['admin', 'manager'],
+    },
+    {
+        title: 'إعدادات',
+        href: '/settings/quotations',
+        icon: Settings,
+        roles: ['admin'],
     },
 ];
 

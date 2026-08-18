@@ -147,6 +147,15 @@ Route::middleware(['auth', 'verified', 'admin'])->prefix('settings')->name('sett
         ->name('whatsapp.destroy');
 });
 
+Route::middleware(['auth', 'verified', 'role:admin'])->prefix('settings/quotations')->name('settings.quotations.')->group(function () {
+    Route::get('/', [\App\Http\Controllers\Settings\QuotationSettingsController::class, 'index'])
+        ->name('index');
+    Route::get('{brand}', [\App\Http\Controllers\Settings\QuotationSettingsController::class, 'show'])
+        ->name('show');
+    Route::post('{brand}/logo', [\App\Http\Controllers\Settings\QuotationSettingsController::class, 'updateLogo'])
+        ->name('logo');
+});
+
 Route::get('products', [ProductController::class, 'index'])
     ->middleware(['auth', 'verified', 'role:admin,general_manager,manager'])
     ->name('products');
