@@ -7,9 +7,12 @@ use Carbon\Carbon;
 
 class DeliveryNotePdfData
 {
-    public function __construct(public Order $order) {}
+    public function __construct(
+        public Order $order,
+        public ?string $systemUrl = null,
+    ) {}
 
-    public static function fromOrder(Order $order): self
+    public static function fromOrder(Order $order, ?string $systemUrl = null): self
     {
         $order->load([
             'invoice:id,invoice_number',
@@ -17,7 +20,7 @@ class DeliveryNotePdfData
             'workerOrders' => fn ($query) => $query->orderBy('line_index'),
         ]);
 
-        return new self($order);
+        return new self($order, $systemUrl);
     }
 
     public function logoPath(): string

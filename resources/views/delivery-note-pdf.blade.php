@@ -153,6 +153,13 @@
 
 <div class="doc-title">Delivery Note</div>
 
+@if($data->systemUrl)
+    <div style="border: 1px solid #1d4ed8; background: #eff6ff; padding: 10px 12px; margin-bottom: 16px; font-size: 8.5pt;">
+        <div style="font-weight: bold; margin-bottom: 4px;">System delivery note</div>
+        <div dir="ltr">{{ $data->systemUrl }}</div>
+    </div>
+@endif
+
 <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom: 18px;">
     <tr>
         <td width="58%" valign="top" class="company-block">

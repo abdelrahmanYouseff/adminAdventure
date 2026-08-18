@@ -78,9 +78,6 @@ class WorkerOrderController extends Controller
         ShortLinkService $shortLinks,
     ): RedirectResponse {
         $order = WorkOrderPresenter::resolve($workOrderKey, $syncService);
-        $data = DeliveryNotePdfData::fromOrder($order);
-        $pdf = $pdfService->render($data);
-        $filename = 'delivery-note-'.$data->referenceNumber().'.pdf';
 
         $requestedPhone = trim((string) $request->input('phone', ''));
         $to = WhatsAppCloudService::normalizePhone(
@@ -91,21 +88,23 @@ class WorkerOrderController extends Controller
             return back()->with('error', 'أدخل رقم جوال سعودي صحيح يبدأ بـ 5.');
         }
 
+        $shortLink = $shortLinks->createDeliveryNoteLink($order);
+        $deliveryNoteUrl = $shortLinks->publicUrl($shortLink);
+
+        $data = DeliveryNotePdfData::fromOrder($order, $deliveryNoteUrl);
+        $pdf = $pdfService->render($data);
+        $filename = 'delivery-note-'.$data->referenceNumber().'.pdf';
+
         $upload = $whatsApp->uploadMedia($pdf, 'application/pdf', $filename);
         if (! $upload['success'] || ! $upload['media_id']) {
             return back()->with('error', 'فشل رفع إذن التسليم إلى واتساب: '.($upload['error'] ?? 'خطأ غير معروف'));
         }
-
-        $shortLink = $shortLinks->createDeliveryNoteLink($order);
-        $deliveryNoteUrl = $shortLinks->publicUrl($shortLink);
-        $buttonSuffix = $shortLinks->whatsappButtonSuffix($shortLink);
 
         $send = $whatsApp->sendDeliveryNoteToCustomer(
             $to,
             $upload['media_id'],
             $filename,
             $deliveryNoteUrl,
-            $buttonSuffix,
         );
 
         if (! $send['success']) {
@@ -113,10 +112,9 @@ class WorkerOrderController extends Controller
         }
 
         $from = $send['from'] ?? $whatsApp->cloudSendingDisplayPhone();
-        $message = 'واتساب قبل الرسالة إلى +'.$to
+        $message = 'تم إرسال ملف إذن التسليم إلى +'.$to
             .' من رقم '.$from
-            .' — افتح محادثة هذا الرقم تحديداً.'
-            .' رابط النظام: '.$deliveryNoteUrl;
+            .' — لا تضغط زر المتجر. افتح ملف PDF أو هذا الرابط: '.$deliveryNoteUrl;
 
         return back()->with('success', $message);
     }

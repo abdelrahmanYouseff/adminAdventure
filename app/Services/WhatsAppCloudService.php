@@ -93,7 +93,7 @@ class WhatsAppCloudService
         ?string $urlButtonSuffix = null,
     ): array {
         $from = $this->cloudSendingDisplayPhone();
-        $template = $this->sendDeliveryNoteTemplate($to, $mediaId, $filename, $urlButtonSuffix, $publicUrl);
+        $template = $this->sendDeliveryNoteTemplate($to, $mediaId, $filename, null, $publicUrl);
         $template['used_template'] = true;
         $template['from'] = $from;
 
@@ -226,29 +226,41 @@ class WhatsAppCloudService
         $buttonIsSystemUrl = str_contains($buttonUrl, 'admin.adventureksa.com');
         $hasSuffix = is_string($urlButtonSuffix) && $urlButtonSuffix !== '';
 
-        $urlButtonComponent = [
-            'type' => 'button',
-            'sub_type' => 'url',
-            'index' => '0',
-            'parameters' => [[
-                'type' => 'text',
-                'text' => (string) $urlButtonSuffix,
-            ]],
-        ];
-
         $componentSets = [];
 
-        // Never complete a shop.adventurksa.com button. Try the PDF header alone first.
-        $componentSets[] = [$headerComponent];
-
-        if ($hasSuffix && $buttonIsSystemUrl && ! $buttonIsShopUrl) {
-            $componentSets[] = [$headerComponent, $urlButtonComponent];
+        $bodyComponent = null;
+        if (is_string($bodyText) && trim($bodyText) !== '') {
+            $bodyComponent = [
+                'type' => 'body',
+                'parameters' => [[
+                    'type' => 'text',
+                    'text' => mb_substr(trim($bodyText), 0, 1024),
+                ]],
+            ];
+            $componentSets[] = [$headerComponent, $bodyComponent];
         }
 
-        // Meta rejects some templates unless the URL button parameter is present.
-        // Use it last so the message still arrives; follow-up sends the admin URL.
-        if ($hasSuffix && ($buttonUrl === '' || $buttonIsShopUrl)) {
-            $componentSets[] = [$headerComponent, $urlButtonComponent];
+        $componentSets[] = [$headerComponent];
+
+        // Only fill a URL button whose domain is already admin.adventureksa.com.
+        // Filling {{1}} on the Salla template produces shop.adventurksa.com/...
+        if ($hasSuffix && $buttonIsSystemUrl && ! $buttonIsShopUrl) {
+            $urlButtonComponent = [
+                'type' => 'button',
+                'sub_type' => 'url',
+                'index' => '0',
+                'parameters' => [[
+                    'type' => 'text',
+                    'text' => $urlButtonSuffix,
+                ]],
+            ];
+
+            $withButton = [$headerComponent, $urlButtonComponent];
+            if ($bodyComponent) {
+                $withButton = [$headerComponent, $bodyComponent, $urlButtonComponent];
+            }
+
+            array_unshift($componentSets, $withButton);
         }
 
         $last = [
