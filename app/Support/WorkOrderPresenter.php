@@ -8,7 +8,6 @@ use App\Models\WorkerOrder;
 use App\Models\WorkerOrderAssembler;
 use App\Models\WorkerOrderNote;
 use App\Services\WorkerOrderSyncService;
-use Carbon\Carbon;
 
 class WorkOrderPresenter
 {
@@ -42,10 +41,8 @@ class WorkOrderPresenter
             'invoice_number' => $order->invoice?->invoice_number,
             'customer_name' => $firstLine?->customer_name ?? $order->customer_name,
             'customer_address' => $firstLine?->customer_address ?? $order->address,
-            'installation_date' => ($firstLine?->installation_date ?? $order->activity_date)?->format('Y-m-d'),
-            'activity_time' => ($order->getAttributes()['activity_time'] ?? null)
-                ? Carbon::parse($order->getAttributes()['activity_time'])->format('H:i')
-                : null,
+            'installation_date' => ($order->scheduledInstallationDate() ?? $firstLine?->installation_date)?->format('Y-m-d'),
+            'activity_time' => $order->scheduledInstallationTime(),
             'status' => $pendingLines > 0 ? 'pending' : 'completed',
             'products_count' => $totalLines,
             'pending_count' => $pendingLines,

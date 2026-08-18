@@ -5,9 +5,7 @@ namespace App\Http\Controllers\Pwa;
 use App\Http\Controllers\Controller;
 use App\Models\Order;
 use App\Models\WorkerOrder;
-use App\Models\WorkerOrderAssembler;
 use App\Support\OrderWhatsAppMessage;
-use Carbon\Carbon;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -110,9 +108,8 @@ class WorkerDashboardController extends Controller
                 $phase = 'done';
             }
 
-            $rawTime = $order->getAttributes()['activity_time'] ?? null;
-            $scheduledDate = ($firstLine?->installation_date ?? $order->activity_date)?->format('Y-m-d');
-            $scheduledTime = $rawTime ? Carbon::parse($rawTime)->format('H:i') : null;
+            $scheduledDate = ($order->scheduledInstallationDate() ?? $firstLine?->installation_date)?->format('Y-m-d');
+            $scheduledTime = $order->scheduledInstallationTime();
         }
 
         return [

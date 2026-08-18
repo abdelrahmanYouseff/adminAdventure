@@ -29,6 +29,7 @@ import {
     Copy,
     ExternalLink,
     Eye,
+    FileText,
     MapPin,
     MoreVertical,
     Pencil,
@@ -42,6 +43,7 @@ import {
     X,
 } from 'lucide-vue-next';
 import { formatCurrency, formatDate, formatDateTime, formatInteger, formatPrice } from '@/lib/formatNumber';
+import { isPdfFile, PAYMENT_PROOF_ACCEPT, paymentProofSelectedLabel } from '@/lib/paymentProof';
 
 interface InstallationPhoto {
     product_name: string;
@@ -1147,24 +1149,22 @@ function locationMapsUrl(address: string | null): string | null {
                     </div>
 
                     <div class="space-y-2">
-                        <Label for="settle-proof">صور التحويل / إيصال الدفع</Label>
+                        <Label for="settle-proof">إيصال الدفع</Label>
                         <label
                             for="settle-proof"
                             class="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border bg-muted/30 px-4 py-5 text-center transition hover:bg-muted/50"
                         >
                             <UploadCloud class="h-5 w-5 text-muted-foreground" />
                             <span class="text-sm font-medium">
-                                {{ settleForm.payment_proof.length
-                                    ? `${settleForm.payment_proof.length} صورة محددة — اضغط لإضافة المزيد`
-                                    : 'اختر صور الإيصال' }}
+                                {{ paymentProofSelectedLabel(settleForm.payment_proof.length) }}
                             </span>
-                            <span class="text-xs text-muted-foreground">jpg, png, webp — حتى 5 ميجابايت لكل صورة · بحد أقصى 10</span>
+                            <span class="text-xs text-muted-foreground">jpg, png, webp, pdf — حتى 5 ميجابايت لكل ملف · بحد أقصى 10</span>
                             <input
                                 id="settle-proof"
                                 ref="paymentProofInput"
                                 type="file"
                                 multiple
-                                accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp"
+                                :accept="PAYMENT_PROOF_ACCEPT"
                                 class="hidden"
                                 @change="handleSettleProofChange"
                             />
@@ -1175,7 +1175,20 @@ function locationMapsUrl(address: string | null): string | null {
                                 :key="`${preview}-${index}`"
                                 class="relative overflow-hidden rounded-xl border border-border/60"
                             >
+                                <a
+                                    v-if="isPdfFile(settleForm.payment_proof[index])"
+                                    :href="preview"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    class="flex aspect-square w-full flex-col items-center justify-center gap-2 bg-muted/30 px-2 text-center"
+                                >
+                                    <FileText class="h-8 w-8 text-rose-600" />
+                                    <span class="line-clamp-2 text-[11px] font-medium">
+                                        {{ settleForm.payment_proof[index]?.name || 'ملف PDF' }}
+                                    </span>
+                                </a>
                                 <img
+                                    v-else
                                     :src="preview"
                                     :alt="`معاينة إيصال ${index + 1}`"
                                     class="aspect-square w-full bg-muted/20 object-cover"
@@ -1196,7 +1209,7 @@ function locationMapsUrl(address: string | null): string | null {
                             class="text-xs text-rose-600 hover:underline"
                             @click="clearAllSettleProofs"
                         >
-                            إزالة كل الصور
+                            إزالة كل الملفات
                         </button>
                         <p v-if="settleForm.errors.payment_proof" class="text-xs text-red-600">
                             {{ settleForm.errors.payment_proof }}

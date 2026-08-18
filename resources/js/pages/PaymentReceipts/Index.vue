@@ -31,6 +31,7 @@ import {
     XCircle,
 } from 'lucide-vue-next';
 import { formatCurrency, formatDate, formatInteger } from '@/lib/formatNumber';
+import { isPdfUrl } from '@/lib/paymentProof';
 
 interface CustomerProfile {
     name: string | null;
@@ -814,7 +815,7 @@ function statusBadgeClass(row: ReceiptRow): string {
                                                     </p>
 
                                                     <div class="mt-3">
-                                                        <p class="mb-1.5 text-xs text-gray-400">صور التحويل / إيصال الدفع</p>
+                                                        <p class="mb-1.5 text-xs text-gray-400">إيصال الدفع</p>
                                                         <div v-if="proofUrls(receipt).length" class="grid grid-cols-2 gap-2 sm:grid-cols-4">
                                                             <a
                                                                 v-for="(url, imgIndex) in proofUrls(receipt)"
@@ -825,14 +826,22 @@ function statusBadgeClass(row: ReceiptRow): string {
                                                                 class="block overflow-hidden rounded-lg border border-gray-200 dark:border-neutral-700"
                                                                 @click.stop
                                                             >
+                                                                <span
+                                                                    v-if="isPdfUrl(url)"
+                                                                    class="flex aspect-square w-full flex-col items-center justify-center gap-1 bg-gray-50 px-2 text-center dark:bg-neutral-800"
+                                                                >
+                                                                    <FileText class="h-7 w-7 text-rose-600" />
+                                                                    <span class="text-[11px] font-medium text-gray-700 dark:text-neutral-200">ملف PDF</span>
+                                                                </span>
                                                                 <img
+                                                                    v-else
                                                                     :src="url"
                                                                     :alt="`صورة إيصال الدفع ${imgIndex + 1}`"
                                                                     class="aspect-square w-full bg-gray-50 object-cover dark:bg-neutral-800"
                                                                 />
                                                             </a>
                                                         </div>
-                                                        <p v-else class="text-sm text-gray-400">لا توجد صور مرفقة</p>
+                                                        <p v-else class="text-sm text-gray-400">لا يوجد إيصال مرفق</p>
                                                     </div>
 
                                                     <div v-if="receipt.account_number" class="mt-2">

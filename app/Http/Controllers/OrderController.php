@@ -2,13 +2,12 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Order;
 use App\Models\Invoice;
+use App\Models\Order;
 use App\Models\OrderPaymentReceipt;
 use App\Models\Product;
 use App\Models\User;
 use App\Services\OrderPaymentReceiptService;
-use App\Services\WorkerOrderSyncService;
 use App\Support\OrderInsuranceCalculator;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -152,7 +151,6 @@ class OrderController extends Controller
         ]);
     }
 
-
     public function show(Order $order)
     {
         $order->load(['user', 'invoice', 'products']);
@@ -259,6 +257,8 @@ class OrderController extends Controller
                 'address' => $order->address,
                 'activity_date' => $order->activity_date?->format('Y-m-d'),
                 'activity_time' => $rawTime ? \Carbon\Carbon::parse($rawTime)->format('H:i') : null,
+                'installation_date' => $order->installation_at?->format('Y-m-d'),
+                'installation_time' => $order->installation_at?->format('H:i'),
                 'dismantling_at' => $order->dismantling_at?->format('Y-m-d\TH:i'),
                 'currency' => $order->currency ?: 'SAR',
                 'payment_method' => $order->payment_method ?: 'cash',
@@ -304,6 +304,8 @@ class OrderController extends Controller
             'address' => ['nullable', 'string', 'max:1000'],
             'activity_date' => ['nullable', 'date'],
             'activity_time' => ['nullable', 'date_format:H:i'],
+            'installation_date' => ['nullable', 'date'],
+            'installation_time' => ['nullable', 'date_format:H:i'],
             'dismantling_at' => ['nullable', 'date'],
             'currency' => ['required', 'string', 'in:SAR,USD,EUR'],
             'payment_method' => ['required', 'string', 'in:credit_card,cash,bank_transfer,paypal,noon'],
@@ -312,7 +314,7 @@ class OrderController extends Controller
             'amount_paid' => ['nullable', 'numeric', 'min:0'],
             'account_number' => ['nullable', 'string', 'max:100'],
             'payment_proof' => ['nullable', 'array', 'max:10'],
-            'payment_proof.*' => ['image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
+            'payment_proof.*' => ['file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:5120'],
             'items' => ['required', 'array', 'min:1'],
             'items.*.product_id' => ['nullable', 'integer', 'exists:products,id'],
             'items.*.product_name' => ['nullable', 'string', 'max:255'],
@@ -330,12 +332,14 @@ class OrderController extends Controller
             'status.required' => 'حالة الطلب مطلوبة.',
             'amount_paid.min' => 'المبلغ المدفوع لا يمكن أن يكون سالباً.',
             'activity_time.date_format' => 'صيغة وقت الفعالية غير صحيحة.',
+            'installation_date.date' => 'تاريخ التركيب غير صالح.',
+            'installation_time.date_format' => 'صيغة وقت التركيب غير صحيحة.',
             'dismantling_at.date' => 'تاريخ الفك غير صالح.',
-            'payment_proof.array' => 'مرفقات التحويل يجب أن تكون قائمة صور.',
-            'payment_proof.max' => 'يمكن رفع 10 صور كحد أقصى.',
-            'payment_proof.*.image' => 'مرفق التحويل يجب أن يكون صورة.',
-            'payment_proof.*.mimes' => 'صيغ صورة التحويل المسموحة: jpg, jpeg, png, webp.',
-            'payment_proof.*.max' => 'حجم صورة التحويل يجب ألا يتجاوز 5 ميجابايت.',
+            'payment_proof.array' => 'مرفقات التحويل يجب أن تكون قائمة ملفات.',
+            'payment_proof.max' => 'يمكن رفع 10 ملفات كحد أقصى.',
+            'payment_proof.*.file' => 'مرفق التحويل غير صالح.',
+            'payment_proof.*.mimes' => 'الصيغ المسموحة: jpg, jpeg, png, webp, pdf.',
+            'payment_proof.*.max' => 'حجم المرفق يجب ألا يتجاوز 5 ميجابايت.',
             'items.*.discount_amount.min' => 'خصم الوحدة لا يمكن أن يكون سالباً.',
             'items.*.discount_amount.lte' => 'خصم الوحدة لا يمكن أن يتجاوز سعر الوحدة.',
         ]);
@@ -469,6 +473,10 @@ class OrderController extends Controller
                 'address' => $validated['address'] ?? null,
                 'activity_date' => $validated['activity_date'] ?? null,
                 'activity_time' => $validated['activity_time'] ?? $order->activity_time,
+                'installation_at' => Order::combineDateAndTime(
+                    $validated['installation_date'] ?? null,
+                    $validated['installation_time'] ?? null,
+                ),
                 'dismantling_at' => $validated['dismantling_at'] ?? null,
                 'total_amount' => $chargeAmount,
                 'discount_total' => $discountTotal,
@@ -585,13 +593,15 @@ class OrderController extends Controller
             'address' => ['nullable', 'string', 'max:1000'],
             'activity_date' => ['nullable', 'date'],
             'activity_time' => ['nullable', 'date_format:H:i'],
+            'installation_date' => ['nullable', 'date'],
+            'installation_time' => ['nullable', 'date_format:H:i'],
             'dismantling_at' => ['nullable', 'date'],
             'currency' => ['required', 'string', 'in:SAR,USD,EUR'],
             'payment_method' => ['required', 'string', 'in:credit_card,cash,bank_transfer,paypal,noon'],
             'status' => ['required', 'string', 'in:pending,processing,paid,cancelled'],
             'amount_paid' => ['nullable', 'numeric', 'min:0'],
             'payment_proof' => ['nullable', 'array', 'max:10'],
-            'payment_proof.*' => ['image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
+            'payment_proof.*' => ['file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:5120'],
             'notes' => ['nullable', 'string', 'max:1000'],
             'items' => ['required', 'array', 'min:1'],
             'items.*.product_id' => ['nullable', 'integer', 'exists:products,id'],
@@ -610,12 +620,14 @@ class OrderController extends Controller
             'status.required' => 'حالة الطلب مطلوبة.',
             'amount_paid.min' => 'المبلغ المدفوع لا يمكن أن يكون سالباً.',
             'activity_time.date_format' => 'صيغة وقت الفعالية غير صحيحة.',
+            'installation_date.date' => 'تاريخ التركيب غير صالح.',
+            'installation_time.date_format' => 'صيغة وقت التركيب غير صحيحة.',
             'dismantling_at.date' => 'تاريخ الفك غير صالح.',
-            'payment_proof.array' => 'مرفقات التحويل يجب أن تكون قائمة صور.',
-            'payment_proof.max' => 'يمكن رفع 10 صور كحد أقصى.',
-            'payment_proof.*.image' => 'مرفق التحويل يجب أن يكون صورة.',
-            'payment_proof.*.mimes' => 'صيغ صورة التحويل المسموحة: jpg, jpeg, png, webp.',
-            'payment_proof.*.max' => 'حجم صورة التحويل يجب ألا يتجاوز 5 ميجابايت.',
+            'payment_proof.array' => 'مرفقات التحويل يجب أن تكون قائمة ملفات.',
+            'payment_proof.max' => 'يمكن رفع 10 ملفات كحد أقصى.',
+            'payment_proof.*.file' => 'مرفق التحويل غير صالح.',
+            'payment_proof.*.mimes' => 'الصيغ المسموحة: jpg, jpeg, png, webp, pdf.',
+            'payment_proof.*.max' => 'حجم المرفق يجب ألا يتجاوز 5 ميجابايت.',
             'items.*.discount_amount.min' => 'خصم الوحدة لا يمكن أن يكون سالباً.',
             'items.*.discount_amount.lte' => 'خصم الوحدة لا يمكن أن يتجاوز سعر الوحدة.',
         ]);
@@ -743,6 +755,10 @@ class OrderController extends Controller
                 'address' => $validated['address'] ?? null,
                 'activity_date' => $validated['activity_date'] ?? null,
                 'activity_time' => $validated['activity_time'] ?? null,
+                'installation_at' => Order::combineDateAndTime(
+                    $validated['installation_date'] ?? null,
+                    $validated['installation_time'] ?? null,
+                ),
                 'dismantling_at' => $validated['dismantling_at'] ?? null,
                 'order_number' => Order::generateOrderNumber(),
                 'total_amount' => $chargeAmount,
@@ -812,15 +828,15 @@ class OrderController extends Controller
             'notes' => ['nullable', 'string', 'max:1000'],
             'account_number' => ['nullable', 'string', 'max:100'],
             'payment_proof' => ['nullable', 'array', 'max:10'],
-            'payment_proof.*' => ['image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
+            'payment_proof.*' => ['file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:5120'],
         ], [
             'amount.required' => 'مبلغ السداد مطلوب.',
             'amount.min' => 'مبلغ السداد يجب أن يكون أكبر من صفر.',
-            'payment_proof.array' => 'مرفقات التحويل يجب أن تكون قائمة صور.',
-            'payment_proof.max' => 'يمكن رفع 10 صور كحد أقصى.',
-            'payment_proof.*.image' => 'مرفق التحويل يجب أن يكون صورة.',
-            'payment_proof.*.mimes' => 'صيغ صورة التحويل المسموحة: jpg, jpeg, png, webp.',
-            'payment_proof.*.max' => 'حجم صورة التحويل يجب ألا يتجاوز 5 ميجابايت.',
+            'payment_proof.array' => 'مرفقات التحويل يجب أن تكون قائمة ملفات.',
+            'payment_proof.max' => 'يمكن رفع 10 ملفات كحد أقصى.',
+            'payment_proof.*.file' => 'مرفق التحويل غير صالح.',
+            'payment_proof.*.mimes' => 'الصيغ المسموحة: jpg, jpeg, png, webp, pdf.',
+            'payment_proof.*.max' => 'حجم المرفق يجب ألا يتجاوز 5 ميجابايت.',
         ]);
 
         $pendingSum = round((float) $order->paymentReceipts()
@@ -955,7 +971,7 @@ class OrderController extends Controller
                 $insuranceUnits = $insurance['unit_by_product'];
                 $itemsForOrder = [];
                 foreach ($request->product_items as $productItem) {
-                    $name = $products[$productItem['product_id']] ?? 'Product #' . $productItem['product_id'];
+                    $name = $products[$productItem['product_id']] ?? 'Product #'.$productItem['product_id'];
                     $qty = (int) $productItem['quantity'];
                     $price = (float) $productItem['price'];
                     $itemsForOrder[] = [
@@ -1097,7 +1113,7 @@ class OrderController extends Controller
         }
 
         $perPage = min((int) ($request->query('per_page', 15)), 50);
-        $orders  = $query->orderBy('created_at', 'desc')->paginate($perPage);
+        $orders = $query->orderBy('created_at', 'desc')->paginate($perPage);
 
         $orders->getCollection()->transform(function (Order $order) {
             return $this->formatOrder($order);
@@ -1105,12 +1121,12 @@ class OrderController extends Controller
 
         return response()->json([
             'success' => true,
-            'data'    => $orders->items(),
-            'meta'    => [
-                'total'        => $orders->total(),
-                'per_page'     => $orders->perPage(),
+            'data' => $orders->items(),
+            'meta' => [
+                'total' => $orders->total(),
+                'per_page' => $orders->perPage(),
                 'current_page' => $orders->currentPage(),
-                'last_page'    => $orders->lastPage(),
+                'last_page' => $orders->lastPage(),
             ],
         ]);
     }
@@ -1121,34 +1137,34 @@ class OrderController extends Controller
     private function formatOrder(Order $order): array
     {
         return [
-            'id'                      => $order->id,
-            'order_number'            => $order->order_number,
-            'status'                  => $order->status,
-            'payment_status'          => $order->payment_status ?? 'pending',
-            'payment_method'          => $order->payment_method,
+            'id' => $order->id,
+            'order_number' => $order->order_number,
+            'status' => $order->status,
+            'payment_status' => $order->payment_status ?? 'pending',
+            'payment_method' => $order->payment_method,
             'payment_order_reference' => $order->payment_order_reference,
-            'total_amount'            => (float) $order->total_amount,
-            'currency'                => $order->currency ?? 'SAR',
-            'customer_name'           => $order->customer_name,
-            'customer_email'          => $order->customer_email,
-            'customer_phone'          => $order->customer_phone,
-            'address'                 => $order->address,
-            'activity_date'           => $order->activity_date?->format('Y-m-d'),
-            'notes'                   => $order->notes,
-            'items'                   => $order->items ?? [],
-            'products'                => $order->products->map(fn ($p) => [
-                'id'           => $p->id,
+            'total_amount' => (float) $order->total_amount,
+            'currency' => $order->currency ?? 'SAR',
+            'customer_name' => $order->customer_name,
+            'customer_email' => $order->customer_email,
+            'customer_phone' => $order->customer_phone,
+            'address' => $order->address,
+            'activity_date' => $order->activity_date?->format('Y-m-d'),
+            'notes' => $order->notes,
+            'items' => $order->items ?? [],
+            'products' => $order->products->map(fn ($p) => [
+                'id' => $p->id,
                 'product_name' => $p->product_name,
-                'price'        => (float) $p->pivot->price,
-                'quantity'     => (int) $p->pivot->quantity,
-                'subtotal'     => (float) ($p->pivot->price * $p->pivot->quantity),
+                'price' => (float) $p->pivot->price,
+                'quantity' => (int) $p->pivot->quantity,
+                'subtotal' => (float) ($p->pivot->price * $p->pivot->quantity),
             ])->values()->toArray(),
-            'invoice'   => $order->invoice ? [
-                'id'             => $order->invoice->id,
+            'invoice' => $order->invoice ? [
+                'id' => $order->invoice->id,
                 'invoice_number' => $order->invoice->invoice_number,
-                'amount'         => (float) $order->invoice->amount,
-                'status'         => $order->invoice->status,
-                'issued_at'      => $order->invoice->issued_at?->format('Y-m-d H:i:s'),
+                'amount' => (float) $order->invoice->amount,
+                'status' => $order->invoice->status,
+                'issued_at' => $order->invoice->issued_at?->format('Y-m-d H:i:s'),
             ] : null,
             'created_at' => $order->created_at->format('Y-m-d H:i:s'),
             'updated_at' => $order->updated_at->format('Y-m-d H:i:s'),
@@ -1161,7 +1177,7 @@ class OrderController extends Controller
 
         return response()->json([
             'success' => true,
-            'data'    => $this->formatOrder($order),
+            'data' => $this->formatOrder($order),
         ]);
     }
 
@@ -1568,4 +1584,3 @@ class OrderController extends Controller
         }
     }
 }
-

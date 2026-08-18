@@ -40,10 +40,8 @@ class WorkerInstallationController extends Controller
         } else {
             $pendingCount = $lines->where('status', 'pending')->count();
             $completedCount = $lines->where('status', 'completed')->count();
-            $scheduledDate = ($firstLine?->installation_date ?? $order->activity_date)?->format('Y-m-d');
-            $scheduledTime = ($order->getAttributes()['activity_time'] ?? null)
-                ? \Carbon\Carbon::parse($order->getAttributes()['activity_time'])->format('H:i')
-                : null;
+            $scheduledDate = ($order->scheduledInstallationDate() ?? $firstLine?->installation_date)?->format('Y-m-d');
+            $scheduledTime = $order->scheduledInstallationTime();
         }
 
         return Inertia::render('InstallationShow', [

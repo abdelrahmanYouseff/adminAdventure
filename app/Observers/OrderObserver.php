@@ -31,6 +31,10 @@ class OrderObserver
             $order->wasChanged('payment_status')
             || $order->wasChanged('status')
             || $order->wasChanged('amount_paid')
+            || $order->wasChanged('installation_at')
+            || $order->wasChanged('activity_date')
+            || $order->wasChanged('customer_name')
+            || $order->wasChanged('address')
         ) {
             if ($this->shouldNotify($order)) {
                 $this->dispatchNotification($order);

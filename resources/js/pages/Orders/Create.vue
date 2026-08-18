@@ -21,10 +21,12 @@ import {
     Trash2,
     UploadCloud,
     User,
+    FileText,
 } from 'lucide-vue-next';
 import AppLayout from '@/layouts/AppLayout.vue';
 import ProductSearchCombobox from '@/components/ProductSearchCombobox.vue';
 import { formatCurrency } from '@/lib/formatNumber';
+import { isPdfFile, PAYMENT_PROOF_ACCEPT, paymentProofSelectedLabel } from '@/lib/paymentProof';
 import { ref, computed, watch, onBeforeUnmount } from 'vue';
 
 interface Product {
@@ -61,6 +63,8 @@ const form = useForm({
     address: '',
     activity_date: '',
     activity_time: '',
+    installation_date: '',
+    installation_time: '',
     dismantling_at: '',
     currency: 'SAR',
     payment_method: 'cash',
@@ -535,6 +539,39 @@ watch(grandTotal, (total) => {
                             </div>
 
                             <div class="space-y-2">
+                                <Label for="installation_date" class="flex items-center gap-1.5">
+                                    <Calendar class="h-3.5 w-3.5 text-muted-foreground" />
+                                    تاريخ التركيب
+                                </Label>
+                                <Input
+                                    id="installation_date"
+                                    v-model="form.installation_date"
+                                    type="date"
+                                    class="h-11 rounded-xl"
+                                />
+                                <p v-if="form.errors.installation_date" class="text-xs text-red-600">
+                                    {{ form.errors.installation_date }}
+                                </p>
+                            </div>
+
+                            <div class="space-y-2">
+                                <Label for="installation_time" class="flex items-center gap-1.5">
+                                    <Clock class="h-3.5 w-3.5 text-muted-foreground" />
+                                    وقت التركيب
+                                </Label>
+                                <Input
+                                    id="installation_time"
+                                    v-model="form.installation_time"
+                                    type="time"
+                                    class="h-11 rounded-xl"
+                                    dir="ltr"
+                                />
+                                <p v-if="form.errors.installation_time" class="text-xs text-red-600">
+                                    {{ form.errors.installation_time }}
+                                </p>
+                            </div>
+
+                            <div class="space-y-2">
                                 <Label for="dismantling_at" class="flex items-center gap-1.5">
                                     <Calendar class="h-3.5 w-3.5 text-muted-foreground" />
                                     تاريخ الفك مع الوقت
@@ -956,9 +993,9 @@ watch(grandTotal, (total) => {
                         </div>
 
                         <div v-if="amountPaid > 0" class="space-y-2 rounded-xl border border-border/60 p-4">
-                            <Label for="payment_proof" class="text-sm font-medium">صور التحويل / إيصال الدفع</Label>
+                            <Label for="payment_proof" class="text-sm font-medium">إيصال الدفع</Label>
                             <p class="text-xs text-muted-foreground">
-                                أرفق صور التحويل البنكي أو إيصالات المبلغ المدفوع لمراجعة المحاسب.
+                                أرفق صورة التحويل البنكي أو ملف PDF للإيصال لمراجعة المحاسب.
                             </p>
                             <label
                                 for="payment_proof"
@@ -966,16 +1003,14 @@ watch(grandTotal, (total) => {
                             >
                                 <UploadCloud class="h-6 w-6 text-muted-foreground" />
                                 <span class="text-sm font-medium">
-                                    {{ form.payment_proof.length
-                                        ? `${form.payment_proof.length} صورة محددة — اضغط لإضافة المزيد`
-                                        : 'اختر صور أو اسحبها هنا' }}
+                                    {{ paymentProofSelectedLabel(form.payment_proof.length) }}
                                 </span>
-                                <span class="text-xs text-muted-foreground">jpg, png, webp — حتى 5 ميجابايت · بحد أقصى 10</span>
+                                <span class="text-xs text-muted-foreground">jpg, png, webp, pdf — حتى 5 ميجابايت · بحد أقصى 10</span>
                                 <input
                                     id="payment_proof"
                                     type="file"
                                     multiple
-                                    accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp"
+                                    :accept="PAYMENT_PROOF_ACCEPT"
                                     class="hidden"
                                     @change="handlePaymentProofChange"
                                 />
@@ -986,7 +1021,20 @@ watch(grandTotal, (total) => {
                                     :key="`${preview}-${index}`"
                                     class="relative overflow-hidden rounded-xl border border-border/60"
                                 >
+                                    <a
+                                        v-if="isPdfFile(form.payment_proof[index])"
+                                        :href="preview"
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        class="flex aspect-square w-full flex-col items-center justify-center gap-2 bg-muted/30 px-2 text-center"
+                                    >
+                                        <FileText class="h-8 w-8 text-rose-600" />
+                                        <span class="line-clamp-2 text-[11px] font-medium text-foreground">
+                                            {{ form.payment_proof[index]?.name || 'ملف PDF' }}
+                                        </span>
+                                    </a>
                                     <img
+                                        v-else
                                         :src="preview"
                                         :alt="`معاينة إيصال ${index + 1}`"
                                         class="aspect-square w-full bg-muted/20 object-cover"

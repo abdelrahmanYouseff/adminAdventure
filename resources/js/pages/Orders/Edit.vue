@@ -22,10 +22,12 @@ import {
     Trash2,
     UploadCloud,
     User,
+    FileText,
 } from 'lucide-vue-next';
 import AppLayout from '@/layouts/AppLayout.vue';
 import ProductSearchCombobox from '@/components/ProductSearchCombobox.vue';
 import { formatCurrency } from '@/lib/formatNumber';
+import { isPdfFile, isPdfUrl, PAYMENT_PROOF_ACCEPT, paymentProofSelectedLabel } from '@/lib/paymentProof';
 import { ref, computed, watch, onBeforeUnmount, onMounted } from 'vue';
 
 interface Product {
@@ -65,6 +67,8 @@ interface Props {
         address: string | null;
         activity_date: string | null;
         activity_time: string | null;
+        installation_date: string | null;
+        installation_time: string | null;
         dismantling_at: string | null;
         currency: string;
         payment_method: string;
@@ -91,6 +95,8 @@ const form = useForm({
     address: props.order.address || '',
     activity_date: props.order.activity_date || '',
     activity_time: props.order.activity_time || '',
+    installation_date: props.order.installation_date || '',
+    installation_time: props.order.installation_time || '',
     dismantling_at: props.order.dismantling_at || '',
     currency: props.order.currency || 'SAR',
     payment_method: props.order.payment_method || 'cash',
@@ -556,6 +562,39 @@ watch(
                             </div>
 
                             <div class="space-y-2">
+                                <Label for="installation_date" class="flex items-center gap-1.5">
+                                    <Calendar class="h-3.5 w-3.5 text-muted-foreground" />
+                                    تاريخ التركيب
+                                </Label>
+                                <Input
+                                    id="installation_date"
+                                    v-model="form.installation_date"
+                                    type="date"
+                                    class="h-11 rounded-xl"
+                                />
+                                <p v-if="form.errors.installation_date" class="text-xs text-red-600">
+                                    {{ form.errors.installation_date }}
+                                </p>
+                            </div>
+
+                            <div class="space-y-2">
+                                <Label for="installation_time" class="flex items-center gap-1.5">
+                                    <Clock class="h-3.5 w-3.5 text-muted-foreground" />
+                                    وقت التركيب
+                                </Label>
+                                <Input
+                                    id="installation_time"
+                                    v-model="form.installation_time"
+                                    type="time"
+                                    class="h-11 rounded-xl"
+                                    dir="ltr"
+                                />
+                                <p v-if="form.errors.installation_time" class="text-xs text-red-600">
+                                    {{ form.errors.installation_time }}
+                                </p>
+                            </div>
+
+                            <div class="space-y-2">
                                 <Label for="dismantling_at" class="flex items-center gap-1.5">
                                     <Calendar class="h-3.5 w-3.5 text-muted-foreground" />
                                     تاريخ الفك مع الوقت
@@ -981,7 +1020,14 @@ watch(
                                             rel="noopener noreferrer"
                                             class="overflow-hidden rounded-lg border border-border/60"
                                         >
-                                            <img :src="url" :alt="`إيصال ${index + 1}`" class="aspect-square w-full object-cover" />
+                                            <span
+                                                v-if="isPdfUrl(url)"
+                                                class="flex aspect-square w-full flex-col items-center justify-center gap-1 bg-muted/30 px-1 text-center"
+                                            >
+                                                <FileText class="h-5 w-5 text-rose-600" />
+                                                <span class="text-[10px] font-medium">PDF</span>
+                                            </span>
+                                            <img v-else :src="url" :alt="`إيصال ${index + 1}`" class="aspect-square w-full object-cover" />
                                         </a>
                                     </div>
                                     <p v-else class="mt-1 text-amber-700">لا يوجد إيصال مرفق على هذا السند بعد.</p>
@@ -991,7 +1037,7 @@ watch(
                             <div class="space-y-2">
                                 <Label for="payment_proof" class="text-sm font-medium">إرفاق إيصال الدفع</Label>
                                 <p class="text-xs text-muted-foreground">
-                                    أرفق صور التحويل البنكي أو إيصال المبلغ.
+                                    أرفق صورة التحويل البنكي أو ملف PDF للإيصال.
                                     {{ newPayment > 0
                                         ? 'ستُرفق مع سند السداد الجديد.'
                                         : pendingReceipts.length
@@ -1004,16 +1050,14 @@ watch(
                                 >
                                     <UploadCloud class="h-5 w-5 text-muted-foreground" />
                                     <span class="text-sm font-medium">
-                                        {{ form.payment_proof.length
-                                            ? `${form.payment_proof.length} صورة محددة — اضغط لإضافة المزيد`
-                                            : 'اختر صور الإيصال' }}
+                                        {{ paymentProofSelectedLabel(form.payment_proof.length) }}
                                     </span>
-                                    <span class="text-xs text-muted-foreground">jpg, png, webp — حتى 5 ميجابايت · بحد أقصى 10</span>
+                                    <span class="text-xs text-muted-foreground">jpg, png, webp, pdf — حتى 5 ميجابايت · بحد أقصى 10</span>
                                     <input
                                         id="payment_proof"
                                         type="file"
                                         multiple
-                                        accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp"
+                                        :accept="PAYMENT_PROOF_ACCEPT"
                                         class="hidden"
                                         @change="handlePaymentProofChange"
                                     />
@@ -1024,7 +1068,20 @@ watch(
                                         :key="`${preview}-${index}`"
                                         class="relative overflow-hidden rounded-xl border border-border/60"
                                     >
+                                        <a
+                                            v-if="isPdfFile(form.payment_proof[index])"
+                                            :href="preview"
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            class="flex aspect-square w-full flex-col items-center justify-center gap-2 bg-muted/30 px-2 text-center"
+                                        >
+                                            <FileText class="h-8 w-8 text-rose-600" />
+                                            <span class="line-clamp-2 text-[11px] font-medium text-foreground">
+                                                {{ form.payment_proof[index]?.name || 'ملف PDF' }}
+                                            </span>
+                                        </a>
                                         <img
+                                            v-else
                                             :src="preview"
                                             :alt="`معاينة إيصال ${index + 1}`"
                                             class="aspect-square w-full bg-muted/20 object-cover"

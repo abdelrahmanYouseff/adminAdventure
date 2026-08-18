@@ -245,6 +245,7 @@ class QuotationToOrderService
             'address' => $quotation->customer_address,
             'activity_date' => $built['activity_date'],
             'activity_time' => $built['activity_time'],
+            'installation_at' => $built['installation_at'],
             'dismantling_at' => $built['dismantling_at'],
             'order_number' => Order::generateOrderNumber(),
             'total_amount' => $built['total_amount'],
@@ -284,6 +285,7 @@ class QuotationToOrderService
             'address' => $quotation->customer_address,
             'activity_date' => $built['activity_date'],
             'activity_time' => $built['activity_time'],
+            'installation_at' => $built['installation_at'],
             'dismantling_at' => $built['dismantling_at'],
             'total_amount' => $built['total_amount'],
             'discount_total' => $built['discount_total'],
@@ -316,6 +318,7 @@ class QuotationToOrderService
      *     insurance_amount: float,
      *     activity_date: string|null,
      *     activity_time: string|null,
+     *     installation_at: \Carbon\Carbon|\DateTimeInterface|string|null,
      *     dismantling_at: \Carbon\Carbon|\DateTimeInterface|string|null
      * }
      */
@@ -404,6 +407,7 @@ class QuotationToOrderService
             'insurance_amount' => $insuranceAmount,
             'activity_date' => $activityDate,
             'activity_time' => $activityTime,
+            'installation_at' => $quotation->installation_at,
             'dismantling_at' => $quotation->dismantling_at,
         ];
     }

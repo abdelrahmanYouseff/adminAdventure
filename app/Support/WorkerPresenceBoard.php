@@ -199,8 +199,8 @@ class WorkerPresenceBoard
             : $order->workerOrders()->get();
 
         $pendingInstall = $lines->contains(fn ($line) => $line->status !== 'completed');
-        $rawInstallDate = $lines->first()?->installation_date ?? $order->activity_date;
-        $installDate = $rawInstallDate ? $rawInstallDate->copy()->startOfDay() : null;
+        $rawInstallDate = $order->scheduledInstallationDate() ?? $lines->first()?->installation_date;
+        $installDate = $rawInstallDate ? Carbon::parse($rawInstallDate)->startOfDay() : null;
 
         if (! $pendingInstall && filled($order->work_order_approved_at)) {
             return null;
@@ -214,9 +214,7 @@ class WorkerPresenceBoard
             return null;
         }
 
-        $time = ($order->getAttributes()['activity_time'] ?? null)
-            ? Carbon::parse($order->getAttributes()['activity_time'])->format('H:i')
-            : null;
+        $time = $order->scheduledInstallationTime();
 
         $at = $installDate?->format('Y-m-d').($time ? ' '.$time : '');
 

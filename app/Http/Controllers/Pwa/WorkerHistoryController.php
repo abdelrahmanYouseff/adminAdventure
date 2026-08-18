@@ -70,7 +70,7 @@ class WorkerHistoryController extends Controller
             'id' => $order->id,
             'customer_name' => $firstLine?->customer_name ?? $order->customer_name,
             'map_url' => $this->resolveMapUrl($address),
-            'installation_date' => ($firstLine?->installation_date ?? $order->activity_date)?->format('Y-m-d'),
+            'installation_date' => ($order->scheduledInstallationDate() ?? $firstLine?->installation_date)?->format('Y-m-d'),
             'completed_at' => $latestAt?->toIso8601String(),
             'products_count' => (int) ($order->total_lines ?? $order->workerOrders->count()),
             'products' => $order->workerOrders->map(fn (WorkerOrder $line) => [

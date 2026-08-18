@@ -15,6 +15,7 @@ class Order extends Model
         'address',
         'activity_date',
         'activity_time',
+        'installation_at',
         'dismantling_at',
         'invoice_id',
         'quotation_id',
@@ -64,6 +65,7 @@ class Order extends Model
         'insurance_original_amount' => 'decimal:2',
         'items' => 'array',
         'activity_date' => 'date',
+        'installation_at' => 'datetime',
         'dismantling_at' => 'datetime',
         'whatsapp_notified_at' => 'datetime',
         'insurance_refunded_at' => 'datetime',
@@ -81,6 +83,36 @@ class Order extends Model
     protected $appends = [
         'remaining_amount',
     ];
+
+    /**
+     * Combine a calendar date with an optional H:i time into a datetime string.
+     */
+    public static function combineDateAndTime(?string $date, ?string $time): ?string
+    {
+        if (! filled($date)) {
+            return null;
+        }
+
+        $time = filled($time) ? $time : '00:00';
+
+        return $date.' '.$time;
+    }
+
+    public function scheduledInstallationDate(): mixed
+    {
+        return $this->installation_at ?? $this->activity_date;
+    }
+
+    public function scheduledInstallationTime(): ?string
+    {
+        if ($this->installation_at) {
+            return $this->installation_at->format('H:i');
+        }
+
+        $raw = $this->getAttributes()['activity_time'] ?? null;
+
+        return $raw ? \Carbon\Carbon::parse($raw)->format('H:i') : null;
+    }
 
     public function getRemainingAmountAttribute(): float
     {
@@ -160,8 +192,8 @@ class Order extends Model
     public function products()
     {
         return $this->belongsToMany(Product::class, 'order_product')
-                    ->withPivot('quantity', 'price', 'discount_amount', 'insurance_amount')
-                    ->withTimestamps();
+            ->withPivot('quantity', 'price', 'discount_amount', 'insurance_amount')
+            ->withTimestamps();
     }
 
     /**

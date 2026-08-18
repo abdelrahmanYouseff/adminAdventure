@@ -63,7 +63,7 @@ class WorkerOrderSyncService
             'product_name' => $productName,
             'product_image' => $productImage,
             'customer_name' => $order->customer_name,
-            'installation_date' => $order->activity_date,
+            'installation_date' => $order->installation_at ?? $order->activity_date,
             'customer_address' => $order->address,
         ]);
 
