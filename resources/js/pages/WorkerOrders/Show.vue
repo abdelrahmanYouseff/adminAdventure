@@ -328,25 +328,60 @@ function printDeliveryNote() {
     window.open(`${props.workOrder.delivery_note_url}?v=${Date.now()}`, '_blank');
 }
 
-function sendDeliveryWhatsApp() {
+function normalizeWhatsAppPhone(raw: string): string {
+    let digits = raw.replace(/\D/g, '');
+    if (digits.startsWith('966')) digits = digits.slice(3);
+    if (digits.startsWith('0')) digits = digits.slice(1);
+    return digits;
+}
+
+async function sendDeliveryWhatsApp() {
     if (testingWhatsApp.value) return;
 
-    const customerPhone = props.workOrder.customer_phone?.trim() || '';
-    if (!customerPhone) {
-        Swal.fire({
-            icon: 'error',
-            title: 'لا يوجد رقم للعميل',
-            text: 'سجّل رقم جوال العميل على الطلب أولاً ثم أعد المحاولة.',
-            confirmButtonText: 'حسناً',
-            confirmButtonColor: '#2563EB',
-        });
+    const customerPhone = normalizeWhatsAppPhone(props.workOrder.customer_phone ?? '');
+    const customerName = props.workOrder.customer_name || 'العميل';
+
+    const result = await Swal.fire({
+        icon: 'question',
+        title: 'إرسال عبر الواتساب',
+        html: customerPhone
+            ? `رقم <strong>${customerName}</strong> المسجّل على الطلب. يمكنك الإرسال إليه أو إدخال رقم آخر.`
+            : 'لا يوجد رقم مسجّل على الطلب. أدخل رقم الجوال المراد الإرسال إليه.',
+        input: 'tel',
+        inputValue: customerPhone,
+        inputPlaceholder: '5XXXXXXXX',
+        inputAttributes: {
+            maxlength: '15',
+            dir: 'ltr',
+            inputmode: 'numeric',
+            autocomplete: 'tel',
+        },
+        showCancelButton: true,
+        confirmButtonText: 'إرسال',
+        cancelButtonText: 'إلغاء',
+        confirmButtonColor: '#059669',
+        cancelButtonColor: '#64748B',
+        reverseButtons: true,
+        focusConfirm: false,
+        inputValidator: (value) => {
+            if (!/^5\d{8}$/.test(normalizeWhatsAppPhone(value || ''))) {
+                return 'أدخل رقم جوال سعودي صحيح يبدأ بـ 5';
+            }
+
+            return null;
+        },
+    });
+
+    if (!result.isConfirmed) {
         return;
     }
+
+    const phone = normalizeWhatsAppPhone(String(result.value || ''));
 
     testingWhatsApp.value = true;
     router.post(
         `/worker-orders/${encodeURIComponent(props.workOrder.reference_number)}/test-delivery-whatsapp`,
-        {},
+        { phone },
         {
             preserveScroll: true,
             onFinish: () => {
@@ -571,8 +606,8 @@ watch(dialogOpen, (isOpen) => { if (!isOpen) closeCompleteDialog(); });
                         <Button
                             variant="outline"
                             class="h-11 rounded-xl border-emerald-200 bg-emerald-50 text-emerald-800 shadow-sm hover:bg-emerald-100"
-                            :disabled="testingWhatsApp || !workOrder.customer_phone"
-                            :title="workOrder.customer_phone ? 'إرسال إذن التسليم لرقم العميل' : 'لا يوجد رقم جوال للعميل'"
+                            :disabled="testingWhatsApp"
+                            title="إرسال إذن التسليم عبر واتساب"
                             @click="sendDeliveryWhatsApp"
                         >
                             <MessageCircle class="ms-1.5 h-4 w-4" />

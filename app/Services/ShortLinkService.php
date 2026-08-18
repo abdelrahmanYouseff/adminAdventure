@@ -50,13 +50,27 @@ class ShortLinkService
 
     /**
      * Value passed to Meta URL button {{1}}.
-     * Template website URL should be: https://your-domain/d/{{1}}
+     *
+     * Template website URL should be: https://your-domain/{{1}}
+     * so the final link becomes the delivery note on this system.
      */
     public function whatsappButtonSuffix(ShortLink $link): string
     {
-        $mode = (string) config('services.whatsapp.delivery_note_button_mode', 'code');
+        $mode = (string) config('services.whatsapp.delivery_note_button_mode', 'system');
 
-        return $mode === 'path' ? 'd/'.$link->code : $link->code;
+        if ($mode === 'system') {
+            $key = (string) ($link->target_key ?: '');
+
+            if ($key !== '') {
+                return 'worker-orders/'.$key.'/delivery-note';
+            }
+        }
+
+        if ($mode === 'code') {
+            return $link->code;
+        }
+
+        return 'd/'.$link->code;
     }
 
     private function uniqueCode(int $length = 8): string

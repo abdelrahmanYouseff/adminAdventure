@@ -483,7 +483,6 @@ Route::get('worker-orders', [\App\Http\Controllers\WorkerOrderController::class,
     ->name('worker-orders.index');
 
 Route::get('worker-orders/{workOrderKey}/delivery-note', [\App\Http\Controllers\WorkerOrderController::class, 'deliveryNote'])
-    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,workers_manager'])
     ->where('workOrderKey', '[A-Za-z0-9\-_/]+')
     ->name('worker-orders.delivery-note');
 

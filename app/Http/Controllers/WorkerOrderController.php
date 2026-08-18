@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Order;
+use App\Models\ShortLink;
 use App\Models\User;
 use App\Models\WorkerOrder;
 use App\Models\WorkerOrderAssembler;
@@ -13,6 +14,7 @@ use App\Services\WhatsAppCloudService;
 use App\Services\WorkerOrderSyncService;
 use App\Support\DeliveryNotePdfData;
 use App\Support\OrderInsuranceCalculator;
+use App\Support\PublicAppUrl;
 use App\Support\WorkOrderPresenter;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -51,9 +53,10 @@ class WorkerOrderController extends Controller
         ]);
     }
 
-    public function deliveryNote(string $workOrderKey, DeliveryNotePdfService $pdfService, WorkerOrderSyncService $syncService): Response
+    public function deliveryNote(Request $request, string $workOrderKey, DeliveryNotePdfService $pdfService, WorkerOrderSyncService $syncService): Response
     {
         $order = WorkOrderPresenter::resolve($workOrderKey, $syncService);
+        $this->assertCanViewDeliveryNote($request, $order);
 
         $data = DeliveryNotePdfData::fromOrder($order);
         $pdf = $pdfService->render($data);
@@ -80,12 +83,13 @@ class WorkerOrderController extends Controller
         $pdf = $pdfService->render($data);
         $filename = 'delivery-note-'.$data->referenceNumber().'.pdf';
 
+        $requestedPhone = trim((string) $request->input('phone', ''));
         $to = WhatsAppCloudService::normalizePhone(
-            (string) ($order->customer_phone ?: $request->input('phone', '')),
+            $requestedPhone !== '' ? $requestedPhone : (string) ($order->customer_phone ?? ''),
         );
 
-        if (strlen($to) < 11) {
-            return back()->with('error', 'لا يمكن الإرسال: رقم جوال العميل غير مسجّل أو غير صالح.');
+        if (! preg_match('/^9665\d{8}$/', $to)) {
+            return back()->with('error', 'أدخل رقم جوال سعودي صحيح يبدأ بـ 5.');
         }
 
         $upload = $whatsApp->uploadMedia($pdf, 'application/pdf', $filename);
@@ -95,7 +99,7 @@ class WorkerOrderController extends Controller
 
         $shortLink = $shortLinks->createDeliveryNoteLink($order);
         $buttonSuffix = $shortLinks->whatsappButtonSuffix($shortLink);
-        $publicUrl = $shortLinks->publicUrl($shortLink);
+        $deliveryNoteUrl = rtrim(PublicAppUrl::base(), '/').'/'.$buttonSuffix;
 
         $send = $whatsApp->sendDeliveryNoteTemplate(
             $to,
@@ -110,8 +114,8 @@ class WorkerOrderController extends Controller
 
         return back()->with(
             'success',
-            'تم إرسال إذن التسليم عبر واتساب إلى رقم العميل +'.$to
-            .' — رابط إذن التسليم: '.$publicUrl,
+            'تم إرسال إذن التسليم عبر واتساب إلى +'.$to
+            .' — رابط إذن التسليم: '.$deliveryNoteUrl,
         );
     }
 
@@ -452,6 +456,38 @@ class WorkerOrderController extends Controller
                 ->count(),
             'total' => Order::whereHas('workerOrders')->count(),
         ];
+    }
+
+    private function assertCanViewDeliveryNote(Request $request, Order $order): void
+    {
+        $user = $request->user();
+
+        if ($user?->hasAnyRole(
+            User::ROLE_ADMIN,
+            User::ROLE_GENERAL_MANAGER,
+            User::ROLE_MANAGER,
+            User::ROLE_WORKERS_MANAGER,
+        )) {
+            return;
+        }
+
+        $hasPublicLink = ShortLink::query()
+            ->where('type', ShortLink::TYPE_DELIVERY_NOTE)
+            ->where('order_id', $order->id)
+            ->where(function ($query) {
+                $query->whereNull('expires_at')->orWhere('expires_at', '>', now());
+            })
+            ->exists();
+
+        if ($hasPublicLink) {
+            return;
+        }
+
+        if (! $user) {
+            abort(redirect()->guest(route('login')));
+        }
+
+        abort(403, 'غير مصرح بعرض إذن التسليم.');
     }
 
     private function assertCanUploadWorkerPhotos(Request $request): void
