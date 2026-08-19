@@ -214,7 +214,7 @@ function taskLabel(item: Installation): string {
                     <p class="mt-1 text-xs text-slate-400">{{ t('no_current_hint') }}</p>
                 </div>
 
-                <div v-else class="divide-y divide-slate-100">
+                <div v-else class="divide-y divide-slate-100 overflow-y-auto" style="max-height: 55dvh">
                     <div
                         class="hidden grid-cols-[1.4fr_1fr_auto] gap-2 bg-slate-50 px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400 sm:grid"
                     >
