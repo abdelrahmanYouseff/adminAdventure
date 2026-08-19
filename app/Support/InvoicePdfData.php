@@ -412,7 +412,7 @@ class InvoicePdfData
      * @return array<int, string>
      */
     /**
-     * @return array<int, array{receipt_number: string, amount: float, payment_method: string, date: string, notes: ?string}>
+     * @return array<int, array{receipt_number: string, amount: float, payment_method: string, date: string, notes: ?string, image_paths: list<string>}>
      */
     public function paymentReceipts(): array
     {
@@ -436,6 +436,11 @@ class InvoicePdfData
                 },
                 'date' => $r->created_at?->format('Y-m-d') ?? '—',
                 'notes' => $r->notes ? trim($r->notes) : null,
+                'image_paths' => collect($r->proof_image_urls ?? [])
+                    ->map(fn (string $url) => $this->urlToAbsolutePath($url))
+                    ->filter()
+                    ->values()
+                    ->all(),
             ])
             ->all();
     }
@@ -463,6 +468,27 @@ class InvoicePdfData
         }
 
         return $terms;
+    }
+
+    private function urlToAbsolutePath(string $url): ?string
+    {
+        // لو URL كامل من storage
+        $storagePublicPath = public_path('storage');
+        $storagePublicUrl = asset('storage');
+
+        if (str_starts_with($url, $storagePublicUrl)) {
+            $relative = ltrim(substr($url, strlen($storagePublicUrl)), '/');
+            $absolute = $storagePublicPath.'/'.$relative;
+
+            return file_exists($absolute) ? $absolute : null;
+        }
+
+        // لو مسار مباشر
+        if (str_starts_with($url, '/') && file_exists($url)) {
+            return $url;
+        }
+
+        return null;
     }
 
     private function formatDate(mixed $date): string

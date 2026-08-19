@@ -309,28 +309,27 @@
     <div style="font-size: 8pt; font-weight: bold; color: #1a1a1a; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.3px;">
         Payment Receipts / سندات القبض
     </div>
-    <table class="items-table">
-        <thead>
-            <tr>
-                <th width="22%" align="left">Receipt No.</th>
-                <th width="18%" align="left">Date</th>
-                <th width="30%" align="left">Payment Method</th>
-                <th width="18%" align="right">Amount</th>
-                <th width="12%" align="left">Notes</th>
-            </tr>
-        </thead>
-        <tbody>
-            @foreach($data->paymentReceipts() as $receipt)
-                <tr>
-                    <td align="left"><strong>{{ $receipt['receipt_number'] }}</strong></td>
-                    <td align="left">{{ $receipt['date'] }}</td>
-                    <td align="left">{{ $receipt['payment_method'] }}</td>
-                    <td align="right">SAR {{ number_format($receipt['amount'], 2) }}</td>
-                    <td align="left" style="font-size: 6.5pt; color: #444;">{{ $receipt['notes'] ?? '—' }}</td>
-                </tr>
-            @endforeach
-        </tbody>
-    </table>
+    @foreach($data->paymentReceipts() as $receipt)
+        @if(!empty($receipt['image_paths']))
+            <div style="margin-bottom: 10px;">
+                <div style="font-size: 7pt; color: #333; margin-bottom: 4px;">
+                    <strong>{{ $receipt['receipt_number'] }}</strong>
+                    &nbsp;·&nbsp; {{ $receipt['date'] }}
+                    &nbsp;·&nbsp; {{ $receipt['payment_method'] }}
+                    &nbsp;·&nbsp; SAR {{ number_format($receipt['amount'], 2) }}
+                </div>
+                <table width="100%" cellpadding="0" cellspacing="4">
+                    <tr>
+                        @foreach($receipt['image_paths'] as $imgPath)
+                            <td width="{{ min(100, intdiv(100, count($receipt['image_paths']))) }}%" valign="top" style="padding: 2px;">
+                                <img src="{{ $imgPath }}" style="width: 100%; max-height: 180px; object-fit: contain; border: 1px solid #ccc;" />
+                            </td>
+                        @endforeach
+                    </tr>
+                </table>
+            </div>
+        @endif
+    @endforeach
 </div>
 @endif
 
