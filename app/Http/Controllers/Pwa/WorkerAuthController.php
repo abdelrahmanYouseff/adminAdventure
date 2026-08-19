@@ -74,7 +74,7 @@ class WorkerAuthController extends Controller
 
         $e164 = AuthenticaOtpService::formatPhoneE164($data['phone']);
 
-        if ($this->isFixedOtpPhone($data['phone'])) {
+        if ($this->shouldForceFixedOtpForAll() || $this->isFixedOtpPhone($data['phone'])) {
             Cache::put($this->cacheKey($data['phone']), self::FIXED_OTP_CODE, now()->addMinutes(5));
 
             if (config('app.debug')) {
@@ -141,7 +141,9 @@ class WorkerAuthController extends Controller
         $e164 = AuthenticaOtpService::formatPhoneE164($data['phone']);
         $verified = false;
 
-        if ($this->isFixedOtpPhone($data['phone']) && hash_equals(self::FIXED_OTP_CODE, $data['code'])) {
+        if ($this->shouldForceFixedOtpForAll() && hash_equals(self::FIXED_OTP_CODE, $data['code'])) {
+            $verified = true;
+        } elseif ($this->isFixedOtpPhone($data['phone']) && hash_equals(self::FIXED_OTP_CODE, $data['code'])) {
             $verified = true;
         } elseif ($this->authentica->isConfigured()) {
             $verified = $this->authentica->verifyOtp($e164, $data['code']);
@@ -250,6 +252,12 @@ class WorkerAuthController extends Controller
     private function isFixedOtpPhone(string $phone): bool
     {
         return $this->normalizePhoneDigits($phone) === self::FIXED_OTP_PHONE;
+    }
+
+    private function shouldForceFixedOtpForAll(): bool
+    {
+        // عند تفعيل هذا المتغير، أي رقم OTP = 0000 (للاختبار فقط).
+        return filter_var(env('OTP_FORCE_FIXED', false), FILTER_VALIDATE_BOOLEAN);
     }
 
     private function cacheKey(string $phone): string
