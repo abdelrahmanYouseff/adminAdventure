@@ -185,8 +185,7 @@ class InvoiceController extends Controller
             ->where(function ($query) {
                 $query->whereDoesntHave('order')
                     ->orWhereHas('order', fn ($order) => $order
-                        ->where('status', 'paid')
-                        ->where('payment_status', 'paid'));
+                        ->whereNotIn('status', ['cancelled', 'refunded']));
             })
             ->when($brandId, fn ($query) => $query->where('brand_id', $brandId))
             ->when($request->filled('date_from'), fn ($query) => $query->whereDate('created_at', '>=', $request->date_from))
@@ -215,10 +214,12 @@ class InvoiceController extends Controller
             return false;
         }
 
-        return ! $invoice->order
-            || (
-                $invoice->order->status === 'paid'
-                && $invoice->order->payment_status === 'paid'
-            );
+        // لو مفيش order مرتبط بالفاتورة فهي صالحة
+        if (! $invoice->order) {
+            return true;
+        }
+
+        // الطلب مدفوع بالكامل أو الفاتورة اتولدت بعد اكتمال السداد
+        return ! in_array($invoice->order->status, ['cancelled', 'refunded'], true);
     }
 }
