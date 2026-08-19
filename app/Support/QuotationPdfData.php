@@ -2,6 +2,7 @@
 
 namespace App\Support;
 
+use App\Models\Brand;
 use App\Models\Quotation;
 use Carbon\Carbon;
 
@@ -443,7 +444,11 @@ class QuotationPdfData
 
     public function companyPhone(): string
     {
-        return '0114101840 - 0559668015';
+        $brand = $this->quotation->relationLoaded('brand')
+            ? $this->quotation->brand
+            : $this->quotation->brand()->first();
+
+        return ($brand ?? Brand::default())->contactPhone();
     }
 
     public function companyEmail(): string

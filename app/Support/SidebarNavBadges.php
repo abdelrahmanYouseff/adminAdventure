@@ -9,13 +9,14 @@ use App\Models\User;
 class SidebarNavBadges
 {
     /**
-     * @return array{work_orders: int, returns: int, payment_receipts: int}
+     * @return array{work_orders: int, warehouse: int, returns: int, payment_receipts: int}
      */
     public static function forUser(?User $user): array
     {
         if (! $user?->canAccessDashboard()) {
             return [
                 'work_orders' => 0,
+                'warehouse' => 0,
                 'returns' => 0,
                 'payment_receipts' => 0,
             ];
@@ -23,6 +24,7 @@ class SidebarNavBadges
 
         return [
             'work_orders' => static::openWorkOrdersCount(),
+            'warehouse' => static::pendingWarehouseCount(),
             'returns' => static::openReturnsCount(),
             'payment_receipts' => static::pendingPaymentReceiptsCount(),
         ];
@@ -36,6 +38,19 @@ class SidebarNavBadges
         return Order::query()
             ->whereHas('workerOrders')
             ->whereNull('work_order_approved_at')
+            ->whereNotIn('status', ['cancelled', 'refunded'])
+            ->count();
+    }
+
+    /**
+     * Work orders waiting for warehouse-keeper approval after return confirmation.
+     */
+    public static function pendingWarehouseCount(): int
+    {
+        return Order::query()
+            ->whereHas('workerOrders')
+            ->whereNotNull('warehouse_returned_at')
+            ->whereNull('warehouse_keeper_approved_at')
             ->whereNotIn('status', ['cancelled', 'refunded'])
             ->count();
     }

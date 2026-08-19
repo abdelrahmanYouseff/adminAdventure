@@ -9,11 +9,14 @@ class Brand extends Model
 {
     public const STOREFRONT_SLUG = 'adventure-world';
 
+    public const DEFAULT_PHONE = '0114101840 - 0559668015';
+
     protected $fillable = [
         'name',
         'slug',
         'description',
         'logo',
+        'phone',
         'is_active',
     ];
 
@@ -37,6 +40,13 @@ class Brand extends Model
     public function getRouteKeyName(): string
     {
         return 'slug';
+    }
+
+    public function contactPhone(): string
+    {
+        $phone = trim((string) $this->phone);
+
+        return $phone !== '' ? $phone : self::DEFAULT_PHONE;
     }
 
     public function getLogoUrlAttribute(): ?string

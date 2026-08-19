@@ -69,12 +69,14 @@ interface Props {
     stats?: {
         pending: number;
         completed: number;
+        warehouse?: number;
         total: number;
     };
     filters: {
         status: string;
         search?: string;
         date_range?: string;
+        view?: string | null;
     };
 }
 
@@ -92,8 +94,11 @@ const workOrders = computed(() => props.workOrders ?? {
 const stats = computed(() => props.stats ?? {
     pending: 0,
     completed: 0,
+    warehouse: 0,
     total: 0,
 });
+
+const isWarehouseView = computed(() => props.filters.view === 'warehouse');
 
 defineOptions({ layout: AppLayout });
 
@@ -151,31 +156,49 @@ const statusTabs: { key: StatusTab; label: string }[] = [
     { key: 'all', label: 'الكل' },
 ];
 
-const summaryCards = computed(() => [
-    {
-        key: 'pending' as const,
-        label: 'قيد التركيب',
-        value: stats.value.pending,
-        unit: 'طلب',
-        hint: 'عرض قيد التركيب',
-    },
-    {
-        key: 'completed' as const,
-        label: 'مرفوعة للمراجعة',
-        value: stats.value.completed,
-        unit: 'طلب',
-        hint: 'عرض المرفوعة للمراجعة',
-    },
-    {
-        key: 'all' as const,
-        label: 'إجمالي الأوامر',
-        value: stats.value.total,
-        unit: 'طلب',
-        hint: 'عرض كل الأوامر',
-    },
-]);
+const summaryCards = computed(() => {
+    if (isWarehouseView.value) {
+        return [
+            {
+                key: 'all' as const,
+                label: 'بانتظار تعميد المستودع',
+                value: stats.value.warehouse ?? stats.value.total,
+                unit: 'طلب',
+                hint: 'بعد تعميد الاسترجاع',
+            },
+        ];
+    }
+
+    return [
+        {
+            key: 'pending' as const,
+            label: 'قيد التركيب',
+            value: stats.value.pending,
+            unit: 'طلب',
+            hint: 'عرض قيد التركيب',
+        },
+        {
+            key: 'completed' as const,
+            label: 'مرفوعة للمراجعة',
+            value: stats.value.completed,
+            unit: 'طلب',
+            hint: 'عرض المرفوعة للمراجعة',
+        },
+        {
+            key: 'all' as const,
+            label: 'إجمالي الأوامر',
+            value: stats.value.total,
+            unit: 'طلب',
+            hint: 'عرض كل الأوامر',
+        },
+    ];
+});
 
 const mobileListTitle = computed(() => {
+    if (isWarehouseView.value) {
+        return 'بانتظار تعميد المستودع';
+    }
+
     if (statusFilter.value === 'completed') {
         return 'مرفوعة للمراجعة';
     }
@@ -224,7 +247,8 @@ function tabCount(tab: StatusTab): number {
 
 function applyFilters(pageNumber = 1) {
     router.get('/worker-orders', {
-        status: statusFilter.value !== 'all' ? statusFilter.value : undefined,
+        view: isWarehouseView.value ? 'warehouse' : undefined,
+        status: isWarehouseView.value || statusFilter.value === 'all' ? undefined : statusFilter.value,
         search: searchQuery.value.trim() || undefined,
         date_range: dateRange.value !== 'all' ? dateRange.value : undefined,
         page: pageNumber > 1 ? pageNumber : undefined,
@@ -455,7 +479,7 @@ watch(
 </script>
 
 <template>
-    <Head title="أوامر العمل" />
+    <Head :title="isWarehouseView ? 'المستودع' : 'أوامر العمل'" />
 
     <Deferred :data="['workOrders', 'stats']">
         <template #fallback>
@@ -468,16 +492,19 @@ watch(
             <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                     <h1 class="flex items-center gap-2 text-xl font-bold text-gray-900 dark:text-white sm:text-2xl">
-                        <HardHat class="size-6 text-blue-600" />
-                        أوامر العمل
+                        <PackageCheck v-if="isWarehouseView" class="size-6 text-orange-600" />
+                        <HardHat v-else class="size-6 text-blue-600" />
+                        {{ isWarehouseView ? 'المستودع' : 'أوامر العمل' }}
                     </h1>
                     <p class="mt-1 text-sm text-gray-500 dark:text-neutral-400">
-                        طلب واحد لكل فاتورة — اضغط لعرض المنتجات المطلوب تركيبها
+                        {{ isWarehouseView
+                            ? 'الطلبات بعد تعميد الاسترجاع — تعميد أمين المستودع أو مدير العمال يغلق الطلب'
+                            : 'طلب واحد لكل فاتورة — اضغط لعرض المنتجات المطلوب تركيبها' }}
                     </p>
                 </div>
             </div>
 
-            <div class="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
+            <div class="grid grid-cols-1 gap-3 sm:gap-4" :class="isWarehouseView ? 'sm:grid-cols-1 sm:max-w-sm' : 'sm:grid-cols-3'">
                 <button
                     v-for="card in summaryCards"
                     :key="card.key"
@@ -513,7 +540,7 @@ watch(
                     </Button>
                 </div>
 
-                <div class="overflow-x-auto">
+                <div v-if="!isWarehouseView" class="overflow-x-auto">
                     <div class="flex min-w-max items-center gap-1 border-b border-gray-200 dark:border-neutral-700">
                         <button
                             v-for="tab in statusTabs"
@@ -581,7 +608,7 @@ watch(
                         </p>
                     </div>
 
-                    <div v-if="showFilters" class="border-b border-gray-100 px-4 py-3 dark:border-neutral-800">
+                    <div v-if="showFilters && !isWarehouseView" class="border-b border-gray-100 px-4 py-3 dark:border-neutral-800">
                         <div class="flex flex-wrap gap-2">
                             <button
                                 v-for="tab in statusTabs"

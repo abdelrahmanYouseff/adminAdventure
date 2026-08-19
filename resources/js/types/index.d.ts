@@ -35,6 +35,7 @@ export type AppPageProps<T extends Record<string, unknown> = Record<string, unkn
     } | null;
     sidebarBadges?: {
         work_orders: number;
+        warehouse: number;
         returns: number;
         payment_receipts: number;
     };

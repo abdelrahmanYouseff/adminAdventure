@@ -29,6 +29,7 @@ class QuotationSettingsController extends Controller
                 'name' => $brand->name,
                 'slug' => $brand->slug,
                 'logo_url' => $brand->logo_url,
+                'phone' => $brand->contactPhone(),
             ],
         ]);
     }
@@ -53,5 +54,21 @@ class QuotationSettingsController extends Controller
         ]);
 
         return back()->with('success', 'تم تحديث لوجو عرض السعر بنجاح.');
+    }
+
+    public function updatePhone(Request $request, Brand $brand): RedirectResponse
+    {
+        $validated = $request->validate([
+            'phone' => ['required', 'string', 'max:80'],
+        ], [
+            'phone.required' => 'رقم هاتف الشركة مطلوب.',
+            'phone.max' => 'رقم الهاتف طويل جداً.',
+        ]);
+
+        $brand->update([
+            'phone' => trim($validated['phone']),
+        ]);
+
+        return back()->with('success', 'تم تحديث رقم هاتف الشركة في عروض الأسعار.');
     }
 }

@@ -30,13 +30,32 @@ const isItemActive = (href?: string) => {
     }
 
     const current = page.url.split('?')[0];
+    const currentSearch = page.url.includes('?') ? page.url.slice(page.url.indexOf('?')) : '';
+
     try {
-        const path = new URL(href, window.location.origin).pathname;
+        const parsed = new URL(href, window.location.origin);
+        const path = parsed.pathname;
+        const view = parsed.searchParams.get('view');
+
         if (path === '/dashboard') {
             return current === '/dashboard';
         }
+
+        if (path === '/worker-orders') {
+            const currentView = new URL(page.url, window.location.origin).searchParams.get('view');
+            if (view === 'warehouse') {
+                return current === '/worker-orders' && currentView === 'warehouse';
+            }
+
+            return current === '/worker-orders' && currentView !== 'warehouse';
+        }
+
         return current === path || current.startsWith(`${path}/`);
     } catch {
+        if (href.includes('view=warehouse')) {
+            return current === '/worker-orders' && currentSearch.includes('view=warehouse');
+        }
+
         return current === href;
     }
 };

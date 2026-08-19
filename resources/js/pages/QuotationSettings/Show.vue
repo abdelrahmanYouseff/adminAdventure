@@ -4,13 +4,14 @@ import { Head, Link, useForm, usePage } from '@inertiajs/vue3';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import { ArrowRight, ImageIcon, Save, UploadCloud } from 'lucide-vue-next';
+import { ArrowRight, ImageIcon, Phone, Save, UploadCloud } from 'lucide-vue-next';
 
 interface Brand {
     id: number;
     name: string;
     slug: string;
     logo_url: string | null;
+    phone: string;
 }
 
 const props = defineProps<{ brand: Brand }>();
@@ -22,6 +23,10 @@ const successMessage = computed(() => page.props.flash?.success as string | unde
 const logoPreview = ref<string | null>(props.brand.logo_url);
 const form = useForm({
     logo: null as File | null,
+});
+
+const phoneForm = useForm({
+    phone: props.brand.phone,
 });
 
 function selectLogo(event: Event) {
@@ -45,10 +50,16 @@ function submit() {
         },
     });
 }
+
+function submitPhone() {
+    phoneForm.post(route('settings.quotations.phone', props.brand.slug), {
+        preserveScroll: true,
+    });
+}
 </script>
 
 <template>
-    <Head :title="`لوجو ${brand.name}`" />
+    <Head :title="`إعدادات ${brand.name}`" />
 
     <div class="flex min-w-0 flex-1 flex-col gap-6 p-4 sm:p-6" dir="rtl">
         <div class="flex items-center gap-3">
@@ -59,7 +70,7 @@ function submit() {
             </Button>
             <div>
                 <h1 class="text-2xl font-bold tracking-tight sm:text-3xl">{{ brand.name }}</h1>
-                <p class="mt-1 text-sm text-muted-foreground">تحديث لوجو عرض السعر الخاص بهذا البراند</p>
+                <p class="mt-1 text-sm text-muted-foreground">لوجو ورقم هاتف الشركة الظاهران في عرض السعر</p>
             </div>
         </div>
 
@@ -69,6 +80,36 @@ function submit() {
         >
             {{ successMessage }}
         </p>
+
+        <form class="mx-auto w-full max-w-xl space-y-5 rounded-2xl border bg-card p-5 shadow-sm sm:p-6" @submit.prevent="submitPhone">
+            <div class="flex items-center gap-2">
+                <Phone class="h-5 w-5 text-orange-600" />
+                <h2 class="text-lg font-bold">رقم هاتف الشركة</h2>
+            </div>
+            <p class="text-sm text-muted-foreground">
+                يظهر هذا الرقم في كل عروض الأسعار (PDF). أي تعديل يُطبَّق فوراً على العروض الحالية والجديدة.
+            </p>
+            <div class="space-y-2">
+                <Label for="company-phone">الرقم الحالي</Label>
+                <input
+                    id="company-phone"
+                    v-model="phoneForm.phone"
+                    type="text"
+                    dir="ltr"
+                    class="flex h-11 w-full rounded-xl border border-input bg-background px-3 text-sm outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring"
+                    placeholder="0114101840 - 0559668015"
+                />
+                <p v-if="phoneForm.errors.phone" class="text-xs text-red-600">{{ phoneForm.errors.phone }}</p>
+            </div>
+            <Button
+                type="submit"
+                class="h-11 w-full gap-2 rounded-xl"
+                :disabled="phoneForm.processing || !phoneForm.phone.trim() || phoneForm.phone.trim() === brand.phone"
+            >
+                <Save class="h-4 w-4" />
+                {{ phoneForm.processing ? 'جاري الحفظ...' : 'حفظ رقم الهاتف' }}
+            </Button>
+        </form>
 
         <form class="mx-auto w-full max-w-xl space-y-5 rounded-2xl border bg-card p-5 shadow-sm sm:p-6" @submit.prevent="submit">
             <div class="space-y-2">

@@ -26,17 +26,20 @@ class WorkerOrderController extends Controller
 {
     public function index(Request $request)
     {
-        $status = $request->string('status')->toString() ?: 'pending';
+        $view = $request->string('view')->toString();
+        $isWarehouseView = $view === 'warehouse';
+        $status = $request->string('status')->toString() ?: ($isWarehouseView ? 'all' : 'pending');
         $search = trim($request->string('search')->toString());
         $dateRange = $request->string('date_range')->toString() ?: 'all';
 
         return Inertia::render('WorkerOrders/Index', [
-            'workOrders' => Inertia::defer(fn () => $this->paginatedWorkOrders($request, $status, $search, $dateRange)),
+            'workOrders' => Inertia::defer(fn () => $this->paginatedWorkOrders($request, $status, $search, $dateRange, $isWarehouseView)),
             'stats' => Inertia::defer(fn () => $this->workOrderStats()),
             'filters' => [
                 'status' => $status,
                 'search' => $search,
                 'date_range' => in_array($dateRange, ['all', '7', '30'], true) ? $dateRange : 'all',
+                'view' => $isWarehouseView ? 'warehouse' : null,
             ],
         ]);
     }
@@ -451,7 +454,13 @@ class WorkerOrderController extends Controller
     /**
      * @return array<string, mixed>
      */
-    private function paginatedWorkOrders(Request $request, string $status, string $search = '', string $dateRange = 'all'): array
+    private function paginatedWorkOrders(
+        Request $request,
+        string $status,
+        string $search = '',
+        string $dateRange = 'all',
+        bool $warehouseView = false,
+    ): array
     {
         $query = Order::query()
             ->whereHas('workerOrders')
@@ -468,7 +477,11 @@ class WorkerOrderController extends Controller
                 'workerAssemblers as assigned_workers_count' => fn ($q) => $q->installation(),
             ]);
 
-        if ($status === 'pending') {
+        if ($warehouseView) {
+            $query->whereNotNull('warehouse_returned_at')
+                ->whereNull('warehouse_keeper_approved_at')
+                ->whereNotIn('status', ['cancelled', 'refunded']);
+        } elseif ($status === 'pending') {
             $query->whereHas('workerOrders', fn ($q) => $q->where('status', 'pending'));
         } elseif ($status === 'completed') {
             $query->whereDoesntHave('workerOrders', fn ($q) => $q->where('status', 'pending'))
@@ -523,7 +536,7 @@ class WorkerOrderController extends Controller
     }
 
     /**
-     * @return array{pending: int, completed: int, total: int}
+     * @return array{pending: int, completed: int, warehouse: int, total: int}
      */
     private function workOrderStats(): array
     {
@@ -531,6 +544,11 @@ class WorkerOrderController extends Controller
             'pending' => Order::whereHas('workerOrders', fn ($q) => $q->where('status', 'pending'))->count(),
             'completed' => Order::whereHas('workerOrders')
                 ->whereDoesntHave('workerOrders', fn ($q) => $q->where('status', 'pending'))
+                ->count(),
+            'warehouse' => Order::whereHas('workerOrders')
+                ->whereNotNull('warehouse_returned_at')
+                ->whereNull('warehouse_keeper_approved_at')
+                ->whereNotIn('status', ['cancelled', 'refunded'])
                 ->count(),
             'total' => Order::whereHas('workerOrders')->count(),
         ];

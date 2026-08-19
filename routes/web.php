@@ -163,6 +163,8 @@ Route::middleware(['auth', 'verified', 'role:admin'])->prefix('settings/quotatio
         ->name('show');
     Route::post('{brand}/logo', [\App\Http\Controllers\Settings\QuotationSettingsController::class, 'updateLogo'])
         ->name('logo');
+    Route::post('{brand}/phone', [\App\Http\Controllers\Settings\QuotationSettingsController::class, 'updatePhone'])
+        ->name('phone');
 });
 
 Route::get('products', [ProductController::class, 'index'])

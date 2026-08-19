@@ -38,6 +38,7 @@ const page = usePage();
 const userRole = computed(() => (page.props.auth as Auth | undefined)?.user?.role ?? null);
 const sidebarBadges = computed(() => (page.props.sidebarBadges as {
     work_orders?: number;
+    warehouse?: number;
     returns?: number;
     payment_receipts?: number;
 } | undefined) ?? {});
@@ -103,7 +104,13 @@ const allNavItems: NavItemWithRoles[] = [
                 title: 'أوامر العمل',
                 href: '/worker-orders',
                 icon: HardHat,
-                roles: ['admin', 'general_manager', 'manager', 'workers_manager'],
+                roles: ['admin', 'general_manager', 'manager', 'workers_manager', 'warehouse_keeper'],
+            },
+            {
+                title: 'المستودع',
+                href: '/worker-orders?view=warehouse',
+                icon: Package,
+                roles: ['admin', 'general_manager', 'manager', 'workers_manager', 'warehouse_keeper'],
             },
             {
                 title: 'الاسترجاع',
@@ -178,6 +185,10 @@ const allNavItems: NavItemWithRoles[] = [
 
 function badgeForHref(href?: string): number | undefined {
     const badges = sidebarBadges.value;
+
+    if (href === '/worker-orders?view=warehouse') {
+        return badges.warehouse || undefined;
+    }
 
     if (href === '/worker-orders' || href === route('worker-orders.index')) {
         return badges.work_orders || undefined;

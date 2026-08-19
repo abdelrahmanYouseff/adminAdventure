@@ -25,7 +25,7 @@ defineOptions({ layout: AppLayout });
             </div>
             <div>
                 <h1 class="text-2xl font-bold tracking-tight sm:text-3xl">إعدادات عروض الأسعار</h1>
-                <p class="mt-1 text-sm text-muted-foreground">اختر البراند لتحديث اللوجو الظاهر في عرض السعر</p>
+                <p class="mt-1 text-sm text-muted-foreground">اختر البراند لتحديث اللوجو ورقم هاتف الشركة في عرض السعر</p>
             </div>
         </div>
 
@@ -59,7 +59,7 @@ defineOptions({ layout: AppLayout });
                 </div>
                 <div class="p-5">
                     <h2 class="truncate text-lg font-bold group-hover:text-primary">{{ brand.name }}</h2>
-                    <p class="mt-3 border-t pt-3 text-sm font-medium text-primary">تحديث اللوجو</p>
+                    <p class="mt-3 border-t pt-3 text-sm font-medium text-primary">تحديث اللوجو ورقم الهاتف</p>
                 </div>
             </Link>
         </div>
