@@ -264,15 +264,15 @@ class WorkerAuthController extends Controller
         return $this->normalizePhoneDigits($phone) === self::FIXED_OTP_PHONE;
     }
 
-    private function shouldSkipOtp(): bool
-    {
-        return filter_var(env('OTP_SKIP_ENABLED', false), FILTER_VALIDATE_BOOLEAN);
-    }
-
     private function shouldForceFixedOtpForAll(): bool
     {
         // عند تفعيل هذا المتغير، أي رقم OTP = 0000 (للاختبار فقط).
-        return filter_var(env('OTP_FORCE_FIXED', false), FILTER_VALIDATE_BOOLEAN);
+        return (bool) config('otp.force_fixed', false);
+    }
+
+    private function shouldSkipOtp(): bool
+    {
+        return (bool) config('otp.skip_enabled', false);
     }
 
     private function cacheKey(string $phone): string
