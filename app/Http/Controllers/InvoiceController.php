@@ -62,6 +62,9 @@ class InvoiceController extends Controller
             'user',
             'rental.product',
             'order:id,invoice_id,customer_name,customer_email,customer_phone',
+            'order.paymentReceipts' => fn ($query) => $query
+                ->where('approval_status', \App\Models\OrderPaymentReceipt::STATUS_APPROVED)
+                ->orderBy('created_at'),
         ]);
         abort_unless($this->isFinalInvoice($invoice), 404);
 

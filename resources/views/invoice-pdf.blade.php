@@ -303,36 +303,6 @@
     </tr>
 </table>
 
-{{-- Payment Receipts --}}
-@if($data->hasPaymentReceipts())
-<div style="margin-bottom: 16px;">
-    <div style="font-size: 8pt; font-weight: bold; color: #1a1a1a; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.3px;">
-        Payment Receipts / سندات القبض
-    </div>
-    @foreach($data->paymentReceipts() as $receipt)
-        @if(!empty($receipt['image_paths']))
-            <div style="margin-bottom: 10px;">
-                <div style="font-size: 7pt; color: #333; margin-bottom: 4px;">
-                    <strong>{{ $receipt['receipt_number'] }}</strong>
-                    &nbsp;·&nbsp; {{ $receipt['date'] }}
-                    &nbsp;·&nbsp; {{ $receipt['payment_method'] }}
-                    &nbsp;·&nbsp; SAR {{ number_format($receipt['amount'], 2) }}
-                </div>
-                <table width="100%" cellpadding="0" cellspacing="4">
-                    <tr>
-                        @foreach($receipt['image_paths'] as $imgPath)
-                            <td width="{{ min(100, intdiv(100, count($receipt['image_paths']))) }}%" valign="top" style="padding: 2px;">
-                                <img src="{{ $imgPath }}" style="width: 100%; max-height: 180px; object-fit: contain; border: 1px solid #ccc;" />
-                            </td>
-                        @endforeach
-                    </tr>
-                </table>
-            </div>
-        @endif
-    @endforeach
-</div>
-@endif
-
 {{-- Client Acknowledgment --}}
 <div class="ack-box">
     <div style="font-weight: bold; font-size: 8.5pt; margin-bottom: 10px;">Client Acknowledgment</div>

@@ -21,6 +21,16 @@ interface InvoiceOrder {
     customer_name?: string | null;
     customer_email?: string | null;
     customer_phone?: string | null;
+    payment_receipts?: PaymentReceipt[] | null;
+}
+
+interface PaymentReceipt {
+    id: number;
+    receipt_number?: string | null;
+    payment_method?: string | null;
+    amount?: number | string | null;
+    created_at?: string | null;
+    proof_image_urls?: string[] | null;
 }
 
 interface InvoiceRental {
@@ -211,6 +221,45 @@ function getStatusBadgeClass(status: string) {
                                             -
                                             {{ formatDate(invoice.rental.rental_end_date) }}
                                         </p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div
+                                v-if="invoice.order?.payment_receipts?.some((receipt) => (receipt.proof_image_urls || []).length > 0)"
+                                class="mt-8 border-t border-gray-200 pt-8 dark:border-gray-700"
+                            >
+                                <h3 class="mb-4 text-lg font-semibold">الإيصالات المرفقة</h3>
+                                <div class="space-y-6">
+                                    <div
+                                        v-for="receipt in invoice.order?.payment_receipts || []"
+                                        :key="receipt.id"
+                                        v-show="(receipt.proof_image_urls || []).length > 0"
+                                        class="rounded-xl border border-gray-200 p-4 dark:border-gray-700"
+                                    >
+                                        <div class="mb-3 flex flex-wrap items-center gap-3 text-sm text-gray-600 dark:text-gray-300">
+                                            <span class="font-semibold" dir="ltr">{{ receipt.receipt_number || '—' }}</span>
+                                            <span>{{ formatPaymentMethod(receipt.payment_method) }}</span>
+                                            <span>{{ formatCurrency(receipt.amount || 0) }}</span>
+                                            <span dir="ltr">{{ formatDate(receipt.created_at) }}</span>
+                                        </div>
+
+                                        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                                            <a
+                                                v-for="(imageUrl, index) in receipt.proof_image_urls || []"
+                                                :key="`${receipt.id}-${index}`"
+                                                :href="imageUrl"
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                class="block overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900"
+                                            >
+                                                <img
+                                                    :src="imageUrl"
+                                                    :alt="`إيصال ${receipt.receipt_number || receipt.id}`"
+                                                    class="h-64 w-full object-contain bg-gray-50 dark:bg-gray-950"
+                                                />
+                                            </a>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
