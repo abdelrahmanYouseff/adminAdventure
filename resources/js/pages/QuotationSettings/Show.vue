@@ -29,6 +29,9 @@ const phoneForm = useForm({
     phone: props.brand.phone,
 });
 
+const phoneChanged = computed(() => phoneForm.phone.trim() !== props.brand.phone.trim());
+const canSavePhone = computed(() => phoneForm.phone.trim() !== '' && phoneChanged.value && !phoneForm.processing);
+
 function selectLogo(event: Event) {
     const input = event.target as HTMLInputElement;
     const file = input.files?.[0];
@@ -52,6 +55,10 @@ function submit() {
 }
 
 function submitPhone() {
+    if (!canSavePhone.value) {
+        return;
+    }
+
     phoneForm.post(route('settings.quotations.phone', props.brand.slug), {
         preserveScroll: true,
     });
@@ -101,14 +108,13 @@ function submitPhone() {
                 />
                 <p v-if="phoneForm.errors.phone" class="text-xs text-red-600">{{ phoneForm.errors.phone }}</p>
             </div>
-            <Button
-                type="submit"
-                class="h-11 w-full gap-2 rounded-xl"
-                :disabled="phoneForm.processing || !phoneForm.phone.trim() || phoneForm.phone.trim() === brand.phone"
-            >
+            <Button type="submit" class="h-11 w-full gap-2 rounded-xl" :disabled="!canSavePhone">
                 <Save class="h-4 w-4" />
                 {{ phoneForm.processing ? 'جاري الحفظ...' : 'حفظ رقم الهاتف' }}
             </Button>
+            <p v-if="!phoneChanged && phoneForm.phone.trim()" class="text-center text-xs text-muted-foreground">
+                غيّر الرقم في الحقل أعلاه ثم اضغط حفظ.
+            </p>
         </form>
 
         <form class="mx-auto w-full max-w-xl space-y-5 rounded-2xl border bg-card p-5 shadow-sm sm:p-6" @submit.prevent="submit">

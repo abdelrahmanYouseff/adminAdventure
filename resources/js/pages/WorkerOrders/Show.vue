@@ -153,7 +153,8 @@ const page = usePage();
 const flash = computed(() => (page.props.flash as { success?: string; error?: string } | undefined) ?? {});
 const authRole = computed(() => (page.props.auth as { user?: { role?: string } } | undefined)?.user?.role ?? null);
 const canAssignWorkers = computed(() =>
-    ['admin', 'general_manager', 'manager', 'workers_manager'].includes(authRole.value || ''),
+    !props.workOrder.is_return_confirmed
+    && ['admin', 'general_manager', 'manager', 'workers_manager'].includes(authRole.value || ''),
 );
 const canApproveOrder = computed(() =>
     ['admin', 'manager', 'workers_manager'].includes(authRole.value || ''),

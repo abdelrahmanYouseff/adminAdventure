@@ -287,7 +287,7 @@ class WorkerOrderController extends Controller
         return $this->redirectAfterMutation($request, $reference, $message);
     }
 
-    public function approveWarehouse(Request $request, string $workOrderKey, WorkerOrderSyncService $syncService)
+    public function approveWarehouse(Request $request, string $workOrderKey)
     {
         $user = $request->user();
         abort_unless(
@@ -296,7 +296,15 @@ class WorkerOrderController extends Controller
             'تعميد المستودع مخصص لأمين المستودع ومدير العمال والمسؤول.',
         );
 
-        $order = WorkOrderPresenter::resolve($workOrderKey, $syncService);
+        $order = Order::query()
+            ->where(function ($query) use ($workOrderKey) {
+                $query->whereKey($workOrderKey)
+                    ->orWhere('order_number', $workOrderKey)
+                    ->orWhereHas('invoice', fn ($invoice) => $invoice->where('invoice_number', $workOrderKey));
+            })
+            ->first();
+
+        abort_unless($order, 404);
         $order->load(['invoice:id,invoice_number']);
 
         if ($order->warehouse_keeper_approved_at) {
@@ -312,13 +320,9 @@ class WorkerOrderController extends Controller
             'warehouse_keeper_approved_by' => $user->id,
         ]);
 
-        $reference = $order->invoice?->invoice_number ?? $order->order_number;
-
-        return $this->redirectAfterMutation(
-            $request,
-            $reference,
-            'تم تعميد المستودع وإغلاق الطلب '.$order->order_number.' بنجاح.',
-        );
+        return redirect()
+            ->route('worker-orders.index', ['view' => 'warehouse'])
+            ->with('success', 'تم تعميد المستودع وإغلاق الطلب '.$order->order_number.' بنجاح.');
     }
 
     public function storeAssembler(Request $request, string $workOrderKey, WorkerOrderSyncService $syncService)
@@ -463,7 +467,7 @@ class WorkerOrderController extends Controller
     ): array
     {
         $query = Order::query()
-            ->whereHas('workerOrders')
+            ->when(! $warehouseView, fn ($q) => $q->whereHas('workerOrders'))
             ->with([
                 'invoice:id,invoice_number',
                 'workerOrders' => fn ($q) => $q->orderBy('line_index'),
@@ -501,7 +505,7 @@ class WorkerOrderController extends Controller
             });
         }
 
-        if (in_array($dateRange, ['7', '30'], true)) {
+        if (! $warehouseView && in_array($dateRange, ['7', '30'], true)) {
             $from = now()->subDays((int) $dateRange)->startOfDay();
             $query->where(function ($q) use ($from) {
                 $q->whereDate('activity_date', '>=', $from)
@@ -509,7 +513,9 @@ class WorkerOrderController extends Controller
             });
         }
 
-        if ($status === 'completed') {
+        if ($warehouseView) {
+            $query->orderByDesc('warehouse_returned_at')->orderByDesc('id');
+        } elseif ($status === 'completed') {
             $query->orderByDesc(
                 WorkerOrder::query()
                     ->select('completed_at')
@@ -545,7 +551,7 @@ class WorkerOrderController extends Controller
             'completed' => Order::whereHas('workerOrders')
                 ->whereDoesntHave('workerOrders', fn ($q) => $q->where('status', 'pending'))
                 ->count(),
-            'warehouse' => Order::whereHas('workerOrders')
+            'warehouse' => Order::query()
                 ->whereNotNull('warehouse_returned_at')
                 ->whereNull('warehouse_keeper_approved_at')
                 ->whereNotIn('status', ['cancelled', 'refunded'])

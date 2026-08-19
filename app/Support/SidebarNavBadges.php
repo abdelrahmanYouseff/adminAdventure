@@ -48,7 +48,6 @@ class SidebarNavBadges
     public static function pendingWarehouseCount(): int
     {
         return Order::query()
-            ->whereHas('workerOrders')
             ->whereNotNull('warehouse_returned_at')
             ->whereNull('warehouse_keeper_approved_at')
             ->whereNotIn('status', ['cancelled', 'refunded'])

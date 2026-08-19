@@ -62,10 +62,12 @@ class WorkOrderPresenter
             'total_amount' => (float) $order->total_amount,
             'amount_paid' => (float) ($order->amount_paid ?? 0),
             'remaining_amount' => (float) $order->remaining_amount,
-            'preview_products' => $order->workerOrders->take(3)->map(fn (WorkerOrder $line) => [
-                'name' => $line->product_name,
-                'image_url' => $line->product_image_url,
-            ])->values()->all(),
+            'preview_products' => ($order->relationLoaded('workerOrders') ? $order->workerOrders : collect())
+                ->take(3)
+                ->map(fn (WorkerOrder $line) => [
+                    'name' => $line->product_name,
+                    'image_url' => $line->product_image_url,
+                ])->values()->all(),
             'is_return_confirmed' => $isReturnConfirmed,
             'return_confirmed_at' => $order->warehouse_returned_at?->toIso8601String(),
             'is_warehouse_closed' => $isWarehouseClosed,
