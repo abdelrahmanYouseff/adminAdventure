@@ -13,6 +13,7 @@ import {
     ArrowUpRight,
     Eye,
     ShieldCheck,
+    PackageCheck,
     Search,
     Filter,
 } from 'lucide-vue-next';
@@ -44,6 +45,12 @@ interface WorkOrderItem {
     currency?: string;
     remaining_amount?: number;
     is_assigned?: boolean;
+    is_return_confirmed?: boolean;
+    is_warehouse_closed?: boolean;
+    warehouse_status?: string;
+    warehouse_label?: string;
+    can_warehouse_approve?: boolean;
+    warehouse_closed_at?: string | null;
     preview_products: PreviewProduct[];
 }
 
@@ -96,6 +103,10 @@ const authRole = computed(() => (page.props.auth as { user?: { role?: string } }
 const canApproveOrders = computed(() =>
     ['admin', 'manager', 'workers_manager'].includes(authRole.value || ''),
 );
+const canWarehouseApprove = computed(() =>
+    ['admin', 'general_manager', 'manager', 'warehouse_keeper'].includes(authRole.value || ''),
+);
+const approvingWarehouseId = ref<number | null>(null);
 
 watch(
     () => [flash.value.success, flash.value.error] as const,
@@ -298,6 +309,10 @@ function toggleSelect(id: number) {
 }
 
 function statusBadgeClass(item: WorkOrderItem): string {
+    if (item.is_warehouse_closed) {
+        return 'bg-slate-100 text-slate-700 ring-1 ring-inset ring-slate-200 dark:bg-neutral-800 dark:text-neutral-200 dark:ring-neutral-700';
+    }
+
     if (item.status === 'completed') {
         return 'bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-300 dark:ring-emerald-900/50';
     }
@@ -310,6 +325,10 @@ function statusBadgeClass(item: WorkOrderItem): string {
 }
 
 function statusLabel(item: WorkOrderItem): string {
+    if (item.is_warehouse_closed) {
+        return 'مقفول';
+    }
+
     if (item.status === 'completed') {
         return 'مرفوعة للمراجعة';
     }
@@ -325,6 +344,60 @@ function dateFilterLabel(value: DateRange): string {
     if (value === '7') return 'آخر 7 أيام';
     if (value === '30') return 'آخر 30 يوم';
     return 'كل الفترات';
+}
+
+function warehouseBadgeClass(status?: string): string {
+    const map: Record<string, string> = {
+        closed: 'bg-slate-100 text-slate-700 ring-1 ring-inset ring-slate-200 dark:bg-neutral-800 dark:text-neutral-200 dark:ring-neutral-700',
+        awaiting_keeper: 'bg-orange-50 text-orange-700 ring-1 ring-inset ring-orange-100 dark:bg-orange-950/40 dark:text-orange-300 dark:ring-orange-900/50',
+        awaiting_return: 'bg-amber-50 text-amber-700 ring-1 ring-inset ring-amber-100 dark:bg-amber-950/40 dark:text-amber-300 dark:ring-amber-900/50',
+        pending: 'bg-gray-50 text-gray-500 ring-1 ring-inset ring-gray-200 dark:bg-neutral-800 dark:text-neutral-400 dark:ring-neutral-700',
+    };
+
+    return map[status || 'pending'] || map.pending;
+}
+
+async function approveWarehouse(item: WorkOrderItem) {
+    if (item.is_warehouse_closed) {
+        return;
+    }
+
+    if (!item.can_warehouse_approve) {
+        await Swal.fire({
+            icon: 'info',
+            title: 'لا يمكن التعميد الآن',
+            text: item.is_return_confirmed
+                ? 'تعميد المستودع مخصص لأمين المستودع بعد تعميد الاسترجاع.'
+                : 'يجب تعميد الاسترجاع من صفحة الاسترجاع أولاً.',
+            confirmButtonText: 'حسناً',
+            confirmButtonColor: '#2563EB',
+        });
+        return;
+    }
+
+    const result = await Swal.fire({
+        icon: 'question',
+        title: 'تعميد المستودع',
+        text: `تأكيد تعميد المستودع وإغلاق الطلب ${item.reference_number}؟`,
+        showCancelButton: true,
+        confirmButtonText: 'تعميد',
+        cancelButtonText: 'إلغاء',
+        confirmButtonColor: '#EA580C',
+        cancelButtonColor: '#64748B',
+        reverseButtons: true,
+    });
+
+    if (!result.isConfirmed) {
+        return;
+    }
+
+    approvingWarehouseId.value = item.id;
+    router.post(`/worker-orders/${encodeURIComponent(item.reference_number)}/warehouse-approve`, {}, {
+        preserveScroll: true,
+        onFinish: () => {
+            approvingWarehouseId.value = null;
+        },
+    });
 }
 
 async function approveWorkOrder(item: WorkOrderItem) {
@@ -528,7 +601,7 @@ watch(
                     </div>
 
                     <div class="overflow-x-auto">
-                        <table class="w-full min-w-[1100px] border-collapse text-sm">
+                        <table class="w-full min-w-[1220px] border-collapse text-sm">
                             <thead>
                                 <tr class="border-b border-gray-100 text-start dark:border-neutral-800">
                                     <th class="w-12 px-4 py-3.5">
@@ -545,12 +618,13 @@ watch(
                                     <th class="px-3 py-3.5 text-start text-[13px] font-semibold text-gray-700 dark:text-neutral-200">المنتجات</th>
                                     <th class="px-3 py-3.5 text-start text-[13px] font-semibold text-gray-700 dark:text-neutral-200">الحالة</th>
                                     <th class="px-3 py-3.5 text-start text-[13px] font-semibold text-gray-700 dark:text-neutral-200">تعيين</th>
+                                    <th class="px-3 py-3.5 text-start text-[13px] font-semibold text-gray-700 dark:text-neutral-200">المستودع</th>
                                     <th class="px-4 py-3.5 text-end text-[13px] font-semibold text-gray-700 dark:text-neutral-200">إجراءات</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 <tr v-if="workOrders.data.length === 0">
-                                    <td colspan="8" class="px-4 py-16 text-center text-gray-500 dark:text-neutral-400">
+                                    <td colspan="9" class="px-4 py-16 text-center text-gray-500 dark:text-neutral-400">
                                         لا توجد أوامر عمل مطابقة للبحث أو الفلتر الحالي.
                                     </td>
                                 </tr>
@@ -650,6 +724,26 @@ watch(
                                         >
                                             {{ item.is_assigned ? 'تم التعيين' : 'لم يتم التعيين' }}
                                         </span>
+                                    </td>
+                                    <td class="px-3 py-4">
+                                        <div class="flex flex-col items-start gap-1.5">
+                                            <span
+                                                class="inline-flex max-w-[220px] rounded-full px-2.5 py-1 text-xs font-semibold leading-snug"
+                                                :class="warehouseBadgeClass(item.warehouse_status)"
+                                            >
+                                                {{ item.warehouse_label || '—' }}
+                                            </span>
+                                            <button
+                                                v-if="canWarehouseApprove && item.can_warehouse_approve"
+                                                type="button"
+                                                class="inline-flex items-center gap-1 rounded-lg bg-orange-600 px-2.5 py-1 text-[11px] font-semibold text-white transition hover:bg-orange-700 disabled:opacity-60"
+                                                :disabled="approvingWarehouseId === item.id"
+                                                @click.stop="approveWarehouse(item)"
+                                            >
+                                                <PackageCheck class="size-3" />
+                                                {{ approvingWarehouseId === item.id ? 'جاري التعميد...' : 'تعميد' }}
+                                            </button>
+                                        </div>
                                     </td>
                                     <td class="px-4 py-4" @click.stop>
                                         <div class="flex items-center justify-end gap-1.5">

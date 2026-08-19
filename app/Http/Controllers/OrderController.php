@@ -1412,6 +1412,10 @@ class OrderController extends Controller
      */
     private function orderStatusDetail(Order $order): ?string
     {
+        if (filled($order->warehouse_keeper_approved_at)) {
+            return 'مقفول — تم تعميد المستودع';
+        }
+
         if (filled($order->warehouse_returned_at)) {
             return 'تم الاسترجاع';
         }
@@ -1516,6 +1520,17 @@ class OrderController extends Controller
         $pickedUp = $lines->filter(fn ($line) => filled($line->pickup_photo))->count();
         $scheduledAt = $order->dismantling_at?->format('Y-m-d H:i');
         $returnedAt = $order->warehouse_returned_at?->toIso8601String();
+
+        if (filled($order->warehouse_keeper_approved_at)) {
+            return [
+                'status' => 'closed',
+                'label' => 'مقفول — تم تعميد المستودع',
+                'scheduled_at' => $scheduledAt,
+                'warehouse_returned_at' => $returnedAt,
+                'progress_done' => $pickedUp,
+                'progress_total' => $total,
+            ];
+        }
 
         if (filled($order->warehouse_returned_at)) {
             return [

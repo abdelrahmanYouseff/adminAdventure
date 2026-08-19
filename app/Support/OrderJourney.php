@@ -264,17 +264,33 @@ class OrderJourney
             );
 
             $steps[] = self::step(
-                key: 'warehouse_confirmed',
-                icon: 'package-check',
-                title: 'تأكيد المستودع',
+                key: 'return_confirmed',
+                icon: 'undo-2',
+                title: 'تعميد الاسترجاع',
                 description: $order->warehouse_returned_at
-                    ? 'أكد المستودع استرجاع المنتجات.'
-                    : 'بانتظار تأكيد أمين المستودع لاسترجاع المنتجات.',
+                    ? 'تم تعميد الاسترجاع من صفحة الاسترجاع.'
+                    : 'بانتظار تعميد الاسترجاع.',
                 completed: (bool) $order->warehouse_returned_at,
                 at: $order->warehouse_returned_at?->toIso8601String(),
                 actor: $order->warehouseReturnedBy?->name,
-                waiting: 'بانتظار تأكيد المستودع للاسترجاع',
+                waiting: 'بانتظار تعميد الاسترجاع',
                 href: '/returns/'.$order->id,
+            );
+
+            $steps[] = self::step(
+                key: 'warehouse_confirmed',
+                icon: 'package-check',
+                title: 'تعميد المستودع',
+                description: $order->warehouse_keeper_approved_at
+                    ? 'تم تعميد المستودع وإغلاق الطلب.'
+                    : ($order->warehouse_returned_at
+                        ? 'بانتظار تعميد أمين المستودع من أوامر العمل.'
+                        : 'بانتظار تعميد الاسترجاع أولاً.'),
+                completed: (bool) $order->warehouse_keeper_approved_at,
+                at: $order->warehouse_keeper_approved_at?->toIso8601String(),
+                actor: $order->warehouseKeeperApprovedBy?->name,
+                waiting: 'بانتظار تعميد أمين المستودع',
+                href: '/worker-orders/'.$order->id,
             );
         }
 

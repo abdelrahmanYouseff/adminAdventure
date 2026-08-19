@@ -366,7 +366,7 @@ Route::get('returns/{order}', [\App\Http\Controllers\ProductReturnController::cl
     ->name('returns.show');
 
 Route::post('returns/{order}/confirm', [\App\Http\Controllers\ProductReturnController::class, 'confirm'])
-    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,warehouse_keeper'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager'])
     ->name('returns.confirm');
 
 Route::post('returns/{order}/notes', [\App\Http\Controllers\ProductReturnController::class, 'storeNote'])
@@ -482,7 +482,7 @@ Route::get('orders/{order}/payment-receipts/{receipt}', [OrderController::class,
     ->name('orders.payment-receipts.show');
 
 Route::get('worker-orders', [\App\Http\Controllers\WorkerOrderController::class, 'index'])
-    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,workers_manager'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,workers_manager,warehouse_keeper'])
     ->name('worker-orders.index');
 
 Route::get('worker-orders/{workOrderKey}/delivery-note', [\App\Http\Controllers\WorkerOrderController::class, 'deliveryNote'])
@@ -495,7 +495,7 @@ Route::post('worker-orders/{workOrderKey}/test-delivery-whatsapp', [\App\Http\Co
     ->name('worker-orders.test-delivery-whatsapp');
 
 Route::get('worker-orders/{workOrderKey}', [\App\Http\Controllers\WorkerOrderController::class, 'show'])
-    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,workers_manager'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,workers_manager,warehouse_keeper'])
     ->where('workOrderKey', '[A-Za-z0-9\-_/]+')
     ->name('worker-orders.show');
 
@@ -511,6 +511,11 @@ Route::post('worker-orders/{workOrderKey}/approve', [\App\Http\Controllers\Worke
     ->middleware(['auth', 'verified', 'role:admin,manager,workers_manager'])
     ->where('workOrderKey', '[A-Za-z0-9\-_/]+')
     ->name('worker-orders.approve');
+
+Route::post('worker-orders/{workOrderKey}/warehouse-approve', [\App\Http\Controllers\WorkerOrderController::class, 'approveWarehouse'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,warehouse_keeper'])
+    ->where('workOrderKey', '[A-Za-z0-9\-_/]+')
+    ->name('worker-orders.warehouse-approve');
 
 Route::post('worker-orders/{workOrderKey}/assemblers', [\App\Http\Controllers\WorkerOrderController::class, 'storeAssembler'])
     ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,workers_manager'])

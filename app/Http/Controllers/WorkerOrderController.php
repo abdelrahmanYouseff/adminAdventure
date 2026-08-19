@@ -284,6 +284,40 @@ class WorkerOrderController extends Controller
         return $this->redirectAfterMutation($request, $reference, $message);
     }
 
+    public function approveWarehouse(Request $request, string $workOrderKey, WorkerOrderSyncService $syncService)
+    {
+        $user = $request->user();
+        abort_unless(
+            WorkOrderPresenter::canUserApproveWarehouse($user),
+            403,
+            'تعميد المستودع مخصص لأمين المستودع والمسؤول فقط.',
+        );
+
+        $order = WorkOrderPresenter::resolve($workOrderKey, $syncService);
+        $order->load(['invoice:id,invoice_number']);
+
+        if ($order->warehouse_keeper_approved_at) {
+            return back()->with('error', 'تم تعميد المستودع وإغلاق هذا الطلب مسبقاً.');
+        }
+
+        if (! filled($order->warehouse_returned_at)) {
+            return back()->with('error', 'لا يمكن تعميد المستودع قبل تعميد الاسترجاع من صفحة الاسترجاع.');
+        }
+
+        $order->update([
+            'warehouse_keeper_approved_at' => now(),
+            'warehouse_keeper_approved_by' => $user->id,
+        ]);
+
+        $reference = $order->invoice?->invoice_number ?? $order->order_number;
+
+        return $this->redirectAfterMutation(
+            $request,
+            $reference,
+            'تم تعميد المستودع وإغلاق الطلب '.$order->order_number.' بنجاح.',
+        );
+    }
+
     public function storeAssembler(Request $request, string $workOrderKey, WorkerOrderSyncService $syncService)
     {
         $user = $request->user();
@@ -424,6 +458,8 @@ class WorkerOrderController extends Controller
             ->with([
                 'invoice:id,invoice_number',
                 'workerOrders' => fn ($q) => $q->orderBy('line_index'),
+                'warehouseReturnedBy:id,customer_name',
+                'warehouseKeeperApprovedBy:id,customer_name',
             ])
             ->withCount([
                 'workerOrders as total_lines',

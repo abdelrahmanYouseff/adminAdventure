@@ -244,7 +244,6 @@ class ProductReturnController extends Controller
             User::ROLE_ADMIN,
             User::ROLE_GENERAL_MANAGER,
             User::ROLE_MANAGER,
-            User::ROLE_WAREHOUSE_KEEPER,
         );
     }
 

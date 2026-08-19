@@ -45,6 +45,8 @@ class Order extends Model
         'work_order_approved_by',
         'warehouse_returned_at',
         'warehouse_returned_by',
+        'warehouse_keeper_approved_at',
+        'warehouse_keeper_approved_by',
         'warehouse_rejection_reason',
         'warehouse_rejected_at',
         'warehouse_rejected_by',
@@ -72,6 +74,7 @@ class Order extends Model
         'insurance_refund_requested_at' => 'datetime',
         'work_order_approved_at' => 'datetime',
         'warehouse_returned_at' => 'datetime',
+        'warehouse_keeper_approved_at' => 'datetime',
         'warehouse_rejected_at' => 'datetime',
         'insurance_manager_approved_at' => 'datetime',
         'insurance_gm_approved_at' => 'datetime',
@@ -268,6 +271,16 @@ class Order extends Model
     public function warehouseReturnedBy()
     {
         return $this->belongsTo(User::class, 'warehouse_returned_by');
+    }
+
+    public function warehouseKeeperApprovedBy()
+    {
+        return $this->belongsTo(User::class, 'warehouse_keeper_approved_by');
+    }
+
+    public function isWorkOrderClosed(): bool
+    {
+        return filled($this->warehouse_keeper_approved_at);
     }
 
     public function insuranceRefundRequestedBy()

@@ -125,6 +125,7 @@ class OrderJourneyController extends Controller
             'workerAssemblers',
             'workOrderApprovedBy:id,customer_name',
             'warehouseReturnedBy:id,customer_name',
+            'warehouseKeeperApprovedBy:id,customer_name',
         ];
     }
 

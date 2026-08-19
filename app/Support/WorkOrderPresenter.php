@@ -33,6 +33,11 @@ class WorkOrderPresenter
             && ($photosReady || $canApproveWithoutPhotos);
 
         $isAssigned = self::hasAssignedInstallationWorkers($order);
+        $isReturnConfirmed = filled($order->warehouse_returned_at);
+        $isWarehouseClosed = filled($order->warehouse_keeper_approved_at);
+        $canWarehouseApprove = self::canUserApproveWarehouse($user)
+            && $isReturnConfirmed
+            && ! $isWarehouseClosed;
 
         return [
             'id' => $order->id,
@@ -61,7 +66,52 @@ class WorkOrderPresenter
                 'name' => $line->product_name,
                 'image_url' => $line->product_image_url,
             ])->values()->all(),
+            'is_return_confirmed' => $isReturnConfirmed,
+            'return_confirmed_at' => $order->warehouse_returned_at?->toIso8601String(),
+            'is_warehouse_closed' => $isWarehouseClosed,
+            'warehouse_closed_at' => $order->warehouse_keeper_approved_at?->toIso8601String(),
+            'warehouse_closed_by_name' => $order->warehouseKeeperApprovedBy?->name,
+            'can_warehouse_approve' => $canWarehouseApprove,
+            'warehouse_status' => self::warehouseStatus($order),
+            'warehouse_label' => self::warehouseLabel($order),
         ];
+    }
+
+    private static function warehouseStatus(Order $order): string
+    {
+        if (filled($order->warehouse_keeper_approved_at)) {
+            return 'closed';
+        }
+
+        if (filled($order->warehouse_returned_at)) {
+            return 'awaiting_keeper';
+        }
+
+        if (filled($order->work_order_approved_at)) {
+            return 'awaiting_return';
+        }
+
+        return 'pending';
+    }
+
+    private static function warehouseLabel(Order $order): string
+    {
+        return match (self::warehouseStatus($order)) {
+            'closed' => 'مقفول',
+            'awaiting_keeper' => 'بانتظار تعميد المستودع',
+            'awaiting_return' => 'بانتظار تعميد الاسترجاع',
+            default => '—',
+        };
+    }
+
+    public static function canUserApproveWarehouse(?User $user): bool
+    {
+        return (bool) $user?->hasAnyRole(
+            User::ROLE_ADMIN,
+            User::ROLE_GENERAL_MANAGER,
+            User::ROLE_MANAGER,
+            User::ROLE_WAREHOUSE_KEEPER,
+        );
     }
 
     private static function hasAssignedInstallationWorkers(Order $order): bool
@@ -139,6 +189,8 @@ class WorkOrderPresenter
             'timeline' => self::timeline($order),
             'delivery_note_url' => '/worker-orders/'.rawurlencode($summary['reference_number']).'/delivery-note',
             'approved_by_name' => $order->workOrderApprovedBy?->name,
+            'warehouse_returned_at' => $order->warehouse_returned_at?->toIso8601String(),
+            'warehouse_returned_by_name' => $order->warehouseReturnedBy?->name,
         ]);
     }
 
@@ -234,6 +286,28 @@ class WorkOrderPresenter
             'completed' => (bool) $order->work_order_approved_at,
         ];
 
+        $items[] = [
+            'key' => 'return_confirmed',
+            'title' => 'تعميد الاسترجاع',
+            'description' => $order->warehouse_returned_at
+                ? 'تم تعميد استرجاع المنتجات — بانتظار تعميد أمين المستودع'
+                : 'بانتظار تعميد الاسترجاع من صفحة الاسترجاع',
+            'timestamp' => $order->warehouse_returned_at?->toIso8601String(),
+            'user_name' => $order->warehouseReturnedBy?->name,
+            'completed' => (bool) $order->warehouse_returned_at,
+        ];
+
+        $items[] = [
+            'key' => 'warehouse_closed',
+            'title' => 'تعميد المستودع',
+            'description' => $order->warehouse_keeper_approved_at
+                ? 'تم إغلاق الطلب من أمين المستودع'
+                : 'بانتظار تعميد أمين المستودع في أوامر العمل',
+            'timestamp' => $order->warehouse_keeper_approved_at?->toIso8601String(),
+            'user_name' => $order->warehouseKeeperApprovedBy?->name,
+            'completed' => (bool) $order->warehouse_keeper_approved_at,
+        ];
+
         return $items;
     }
 
@@ -272,6 +346,8 @@ class WorkOrderPresenter
             'workerNotes' => fn ($query) => $query->latest(),
             'workerNotes.user:id,customer_name,role',
             'workOrderApprovedBy:id,customer_name',
+            'warehouseReturnedBy:id,customer_name',
+            'warehouseKeeperApprovedBy:id,customer_name',
         ]);
 
         return $order;

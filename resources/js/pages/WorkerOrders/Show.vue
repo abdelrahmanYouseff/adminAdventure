@@ -18,6 +18,8 @@ import {
     Printer,
     MapPin,
     Phone,
+    Package,
+    PackageCheck,
     Plus,
     Trash2,
     Users,
@@ -122,6 +124,14 @@ interface WorkOrder {
     can_approve?: boolean;
     approved_at?: string | null;
     approved_by_name?: string | null;
+    is_return_confirmed?: boolean;
+    is_warehouse_closed?: boolean;
+    warehouse_status?: string;
+    warehouse_label?: string;
+    can_warehouse_approve?: boolean;
+    warehouse_closed_at?: string | null;
+    warehouse_closed_by_name?: string | null;
+    warehouse_returned_at?: string | null;
     currency?: string;
     total_amount?: number;
     amount_paid?: number;
@@ -148,6 +158,9 @@ const canAssignWorkers = computed(() =>
 const canApproveOrder = computed(() =>
     ['admin', 'manager', 'workers_manager'].includes(authRole.value || ''),
 );
+const canWarehouseApprove = computed(() =>
+    ['admin', 'general_manager', 'manager', 'warehouse_keeper'].includes(authRole.value || ''),
+);
 const remainingAmount = computed(() => Number(props.workOrder.remaining_amount ?? 0));
 const hasRemainingBalance = computed(() => remainingAmount.value > 0.009);
 const orderCurrency = computed(() => props.workOrder.currency || 'SAR');
@@ -163,6 +176,7 @@ const canRejectPhotos = computed(() =>
     && !props.workOrder.is_approved,
 );
 const approving = ref(false);
+const approvingWarehouse = ref(false);
 const testingWhatsApp = ref(false);
 const deletingPhotoId = ref<number | null>(null);
 
@@ -477,6 +491,53 @@ async function approveWorkOrder() {
     );
 }
 
+async function approveWarehouse() {
+    if (props.workOrder.is_warehouse_closed) {
+        return;
+    }
+
+    if (!props.workOrder.can_warehouse_approve) {
+        await Swal.fire({
+            icon: 'info',
+            title: 'لا يمكن التعميد الآن',
+            text: props.workOrder.is_return_confirmed
+                ? 'تعميد المستودع مخصص لأمين المستودع.'
+                : 'يجب تعميد الاسترجاع من صفحة الاسترجاع أولاً.',
+            confirmButtonText: 'حسناً',
+            confirmButtonColor: '#2563EB',
+        });
+        return;
+    }
+
+    const result = await Swal.fire({
+        icon: 'question',
+        title: 'تعميد المستودع',
+        text: `تأكيد تعميد المستودع وإغلاق الطلب ${props.workOrder.reference_number}؟`,
+        showCancelButton: true,
+        confirmButtonText: 'تعميد',
+        cancelButtonText: 'إلغاء',
+        confirmButtonColor: '#EA580C',
+        cancelButtonColor: '#64748B',
+        reverseButtons: true,
+    });
+
+    if (!result.isConfirmed) {
+        return;
+    }
+
+    approvingWarehouse.value = true;
+    router.post(
+        `/worker-orders/${encodeURIComponent(props.workOrder.reference_number)}/warehouse-approve`,
+        {},
+        {
+            preserveScroll: true,
+            onFinish: () => {
+                approvingWarehouse.value = false;
+            },
+        },
+    );
+}
+
 function openCompleteDialog(line: WorkOrderLine) {
     selectedLine.value = line;
     completeForm.reset();
@@ -630,6 +691,25 @@ watch(dialogOpen, (isOpen) => { if (!isOpen) closeCompleteDialog(); });
                         >
                             <ShieldCheck class="ms-1.5 h-4 w-4" />
                             {{ workOrder.is_approved ? 'معتمد' : approving ? 'جاري التعميد...' : 'تعميد' }}
+                        </Button>
+                        <Button
+                            v-if="canWarehouseApprove || workOrder.is_warehouse_closed"
+                            class="h-11 rounded-xl shadow-sm"
+                            :class="workOrder.is_warehouse_closed
+                                ? 'bg-slate-100 text-slate-700 hover:bg-slate-100'
+                                : workOrder.can_warehouse_approve
+                                    ? 'bg-orange-600 text-white hover:bg-orange-700'
+                                    : 'bg-slate-100 text-slate-500 hover:bg-slate-200'"
+                            :disabled="Boolean(workOrder.is_warehouse_closed) || approvingWarehouse || !workOrder.can_warehouse_approve"
+                            :title="workOrder.is_warehouse_closed
+                                ? 'تم إغلاق الطلب'
+                                : workOrder.can_warehouse_approve
+                                    ? 'تعميد المستودع'
+                                    : 'بانتظار تعميد الاسترجاع'"
+                            @click="approveWarehouse"
+                        >
+                            <PackageCheck class="ms-1.5 h-4 w-4" />
+                            {{ workOrder.is_warehouse_closed ? 'مقفول' : approvingWarehouse ? 'جاري التعميد...' : 'المستودع' }}
                         </Button>
                         <Button
                             variant="outline"
@@ -950,6 +1030,22 @@ watch(dialogOpen, (isOpen) => { if (!isOpen) closeCompleteDialog(); });
                                     :style="{ width: `${percent(installProgress.done, installProgress.total)}%` }"
                                 />
                             </div>
+                        </div>
+                        <div class="border-t border-slate-100 pt-4">
+                            <p class="mb-2 text-sm font-semibold text-slate-900">المستودع</p>
+                            <span
+                                class="inline-flex rounded-full px-3 py-1 text-xs font-semibold ring-1 ring-inset"
+                                :class="workOrder.is_warehouse_closed
+                                    ? 'bg-slate-100 text-slate-700 ring-slate-200'
+                                    : workOrder.can_warehouse_approve
+                                        ? 'bg-orange-50 text-orange-700 ring-orange-200'
+                                        : 'bg-amber-50 text-amber-700 ring-amber-200'"
+                            >
+                                {{ workOrder.warehouse_label || '—' }}
+                            </span>
+                            <p v-if="workOrder.warehouse_closed_by_name" class="mt-2 text-xs text-slate-500">
+                                عُمِّد بواسطة {{ workOrder.warehouse_closed_by_name }}
+                            </p>
                         </div>
                     </div>
                 </article>

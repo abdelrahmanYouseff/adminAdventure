@@ -217,7 +217,7 @@ class User extends Authenticatable
             self::ROLE_WORKER => 'pwa.dashboard',
             self::ROLE_WORKERS_MANAGER => 'worker-orders.index',
             self::ROLE_ACCOUNTS => 'quotations.index',
-            self::ROLE_WAREHOUSE_KEEPER => 'returns.index',
+            self::ROLE_WAREHOUSE_KEEPER => 'worker-orders.index',
             self::ROLE_MANAGER, self::ROLE_GENERAL_MANAGER, self::ROLE_ADMIN => 'dashboard',
             default => 'home',
         };
