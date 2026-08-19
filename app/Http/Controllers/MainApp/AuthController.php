@@ -134,7 +134,7 @@ class AuthController extends Controller
             $request->session()->regenerate();
             Cache::forget($this->cacheKey($data['phone']));
 
-            return Inertia::location('/main-app');
+            return redirect('/main-app');
         }
 
         if ($this->shouldForceFixedOtpForAll() || $this->isFixedOtpPhone($data['phone'])) {

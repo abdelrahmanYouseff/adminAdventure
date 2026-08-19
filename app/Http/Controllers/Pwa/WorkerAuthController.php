@@ -81,7 +81,7 @@ class WorkerAuthController extends Controller
             $request->session()->regenerate();
             Cache::forget($this->cacheKey($data['phone']));
 
-            return Inertia::location('/worker-app');
+            return redirect('/worker-app');
         }
 
         if ($this->shouldForceFixedOtpForAll() || $this->isFixedOtpPhone($data['phone'])) {
