@@ -503,6 +503,10 @@ Route::post('worker-orders/lines/{workerOrder}/complete', [\App\Http\Controllers
     ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,workers_manager'])
     ->name('worker-orders.complete');
 
+Route::delete('worker-orders/lines/{workerOrder}/photo', [\App\Http\Controllers\WorkerOrderController::class, 'destroyPhoto'])
+    ->middleware(['auth', 'verified', 'role:admin,manager,workers_manager'])
+    ->name('worker-orders.photo.destroy');
+
 Route::post('worker-orders/{workOrderKey}/approve', [\App\Http\Controllers\WorkerOrderController::class, 'approve'])
     ->middleware(['auth', 'verified', 'role:admin,manager,workers_manager'])
     ->where('workOrderKey', '[A-Za-z0-9\-_/]+')

@@ -169,6 +169,47 @@ class WorkerOrderController extends Controller
             ->with('success', 'تم رفع صورة التركيب وإرسال الطلب للمراجعة. يمكن للمسؤول مراجعته في قسم «مرفوعة للمراجعة».');
     }
 
+    public function destroyPhoto(Request $request, WorkerOrder $workerOrder): RedirectResponse
+    {
+        $user = $request->user();
+        abort_unless(
+            $user?->hasAnyRole(User::ROLE_ADMIN, User::ROLE_MANAGER, User::ROLE_WORKERS_MANAGER),
+            403,
+            'حذف صور التركيب مخصص لمدير العمال والمسئول فقط.',
+        );
+
+        $workerOrder->loadMissing('order.invoice');
+        $order = $workerOrder->order;
+        abort_unless($order, 404);
+
+        abort_if(
+            filled($order->work_order_approved_at),
+            403,
+            'لا يمكن حذف الصورة بعد تعميد أمر العمل.',
+        );
+
+        if (blank($workerOrder->installation_photo) && $workerOrder->status !== 'completed') {
+            return back()->with('error', 'لا توجد صورة تركيب لحذفها.');
+        }
+
+        if ($workerOrder->installation_photo) {
+            Storage::disk('public')->delete($workerOrder->installation_photo);
+        }
+
+        $workerOrder->update([
+            'installation_photo' => null,
+            'status' => 'pending',
+            'completed_at' => null,
+            'completed_by' => null,
+        ]);
+
+        $reference = $order->invoice?->invoice_number ?? $order->order_number;
+
+        return redirect()
+            ->route('worker-orders.show', $reference)
+            ->with('success', 'تم حذف صورة التركيب. يمكن للعامل رفع صورة جديدة.');
+    }
+
     public function approve(Request $request, string $workOrderKey, WorkerOrderSyncService $syncService)
     {
         $user = $request->user();

@@ -31,8 +31,9 @@ class ProductReturnController extends Controller
                 'workerNotes' => fn ($q) => $q->latest(),
                 'workerNotes.user:id,customer_name,role',
             ])
-            ->orderByRaw('dismantling_at IS NULL')
-            ->orderBy('dismantling_at')
+            ->orderByRaw('activity_date IS NULL')
+            ->orderByDesc('activity_date')
+            ->orderByDesc('activity_time')
             ->orderByDesc('id');
 
         if ($status === 'pending') {

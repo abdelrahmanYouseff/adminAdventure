@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref } from 'vue';
-import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
+import { Head, Link, useForm, usePage } from '@inertiajs/vue3';
 import {
     ArrowLeft,
     ArrowRight,
@@ -14,7 +14,6 @@ import {
     Package,
     Phone,
     ShieldAlert,
-    Trash2,
     X,
 } from 'lucide-vue-next';
 import { formatDate, formatDateTime } from '@/lib/formatNumber';
@@ -73,8 +72,6 @@ const photoPreview = ref<string | null>(null);
 const photoError = ref<string | null>(null);
 const cameraInputRef = ref<HTMLInputElement | null>(null);
 const galleryInputRef = ref<HTMLInputElement | null>(null);
-const photoToDelete = ref<ProductLine | null>(null);
-const deletingPhoto = ref(false);
 let photoChangeSeq = 0;
 
 const installForm = useForm({
@@ -96,7 +93,6 @@ const finishedProducts = computed(() =>
 const notes = computed(() => props.installation.notes ?? []);
 
 const isDismantling = computed(() => props.installation.task_type === 'dismantling');
-const canReplacePhotos = computed(() => Boolean(props.installation.can_replace_photos));
 
 const pageTitle = computed(() =>
     isDismantling.value
@@ -245,29 +241,6 @@ function submitCapture() {
         forceFormData: true,
         preserveScroll: true,
         onSuccess: () => closeCapture(),
-    });
-}
-
-function askDeletePhoto(product: ProductLine) {
-    if (!canReplacePhotos.value) return;
-    photoToDelete.value = product;
-}
-
-function closeDeletePhoto() {
-    if (deletingPhoto.value) return;
-    photoToDelete.value = null;
-}
-
-function confirmDeletePhoto() {
-    if (!photoToDelete.value || deletingPhoto.value) return;
-
-    deletingPhoto.value = true;
-    router.delete(`/worker-app/installations/lines/${photoToDelete.value.id}/photo`, {
-        preserveScroll: true,
-        onFinish: () => {
-            deletingPhoto.value = false;
-            photoToDelete.value = null;
-        },
     });
 }
 
@@ -513,54 +486,10 @@ function confirmLeave() {
                                 {{ t('completed') }}
                             </span>
                         </div>
-                        <button
-                            v-if="canReplacePhotos"
-                            type="button"
-                            class="inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl border border-rose-200 bg-rose-50 text-sm font-semibold text-rose-700 transition active:scale-[0.99] hover:bg-rose-100"
-                            @click="askDeletePhoto(product)"
-                        >
-                            <Trash2 class="h-4 w-4" />
-                            {{ t('replace_photo') }}
-                        </button>
                     </div>
                 </article>
             </section>
         </main>
-
-        <Teleport to="body">
-            <div
-                v-if="photoToDelete"
-                class="fixed inset-0 z-[210] flex items-center justify-center p-5"
-                role="dialog"
-                aria-modal="true"
-                :dir="dir"
-            >
-                <button type="button" class="absolute inset-0 bg-slate-900/50" :aria-label="t('close')" @click="closeDeletePhoto" />
-                <div class="relative z-10 w-full max-w-sm rounded-3xl bg-white p-5 shadow-2xl">
-                    <h2 class="text-lg font-bold text-slate-900">{{ t('delete_photo_title') }}</h2>
-                    <p class="mt-1 truncate text-sm font-medium text-slate-700">{{ photoToDelete.product_name }}</p>
-                    <p class="mt-2 text-sm leading-relaxed text-slate-500">{{ t('delete_photo_body') }}</p>
-                    <div class="mt-5 grid grid-cols-2 gap-2">
-                        <button
-                            type="button"
-                            class="h-12 rounded-2xl border border-slate-200 bg-white text-sm font-semibold text-slate-700 disabled:opacity-60"
-                            :disabled="deletingPhoto"
-                            @click="closeDeletePhoto"
-                        >
-                            {{ t('cancel') }}
-                        </button>
-                        <button
-                            type="button"
-                            class="h-12 rounded-2xl bg-rose-600 text-sm font-semibold text-white disabled:opacity-60"
-                            :disabled="deletingPhoto"
-                            @click="confirmDeletePhoto"
-                        >
-                            {{ deletingPhoto ? t('deleting') : t('replace_photo') }}
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </Teleport>
 
         <Teleport to="body">
             <div

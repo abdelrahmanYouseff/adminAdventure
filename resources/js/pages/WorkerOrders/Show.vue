@@ -158,8 +158,13 @@ const canDeleteNotes = computed(() =>
 );
 /** مدير العمال يراجع الصور فقط قبل التعميد */
 const isPhotoReviewer = computed(() => authRole.value === 'workers_manager');
+const canRejectPhotos = computed(() =>
+    ['admin', 'manager', 'workers_manager'].includes(authRole.value || '')
+    && !props.workOrder.is_approved,
+);
 const approving = ref(false);
 const testingWhatsApp = ref(false);
+const deletingPhotoId = ref<number | null>(null);
 
 watch(
     () => [flash.value.success, flash.value.error] as const,
@@ -390,6 +395,39 @@ async function sendDeliveryWhatsApp() {
             },
         },
     );
+}
+
+async function rejectPhoto(line: WorkOrderLine) {
+    if (!canRejectPhotos.value || !line.installation_photo_url || deletingPhotoId.value) {
+        return;
+    }
+
+    const result = await Swal.fire({
+        icon: 'warning',
+        title: 'حذف صورة التركيب؟',
+        html: `سيتم حذف صورة <strong>${line.product_name}</strong> وإعادة المنتج للعامل لرفع صورة جديدة.`,
+        showCancelButton: true,
+        confirmButtonText: 'حذف وإعادة الرفع',
+        cancelButtonText: 'إلغاء',
+        confirmButtonColor: '#DC2626',
+        cancelButtonColor: '#64748B',
+        reverseButtons: true,
+    });
+
+    if (!result.isConfirmed) {
+        return;
+    }
+
+    deletingPhotoId.value = line.id;
+    router.delete(`/worker-orders/lines/${line.id}/photo`, {
+        preserveScroll: true,
+        onFinish: () => {
+            deletingPhotoId.value = null;
+        },
+        onError: () => {
+            deletingPhotoId.value = null;
+        },
+    });
 }
 
 async function approveWorkOrder() {
@@ -852,6 +890,18 @@ watch(dialogOpen, (isOpen) => { if (!isOpen) closeCompleteDialog(); });
                                 {{ formatWhen(line.completed_at) }}
                                 <span v-if="line.completed_by_user?.name"> · {{ line.completed_by_user.name }}</span>
                             </p>
+                            <Button
+                                v-if="canRejectPhotos && line.installation_photo_url"
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                class="mt-3 h-9 rounded-xl border-rose-200 text-rose-700 hover:bg-rose-50"
+                                :disabled="deletingPhotoId === line.id"
+                                @click="rejectPhoto(line)"
+                            >
+                                <Trash2 class="ms-1.5 h-4 w-4" />
+                                {{ deletingPhotoId === line.id ? 'جاري الحذف...' : 'حذف وإعادة الرفع' }}
+                            </Button>
                         </div>
                     </article>
                 </div>
@@ -1112,6 +1162,18 @@ watch(dialogOpen, (isOpen) => { if (!isOpen) closeCompleteDialog(); });
                                     >
                                         <Camera class="ms-1.5 h-4 w-4" />
                                         رفع صورة التركيب
+                                    </Button>
+                                    <Button
+                                        v-else-if="canRejectPhotos && line.installation_photo_url"
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        class="h-9 rounded-xl border-rose-200 text-rose-700 hover:bg-rose-50"
+                                        :disabled="deletingPhotoId === line.id"
+                                        @click="rejectPhoto(line)"
+                                    >
+                                        <Trash2 class="ms-1.5 h-4 w-4" />
+                                        {{ deletingPhotoId === line.id ? 'جاري الحذف...' : 'حذف وإعادة الرفع' }}
                                     </Button>
                                     <span v-else-if="line.installation_photo_url" class="text-xs font-medium text-emerald-600">
                                         صورة مرفوعة ✓ — اضغط للتكبير

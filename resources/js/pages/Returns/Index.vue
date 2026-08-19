@@ -536,8 +536,10 @@ function workerStatusClass(key: WorkerBoardRow['status_key']): string {
                                             <Wrench class="size-3" />
                                             ميعاد تركيب
                                         </p>
-                                        <p class="mt-0.5 truncate">{{ worker.installation.order_number }} — {{ worker.installation.customer_name }}</p>
-                                        <p v-if="worker.installation.at" class="mt-0.5 tabular-nums text-sky-600" dir="ltr">{{ worker.installation.at }}</p>
+                                        <p class="mt-1 truncate font-medium">{{ worker.installation.customer_name }}</p>
+                                        <p class="mt-0.5 tabular-nums text-sky-700" dir="ltr">
+                                            {{ worker.installation.at ? formatDateTime(worker.installation.at) : 'الموعد غير محدد' }}
+                                        </p>
                                     </div>
 
                                     <div v-if="worker.dismantling" class="mt-1.5 rounded-lg bg-orange-50 px-2 py-1.5 text-[11px] text-orange-800 ring-1 ring-orange-100">
@@ -545,8 +547,10 @@ function workerStatusClass(key: WorkerBoardRow['status_key']): string {
                                             <PackageCheck class="size-3" />
                                             ميعاد فك
                                         </p>
-                                        <p class="mt-0.5 truncate">{{ worker.dismantling.order_number }} — {{ worker.dismantling.customer_name }}</p>
-                                        <p v-if="worker.dismantling.at" class="mt-0.5 tabular-nums text-orange-600" dir="ltr">{{ worker.dismantling.at }}</p>
+                                        <p class="mt-1 truncate font-medium">{{ worker.dismantling.customer_name }}</p>
+                                        <p class="mt-0.5 tabular-nums text-orange-700" dir="ltr">
+                                            {{ worker.dismantling.at ? formatDateTime(worker.dismantling.at) : 'الموعد غير محدد' }}
+                                        </p>
                                     </div>
                                 </div>
                             </div>

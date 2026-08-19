@@ -43,7 +43,7 @@ class WorkerPresenceBoard
 
         $assignments = WorkerOrderAssembler::query()
             ->with([
-                'order:id,order_number,customer_name,activity_date,activity_time,dismantling_at,warehouse_returned_at,work_order_approved_at,status',
+                'order:id,order_number,customer_name,activity_date,activity_time,installation_at,dismantling_at,warehouse_returned_at,work_order_approved_at,status',
                 'order.workerOrders:id,order_id,status,pickup_photo,installation_date',
             ])
             ->where(function ($query) use ($workerIds, $workerNames) {
@@ -199,7 +199,8 @@ class WorkerPresenceBoard
             : $order->workerOrders()->get();
 
         $pendingInstall = $lines->contains(fn ($line) => $line->status !== 'completed');
-        $rawInstallDate = $order->scheduledInstallationDate() ?? $lines->first()?->installation_date;
+        $lineInstallDate = $lines->pluck('installation_date')->filter()->first();
+        $rawInstallDate = $order->scheduledInstallationDate() ?? $lineInstallDate;
         $installDate = $rawInstallDate ? Carbon::parse($rawInstallDate)->startOfDay() : null;
 
         if (! $pendingInstall && filled($order->work_order_approved_at)) {
@@ -215,14 +216,13 @@ class WorkerPresenceBoard
         }
 
         $time = $order->scheduledInstallationTime();
-
-        $at = $installDate?->format('Y-m-d').($time ? ' '.$time : '');
+        $at = self::formatAppointmentAt($installDate, $time);
 
         return [
             'order_id' => $order->id,
             'order_number' => (string) $order->order_number,
             'customer_name' => (string) ($order->customer_name ?: '—'),
-            'at' => $at !== '' ? trim($at) : null,
+            'at' => $at,
             'label' => 'ميعاد تركيب',
         ];
     }
@@ -241,7 +241,7 @@ class WorkerPresenceBoard
             : $order->workerOrders()->get();
 
         $pendingPickup = $lines->contains(fn ($line) => blank($line->pickup_photo));
-        $dismantlingAt = $order->dismantling_at;
+        $dismantlingAt = $order->dismantling_at ? Carbon::parse($order->dismantling_at) : null;
 
         if (! $pendingPickup && $dismantlingAt && $dismantlingAt->copy()->startOfDay()->lt($today)) {
             return null;
@@ -251,12 +251,28 @@ class WorkerPresenceBoard
             return null;
         }
 
+        $at = $dismantlingAt?->format('Y-m-d H:i');
+
         return [
             'order_id' => $order->id,
             'order_number' => (string) $order->order_number,
             'customer_name' => (string) ($order->customer_name ?: '—'),
-            'at' => $dismantlingAt?->format('Y-m-d H:i'),
+            'at' => $at,
             'label' => 'ميعاد فك',
         ];
+    }
+
+    private static function formatAppointmentAt(?Carbon $date, ?string $time): ?string
+    {
+        if (! $date) {
+            return null;
+        }
+
+        $value = $date->format('Y-m-d');
+        if (filled($time)) {
+            $value .= ' '.$time;
+        }
+
+        return $value;
     }
 }
