@@ -303,6 +303,37 @@
     </tr>
 </table>
 
+{{-- Payment Receipts --}}
+@if($data->hasPaymentReceipts())
+<div style="margin-bottom: 16px;">
+    <div style="font-size: 8pt; font-weight: bold; color: #1a1a1a; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.3px;">
+        Payment Receipts / سندات القبض
+    </div>
+    <table class="items-table">
+        <thead>
+            <tr>
+                <th width="22%" align="left">Receipt No.</th>
+                <th width="18%" align="left">Date</th>
+                <th width="30%" align="left">Payment Method</th>
+                <th width="18%" align="right">Amount</th>
+                <th width="12%" align="left">Notes</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach($data->paymentReceipts() as $receipt)
+                <tr>
+                    <td align="left"><strong>{{ $receipt['receipt_number'] }}</strong></td>
+                    <td align="left">{{ $receipt['date'] }}</td>
+                    <td align="left">{{ $receipt['payment_method'] }}</td>
+                    <td align="right">SAR {{ number_format($receipt['amount'], 2) }}</td>
+                    <td align="left" style="font-size: 6.5pt; color: #444;">{{ $receipt['notes'] ?? '—' }}</td>
+                </tr>
+            @endforeach
+        </tbody>
+    </table>
+</div>
+@endif
+
 {{-- Client Acknowledgment --}}
 <div class="ack-box">
     <div style="font-weight: bold; font-size: 8.5pt; margin-bottom: 10px;">Client Acknowledgment</div>

@@ -17,7 +17,7 @@ class InvoicePdfData
 
     public static function fromInvoice(Invoice $invoice): self
     {
-        $invoice->load(['user', 'rental.product', 'order']);
+        $invoice->load(['user', 'rental.product', 'order.paymentReceipts']);
 
         return new self($invoice, $invoice->order);
     }
@@ -411,6 +411,40 @@ class InvoicePdfData
     /**
      * @return array<int, string>
      */
+    /**
+     * @return array<int, array{receipt_number: string, amount: float, payment_method: string, date: string, notes: ?string}>
+     */
+    public function paymentReceipts(): array
+    {
+        if (! $this->order) {
+            return [];
+        }
+
+        return $this->order
+            ->paymentReceipts()
+            ->where('approval_status', \App\Models\OrderPaymentReceipt::STATUS_APPROVED)
+            ->orderBy('created_at')
+            ->get()
+            ->map(fn (\App\Models\OrderPaymentReceipt $r) => [
+                'receipt_number' => $r->receipt_number,
+                'amount' => (float) $r->amount,
+                'payment_method' => match ($r->payment_method) {
+                    'cash' => 'Cash / نقداً',
+                    'bank_transfer' => 'Bank Transfer / تحويل بنكي',
+                    'noon' => 'Noon Pay',
+                    default => $r->payment_method ?: '—',
+                },
+                'date' => $r->created_at?->format('Y-m-d') ?? '—',
+                'notes' => $r->notes ? trim($r->notes) : null,
+            ])
+            ->all();
+    }
+
+    public function hasPaymentReceipts(): bool
+    {
+        return count($this->paymentReceipts()) > 0;
+    }
+
     public function termsAndConditions(): array
     {
         $terms = [

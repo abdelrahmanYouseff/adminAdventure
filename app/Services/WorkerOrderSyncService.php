@@ -11,9 +11,9 @@ class WorkerOrderSyncService
     /**
      * Prefer pivot products; fall back to items JSON (with product_id when available).
      */
-    public function syncFromOrder(Order $order): void
+    public function syncFromOrder(Order $order, bool $force = false): void
     {
-        if (! $this->shouldCreateWorkOrders($order)) {
+        if (! $force && ! $this->shouldCreateWorkOrders($order)) {
             return;
         }
 

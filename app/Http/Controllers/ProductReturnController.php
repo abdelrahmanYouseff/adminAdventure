@@ -9,6 +9,7 @@ use App\Models\WorkerOrderAssembler;
 use App\Models\WorkerOrderNote;
 use App\Support\WorkOrderPresenter;
 use App\Support\WorkerPresenceBoard;
+use App\Services\WorkerOrderSyncService;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
@@ -156,7 +157,7 @@ class ProductReturnController extends Controller
         return back()->with('success', 'تم إضافة الملاحظة.');
     }
 
-    public function storeAssembler(Request $request, Order $order): RedirectResponse
+    public function storeAssembler(Request $request, Order $order, WorkerOrderSyncService $syncService): RedirectResponse
     {
         abort_unless($this->isEligibleReturn($order), 404);
         abort_unless($this->canAssignWorkers($request->user()), 403, 'غير مصرح لك بتعيين العمال.');
@@ -197,6 +198,12 @@ class ProductReturnController extends Controller
             'user_id' => $worker->id,
             'created_by' => $request->user()->id,
         ]);
+
+        // طلبات الاسترجاع قد لا تكون أُفرج عنها كأوامر عمل من قبل، لذلك ننشئ السطور
+        // هنا بالقوة حتى تظهر للعامل المعيَّن في تطبيق العمال.
+        if (! $order->workerOrders()->exists()) {
+            $syncService->syncFromOrder($order, true);
+        }
 
         return back()->with('success', 'تم تعيين العامل للفك بنجاح.');
     }
