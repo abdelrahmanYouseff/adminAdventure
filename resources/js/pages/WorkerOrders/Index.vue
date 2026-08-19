@@ -104,7 +104,7 @@ const canApproveOrders = computed(() =>
     ['admin', 'manager', 'workers_manager'].includes(authRole.value || ''),
 );
 const canWarehouseApprove = computed(() =>
-    ['admin', 'general_manager', 'manager', 'warehouse_keeper'].includes(authRole.value || ''),
+    ['admin', 'general_manager', 'manager', 'workers_manager', 'warehouse_keeper'].includes(authRole.value || ''),
 );
 const approvingWarehouseId = ref<number | null>(null);
 
@@ -367,7 +367,7 @@ async function approveWarehouse(item: WorkOrderItem) {
             icon: 'info',
             title: 'لا يمكن التعميد الآن',
             text: item.is_return_confirmed
-                ? 'تعميد المستودع مخصص لأمين المستودع بعد تعميد الاسترجاع.'
+                ? 'تعميد المستودع متاح لأمين المستودع ومدير العمال بعد تعميد الاسترجاع.'
                 : 'يجب تعميد الاسترجاع من صفحة الاسترجاع أولاً.',
             confirmButtonText: 'حسناً',
             confirmButtonColor: '#2563EB',

@@ -513,7 +513,7 @@ Route::post('worker-orders/{workOrderKey}/approve', [\App\Http\Controllers\Worke
     ->name('worker-orders.approve');
 
 Route::post('worker-orders/{workOrderKey}/warehouse-approve', [\App\Http\Controllers\WorkerOrderController::class, 'approveWarehouse'])
-    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,warehouse_keeper'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,workers_manager,warehouse_keeper'])
     ->where('workOrderKey', '[A-Za-z0-9\-_/]+')
     ->name('worker-orders.warehouse-approve');
 

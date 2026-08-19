@@ -110,6 +110,7 @@ class WorkOrderPresenter
             User::ROLE_ADMIN,
             User::ROLE_GENERAL_MANAGER,
             User::ROLE_MANAGER,
+            User::ROLE_WORKERS_MANAGER,
             User::ROLE_WAREHOUSE_KEEPER,
         );
     }

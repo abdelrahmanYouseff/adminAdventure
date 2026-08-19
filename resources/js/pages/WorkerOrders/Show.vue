@@ -159,7 +159,7 @@ const canApproveOrder = computed(() =>
     ['admin', 'manager', 'workers_manager'].includes(authRole.value || ''),
 );
 const canWarehouseApprove = computed(() =>
-    ['admin', 'general_manager', 'manager', 'warehouse_keeper'].includes(authRole.value || ''),
+    ['admin', 'general_manager', 'manager', 'workers_manager', 'warehouse_keeper'].includes(authRole.value || ''),
 );
 const remainingAmount = computed(() => Number(props.workOrder.remaining_amount ?? 0));
 const hasRemainingBalance = computed(() => remainingAmount.value > 0.009);
@@ -501,7 +501,7 @@ async function approveWarehouse() {
             icon: 'info',
             title: 'لا يمكن التعميد الآن',
             text: props.workOrder.is_return_confirmed
-                ? 'تعميد المستودع مخصص لأمين المستودع.'
+                ? 'تعميد المستودع متاح لأمين المستودع ومدير العمال.'
                 : 'يجب تعميد الاسترجاع من صفحة الاسترجاع أولاً.',
             confirmButtonText: 'حسناً',
             confirmButtonColor: '#2563EB',

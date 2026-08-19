@@ -290,7 +290,7 @@ class WorkerOrderController extends Controller
         abort_unless(
             WorkOrderPresenter::canUserApproveWarehouse($user),
             403,
-            'تعميد المستودع مخصص لأمين المستودع والمسؤول فقط.',
+            'تعميد المستودع مخصص لأمين المستودع ومدير العمال والمسؤول.',
         );
 
         $order = WorkOrderPresenter::resolve($workOrderKey, $syncService);
