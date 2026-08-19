@@ -21,7 +21,9 @@ import {
     PackageCheck,
     Search,
     Undo2,
+    UserCheck,
     Users,
+    UserX,
     Wrench,
 } from 'lucide-vue-next';
 import Swal from 'sweetalert2';
@@ -45,6 +47,8 @@ interface ProductReturn {
     warehouse_returned_at: string | null;
     warehouse_returned_by_name: string | null;
     is_returned: boolean;
+    is_assigned: boolean;
+    assigned_workers: string[];
     can_confirm: boolean;
     notes_count: number;
 }
@@ -336,7 +340,7 @@ function workerStatusClass(key: WorkerBoardRow['status_key']): string {
                     </div>
 
                     <div v-else class="overflow-x-auto">
-                        <table class="w-full min-w-[920px] border-collapse text-right text-sm">
+                        <table class="w-full min-w-[1020px] border-collapse text-right text-sm">
                             <thead>
                                 <tr class="border-b border-gray-100 bg-gray-50/80 text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:border-neutral-800 dark:bg-neutral-950/50 dark:text-neutral-400">
                                     <th class="w-8 whitespace-nowrap px-4 py-3"></th>
@@ -344,6 +348,7 @@ function workerStatusClass(key: WorkerBoardRow['status_key']): string {
                                     <th class="whitespace-nowrap px-4 py-3">العميل</th>
                                     <th class="whitespace-nowrap px-4 py-3">المنتجات</th>
                                     <th class="whitespace-nowrap px-4 py-3">تاريخ الفك</th>
+                                    <th class="whitespace-nowrap px-4 py-3">التعيين</th>
                                     <th class="whitespace-nowrap px-4 py-3">باقي عليه</th>
                                     <th class="whitespace-nowrap px-4 py-3">الحالة</th>
                                     <th class="whitespace-nowrap px-4 py-3">إجراء</th>
@@ -387,6 +392,25 @@ function workerStatusClass(key: WorkerBoardRow['status_key']): string {
                                                 <span class="text-sm font-medium tabular-nums" dir="ltr">{{ formatDateTime(item.dismantling_at) }}</span>
                                             </div>
                                             <span v-else class="text-xs text-gray-400">—</span>
+                                        </td>
+                                        <td class="px-4 py-3">
+                                            <span
+                                                v-if="item.is_assigned"
+                                                class="inline-flex items-center gap-1 rounded-full bg-sky-50 px-2.5 py-1 text-xs font-semibold text-sky-700 ring-1 ring-inset ring-sky-100"
+                                            >
+                                                <UserCheck class="size-3.5" />
+                                                تم التعيين
+                                            </span>
+                                            <span
+                                                v-else
+                                                class="inline-flex items-center gap-1 rounded-full bg-gray-50 px-2.5 py-1 text-xs font-semibold text-gray-500 ring-1 ring-inset ring-gray-200"
+                                            >
+                                                <UserX class="size-3.5" />
+                                                لم يُعيَّن
+                                            </span>
+                                            <p v-if="item.is_assigned && item.assigned_workers.length" class="mt-1 text-[11px] text-gray-500">
+                                                {{ item.assigned_workers.join('، ') }}
+                                            </p>
                                         </td>
                                         <td class="px-4 py-3">
                                             <span

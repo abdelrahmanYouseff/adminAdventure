@@ -27,6 +27,7 @@ class ProductReturnController extends Controller
         $query = $this->eligibleReturnsQuery()
             ->with([
                 'workerOrders' => fn ($q) => $q->orderBy('line_index'),
+                'workerAssemblers' => fn ($q) => $q->dismantling()->select('id', 'order_id', 'worker_name', 'user_id', 'task_type'),
                 'warehouseReturnedBy:id,customer_name',
                 'workerNotes' => fn ($q) => $q->latest(),
                 'workerNotes.user:id,customer_name,role',
@@ -274,6 +275,12 @@ class ProductReturnController extends Controller
         $isReturned = filled($order->warehouse_returned_at);
         $dismantlingMeta = $this->dismantlingMeta($order->dismantling_at, $isReturned);
 
+        $assemblers = $order->relationLoaded('workerAssemblers')
+            ? $order->workerAssemblers->filter(fn (WorkerOrderAssembler $assembler) => $assembler->isDismantling())
+            : collect();
+
+        $assignedWorkers = $assemblers->pluck('worker_name')->filter()->unique()->values()->all();
+
         return [
             'id' => $order->id,
             'order_number' => $order->order_number,
@@ -288,6 +295,8 @@ class ProductReturnController extends Controller
             'warehouse_returned_at' => $order->warehouse_returned_at?->toIso8601String(),
             'warehouse_returned_by_name' => $order->warehouseReturnedBy?->name,
             'is_returned' => $isReturned,
+            'is_assigned' => count($assignedWorkers) > 0,
+            'assigned_workers' => $assignedWorkers,
             'can_confirm' => ! $isReturned,
             'notes' => $notes->map(fn (WorkerOrderNote $note) => [
                 'id' => $note->id,
