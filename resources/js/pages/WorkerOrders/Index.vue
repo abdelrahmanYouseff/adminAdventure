@@ -694,7 +694,7 @@ watch(
                                         <div class="flex min-w-0 flex-col items-start gap-1">
                                             <p class="font-semibold text-gray-900 dark:text-white">{{ item.customer_name }}</p>
                                             <p
-                                                v-if="(item.remaining_amount || 0) > 0"
+                                                v-if="!isWarehouseView && (item.remaining_amount || 0) > 0"
                                                 class="text-xs font-semibold text-amber-600"
                                             >
                                                 متبقي <span dir="ltr" class="tabular-nums">{{ formatCurrency(item.remaining_amount || 0, item.currency || 'SAR') }}</span>

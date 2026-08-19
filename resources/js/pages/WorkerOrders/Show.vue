@@ -159,16 +159,18 @@ const flash = computed(() => (page.props.flash as { success?: string; error?: st
 const authRole = computed(() => (page.props.auth as { user?: { role?: string } } | undefined)?.user?.role ?? null);
 const isWarehouseView = computed(() => props.filters?.view === 'warehouse');
 const canAssignWorkers = computed(() =>
-    ['admin', 'general_manager', 'manager', 'workers_manager'].includes(authRole.value || ''),
+    !isWarehouseView.value
+    && ['admin', 'general_manager', 'manager', 'workers_manager'].includes(authRole.value || ''),
 );
 const canApproveOrder = computed(() =>
-    ['admin', 'manager', 'workers_manager'].includes(authRole.value || ''),
+    !isWarehouseView.value
+    && ['admin', 'manager', 'workers_manager'].includes(authRole.value || ''),
 );
 const canWarehouseApprove = computed(() =>
     ['admin', 'general_manager', 'manager', 'workers_manager', 'warehouse_keeper'].includes(authRole.value || ''),
 );
 const remainingAmount = computed(() => Number(props.workOrder.remaining_amount ?? 0));
-const hasRemainingBalance = computed(() => remainingAmount.value > 0.009);
+const hasRemainingBalance = computed(() => !isWarehouseView.value && remainingAmount.value > 0.009);
 const orderCurrency = computed(() => props.workOrder.currency || 'SAR');
 /** مدير العمال يعتمد فقط — رفع الصور من تطبيق العامل */
 const canUploadPhotos = computed(() => authRole.value !== 'workers_manager');
@@ -687,7 +689,7 @@ watch(dialogOpen, (isOpen) => { if (!isOpen) closeCompleteDialog(); });
                     </div>
                     <div class="flex flex-wrap items-center gap-2">
                         <Button
-                            v-if="canApproveOrder"
+                            v-if="canApproveOrder && !isWarehouseView"
                             class="h-11 rounded-xl shadow-sm"
                             :class="workOrder.is_approved
                                 ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-50'
@@ -725,6 +727,7 @@ watch(dialogOpen, (isOpen) => { if (!isOpen) closeCompleteDialog(); });
                             {{ workOrder.is_warehouse_closed ? 'مقفول' : approvingWarehouse ? 'جاري التعميد...' : 'المستودع' }}
                         </Button>
                         <Button
+                            v-if="!isWarehouseView"
                             variant="outline"
                             class="h-11 rounded-xl border-slate-200 bg-white shadow-sm"
                             @click="printDeliveryNote"
@@ -733,6 +736,7 @@ watch(dialogOpen, (isOpen) => { if (!isOpen) closeCompleteDialog(); });
                             إذن التسليم
                         </Button>
                         <Button
+                            v-if="!isWarehouseView"
                             variant="outline"
                             class="h-11 rounded-xl border-emerald-200 bg-emerald-50 text-emerald-800 shadow-sm hover:bg-emerald-100"
                             :disabled="testingWhatsApp"
@@ -743,13 +747,14 @@ watch(dialogOpen, (isOpen) => { if (!isOpen) closeCompleteDialog(); });
                             {{ testingWhatsApp ? 'جاري الإرسال...' : 'إرسال عبر الواتساب' }}
                         </Button>
                         <Button
+                            v-if="!isWarehouseView"
                             class="h-11 rounded-xl bg-[#2563EB] shadow-sm hover:bg-[#1D4ED8]"
                             @click="activeTab = 'installation'"
                         >
                             <Camera class="ms-1.5 h-4 w-4" />
                             {{ isPhotoReviewer ? 'مراجعة الصور' : 'إدارة التركيب' }}
                         </Button>
-                        <Button variant="ghost" size="icon" class="h-11 w-11 rounded-xl text-slate-500">
+                        <Button v-if="!isWarehouseView" variant="ghost" size="icon" class="h-11 w-11 rounded-xl text-slate-500">
                             <MoreHorizontal class="h-5 w-5" />
                         </Button>
                     </div>
@@ -757,7 +762,7 @@ watch(dialogOpen, (isOpen) => { if (!isOpen) closeCompleteDialog(); });
             </header>
 
             <div
-                v-if="hasRemainingBalance"
+                v-if="!isWarehouseView && hasRemainingBalance"
                 class="flex flex-col gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-amber-950 shadow-sm sm:flex-row sm:items-center sm:justify-between"
             >
                 <div class="flex items-start gap-3">
@@ -852,7 +857,7 @@ watch(dialogOpen, (isOpen) => { if (!isOpen) closeCompleteDialog(); });
 
             <!-- Assign installation worker (workers_manager / admin / manager) -->
             <section
-                v-if="canAssignWorkers"
+                v-if="canAssignWorkers && !isWarehouseView"
                 class="rounded-2xl bg-white p-5 shadow-[0_8px_30px_rgb(15,23,42,0.05)] sm:p-6"
             >
                 <div class="flex flex-wrap items-start justify-between gap-3">
@@ -933,7 +938,7 @@ watch(dialogOpen, (isOpen) => { if (!isOpen) closeCompleteDialog(); });
 
             <!-- Photo review for workers manager -->
             <section
-                v-if="isPhotoReviewer"
+                v-if="isPhotoReviewer && !isWarehouseView"
                 class="rounded-2xl bg-white p-5 shadow-[0_8px_30px_rgb(15,23,42,0.05)] sm:p-6"
             >
                 <div class="mb-4 flex flex-wrap items-start justify-between gap-3">
@@ -1147,6 +1152,7 @@ watch(dialogOpen, (isOpen) => { if (!isOpen) closeCompleteDialog(); });
                 </article>
 
                 <article
+                    v-if="!isWarehouseView"
                     class="rounded-2xl bg-white p-6 shadow-[0_8px_30px_rgb(15,23,42,0.05)]"
                 >
                     <p class="flex items-center gap-2 text-sm font-semibold text-slate-900">
@@ -1180,6 +1186,7 @@ watch(dialogOpen, (isOpen) => { if (!isOpen) closeCompleteDialog(); });
                 </article>
 
                 <article
+                    v-if="!isWarehouseView"
                     class="rounded-2xl bg-white p-6 shadow-[0_8px_30px_rgb(15,23,42,0.05)]"
                 >
                     <p class="text-sm font-semibold text-slate-900">إحصائيات الصور</p>
@@ -1191,6 +1198,7 @@ watch(dialogOpen, (isOpen) => { if (!isOpen) closeCompleteDialog(); });
                 </article>
 
                 <article
+                    v-if="!isWarehouseView"
                     class="rounded-2xl bg-white p-6 shadow-[0_8px_30px_rgb(15,23,42,0.05)]"
                 >
                     <div class="flex items-center justify-between">
