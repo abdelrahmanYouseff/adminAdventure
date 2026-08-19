@@ -159,13 +159,10 @@ const flash = computed(() => (page.props.flash as { success?: string; error?: st
 const authRole = computed(() => (page.props.auth as { user?: { role?: string } } | undefined)?.user?.role ?? null);
 const isWarehouseView = computed(() => props.filters?.view === 'warehouse');
 const canAssignWorkers = computed(() =>
-    !isWarehouseView.value
-    && !props.workOrder.is_return_confirmed
-    && ['admin', 'general_manager', 'manager', 'workers_manager'].includes(authRole.value || ''),
+    ['admin', 'general_manager', 'manager', 'workers_manager'].includes(authRole.value || ''),
 );
 const canApproveOrder = computed(() =>
-    !isWarehouseView.value
-    && ['admin', 'manager', 'workers_manager'].includes(authRole.value || ''),
+    ['admin', 'manager', 'workers_manager'].includes(authRole.value || ''),
 );
 const canWarehouseApprove = computed(() =>
     ['admin', 'general_manager', 'manager', 'workers_manager', 'warehouse_keeper'].includes(authRole.value || ''),
@@ -235,22 +232,13 @@ const eventStatus = computed<EventStatus>(() => props.workOrder.event_status ?? 
 const displayAddress = computed(() => props.workOrder.address?.trim() || props.workOrder.customer_address?.trim() || null);
 const primaryWorker = computed(() => assignedWorkers.value[0] || 'غير معيّن');
 
-const tabs = computed(() => {
-    if (isWarehouseView.value) {
-        return [
-            { key: 'overview' as TabKey, label: 'نظرة عامة', icon: LayoutDashboard },
-            { key: 'games' as TabKey, label: 'المنتجات', icon: Gamepad2 },
-        ];
-    }
-
-    return [
-        { key: 'overview' as TabKey, label: 'نظرة عامة', icon: LayoutDashboard },
-        { key: 'installation' as TabKey, label: 'التركيب', icon: Wrench },
-        { key: 'games' as TabKey, label: 'الألعاب', icon: Gamepad2 },
-        { key: 'notes' as TabKey, label: 'الملاحظات', icon: MessageSquareText },
-        { key: 'timeline' as TabKey, label: 'الجدول الزمني', icon: History },
-    ];
-});
+const tabs = computed(() => [
+    { key: 'overview' as TabKey, label: 'نظرة عامة', icon: LayoutDashboard },
+    { key: 'installation' as TabKey, label: 'التركيب', icon: Wrench },
+    { key: 'games' as TabKey, label: 'الألعاب', icon: Gamepad2 },
+    { key: 'notes' as TabKey, label: 'الملاحظات', icon: MessageSquareText },
+    { key: 'timeline' as TabKey, label: 'الجدول الزمني', icon: History },
+]);
 
 const statusMeta = computed(() => {
     switch (eventStatus.value) {
@@ -737,7 +725,6 @@ watch(dialogOpen, (isOpen) => { if (!isOpen) closeCompleteDialog(); });
                             {{ workOrder.is_warehouse_closed ? 'مقفول' : approvingWarehouse ? 'جاري التعميد...' : 'المستودع' }}
                         </Button>
                         <Button
-                            v-if="!isWarehouseView"
                             variant="outline"
                             class="h-11 rounded-xl border-slate-200 bg-white shadow-sm"
                             @click="printDeliveryNote"
@@ -746,7 +733,6 @@ watch(dialogOpen, (isOpen) => { if (!isOpen) closeCompleteDialog(); });
                             إذن التسليم
                         </Button>
                         <Button
-                            v-if="!isWarehouseView"
                             variant="outline"
                             class="h-11 rounded-xl border-emerald-200 bg-emerald-50 text-emerald-800 shadow-sm hover:bg-emerald-100"
                             :disabled="testingWhatsApp"
@@ -757,14 +743,13 @@ watch(dialogOpen, (isOpen) => { if (!isOpen) closeCompleteDialog(); });
                             {{ testingWhatsApp ? 'جاري الإرسال...' : 'إرسال عبر الواتساب' }}
                         </Button>
                         <Button
-                            v-if="!isWarehouseView"
                             class="h-11 rounded-xl bg-[#2563EB] shadow-sm hover:bg-[#1D4ED8]"
                             @click="activeTab = 'installation'"
                         >
                             <Camera class="ms-1.5 h-4 w-4" />
                             {{ isPhotoReviewer ? 'مراجعة الصور' : 'إدارة التركيب' }}
                         </Button>
-                        <Button v-if="!isWarehouseView" variant="ghost" size="icon" class="h-11 w-11 rounded-xl text-slate-500">
+                        <Button variant="ghost" size="icon" class="h-11 w-11 rounded-xl text-slate-500">
                             <MoreHorizontal class="h-5 w-5" />
                         </Button>
                     </div>
@@ -772,7 +757,7 @@ watch(dialogOpen, (isOpen) => { if (!isOpen) closeCompleteDialog(); });
             </header>
 
             <div
-                v-if="!isWarehouseView && hasRemainingBalance"
+                v-if="hasRemainingBalance"
                 class="flex flex-col gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-amber-950 shadow-sm sm:flex-row sm:items-center sm:justify-between"
             >
                 <div class="flex items-start gap-3">
@@ -793,7 +778,7 @@ watch(dialogOpen, (isOpen) => { if (!isOpen) closeCompleteDialog(); });
             </div>
 
             <!-- Summary cards -->
-            <section class="grid gap-4 sm:grid-cols-2" :class="isWarehouseView ? 'xl:grid-cols-2' : 'xl:grid-cols-4'">
+            <section class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
                 <article class="group rounded-2xl bg-white p-5 shadow-[0_8px_30px_rgb(15,23,42,0.05)] transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_12px_40px_rgb(15,23,42,0.08)]">
                     <div class="mb-4 flex h-11 w-11 items-center justify-center rounded-2xl bg-[#2563EB]/10 text-[#2563EB]">
                         <User class="h-5 w-5" />
@@ -823,7 +808,6 @@ watch(dialogOpen, (isOpen) => { if (!isOpen) closeCompleteDialog(); });
                 </article>
 
                 <article
-                    v-if="!isWarehouseView"
                     class="group rounded-2xl bg-white p-5 shadow-[0_8px_30px_rgb(15,23,42,0.05)] transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_12px_40px_rgb(15,23,42,0.08)]"
                 >
                     <div class="mb-4 flex h-11 w-11 items-center justify-center rounded-2xl bg-violet-500/10 text-violet-600">
@@ -837,7 +821,6 @@ watch(dialogOpen, (isOpen) => { if (!isOpen) closeCompleteDialog(); });
                 </article>
 
                 <article
-                    v-if="!isWarehouseView"
                     class="group rounded-2xl bg-white p-5 shadow-[0_8px_30px_rgb(15,23,42,0.05)] transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_12px_40px_rgb(15,23,42,0.08)]"
                 >
                     <div class="mb-4 flex h-11 w-11 items-center justify-center rounded-2xl bg-amber-500/10 text-amber-600">
@@ -852,7 +835,6 @@ watch(dialogOpen, (isOpen) => { if (!isOpen) closeCompleteDialog(); });
                 </article>
 
                 <article
-                    v-if="!isWarehouseView"
                     class="group rounded-2xl bg-white p-5 shadow-[0_8px_30px_rgb(15,23,42,0.05)] transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_12px_40px_rgb(15,23,42,0.08)]"
                 >
                     <div class="mb-4 flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-500/10 text-emerald-600">
@@ -951,7 +933,7 @@ watch(dialogOpen, (isOpen) => { if (!isOpen) closeCompleteDialog(); });
 
             <!-- Photo review for workers manager -->
             <section
-                v-if="!isWarehouseView && isPhotoReviewer"
+                v-if="isPhotoReviewer"
                 class="rounded-2xl bg-white p-5 shadow-[0_8px_30px_rgb(15,23,42,0.05)] sm:p-6"
             >
                 <div class="mb-4 flex flex-wrap items-start justify-between gap-3">
@@ -1072,7 +1054,7 @@ watch(dialogOpen, (isOpen) => { if (!isOpen) closeCompleteDialog(); });
                         </span>
                     </div>
                     <div class="mt-6 space-y-4">
-                        <div v-if="!isWarehouseView">
+                        <div>
                             <div class="mb-2 flex items-center justify-between text-sm">
                                 <span class="text-slate-500">تقدم التركيب</span>
                                 <span class="font-semibold tabular-nums text-slate-800">{{ percent(installProgress.done, installProgress.total) }}%</span>
@@ -1165,7 +1147,6 @@ watch(dialogOpen, (isOpen) => { if (!isOpen) closeCompleteDialog(); });
                 </article>
 
                 <article
-                    v-if="!isWarehouseView"
                     class="rounded-2xl bg-white p-6 shadow-[0_8px_30px_rgb(15,23,42,0.05)]"
                 >
                     <p class="flex items-center gap-2 text-sm font-semibold text-slate-900">
@@ -1199,7 +1180,6 @@ watch(dialogOpen, (isOpen) => { if (!isOpen) closeCompleteDialog(); });
                 </article>
 
                 <article
-                    v-if="!isWarehouseView"
                     class="rounded-2xl bg-white p-6 shadow-[0_8px_30px_rgb(15,23,42,0.05)]"
                 >
                     <p class="text-sm font-semibold text-slate-900">إحصائيات الصور</p>
@@ -1211,7 +1191,6 @@ watch(dialogOpen, (isOpen) => { if (!isOpen) closeCompleteDialog(); });
                 </article>
 
                 <article
-                    v-if="!isWarehouseView"
                     class="rounded-2xl bg-white p-6 shadow-[0_8px_30px_rgb(15,23,42,0.05)]"
                 >
                     <div class="flex items-center justify-between">

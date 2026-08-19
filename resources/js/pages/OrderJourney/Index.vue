@@ -14,6 +14,7 @@ import { formatDateTime, formatInteger } from '@/lib/formatNumber';
 interface JourneyRow {
     id: number;
     order_number: string;
+    invoice_number: string | null;
     customer_name: string;
     customer_phone: string | null;
     created_at: string | null;
@@ -173,6 +174,9 @@ function goToPage(pageNumber: number) {
                         <p class="text-xs text-slate-400">الطلب</p>
                         <p class="mt-0.5 font-bold tabular-nums text-slate-900 dark:text-white" dir="ltr">
                             {{ item.order_number }}
+                        </p>
+                        <p v-if="item.invoice_number" class="mt-0.5 text-xs tabular-nums text-slate-400 dark:text-neutral-500" dir="ltr">
+                            #{{ item.invoice_number }}
                         </p>
                         <p class="mt-2 truncate font-semibold text-slate-800 dark:text-neutral-100">
                             {{ item.customer_name }}

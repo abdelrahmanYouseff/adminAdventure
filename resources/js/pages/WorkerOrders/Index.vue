@@ -633,7 +633,7 @@ watch(
                         <table class="w-full border-collapse text-sm" :class="isWarehouseView ? 'min-w-[820px]' : 'min-w-[1220px]'">
                             <thead>
                                 <tr class="border-b border-gray-100 text-start dark:border-neutral-800">
-                                    <th v-if="!isWarehouseView" class="w-12 px-4 py-3.5">
+                                    <th class="w-12 px-4 py-3.5">
                                         <input
                                             type="checkbox"
                                             class="size-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
@@ -645,8 +645,8 @@ watch(
                                     <th class="px-3 py-3.5 text-start text-[13px] font-semibold text-gray-700 dark:text-neutral-200">العميل</th>
                                     <th class="px-3 py-3.5 text-start text-[13px] font-semibold text-gray-700 dark:text-neutral-200">يوم الفعالية</th>
                                     <th class="px-3 py-3.5 text-start text-[13px] font-semibold text-gray-700 dark:text-neutral-200">المنتجات</th>
-                                    <th v-if="!isWarehouseView" class="px-3 py-3.5 text-start text-[13px] font-semibold text-gray-700 dark:text-neutral-200">الحالة</th>
-                                    <th v-if="!isWarehouseView" class="px-3 py-3.5 text-start text-[13px] font-semibold text-gray-700 dark:text-neutral-200">تعيين</th>
+                                    <th class="px-3 py-3.5 text-start text-[13px] font-semibold text-gray-700 dark:text-neutral-200">الحالة</th>
+                                    <th class="px-3 py-3.5 text-start text-[13px] font-semibold text-gray-700 dark:text-neutral-200">تعيين</th>
                                     <th class="px-3 py-3.5 text-start text-[13px] font-semibold text-gray-700 dark:text-neutral-200">
                                         {{ isWarehouseView ? 'تعميد الاسترجاع' : 'المستودع' }}
                                     </th>
@@ -655,7 +655,7 @@ watch(
                             </thead>
                             <tbody>
                                 <tr v-if="workOrders.data.length === 0">
-                                    <td :colspan="isWarehouseView ? 6 : 9" class="px-4 py-16 text-center text-gray-500 dark:text-neutral-400">
+                                    <td :colspan="9" class="px-4 py-16 text-center text-gray-500 dark:text-neutral-400">
                                         {{ isWarehouseView
                                             ? 'لا توجد طلبات بعد تعميد الاسترجاع بانتظار تعميد المستودع.'
                                             : 'لا توجد أوامر عمل مطابقة للبحث أو الفلتر الحالي.' }}
@@ -668,7 +668,7 @@ watch(
                                     :class="isWarehouseView ? 'cursor-pointer hover:bg-gray-50/70 dark:hover:bg-neutral-800/40' : 'cursor-pointer hover:bg-gray-50/70 dark:hover:bg-neutral-800/40'"
                                     @click="openWorkOrder(item)"
                                 >
-                                    <td v-if="!isWarehouseView" class="px-4 py-4" @click.stop>
+                                    <td class="px-4 py-4" @click.stop>
                                         <input
                                             type="checkbox"
                                             class="size-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
@@ -694,7 +694,7 @@ watch(
                                         <div class="flex min-w-0 flex-col items-start gap-1">
                                             <p class="font-semibold text-gray-900 dark:text-white">{{ item.customer_name }}</p>
                                             <p
-                                                v-if="!isWarehouseView && (item.remaining_amount || 0) > 0"
+                                                v-if="(item.remaining_amount || 0) > 0"
                                                 class="text-xs font-semibold text-amber-600"
                                             >
                                                 متبقي <span dir="ltr" class="tabular-nums">{{ formatCurrency(item.remaining_amount || 0, item.currency || 'SAR') }}</span>
@@ -732,7 +732,7 @@ watch(
                                             </span>
                                         </div>
                                     </td>
-                                    <td v-if="!isWarehouseView" class="px-3 py-4">
+                                    <td class="px-3 py-4">
                                         <div class="flex flex-col items-start gap-1.5">
                                             <span
                                                 class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold"
@@ -749,7 +749,7 @@ watch(
                                             </span>
                                         </div>
                                     </td>
-                                    <td v-if="!isWarehouseView" class="px-3 py-4">
+                                    <td class="px-3 py-4">
                                         <span
                                             class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold"
                                             :class="item.is_assigned
@@ -760,22 +760,12 @@ watch(
                                         </span>
                                     </td>
                                     <td class="px-3 py-4">
-                                        <div class="flex flex-col items-start gap-1.5">
-                                            <template v-if="isWarehouseView">
-                                                <span class="text-sm tabular-nums text-gray-700 dark:text-neutral-300" dir="ltr">
-                                                    {{ item.return_confirmed_at ? formatDate(item.return_confirmed_at) : '—' }}
-                                                </span>
-                                                <span class="text-[11px] text-gray-400">بانتظار تعميد المستودع</span>
-                                            </template>
-                                            <template v-else>
-                                                <span
-                                                    class="inline-flex max-w-[220px] rounded-full px-2.5 py-1 text-xs font-semibold leading-snug"
-                                                    :class="warehouseBadgeClass(item.warehouse_status)"
-                                                >
-                                                    {{ item.warehouse_label || '—' }}
-                                                </span>
-                                            </template>
-                                        </div>
+                                        <span
+                                            class="inline-flex max-w-[220px] rounded-full px-2.5 py-1 text-xs font-semibold leading-snug"
+                                            :class="warehouseBadgeClass(item.warehouse_status)"
+                                        >
+                                            {{ item.warehouse_label || '—' }}
+                                        </span>
                                     </td>
                                     <td class="px-4 py-4" @click.stop>
                                         <div class="flex items-center justify-end gap-1.5">
@@ -790,23 +780,14 @@ watch(
                                                 {{ approvingWarehouseId === item.id ? 'جاري التعميد...' : 'تعميد' }}
                                             </button>
                                             <Link
-                                                v-if="isWarehouseView"
                                                 :href="workOrderUrl(item)"
                                                 class="inline-flex size-8 items-center justify-center rounded-lg border border-gray-200 text-gray-500 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-600 dark:border-neutral-700 dark:hover:border-blue-900 dark:hover:bg-blue-950/40 dark:hover:text-blue-300"
                                                 title="التفاصيل"
                                             >
                                                 <Eye class="size-3.5 stroke-[1.75]" />
                                             </Link>
-                                            <Link
-                                                v-if="!isWarehouseView"
-                                                :href="workOrderUrl(item, false)"
-                                                class="inline-flex size-8 items-center justify-center rounded-lg border border-gray-200 text-gray-500 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-600 dark:border-neutral-700 dark:hover:border-blue-900 dark:hover:bg-blue-950/40 dark:hover:text-blue-300"
-                                                title="التفاصيل"
-                                            >
-                                                <Eye class="size-3.5 stroke-[1.75]" />
-                                            </Link>
                                             <button
-                                                v-if="!isWarehouseView && canApproveOrders"
+                                                v-if="canApproveOrders"
                                                 type="button"
                                                 class="inline-flex size-8 items-center justify-center rounded-lg border transition"
                                                 :class="item.is_approved

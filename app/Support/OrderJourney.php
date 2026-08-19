@@ -22,6 +22,7 @@ class OrderJourney
         return [
             'id' => $order->id,
             'order_number' => $order->order_number,
+            'invoice_number' => $order->invoice?->invoice_number,
             'customer_name' => $order->customer_name,
             'customer_phone' => $order->customer_phone,
             'created_at' => $order->created_at?->toIso8601String(),

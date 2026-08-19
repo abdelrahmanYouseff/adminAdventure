@@ -368,7 +368,7 @@ Route::get('returns/{order}', [\App\Http\Controllers\ProductReturnController::cl
     ->name('returns.show');
 
 Route::post('returns/{order}/confirm', [\App\Http\Controllers\ProductReturnController::class, 'confirm'])
-    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,workers_manager'])
     ->name('returns.confirm');
 
 Route::post('returns/{order}/notes', [\App\Http\Controllers\ProductReturnController::class, 'storeNote'])

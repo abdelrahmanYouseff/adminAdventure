@@ -111,10 +111,9 @@ class ProductReturnController extends Controller
         }
 
         $validated = $request->validate([
-            'note' => ['required', 'string', 'min:3', 'max:2000'],
+            'note' => ['required', 'string', 'max:2000'],
         ], [
             'note.required' => 'يجب كتابة ملاحظة التعميد.',
-            'note.min' => 'الملاحظة قصيرة جداً.',
             'note.max' => 'الملاحظة يجب ألا تتجاوز 2000 حرف.',
         ]);
 
@@ -244,6 +243,7 @@ class ProductReturnController extends Controller
             User::ROLE_ADMIN,
             User::ROLE_GENERAL_MANAGER,
             User::ROLE_MANAGER,
+            User::ROLE_WORKERS_MANAGER,
         );
     }
 
