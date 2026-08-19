@@ -74,6 +74,16 @@ class WorkerAuthController extends Controller
 
         $e164 = AuthenticaOtpService::formatPhoneE164($data['phone']);
 
+        // وضع تخطي OTP: تسجيل الدخول مباشرة بمجرد إدخال الرقم
+        if ($this->shouldSkipOtp()) {
+            RateLimiter::clear($throttleKey);
+            Auth::login($worker, false);
+            $request->session()->regenerate();
+            Cache::forget($this->cacheKey($data['phone']));
+
+            return Inertia::location('/worker-app');
+        }
+
         if ($this->shouldForceFixedOtpForAll() || $this->isFixedOtpPhone($data['phone'])) {
             Cache::put($this->cacheKey($data['phone']), self::FIXED_OTP_CODE, now()->addMinutes(5));
 
@@ -252,6 +262,11 @@ class WorkerAuthController extends Controller
     private function isFixedOtpPhone(string $phone): bool
     {
         return $this->normalizePhoneDigits($phone) === self::FIXED_OTP_PHONE;
+    }
+
+    private function shouldSkipOtp(): bool
+    {
+        return filter_var(env('OTP_SKIP_ENABLED', false), FILTER_VALIDATE_BOOLEAN);
     }
 
     private function shouldForceFixedOtpForAll(): bool
