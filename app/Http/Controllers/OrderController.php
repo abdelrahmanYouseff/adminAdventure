@@ -153,7 +153,13 @@ class OrderController extends Controller
 
     public function show(Order $order)
     {
-        $order->load(['user', 'invoice', 'products']);
+        $order->load([
+            'user',
+            'invoice',
+            'products',
+            'workerOrders' => fn ($q) => $q->orderBy('line_index'),
+            'warehouseReturnedBy:id,customer_name',
+        ]);
 
         $breakdown = $this->orderChargeBreakdown($order);
         $order->setAttribute('total_amount', $breakdown['grand']);
@@ -163,6 +169,15 @@ class OrderController extends Controller
             round(max(0, $breakdown['grand'] - (float) ($order->amount_paid ?? 0)), 2)
         );
         $order->setAttribute('payment_url', $order->noonPaymentUrl());
+        $order->setAttribute('dismantling', $this->dismantlingColumnMeta($order));
+        $order->setAttribute(
+            'warehouse_returned_at',
+            $order->warehouse_returned_at?->toIso8601String(),
+        );
+        $order->setAttribute(
+            'warehouse_returned_by_name',
+            $order->warehouseReturnedBy?->name,
+        );
 
         return Inertia::render('Orders/Show', [
             'order' => $order,
@@ -1397,6 +1412,10 @@ class OrderController extends Controller
      */
     private function orderStatusDetail(Order $order): ?string
     {
+        if (filled($order->warehouse_returned_at)) {
+            return 'تم الاسترجاع';
+        }
+
         if ($order->status !== 'processing') {
             return null;
         }
@@ -1482,6 +1501,7 @@ class OrderController extends Controller
      *     status: string,
      *     label: string,
      *     scheduled_at: string|null,
+     *     warehouse_returned_at: string|null,
      *     progress_done: int,
      *     progress_total: int
      * }
@@ -1495,12 +1515,14 @@ class OrderController extends Controller
         $total = $lines->count();
         $pickedUp = $lines->filter(fn ($line) => filled($line->pickup_photo))->count();
         $scheduledAt = $order->dismantling_at?->format('Y-m-d H:i');
+        $returnedAt = $order->warehouse_returned_at?->toIso8601String();
 
         if (filled($order->warehouse_returned_at)) {
             return [
                 'status' => 'returned',
-                'label' => 'تم الفك والاسترجاع',
+                'label' => 'تم الاسترجاع',
                 'scheduled_at' => $scheduledAt,
+                'warehouse_returned_at' => $returnedAt,
                 'progress_done' => $pickedUp,
                 'progress_total' => $total,
             ];
@@ -1511,14 +1533,15 @@ class OrderController extends Controller
                 'status' => 'none',
                 'label' => '—',
                 'scheduled_at' => $scheduledAt,
+                'warehouse_returned_at' => null,
                 'progress_done' => 0,
                 'progress_total' => 0,
             ];
         }
 
         if ($pickedUp >= $total) {
-            $status = 'completed';
-            $label = 'تم الفك';
+            $status = 'awaiting_return';
+            $label = 'بانتظار تعميد الاسترجاع';
         } elseif ($pickedUp > 0) {
             $status = 'in_progress';
             $label = "قيد الفك ({$pickedUp}/{$total})";
@@ -1534,6 +1557,7 @@ class OrderController extends Controller
             'status' => $status,
             'label' => $label,
             'scheduled_at' => $scheduledAt,
+            'warehouse_returned_at' => null,
             'progress_done' => $pickedUp,
             'progress_total' => $total,
         ];

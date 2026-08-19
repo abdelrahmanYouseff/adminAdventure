@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref } from 'vue';
-import { Head, Link, useForm, usePage } from '@inertiajs/vue3';
+import { computed, onBeforeUnmount, ref, watch } from 'vue';
+import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
 import {
     ArrowLeft,
     ArrowRight,
@@ -245,6 +245,7 @@ function submitCapture() {
 }
 
 onBeforeUnmount(() => {
+    clearLeaveGuards();
     clearPreview();
 });
 
@@ -255,17 +256,96 @@ const allPhotosDone = computed(() =>
 
 const waitApproval = computed(() => allPhotosDone.value && !props.installation.is_approved);
 
+const waitApprovalBody = computed(() =>
+    isDismantling.value ? t('wait_approval_body_dismantling') : t('wait_approval_body'),
+);
+
+const canLeaveBody = computed(() =>
+    isDismantling.value ? t('can_leave_body_dismantling') : t('can_leave_body'),
+);
+
 const leaveDismissKey = `aw-can-leave-${props.installation.id}`;
 
-const showLeaveModal = ref(
-    allPhotosDone.value
-    && props.installation.is_approved
-    && !localStorage.getItem(leaveDismissKey),
+const showLeaveModal = ref(false);
+
+let pollTimer: ReturnType<typeof setInterval> | null = null;
+let removeRouterHook: (() => void) | null = null;
+let popStateHandler: ((event: PopStateEvent) => void) | null = null;
+
+function clearLeaveGuards() {
+    if (pollTimer) {
+        clearInterval(pollTimer);
+        pollTimer = null;
+    }
+
+    removeRouterHook?.();
+    removeRouterHook = null;
+
+    if (popStateHandler) {
+        window.removeEventListener('popstate', popStateHandler);
+        popStateHandler = null;
+    }
+}
+
+function syncLeaveGuards() {
+    clearLeaveGuards();
+
+    if (!waitApproval.value) {
+        return;
+    }
+
+    pollTimer = setInterval(() => {
+        router.reload({
+            only: ['installation'],
+            preserveScroll: true,
+            preserveState: true,
+        });
+    }, 10000);
+
+    removeRouterHook = router.on('before', (event) => {
+        const visit = event.detail.visit;
+        const method = visit.method?.toLowerCase() ?? 'get';
+
+        if (method !== 'get') {
+            return;
+        }
+
+        const url = typeof visit.url === 'string' ? visit.url : visit.url?.href ?? '';
+        const installationPath = `/worker-app/installations/${props.installation.id}`;
+
+        if (!url.includes(installationPath)) {
+            event.preventDefault();
+        }
+    });
+
+    history.pushState({ workerStay: props.installation.id }, '');
+    popStateHandler = () => {
+        if (waitApproval.value) {
+            history.pushState({ workerStay: props.installation.id }, '');
+        }
+    };
+    window.addEventListener('popstate', popStateHandler);
+}
+
+watch(waitApproval, () => syncLeaveGuards(), { immediate: true });
+
+watch(
+    () => props.installation.is_approved,
+    (approved) => {
+        if (allPhotosDone.value && approved && !localStorage.getItem(leaveDismissKey)) {
+            showLeaveModal.value = true;
+        }
+    },
+    { immediate: true },
 );
 
 function confirmLeave() {
     localStorage.setItem(leaveDismissKey, '1');
     showLeaveModal.value = false;
+}
+
+function attemptBack() {
+    // زر الرجوع معطّل أثناء انتظار التعميد — الشريط السفلي يوضح السبب.
 }
 </script>
 
@@ -279,7 +359,18 @@ function confirmLeave() {
         </div>
 
         <header class="relative mx-auto flex w-full max-w-md items-center gap-3">
+            <button
+                v-if="waitApproval"
+                type="button"
+                class="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-amber-200 bg-amber-50 text-amber-600 shadow-sm"
+                :aria-label="t('back')"
+                @click="attemptBack"
+            >
+                <ArrowRight v-if="isRtl" class="h-5 w-5" />
+                <ArrowLeft v-else class="h-5 w-5" />
+            </button>
             <Link
+                v-else
                 href="/worker-app"
                 class="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 shadow-sm"
             >
@@ -602,7 +693,7 @@ function confirmLeave() {
                     </span>
                     <div class="min-w-0">
                         <p class="font-bold text-amber-900">{{ t('wait_approval_title') }}</p>
-                        <p class="mt-0.5 text-sm leading-relaxed text-amber-800">{{ t('wait_approval_body') }}</p>
+                        <p class="mt-0.5 text-sm leading-relaxed text-amber-800">{{ waitApprovalBody }}</p>
                     </div>
                 </div>
             </div>
@@ -625,7 +716,7 @@ function confirmLeave() {
                         <h2 class="mt-4 text-2xl font-extrabold tracking-tight">{{ t('can_leave_title') }}</h2>
                     </div>
                     <div class="px-6 py-6">
-                        <p class="text-sm leading-relaxed text-slate-600">{{ t('can_leave_body') }}</p>
+                        <p class="text-sm leading-relaxed text-slate-600">{{ canLeaveBody }}</p>
                         <button
                             type="button"
                             class="mt-5 inline-flex h-12 w-full items-center justify-center rounded-2xl bg-emerald-600 text-sm font-bold text-white shadow-lg shadow-emerald-600/30 transition hover:bg-emerald-700 active:scale-[0.98]"

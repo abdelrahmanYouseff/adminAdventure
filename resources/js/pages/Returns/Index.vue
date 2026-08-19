@@ -445,11 +445,19 @@ function workerStatusClass(key: WorkerBoardRow['status_key']): string {
                                                 size="sm"
                                                 class="gap-1.5"
                                                 :disabled="confirmForm.processing"
-                                                @click="openConfirmDialog(item)"
+                                                @click.stop="openConfirmDialog(item)"
                                             >
                                                 <Undo2 class="size-3.5" />
                                                 تعميد
                                             </Button>
+                                            <Link
+                                                v-else-if="!item.is_returned"
+                                                :href="`/returns/${item.id}`"
+                                                class="text-xs font-semibold text-orange-600 hover:underline"
+                                                @click.stop
+                                            >
+                                                التفاصيل
+                                            </Link>
                                             <span v-else class="text-xs text-gray-400">—</span>
                                         </td>
                                     </tr>

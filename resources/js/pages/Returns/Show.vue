@@ -494,6 +494,56 @@ function submitNote() {
             </div>
         </section>
 
+        <section
+            class="rounded-2xl border p-5 sm:p-6"
+            :class="returnOrder.is_returned
+                ? 'border-emerald-200 bg-emerald-50/50 dark:border-emerald-900/40 dark:bg-emerald-950/20'
+                : 'border-orange-200 bg-orange-50/40 dark:border-orange-900/40 dark:bg-orange-950/20'"
+        >
+            <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div class="min-w-0">
+                    <h2 class="flex items-center gap-2 text-lg font-bold text-slate-900 dark:text-white">
+                        <Undo2
+                            class="size-5"
+                            :class="returnOrder.is_returned ? 'text-emerald-600' : 'text-orange-600'"
+                        />
+                        تعميد الاسترجاع
+                    </h2>
+                    <p v-if="returnOrder.is_returned" class="mt-2 text-sm text-emerald-800 dark:text-emerald-300">
+                        تم تعميد استرجاع هذا الطلب للمستودع.
+                        <span v-if="returnOrder.warehouse_returned_by_name">
+                            بواسطة {{ returnOrder.warehouse_returned_by_name }}
+                        </span>
+                        <span v-if="returnOrder.warehouse_returned_at" dir="ltr">
+                            · {{ formatDateTime(returnOrder.warehouse_returned_at) }}
+                        </span>
+                    </p>
+                    <p v-else class="mt-2 text-sm leading-relaxed text-orange-800/90 dark:text-orange-200/90">
+                        بعد مراجعة صور الفك، أكّد استرجاع المنتجات للمستودع. سيُحدَّث الطلب في صفحة الطلبات كـ «تم الاسترجاع».
+                    </p>
+                </div>
+
+                <Button
+                    v-if="canConfirm && returnOrder.can_confirm"
+                    size="lg"
+                    class="h-12 shrink-0 gap-2 rounded-xl bg-orange-600 px-6 hover:bg-orange-700"
+                    :disabled="confirmForm.processing"
+                    @click="openConfirmDialog"
+                >
+                    <Undo2 class="size-4" />
+                    {{ confirmForm.processing ? 'جاري التعميد...' : 'تعميد الاسترجاع' }}
+                </Button>
+
+                <span
+                    v-else-if="returnOrder.is_returned"
+                    class="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-4 py-2 text-sm font-semibold text-emerald-800 ring-1 ring-emerald-200"
+                >
+                    <CheckCircle2 class="size-4" />
+                    تم التعميد
+                </span>
+            </div>
+        </section>
+
         <section class="rounded-2xl border border-gray-200 bg-white p-5 dark:border-neutral-700 dark:bg-neutral-900 sm:p-6">
             <h2 class="mb-4 flex items-center gap-2 text-lg font-bold text-slate-900 dark:text-white">
                 <MessageSquareText class="h-5 w-5 text-slate-500" />

@@ -65,6 +65,7 @@ interface DismantlingMeta {
     status: string;
     label: string;
     scheduled_at?: string | null;
+    warehouse_returned_at?: string | null;
     progress_done: number;
     progress_total: number;
 }
@@ -492,6 +493,7 @@ function installBadgeClass(status: string): string {
 function dismantleBadgeClass(status: string): string {
     const map: Record<string, string> = {
         returned: 'bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-300 dark:ring-emerald-900/50',
+        awaiting_return: 'bg-orange-50 text-orange-700 ring-1 ring-inset ring-orange-100 dark:bg-orange-950/40 dark:text-orange-300 dark:ring-orange-900/50',
         rejected: 'bg-rose-50 text-rose-700 ring-1 ring-inset ring-rose-100 dark:bg-rose-950/40 dark:text-rose-300 dark:ring-rose-900/50',
         completed: 'bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-300 dark:ring-emerald-900/50',
         in_progress: 'bg-violet-50 text-violet-700 ring-1 ring-inset ring-violet-100 dark:bg-violet-950/40 dark:text-violet-300 dark:ring-violet-900/50',
@@ -945,6 +947,13 @@ function locationMapsUrl(address: string | null): string | null {
                                     >
                                         {{ formatDateTime(order.dismantling.scheduled_at) }}
                                     </span>
+                                    <span
+                                        v-if="order.dismantling?.warehouse_returned_at"
+                                        class="text-[11px] font-medium text-emerald-600"
+                                        dir="ltr"
+                                    >
+                                        تعميد: {{ formatDateTime(order.dismantling.warehouse_returned_at) }}
+                                    </span>
                                 </div>
                             </td>
                             <td class="px-2.5 py-2.5">
@@ -957,7 +966,10 @@ function locationMapsUrl(address: string | null): string | null {
                                     </span>
                                     <span
                                         v-if="order.status_detail"
-                                        class="max-w-[10rem] text-[10px] leading-snug text-sky-700 dark:text-sky-400"
+                                        class="max-w-[10rem] text-[10px] leading-snug"
+                                        :class="order.status_detail === 'تم الاسترجاع'
+                                            ? 'text-emerald-700 dark:text-emerald-400'
+                                            : 'text-sky-700 dark:text-sky-400'"
                                     >
                                         {{ order.status_detail }}
                                     </span>

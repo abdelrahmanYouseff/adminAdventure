@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ArrowRight, User, Mail, Phone, CreditCard, FileText, Calendar, Package, HardHat, Pencil, Copy, Check } from 'lucide-vue-next';
-import { formatCurrency, formatDate, formatInteger } from '@/lib/formatNumber';
+import { formatCurrency, formatDate, formatDateTime, formatInteger } from '@/lib/formatNumber';
 
 interface OrderItem {
     name: string;
@@ -37,6 +37,15 @@ interface Invoice {
     status: string;
 }
 
+interface DismantlingMeta {
+    status: string;
+    label: string;
+    scheduled_at?: string | null;
+    warehouse_returned_at?: string | null;
+    progress_done: number;
+    progress_total: number;
+}
+
 interface Order {
     id: number;
     order_number: string;
@@ -63,6 +72,9 @@ interface Order {
     user?: { name: string; email: string } | null;
     invoice?: Invoice | null;
     products?: Product[];
+    dismantling?: DismantlingMeta | null;
+    warehouse_returned_at?: string | null;
+    warehouse_returned_by_name?: string | null;
 }
 
 interface Props {
@@ -202,6 +214,13 @@ const orderItems = () => {
                     <Badge :variant="getStatusBadgeVariant(order.status)">
                         {{ getStatusText(order.status) }}
                     </Badge>
+                    <Badge
+                        v-if="order.dismantling?.status === 'returned'"
+                        variant="default"
+                        class="bg-emerald-600"
+                    >
+                        تم الاسترجاع
+                    </Badge>
                 </div>
             </div>
             <div class="flex flex-wrap items-center gap-2">
@@ -264,6 +283,29 @@ const orderItems = () => {
                     </CardTitle>
                 </CardHeader>
                 <CardContent class="space-y-3">
+                    <p v-if="order.dismantling?.label && order.dismantling.status !== 'none'" class="flex justify-between text-sm">
+                        <span class="text-muted-foreground">الفك والاسترجاع</span>
+                        <span
+                            class="font-semibold"
+                            :class="order.dismantling.status === 'returned' ? 'text-emerald-600' : 'text-foreground'"
+                        >
+                            {{ order.dismantling.label }}
+                        </span>
+                    </p>
+                    <p
+                        v-if="order.warehouse_returned_at"
+                        class="flex justify-between text-sm"
+                    >
+                        <span class="text-muted-foreground">تاريخ التعميد</span>
+                        <span dir="ltr">{{ formatDateTime(order.warehouse_returned_at) }}</span>
+                    </p>
+                    <p
+                        v-if="order.warehouse_returned_by_name"
+                        class="flex justify-between text-sm"
+                    >
+                        <span class="text-muted-foreground">عُمِّد بواسطة</span>
+                        <span>{{ order.warehouse_returned_by_name }}</span>
+                    </p>
                     <p class="flex justify-between text-sm">
                         <span class="text-muted-foreground">طريقة الدفع</span>
                         <span>{{ getPaymentMethodText(order.payment_method) }}</span>

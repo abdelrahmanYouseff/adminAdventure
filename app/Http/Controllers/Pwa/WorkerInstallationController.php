@@ -37,11 +37,13 @@ class WorkerInstallationController extends Controller
             $completedCount = $lines->whereNotNull('pickup_photo')->count();
             $scheduledDate = $order->dismantling_at?->format('Y-m-d');
             $scheduledTime = $order->dismantling_at?->format('H:i');
+            $isApproved = filled($order->warehouse_returned_at);
         } else {
             $pendingCount = $lines->where('status', 'pending')->count();
             $completedCount = $lines->where('status', 'completed')->count();
             $scheduledDate = ($order->scheduledInstallationDate() ?? $firstLine?->installation_date)?->format('Y-m-d');
             $scheduledTime = $order->scheduledInstallationTime();
+            $isApproved = (bool) $order->work_order_approved_at;
         }
 
         return Inertia::render('InstallationShow', [
@@ -55,7 +57,7 @@ class WorkerInstallationController extends Controller
                 'products_count' => $lines->count(),
                 'pending_count' => $pendingCount,
                 'completed_count' => $completedCount,
-                'is_approved' => (bool) $order->work_order_approved_at,
+                'is_approved' => $isApproved,
                 // العمال لا يحذفون الصور — حذف الصور متاح لمدير العمال من لوحة التحكم فقط.
                 'can_replace_photos' => false,
                 'status' => $pendingCount > 0 ? 'pending' : 'completed',

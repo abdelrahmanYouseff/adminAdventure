@@ -128,7 +128,9 @@ class WorkerDashboardController extends Controller
             'task_label' => $isDismantling
                 ? 'فك'
                 : ($assignmentType === 'both' ? 'تركيب + فك' : 'تركيب'),
-            'is_approved' => $isApproved,
+            'is_approved' => $isDismantling
+                ? filled($order->warehouse_returned_at)
+                : $isApproved,
             'products_count' => $totalLines,
             'pending_count' => $pendingLines,
             'completed_count' => $completedLines,

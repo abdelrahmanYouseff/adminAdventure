@@ -52,10 +52,13 @@ class ProductReturnController extends Controller
             });
         }
 
+        $user = $request->user();
+        $canDecide = $this->canDecideReturn($user);
+
         $returns = $query
             ->paginate(20)
             ->withQueryString()
-            ->through(fn (Order $order) => $this->formatReturn($order));
+            ->through(fn (Order $order) => $this->formatReturn($order, $canDecide));
 
         $base = $this->eligibleReturnsQuery();
 
@@ -91,7 +94,7 @@ class ProductReturnController extends Controller
         $canDecide = $this->canDecideReturn($user);
 
         return Inertia::render('Returns/Show', [
-            'returnOrder' => $this->formatReturnDetail($order),
+            'returnOrder' => $this->formatReturnDetail($order, $canDecide),
             'availableWorkers' => WorkOrderPresenter::availableWorkers(),
             'canAssignWorkers' => $this->canAssignWorkers($user),
             'canConfirm' => $canDecide && blank($order->warehouse_returned_at),
@@ -248,7 +251,7 @@ class ProductReturnController extends Controller
     /**
      * @return array<string, mixed>
      */
-    private function formatReturn(Order $order): array
+    private function formatReturn(Order $order, ?bool $canDecide = null): array
     {
         $lines = $order->relationLoaded('workerOrders')
             ? $order->workerOrders
@@ -297,7 +300,7 @@ class ProductReturnController extends Controller
             'is_returned' => $isReturned,
             'is_assigned' => count($assignedWorkers) > 0,
             'assigned_workers' => $assignedWorkers,
-            'can_confirm' => ! $isReturned,
+            'can_confirm' => ($canDecide ?? false) && ! $isReturned,
             'notes' => $notes->map(fn (WorkerOrderNote $note) => [
                 'id' => $note->id,
                 'body' => $note->body,
@@ -312,9 +315,9 @@ class ProductReturnController extends Controller
     /**
      * @return array<string, mixed>
      */
-    private function formatReturnDetail(Order $order): array
+    private function formatReturnDetail(Order $order, ?bool $canDecide = null): array
     {
-        $base = $this->formatReturn($order);
+        $base = $this->formatReturn($order, $canDecide);
         $lines = $order->workerOrders;
         $assemblers = $order->workerAssemblers
             ->filter(fn (WorkerOrderAssembler $assembler) => $assembler->isDismantling())
@@ -383,7 +386,7 @@ class ProductReturnController extends Controller
         if ($isReturned) {
             return [
                 'days' => null,
-                'label' => 'تم الفك والاسترجاع',
+                'label' => 'تم الاسترجاع',
                 'tone' => 'ok',
             ];
         }
