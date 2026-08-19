@@ -104,7 +104,7 @@ const allNavItems: NavItemWithRoles[] = [
                 title: 'أوامر العمل',
                 href: '/worker-orders',
                 icon: HardHat,
-                roles: ['admin', 'general_manager', 'manager', 'workers_manager', 'warehouse_keeper'],
+                roles: ['admin', 'general_manager', 'manager', 'workers_manager'],
             },
             {
                 title: 'المستودع',

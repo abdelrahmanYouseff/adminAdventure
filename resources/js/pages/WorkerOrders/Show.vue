@@ -132,6 +132,7 @@ interface WorkOrder {
     warehouse_closed_at?: string | null;
     warehouse_closed_by_name?: string | null;
     warehouse_returned_at?: string | null;
+    warehouse_returned_by_name?: string | null;
     currency?: string;
     total_amount?: number;
     amount_paid?: number;
@@ -141,10 +142,14 @@ interface WorkOrder {
 interface Props {
     workOrder: WorkOrder;
     availableWorkers?: AvailableWorker[];
+    filters?: {
+        view?: string | null;
+    };
 }
 
 const props = withDefaults(defineProps<Props>(), {
     availableWorkers: () => [],
+    filters: () => ({}),
 });
 
 defineOptions({ layout: AppLayout });
@@ -152,12 +157,15 @@ defineOptions({ layout: AppLayout });
 const page = usePage();
 const flash = computed(() => (page.props.flash as { success?: string; error?: string } | undefined) ?? {});
 const authRole = computed(() => (page.props.auth as { user?: { role?: string } } | undefined)?.user?.role ?? null);
+const isWarehouseView = computed(() => props.filters?.view === 'warehouse');
 const canAssignWorkers = computed(() =>
-    !props.workOrder.is_return_confirmed
+    !isWarehouseView.value
+    && !props.workOrder.is_return_confirmed
     && ['admin', 'general_manager', 'manager', 'workers_manager'].includes(authRole.value || ''),
 );
 const canApproveOrder = computed(() =>
-    ['admin', 'manager', 'workers_manager'].includes(authRole.value || ''),
+    !isWarehouseView.value
+    && ['admin', 'manager', 'workers_manager'].includes(authRole.value || ''),
 );
 const canWarehouseApprove = computed(() =>
     ['admin', 'general_manager', 'manager', 'workers_manager', 'warehouse_keeper'].includes(authRole.value || ''),
@@ -227,13 +235,22 @@ const eventStatus = computed<EventStatus>(() => props.workOrder.event_status ?? 
 const displayAddress = computed(() => props.workOrder.address?.trim() || props.workOrder.customer_address?.trim() || null);
 const primaryWorker = computed(() => assignedWorkers.value[0] || 'غير معيّن');
 
-const tabs: { key: TabKey; label: string; icon: typeof LayoutDashboard }[] = [
-    { key: 'overview', label: 'نظرة عامة', icon: LayoutDashboard },
-    { key: 'installation', label: 'التركيب', icon: Wrench },
-    { key: 'games', label: 'الألعاب', icon: Gamepad2 },
-    { key: 'notes', label: 'الملاحظات', icon: MessageSquareText },
-    { key: 'timeline', label: 'الجدول الزمني', icon: History },
-];
+const tabs = computed(() => {
+    if (isWarehouseView.value) {
+        return [
+            { key: 'overview' as TabKey, label: 'نظرة عامة', icon: LayoutDashboard },
+            { key: 'games' as TabKey, label: 'المنتجات', icon: Gamepad2 },
+        ];
+    }
+
+    return [
+        { key: 'overview' as TabKey, label: 'نظرة عامة', icon: LayoutDashboard },
+        { key: 'installation' as TabKey, label: 'التركيب', icon: Wrench },
+        { key: 'games' as TabKey, label: 'الألعاب', icon: Gamepad2 },
+        { key: 'notes' as TabKey, label: 'الملاحظات', icon: MessageSquareText },
+        { key: 'timeline' as TabKey, label: 'الجدول الزمني', icon: History },
+    ];
+});
 
 const statusMeta = computed(() => {
     switch (eventStatus.value) {
@@ -634,7 +651,7 @@ watch(dialogOpen, (isOpen) => { if (!isOpen) closeCompleteDialog(); });
 </script>
 
 <template>
-    <Head :title="`فعالية ${workOrder.reference_number}`" />
+    <Head :title="isWarehouseView ? `المستودع · ${workOrder.reference_number}` : `فعالية ${workOrder.reference_number}`" />
 
     <div class="min-h-full bg-[#F8FAFC]">
         <div class="mx-auto flex max-w-7xl flex-col gap-6 px-3 py-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] sm:gap-8 sm:px-6 sm:py-8">
@@ -643,21 +660,28 @@ watch(dialogOpen, (isOpen) => { if (!isOpen) closeCompleteDialog(); });
                 <div class="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
                     <div class="min-w-0 space-y-3">
                         <Link
-                            href="/worker-orders"
+                            :href="isWarehouseView ? '/worker-orders?view=warehouse' : '/worker-orders'"
                             class="inline-flex h-9 items-center gap-1.5 rounded-xl px-2 text-sm font-medium text-slate-500 transition hover:bg-slate-50 hover:text-slate-800"
                         >
                             <ArrowRight class="h-4 w-4" />
-                            رجوع لأوامر العمل
+                            {{ isWarehouseView ? 'رجوع للمستودع' : 'رجوع لأوامر العمل' }}
                         </Link>
                         <div class="flex flex-wrap items-center gap-3">
                             <h1 class="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
-                                فعالية {{ workOrder.customer_name }}
+                                {{ isWarehouseView ? 'تعميد المستودع — ' : 'فعالية ' }}{{ workOrder.customer_name }}
                             </h1>
                             <span
+                                v-if="!isWarehouseView"
                                 class="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ring-1 ring-inset"
                                 :class="statusMeta.class"
                             >
                                 {{ statusMeta.label }}
+                            </span>
+                            <span
+                                v-else
+                                class="inline-flex items-center rounded-full bg-orange-50 px-3 py-1 text-xs font-semibold text-orange-700 ring-1 ring-inset ring-orange-200"
+                            >
+                                بانتظار تعميد المستودع
                             </span>
                         </div>
                         <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-slate-500">
@@ -713,6 +737,7 @@ watch(dialogOpen, (isOpen) => { if (!isOpen) closeCompleteDialog(); });
                             {{ workOrder.is_warehouse_closed ? 'مقفول' : approvingWarehouse ? 'جاري التعميد...' : 'المستودع' }}
                         </Button>
                         <Button
+                            v-if="!isWarehouseView"
                             variant="outline"
                             class="h-11 rounded-xl border-slate-200 bg-white shadow-sm"
                             @click="printDeliveryNote"
@@ -721,6 +746,7 @@ watch(dialogOpen, (isOpen) => { if (!isOpen) closeCompleteDialog(); });
                             إذن التسليم
                         </Button>
                         <Button
+                            v-if="!isWarehouseView"
                             variant="outline"
                             class="h-11 rounded-xl border-emerald-200 bg-emerald-50 text-emerald-800 shadow-sm hover:bg-emerald-100"
                             :disabled="testingWhatsApp"
@@ -731,13 +757,14 @@ watch(dialogOpen, (isOpen) => { if (!isOpen) closeCompleteDialog(); });
                             {{ testingWhatsApp ? 'جاري الإرسال...' : 'إرسال عبر الواتساب' }}
                         </Button>
                         <Button
+                            v-if="!isWarehouseView"
                             class="h-11 rounded-xl bg-[#2563EB] shadow-sm hover:bg-[#1D4ED8]"
                             @click="activeTab = 'installation'"
                         >
                             <Camera class="ms-1.5 h-4 w-4" />
                             {{ isPhotoReviewer ? 'مراجعة الصور' : 'إدارة التركيب' }}
                         </Button>
-                        <Button variant="ghost" size="icon" class="h-11 w-11 rounded-xl text-slate-500">
+                        <Button v-if="!isWarehouseView" variant="ghost" size="icon" class="h-11 w-11 rounded-xl text-slate-500">
                             <MoreHorizontal class="h-5 w-5" />
                         </Button>
                     </div>
@@ -745,7 +772,7 @@ watch(dialogOpen, (isOpen) => { if (!isOpen) closeCompleteDialog(); });
             </header>
 
             <div
-                v-if="hasRemainingBalance"
+                v-if="!isWarehouseView && hasRemainingBalance"
                 class="flex flex-col gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-amber-950 shadow-sm sm:flex-row sm:items-center sm:justify-between"
             >
                 <div class="flex items-start gap-3">
@@ -766,7 +793,7 @@ watch(dialogOpen, (isOpen) => { if (!isOpen) closeCompleteDialog(); });
             </div>
 
             <!-- Summary cards -->
-            <section class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <section class="grid gap-4 sm:grid-cols-2" :class="isWarehouseView ? 'xl:grid-cols-2' : 'xl:grid-cols-4'">
                 <article class="group rounded-2xl bg-white p-5 shadow-[0_8px_30px_rgb(15,23,42,0.05)] transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_12px_40px_rgb(15,23,42,0.08)]">
                     <div class="mb-4 flex h-11 w-11 items-center justify-center rounded-2xl bg-[#2563EB]/10 text-[#2563EB]">
                         <User class="h-5 w-5" />
@@ -779,7 +806,26 @@ watch(dialogOpen, (isOpen) => { if (!isOpen) closeCompleteDialog(); });
                     </p>
                 </article>
 
-                <article class="group rounded-2xl bg-white p-5 shadow-[0_8px_30px_rgb(15,23,42,0.05)] transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_12px_40px_rgb(15,23,42,0.08)]">
+                <article
+                    v-if="isWarehouseView"
+                    class="group rounded-2xl bg-white p-5 shadow-[0_8px_30px_rgb(15,23,42,0.05)] transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_12px_40px_rgb(15,23,42,0.08)]"
+                >
+                    <div class="mb-4 flex h-11 w-11 items-center justify-center rounded-2xl bg-orange-500/10 text-orange-600">
+                        <PackageCheck class="h-5 w-5" />
+                    </div>
+                    <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">تعميد الاسترجاع</p>
+                    <p class="mt-1 text-lg font-bold text-slate-900" dir="ltr">
+                        {{ workOrder.warehouse_returned_at ? formatDateTime(workOrder.warehouse_returned_at) : '—' }}
+                    </p>
+                    <p v-if="workOrder.warehouse_returned_by_name" class="mt-1 text-sm text-slate-500">
+                        بواسطة {{ workOrder.warehouse_returned_by_name }}
+                    </p>
+                </article>
+
+                <article
+                    v-if="!isWarehouseView"
+                    class="group rounded-2xl bg-white p-5 shadow-[0_8px_30px_rgb(15,23,42,0.05)] transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_12px_40px_rgb(15,23,42,0.08)]"
+                >
                     <div class="mb-4 flex h-11 w-11 items-center justify-center rounded-2xl bg-violet-500/10 text-violet-600">
                         <Users class="h-5 w-5" />
                     </div>
@@ -790,7 +836,10 @@ watch(dialogOpen, (isOpen) => { if (!isOpen) closeCompleteDialog(); });
                     </p>
                 </article>
 
-                <article class="group rounded-2xl bg-white p-5 shadow-[0_8px_30px_rgb(15,23,42,0.05)] transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_12px_40px_rgb(15,23,42,0.08)]">
+                <article
+                    v-if="!isWarehouseView"
+                    class="group rounded-2xl bg-white p-5 shadow-[0_8px_30px_rgb(15,23,42,0.05)] transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_12px_40px_rgb(15,23,42,0.08)]"
+                >
                     <div class="mb-4 flex h-11 w-11 items-center justify-center rounded-2xl bg-amber-500/10 text-amber-600">
                         <Wrench class="h-5 w-5" />
                     </div>
@@ -802,7 +851,10 @@ watch(dialogOpen, (isOpen) => { if (!isOpen) closeCompleteDialog(); });
                     </p>
                 </article>
 
-                <article class="group rounded-2xl bg-white p-5 shadow-[0_8px_30px_rgb(15,23,42,0.05)] transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_12px_40px_rgb(15,23,42,0.08)]">
+                <article
+                    v-if="!isWarehouseView"
+                    class="group rounded-2xl bg-white p-5 shadow-[0_8px_30px_rgb(15,23,42,0.05)] transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_12px_40px_rgb(15,23,42,0.08)]"
+                >
                     <div class="mb-4 flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-500/10 text-emerald-600">
                         <Camera class="h-5 w-5" />
                     </div>
@@ -899,7 +951,7 @@ watch(dialogOpen, (isOpen) => { if (!isOpen) closeCompleteDialog(); });
 
             <!-- Photo review for workers manager -->
             <section
-                v-if="isPhotoReviewer"
+                v-if="!isWarehouseView && isPhotoReviewer"
                 class="rounded-2xl bg-white p-5 shadow-[0_8px_30px_rgb(15,23,42,0.05)] sm:p-6"
             >
                 <div class="mb-4 flex flex-wrap items-start justify-between gap-3">
@@ -1020,7 +1072,7 @@ watch(dialogOpen, (isOpen) => { if (!isOpen) closeCompleteDialog(); });
                         </span>
                     </div>
                     <div class="mt-6 space-y-4">
-                        <div>
+                        <div v-if="!isWarehouseView">
                             <div class="mb-2 flex items-center justify-between text-sm">
                                 <span class="text-slate-500">تقدم التركيب</span>
                                 <span class="font-semibold tabular-nums text-slate-800">{{ percent(installProgress.done, installProgress.total) }}%</span>
@@ -1031,6 +1083,15 @@ watch(dialogOpen, (isOpen) => { if (!isOpen) closeCompleteDialog(); });
                                     :style="{ width: `${percent(installProgress.done, installProgress.total)}%` }"
                                 />
                             </div>
+                        </div>
+                        <div v-if="isWarehouseView" class="rounded-2xl bg-orange-50 p-4 text-sm text-orange-900">
+                            <p class="font-semibold">تم تعميد الاسترجاع</p>
+                            <p class="mt-1 text-orange-800/80" dir="ltr">
+                                {{ workOrder.warehouse_returned_at ? formatDateTime(workOrder.warehouse_returned_at) : '—' }}
+                            </p>
+                            <p v-if="workOrder.warehouse_returned_by_name" class="mt-2 text-xs text-orange-700/80">
+                                بواسطة {{ workOrder.warehouse_returned_by_name }}
+                            </p>
                         </div>
                         <div class="border-t border-slate-100 pt-4">
                             <p class="mb-2 text-sm font-semibold text-slate-900">المستودع</p>
@@ -1103,7 +1164,10 @@ watch(dialogOpen, (isOpen) => { if (!isOpen) closeCompleteDialog(); });
                     <p class="mt-1 text-sm text-slate-500">ألعاب / منتجات للإيجار</p>
                 </article>
 
-                <article class="rounded-2xl bg-white p-6 shadow-[0_8px_30px_rgb(15,23,42,0.05)]">
+                <article
+                    v-if="!isWarehouseView"
+                    class="rounded-2xl bg-white p-6 shadow-[0_8px_30px_rgb(15,23,42,0.05)]"
+                >
                     <p class="flex items-center gap-2 text-sm font-semibold text-slate-900">
                         <Wallet class="h-4 w-4 text-slate-400" />
                         التحصيل
@@ -1134,7 +1198,10 @@ watch(dialogOpen, (isOpen) => { if (!isOpen) closeCompleteDialog(); });
                     </div>
                 </article>
 
-                <article class="rounded-2xl bg-white p-6 shadow-[0_8px_30px_rgb(15,23,42,0.05)]">
+                <article
+                    v-if="!isWarehouseView"
+                    class="rounded-2xl bg-white p-6 shadow-[0_8px_30px_rgb(15,23,42,0.05)]"
+                >
                     <p class="text-sm font-semibold text-slate-900">إحصائيات الصور</p>
                     <div class="mt-5 rounded-2xl bg-slate-50 p-4">
                         <Camera class="h-4 w-4 text-[#2563EB]" />
@@ -1143,7 +1210,10 @@ watch(dialogOpen, (isOpen) => { if (!isOpen) closeCompleteDialog(); });
                     </div>
                 </article>
 
-                <article class="rounded-2xl bg-white p-6 shadow-[0_8px_30px_rgb(15,23,42,0.05)]">
+                <article
+                    v-if="!isWarehouseView"
+                    class="rounded-2xl bg-white p-6 shadow-[0_8px_30px_rgb(15,23,42,0.05)]"
+                >
                     <div class="flex items-center justify-between">
                         <p class="text-sm font-semibold text-slate-900">آخر الملاحظات</p>
                         <button type="button" class="text-xs font-semibold text-[#2563EB]" @click="activeTab = 'notes'">

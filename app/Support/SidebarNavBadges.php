@@ -49,6 +49,7 @@ class SidebarNavBadges
     {
         return Order::query()
             ->whereNotNull('warehouse_returned_at')
+            ->whereNotNull('warehouse_returned_by')
             ->whereNull('warehouse_keeper_approved_at')
             ->whereNotIn('status', ['cancelled', 'refunded'])
             ->count();

@@ -26,7 +26,13 @@ class WorkerOrderController extends Controller
 {
     public function index(Request $request)
     {
+        $user = $request->user();
         $view = $request->string('view')->toString();
+
+        if ($user?->isWarehouseKeeper() && $view !== 'warehouse') {
+            return redirect()->route('worker-orders.index', ['view' => 'warehouse']);
+        }
+
         $isWarehouseView = $view === 'warehouse';
         $status = $request->string('status')->toString() ?: ($isWarehouseView ? 'all' : 'pending');
         $search = trim($request->string('search')->toString());
@@ -44,14 +50,25 @@ class WorkerOrderController extends Controller
         ]);
     }
 
-    public function show(string $workOrderKey, WorkerOrderSyncService $syncService)
+    public function show(Request $request, string $workOrderKey, WorkerOrderSyncService $syncService)
     {
         $order = WorkOrderPresenter::resolve($workOrderKey, $syncService);
         WorkOrderPresenter::loadDetailRelations($order);
 
+        $isWarehouseView = $request->string('view')->toString() === 'warehouse';
+        $user = $request->user();
+
+        if ($user?->isWarehouseKeeper()) {
+            $isWarehouseView = true;
+            abort_unless($this->isWarehouseQueueOrder($order), 404);
+        }
+
         return Inertia::render('WorkerOrders/Show', [
             'workOrder' => WorkOrderPresenter::detail($order),
-            'availableWorkers' => WorkOrderPresenter::availableWorkers(),
+            'availableWorkers' => $isWarehouseView ? [] : WorkOrderPresenter::availableWorkers(),
+            'filters' => [
+                'view' => $isWarehouseView ? 'warehouse' : null,
+            ],
         ]);
     }
 
@@ -482,9 +499,18 @@ class WorkerOrderController extends Controller
             ]);
 
         if ($warehouseView) {
-            $query->whereNotNull('warehouse_returned_at')
-                ->whereNull('warehouse_keeper_approved_at')
-                ->whereNotIn('status', ['cancelled', 'refunded']);
+            $query = $this->warehouseOrdersQuery()
+                ->with([
+                    'invoice:id,invoice_number',
+                    'workerOrders' => fn ($q) => $q->orderBy('line_index'),
+                    'warehouseReturnedBy:id,customer_name',
+                    'warehouseKeeperApprovedBy:id,customer_name',
+                ])
+                ->withCount([
+                    'workerOrders as total_lines',
+                    'workerOrders as pending_lines' => fn ($q) => $q->where('status', 'pending'),
+                    'workerOrders as completed_lines' => fn ($q) => $q->where('status', 'completed'),
+                ]);
         } elseif ($status === 'pending') {
             $query->whereHas('workerOrders', fn ($q) => $q->where('status', 'pending'));
         } elseif ($status === 'completed') {
@@ -551,13 +577,26 @@ class WorkerOrderController extends Controller
             'completed' => Order::whereHas('workerOrders')
                 ->whereDoesntHave('workerOrders', fn ($q) => $q->where('status', 'pending'))
                 ->count(),
-            'warehouse' => Order::query()
-                ->whereNotNull('warehouse_returned_at')
-                ->whereNull('warehouse_keeper_approved_at')
-                ->whereNotIn('status', ['cancelled', 'refunded'])
-                ->count(),
+            'warehouse' => $this->warehouseOrdersQuery()->count(),
             'total' => Order::whereHas('workerOrders')->count(),
         ];
+    }
+
+    private function warehouseOrdersQuery()
+    {
+        return Order::query()
+            ->whereNotNull('warehouse_returned_at')
+            ->whereNotNull('warehouse_returned_by')
+            ->whereNull('warehouse_keeper_approved_at')
+            ->whereNotIn('status', ['cancelled', 'refunded']);
+    }
+
+    private function isWarehouseQueueOrder(Order $order): bool
+    {
+        return filled($order->warehouse_returned_at)
+            && filled($order->warehouse_returned_by)
+            && blank($order->warehouse_keeper_approved_at)
+            && ! in_array($order->status, ['cancelled', 'refunded'], true);
     }
 
     private function assertCanViewDeliveryNote(Request $request, Order $order): void
