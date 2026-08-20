@@ -71,6 +71,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'pwa' => \App\Http\Middleware\UsePwaRootView::class,
             'main-app' => \App\Http\Middleware\UseMainAppRootView::class,
             'main-app.staff' => \App\Http\Middleware\EnsureUserIsMainAppStaff::class,
+            'social-media' => \App\Http\Middleware\EnsureSocialMediaAuthenticated::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {

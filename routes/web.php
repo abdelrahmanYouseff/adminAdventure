@@ -30,9 +30,29 @@ Route::get('dn/{code}', [\App\Http\Controllers\ShortLinkController::class, 'show
 
 /*
 |--------------------------------------------------------------------------
-| Worker PWA
+| Social media gallery (password-protected)
 |--------------------------------------------------------------------------
 */
+Route::prefix('social-media')->name('social-media.')->group(function () {
+    Route::get('login', [\App\Http\Controllers\SocialMediaController::class, 'create'])
+        ->name('login');
+    Route::post('login', [\App\Http\Controllers\SocialMediaController::class, 'store'])
+        ->middleware('throttle:10,1')
+        ->name('login.store');
+
+    Route::middleware('social-media')->group(function () {
+        Route::get('/', [\App\Http\Controllers\SocialMediaController::class, 'index'])
+            ->name('index');
+        Route::post('logout', [\App\Http\Controllers\SocialMediaController::class, 'destroy'])
+            ->name('logout');
+    });
+});
+
+/*
+|--------------------------------------------------------------------------
+| Worker PWA
+|--------------------------------------------------------------------------
+ */
 Route::middleware(['pwa'])->prefix('worker-app')->name('pwa.')->group(function () {
     Route::get('login', [\App\Http\Controllers\Pwa\WorkerAuthController::class, 'create'])
         ->name('login');
