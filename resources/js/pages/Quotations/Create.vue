@@ -145,16 +145,9 @@ const customerLookupMessage = ref('');
 const customerType = ref<'individual' | 'company'>('individual');
 const customerFirstName = ref('');
 const customerSecondName = ref('');
-const nameFilledFromLookup = ref(false);
 const nameValidationError = ref('');
 let phoneLookupTimer: ReturnType<typeof setTimeout> | null = null;
 let phoneLookupRequestId = 0;
-
-const isSecondNameRequired = computed(
-    () =>
-        customerType.value === 'individual'
-        && !(nameFilledFromLookup.value && customerFirstName.value.trim() !== ''),
-);
 
 function composeCustomerName(): string {
     return [customerFirstName.value, customerSecondName.value]
@@ -321,7 +314,7 @@ const submit = () => {
             return;
         }
 
-        if (isSecondNameRequired.value && !second) {
+        if (!second) {
             nameValidationError.value = 'الاسم الثاني مطلوب.';
             return;
         }
@@ -438,7 +431,6 @@ async function lookupCustomerByPhone(phone: string) {
         if (!data?.success || !data.customer) {
             customerLookupStatus.value = 'not_found';
             customerLookupMessage.value = data?.message || 'لا يوجد عميل بهذا الرقم.';
-            nameFilledFromLookup.value = false;
             setCustomerType('individual');
             return;
         }
@@ -455,16 +447,11 @@ async function lookupCustomerByPhone(phone: string) {
                 form.customer_name = customer.customer_name;
                 customerFirstName.value = '';
                 customerSecondName.value = '';
-                nameFilledFromLookup.value = false;
             } else {
                 customerFirstName.value = customer.customer_name;
                 customerSecondName.value = '';
                 form.customer_name = customer.customer_name;
-                nameFilledFromLookup.value = true;
             }
-        } else {
-            nameFilledFromLookup.value = false;
-        }
         if (customer.customer_email) {
             form.customer_email = customer.customer_email;
         }
@@ -511,7 +498,6 @@ watch(
         if (!isLookupReady(trimmed)) {
             customerLookupStatus.value = 'idle';
             customerLookupMessage.value = '';
-            nameFilledFromLookup.value = false;
             return;
         }
 
@@ -736,15 +722,14 @@ watch(
                                     <div class="space-y-2">
                                         <Label for="customer_second_name" class="flex items-center gap-1.5">
                                             الاسم الثاني
-                                            <span v-if="isSecondNameRequired" class="text-red-500">*</span>
-                                            <span v-else class="text-xs font-normal text-muted-foreground">(اختياري)</span>
+                                            <span class="text-red-500">*</span>
                                         </Label>
                                         <Input
                                             id="customer_second_name"
                                             v-model="customerSecondName"
                                             placeholder="مثال: محمد"
                                             class="h-11 rounded-xl"
-                                            :required="isSecondNameRequired"
+                                            required
                                             @input="nameValidationError = ''"
                                         />
                                     </div>
@@ -1391,7 +1376,7 @@ watch(
                                     placeholder="0.00"
                                 />
                                 <p class="text-xs text-muted-foreground">
-                                    أدخل المبلغ الذي دفعه العميل. عند الحفظ يُنشأ سند قبض تلقائياً. اعتماد عرض السعر ينشئ طلباً مخفياً، وبعد اعتماد المحاسب يظهر في الطلبات ويُصدر أمر العمل.
+                                    أدخل المبلغ الذي دفعه العميل. عند الحفظ يُنشأ سند قبض تلقائياً. اعتماد العرض يحوّله لطلب؛ بدون مدفوعات يظهر فوراً. أمر العمل بعد اعتماد المحاسب لسند القبض.
                                 </p>
                                 <p v-if="form.errors.amount_paid" class="text-xs text-rose-600">{{ form.errors.amount_paid }}</p>
                                 <div class="flex items-center justify-between border-t border-border/60 pt-3 text-sm">

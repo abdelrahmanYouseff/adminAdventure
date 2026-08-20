@@ -297,14 +297,14 @@ function statusBadgeClass(quotation: Quotation): string {
 }
 
 function approveQuotation(quotation: Quotation) {
-    if (!confirm('اعتماد عرض السعر؟ سيتحول إلى طلب، ولن يظهر في صفحة الطلبات حتى يعتمد المحاسب.')) {
+    if (!confirm('اعتماد عرض السعر؟ بدون مدفوعات يتحول فوراً إلى طلب. أمر العمل يصدر بعد سداد أي مبلغ واعتماد المحاسب.')) {
         return;
     }
     router.post(route('quotations.approve', quotation.id), {}, { preserveScroll: true });
 }
 
 function accountantApprove(quotation: Quotation) {
-    if (!confirm('اعتماد المحاسب؟ سيظهر الطلب في الطلبات ويُصدر أمر العمل.')) {
+    if (!confirm('اعتماد المحاسب؟ سيظهر الطلب في الطلبات. أمر العمل يصدر فقط بعد اعتماد سند القبض.')) {
         return;
     }
     router.post(route('quotations.accountant-approve', quotation.id), {}, { preserveScroll: true });
@@ -336,7 +336,7 @@ function quotationPdfUrl(id: number): string {
                 <p class="mt-1 text-sm text-gray-500 dark:text-neutral-400">
                     {{ selectedBrand
                         ? `عرض عروض الأسعار الخاصة ببراند ${selectedBrand.name}`
-                        : 'اعتماد العرض ثم اعتماد المحاسب قبل ظهور الطلب في الطلبات وإصدار أمر العمل' }}
+                        : 'اعتماد العرض يحوّله لطلب. بدون مدفوعات يظهر فوراً؛ مع مدفوعات ينتظر المحاسب. أمر العمل بعد اعتماد سند القبض' }}
                 </p>
             </div>
             <Link

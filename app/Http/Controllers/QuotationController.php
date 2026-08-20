@@ -52,13 +52,12 @@ class QuotationController extends Controller
             }
 
             if ($status === 'pending_accountant') {
-                $query->where(function ($q) {
-                    $q->where('status', 'accepted')
-                        ->where(function ($inner) {
-                            $inner->whereDoesntHave('order')
-                                ->orWhereHas('order', fn ($order) => $order->whereNull('operations_released_at'));
-                        });
-                });
+                $query->where('status', 'accepted')
+                    ->where('amount_paid', '>', 0)
+                    ->where(function ($q) {
+                        $q->whereDoesntHave('order')
+                            ->orWhereHas('order', fn ($order) => $order->whereNull('operations_released_at'));
+                    });
             } elseif ($status !== 'all' && in_array($status, $allowedStatuses, true)) {
                 $query->where('status', $status);
             }
@@ -78,6 +77,7 @@ class QuotationController extends Controller
 
             $pendingAccountantQuery = (clone $statusCountsBase)
                 ->where('status', 'accepted')
+                ->where('amount_paid', '>', 0)
                 ->where(function ($q) {
                     $q->whereDoesntHave('order')
                         ->orWhereHas('order', fn ($order) => $order->whereNull('operations_released_at'));
@@ -835,6 +835,12 @@ class QuotationController extends Controller
             return back()->with('error', $e->getMessage());
         }
 
+        $quotation->refresh();
+
+        if (round((float) ($quotation->amount_paid ?? 0), 2) <= 0.009) {
+            return back()->with('success', 'تم اعتماد عرض السعر وتحويله إلى طلب. أمر العمل يصدر بعد سداد أي مبلغ واعتماد المحاسب لسند القبض.');
+        }
+
         return back()->with('success', 'تم اعتماد عرض السعر. الطلب بانتظار اعتماد المحاسب قبل ظهوره في الطلبات.');
     }
 
@@ -847,12 +853,19 @@ class QuotationController extends Controller
         );
 
         try {
-            app(\App\Services\QuotationToOrderService::class)->releaseByAccountant($quotation, $user);
+            $order = app(\App\Services\QuotationToOrderService::class)->releaseByAccountant($quotation, $user);
         } catch (\RuntimeException $e) {
             return back()->with('error', $e->getMessage());
         }
 
-        return back()->with('success', 'تم اعتماد المحاسب. الطلب ظهر في الطلبات وصدر أمر العمل.');
+        $message = 'تم اعتماد المحاسب. الطلب ظهر في الطلبات.';
+        if ($order->shouldReleaseWorkOrders()) {
+            $message .= ' وصدر أمر العمل.';
+        } else {
+            $message .= ' أمر العمل يصدر بعد اعتماد سند القبض.';
+        }
+
+        return back()->with('success', $message);
     }
 
     private function appendApprovalMeta(Quotation $quotation, ?User $user): void

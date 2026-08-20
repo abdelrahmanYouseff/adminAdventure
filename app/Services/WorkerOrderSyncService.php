@@ -75,8 +75,8 @@ class WorkerOrderSyncService
     }
 
     /**
-     * Quotation orders wait for accountant release. Direct orders wait for
-     * at least one approved payment receipt.
+     * Quotation orders must be live on /orders. All orders need at least one
+     * accountant-approved payment receipt before work orders are issued.
      */
     private function shouldCreateWorkOrders(Order $order): bool
     {

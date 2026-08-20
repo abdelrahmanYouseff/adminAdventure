@@ -153,12 +153,18 @@ class Quotation extends Model
             return 'expired';
         }
 
-        if ($this->isAccountantApproved()) {
+        $order = $this->relationLoaded('order') ? $this->order : $this->order()->first();
+
+        if (filled($order?->operations_released_at)) {
             return 'released';
         }
 
-        if ($this->isManagerApproved()) {
+        if ($this->isManagerApproved() && round((float) ($this->amount_paid ?? 0), 2) > 0.009) {
             return 'pending_accountant';
+        }
+
+        if ($this->isManagerApproved()) {
+            return 'released';
         }
 
         return 'pending_approval';

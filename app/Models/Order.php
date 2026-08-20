@@ -198,8 +198,9 @@ class Order extends Model
     }
 
     /**
-     * Direct store orders are always visible. Quotation-originated orders
-     * stay off the orders / work-order lists until the accountant releases them.
+     * Direct store orders are always visible. Quotation orders with recorded
+     * payment stay hidden until the accountant releases them; zero-payment
+     * quotations go live as soon as the manager approves.
      */
     public function isReleasedToOperations(): bool
     {
@@ -210,10 +211,14 @@ class Order extends Model
         return filled($this->operations_released_at);
     }
 
+    /**
+     * Work orders require the order to be live and at least one payment receipt
+     * approved by the accountant (partial payment is enough).
+     */
     public function shouldReleaseWorkOrders(): bool
     {
-        if ($this->quotation_id) {
-            return filled($this->operations_released_at);
+        if (! $this->isReleasedToOperations()) {
+            return false;
         }
 
         return $this->hasApprovedPaymentReceipt();

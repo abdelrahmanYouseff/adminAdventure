@@ -103,7 +103,7 @@ class QuotationToOrderService
             $this->markQuotationAcceptedFromOrder($locked);
 
             $fresh = $locked->fresh();
-            if ($fresh?->isReleasedToOperations()) {
+            if ($fresh?->shouldReleaseWorkOrders()) {
                 app(WorkerOrderSyncService::class)->syncFromOrder($fresh);
             }
         });
@@ -242,8 +242,8 @@ class QuotationToOrderService
     }
 
     /**
-     * Manager / admin accepts the quotation. A linked order is created but
-     * stays off the orders page until the accountant releases it.
+     * Manager / admin accepts the quotation. Zero-payment quotations are
+     * released to orders immediately; paid ones wait for accountant release.
      */
     public function approveQuotation(Quotation $quotation, User $actor): Order
     {
@@ -263,6 +263,12 @@ class QuotationToOrderService
 
             $order = $this->ensureOrder($locked, $actor);
 
+            if ($this->quotationHasNoRecordedPayment($locked) && blank($order->operations_released_at)) {
+                $order->operations_released_at = now();
+                $order->operations_released_by = $actor->id;
+                $order->save();
+            }
+
             $locked->status = 'accepted';
             if (blank($locked->approved_at)) {
                 $locked->approved_at = now();
@@ -275,7 +281,9 @@ class QuotationToOrderService
     }
 
     /**
-     * Accountant release: the order appears on /orders and a work order is issued.
+     * Accountant release for quotations that already have recorded payment:
+     * the order appears on /orders. Work orders are issued only after a
+     * payment receipt is approved.
      */
     public function releaseByAccountant(Quotation $quotation, User $actor): Order
     {
@@ -283,6 +291,10 @@ class QuotationToOrderService
 
         if (! $quotation->isManagerApproved()) {
             throw new RuntimeException('يجب اعتماد عرض السعر أولاً قبل اعتماد المحاسب.');
+        }
+
+        if ($this->quotationHasNoRecordedPayment($quotation)) {
+            throw new RuntimeException('عرض السعر بدون مدفوعات — لا يحتاج اعتماد محاسب للظهور في الطلبات.');
         }
 
         if ($quotation->items->isEmpty()) {
@@ -313,10 +325,17 @@ class QuotationToOrderService
             $locked->save();
 
             $fresh = $order->fresh();
-            app(WorkerOrderSyncService::class)->syncFromOrder($fresh);
+            if ($fresh->shouldReleaseWorkOrders()) {
+                app(WorkerOrderSyncService::class)->syncFromOrder($fresh);
+            }
 
             return $fresh;
         });
+    }
+
+    private function quotationHasNoRecordedPayment(Quotation $quotation): bool
+    {
+        return round((float) ($quotation->amount_paid ?? 0), 2) <= 0.009;
     }
 
     private function createOrderFromQuotation(Quotation $quotation, ?User $actor): Order

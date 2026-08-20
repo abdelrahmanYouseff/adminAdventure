@@ -126,14 +126,14 @@ const successMessage = computed(() => page.props.flash?.success as string | unde
 const errorMessage = computed(() => page.props.flash?.error as string | undefined);
 
 function approveQuotation() {
-    if (!confirm('اعتماد عرض السعر؟ سيتحول إلى طلب، ولن يظهر في صفحة الطلبات حتى يعتمد المحاسب.')) {
+    if (!confirm('اعتماد عرض السعر؟ بدون مدفوعات يتحول فوراً إلى طلب. أمر العمل يصدر بعد سداد أي مبلغ واعتماد المحاسب.')) {
         return;
     }
     router.post(route('quotations.approve', props.quotation.id), {}, { preserveScroll: true });
 }
 
 function accountantApprove() {
-    if (!confirm('اعتماد المحاسب؟ سيظهر الطلب في الطلبات ويُصدر أمر العمل.')) {
+    if (!confirm('اعتماد المحاسب؟ سيظهر الطلب في الطلبات. أمر العمل يصدر فقط بعد اعتماد سند القبض.')) {
         return;
     }
     router.post(route('quotations.accountant-approve', props.quotation.id), {}, { preserveScroll: true });
@@ -1276,7 +1276,7 @@ watch(
                                     placeholder="0.00"
                                 />
                                 <p class="text-xs text-muted-foreground">
-                                    أدخل المبلغ الذي دفعه العميل. عند الحفظ يُنشأ سند قبض تلقائياً. اعتماد عرض السعر ينشئ طلباً مخفياً، وبعد اعتماد المحاسب يظهر في الطلبات ويُصدر أمر العمل.
+                                    أدخل المبلغ الذي دفعه العميل. عند الحفظ يُنشأ سند قبض تلقائياً. اعتماد العرض يحوّله لطلب؛ بدون مدفوعات يظهر فوراً. أمر العمل بعد اعتماد المحاسب لسند القبض.
                                 </p>
                                 <p v-if="form.errors.amount_paid" class="text-xs text-rose-600">{{ form.errors.amount_paid }}</p>
                                 <div class="flex items-center justify-between border-t border-border/60 pt-3 text-sm">

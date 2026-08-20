@@ -91,8 +91,8 @@ class OrderObserver
     }
 
     /**
-     * Both work-order sync and the customer notification wait for the
-     * accountant to approve at least one payment receipt.
+     * Both work-order sync and the customer notification wait for the order to
+     * be live and for the accountant to approve at least one payment receipt.
      */
     private function shouldCreateWorkOrders(Order $order): bool
     {
