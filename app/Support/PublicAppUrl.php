@@ -6,22 +6,11 @@ class PublicAppUrl
 {
     public static function base(): string
     {
-        $url = config('app.public_url', config('app.url'));
-        $parsed = parse_url((string) $url);
+        $url = rtrim((string) config('app.public_url', config('app.url')), '/');
 
-        if (! $parsed || empty($parsed['host'])) {
-            return rtrim((string) $url, '/');
-        }
-
-        $host = $parsed['host'];
-        if (str_starts_with($host, 'www.')) {
-            $host = substr($host, 4);
-        }
-
-        $scheme = $parsed['scheme'] ?? 'https';
-        $port = isset($parsed['port']) ? ':'.$parsed['port'] : '';
-
-        return $scheme.'://'.$host.$port;
+        // Keep APP_PUBLIC_URL exactly as configured (including www) so WhatsApp
+        // buttons do not hit an extra 301 hop that some in-app browsers mishandle.
+        return $url !== '' ? $url : 'http://localhost';
     }
 
     public static function to(string $path = ''): string

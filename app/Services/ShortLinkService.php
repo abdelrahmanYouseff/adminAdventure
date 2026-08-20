@@ -49,7 +49,7 @@ class ShortLinkService
      * Value passed to Meta URL button {{1}}.
      *
      * Website URL in Meta is:
-     * https://admin.adventurksa.com/dn/{{1}}
+     * https://www.admin.adventureksa.com/dn/{{1}}
      * so this must be the delivery-note id only (e.g. S-202608142), not a full URL.
      */
     public function whatsappButtonSuffix(ShortLink $link): string

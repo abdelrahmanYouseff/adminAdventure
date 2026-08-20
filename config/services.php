@@ -79,7 +79,7 @@ return [
         // قالب إذن التسليم (HEADER = DOCUMENT + زر رابط اختياري)
         'delivery_note_template' => env('WHATSAPP_DELIVERY_NOTE_TEMPLATE'),
         'delivery_note_template_language' => env('WHATSAPP_DELIVERY_NOTE_TEMPLATE_LANGUAGE', 'ar'),
-        // زر «عرض الطلب» في Meta: https://admin.adventurksa.com/dn/{{1}}
+        // زر «عرض الطلب» في Meta: https://www.admin.adventureksa.com/dn/{{1}}
         'delivery_note_url_button' => env('WHATSAPP_DELIVERY_NOTE_URL_BUTTON', true),
         'delivery_note_button_mode' => env('WHATSAPP_DELIVERY_NOTE_BUTTON_MODE', 'dn'),
         'waba_id' => env('WHATSAPP_WABA_ID'),

@@ -21,20 +21,23 @@ import {
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import {
-    ArrowUpRight,
     Camera,
     Check,
     ChevronLeft,
     ChevronRight,
+    Clock,
     Copy,
     ExternalLink,
     Eye,
     FileText,
+    Hourglass,
+    Layers,
     MapPin,
     MoreVertical,
     Pencil,
     Plus,
     Search,
+    ShoppingBag,
     ShoppingCart,
     Trash2,
     UploadCloud,
@@ -305,6 +308,11 @@ const summaryCards = computed(() => [
         value: props.statusCounts.all,
         unit: 'طلب',
         hint: 'عرض كل الطلبات',
+        icon: ShoppingBag,
+        iconWrap: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400',
+        valueClass: 'text-emerald-600 dark:text-emerald-400',
+        hintClass: 'text-emerald-600 dark:text-emerald-400',
+        activeRing: 'border-emerald-300 ring-1 ring-emerald-100 dark:border-emerald-800 dark:ring-emerald-950',
     },
     {
         key: 'pending' as const,
@@ -312,6 +320,11 @@ const summaryCards = computed(() => [
         value: props.statusCounts.pending,
         unit: 'طلب',
         hint: 'عرض قيد الانتظار',
+        icon: Clock,
+        iconWrap: 'bg-rose-50 text-rose-600 dark:bg-rose-950/40 dark:text-rose-400',
+        valueClass: 'text-rose-600 dark:text-rose-400',
+        hintClass: 'text-rose-600 dark:text-rose-400',
+        activeRing: 'border-rose-300 ring-1 ring-rose-100 dark:border-rose-800 dark:ring-rose-950',
     },
     {
         key: 'paid' as const,
@@ -319,6 +332,11 @@ const summaryCards = computed(() => [
         value: props.statusCounts.paid,
         unit: 'طلب',
         hint: 'عرض المدفوع',
+        icon: Hourglass,
+        iconWrap: 'bg-orange-50 text-orange-600 dark:bg-orange-950/40 dark:text-orange-400',
+        valueClass: 'text-orange-600 dark:text-orange-400',
+        hintClass: 'text-orange-600 dark:text-orange-400',
+        activeRing: 'border-orange-300 ring-1 ring-orange-100 dark:border-orange-800 dark:ring-orange-950',
     },
     {
         key: 'processing' as const,
@@ -326,6 +344,11 @@ const summaryCards = computed(() => [
         value: props.statusCounts.processing,
         unit: 'طلب',
         hint: 'عرض قيد المعالجة',
+        icon: Layers,
+        iconWrap: 'bg-sky-50 text-sky-600 dark:bg-sky-950/40 dark:text-sky-400',
+        valueClass: 'text-sky-600 dark:text-sky-400',
+        hintClass: 'text-sky-600 dark:text-sky-400',
+        activeRing: 'border-sky-300 ring-1 ring-sky-100 dark:border-sky-800 dark:ring-sky-950',
     },
 ]);
 
@@ -661,24 +684,34 @@ function locationMapsUrl(address: string | null): string | null {
                 v-for="card in summaryCards"
                 :key="card.key"
                 type="button"
-                class="group flex min-w-0 flex-col rounded-2xl border bg-white p-5 text-start transition hover:border-gray-300 hover:shadow-sm active:scale-[0.99] dark:bg-neutral-900 dark:hover:border-neutral-600 sm:p-6"
+                class="group flex min-w-0 flex-col justify-between rounded-2xl border bg-white p-4 text-start shadow-[0_1px_3px_rgba(15,23,42,0.04)] transition hover:-translate-y-0.5 hover:shadow-md active:scale-[0.99] dark:bg-neutral-900 sm:p-5"
                 :class="
                     statusFilter === card.key
-                        ? 'border-blue-300 ring-1 ring-blue-100 dark:border-blue-800 dark:ring-blue-950'
-                        : 'border-[#E0E0E0] dark:border-neutral-700'
+                        ? card.activeRing
+                        : 'border-gray-100 dark:border-neutral-700'
                 "
                 @click="setStatusFilter(card.key)"
             >
-                <p class="text-[11px] font-bold uppercase tracking-[0.08em] text-gray-400 dark:text-neutral-500 sm:text-xs">
-                    {{ card.label }}
-                </p>
-                <p class="mt-3 text-2xl font-extrabold tabular-nums tracking-tight text-gray-900 dark:text-white sm:text-[1.75rem]">
-                    {{ formatInteger(card.value) }}
-                    <span class="ms-1 text-base font-bold text-gray-700 dark:text-neutral-300 sm:text-lg">{{ card.unit }}</span>
-                </p>
-                <p class="mt-4 flex items-center gap-1.5 text-xs font-medium text-[#5B8A72] dark:text-teal-400/90">
-                    <ArrowUpRight class="size-3.5 shrink-0 stroke-[2.25]" />
+                <div class="flex items-start justify-between gap-3">
+                    <div class="min-w-0 text-start">
+                        <p class="text-sm font-medium text-gray-500 dark:text-neutral-400">
+                            {{ card.label }}
+                        </p>
+                        <p class="mt-1.5 text-3xl font-extrabold tabular-nums tracking-tight sm:text-[2rem]" :class="card.valueClass">
+                            {{ formatInteger(card.value) }}
+                            <span class="ms-1 text-base font-bold sm:text-lg">{{ card.unit }}</span>
+                        </p>
+                    </div>
+                    <div
+                        class="flex size-11 shrink-0 items-center justify-center rounded-xl sm:size-12"
+                        :class="card.iconWrap"
+                    >
+                        <component :is="card.icon" class="size-5" />
+                    </div>
+                </div>
+                <p class="mt-5 flex items-center justify-between gap-2 text-sm font-semibold" :class="card.hintClass">
                     <span>{{ card.hint }}</span>
+                    <ChevronLeft class="size-4 shrink-0" />
                 </p>
             </button>
         </div>
