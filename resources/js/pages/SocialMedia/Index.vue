@@ -32,14 +32,14 @@ function closeLightbox() {
 }
 
 function logout() {
-    router.post(route('social-media.logout'));
+    router.post('/social-media/logout');
 }
 
 function goToPage(page: number) {
     if (page < 1 || page > props.orders.last_page) {
         return;
     }
-    router.get(route('social-media.index'), { page }, { preserveScroll: true });
+    router.get('/social-media', { page }, { preserveScroll: true });
 }
 </script>
 

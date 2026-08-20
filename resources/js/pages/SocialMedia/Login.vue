@@ -10,7 +10,7 @@ const form = useForm({
 });
 
 function submit() {
-    form.post(route('social-media.login.store'), {
+    form.post('/social-media/login', {
         preserveScroll: true,
         onFinish: () => form.reset('password'),
     });
