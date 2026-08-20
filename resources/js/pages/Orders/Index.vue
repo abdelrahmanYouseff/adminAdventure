@@ -27,12 +27,10 @@ import {
     ChevronRight,
     Clock,
     Copy,
-    ExternalLink,
     Eye,
     FileText,
     Hourglass,
     Layers,
-    MapPin,
     MoreVertical,
     Pencil,
     Plus,
@@ -62,6 +60,7 @@ interface InstallationMeta {
     has_photos: boolean;
     can_review_photos: boolean;
     photos: InstallationPhoto[];
+    workers?: string[];
 }
 
 interface DismantlingMeta {
@@ -71,6 +70,7 @@ interface DismantlingMeta {
     warehouse_returned_at?: string | null;
     progress_done: number;
     progress_total: number;
+    workers?: string[];
 }
 
 interface Order {
@@ -548,6 +548,27 @@ function paidAmount(order: Order): number {
     return Number(order.amount_paid ?? 0) || 0;
 }
 
+/** First + second name only; strip tax numbers / trailing tax labels. */
+function displayCustomerName(name: string | null | undefined): string {
+    if (!name) {
+        return '—';
+    }
+
+    const cleaned = String(name)
+        .replace(/الرقم\s*الضريبي\s*[:：]?\s*\S*/gi, ' ')
+        .replace(/\b\d{10,15}\b/g, ' ')
+        .replace(/\s*[||/]\s*/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+    const words = cleaned.split(/\s+/).filter(Boolean);
+    if (words.length === 0) {
+        return '—';
+    }
+
+    return words.slice(0, 2).join(' ');
+}
+
 function dueAmount(order: Order): number {
     if (order.status === 'paid' || order.status === 'cancelled' || order.status === 'refunded') {
         return 0;
@@ -561,14 +582,6 @@ function dueAmount(order: Order): number {
         return remaining;
     }
     return Math.max(0, (Number(order.total_amount) || 0) - paidAmount(order));
-}
-
-function vatAmount(order: Order): number {
-    const vat = Number(order.vat_amount ?? order.tax_amount ?? 0);
-    if (!Number.isNaN(vat) && vat > 0) {
-        return vat;
-    }
-    return 0;
 }
 
 function canSettleOrder(order: Order): boolean {
@@ -642,16 +655,6 @@ function saveEditTime(order: Order) {
 function formatActivityDate(date: string | null): string {
     if (!date) return '—';
     return formatDate(date);
-}
-
-function locationMapsUrl(address: string | null): string | null {
-    if (!address?.trim()) return null;
-    const trimmed = address.trim();
-    const coordMatch = trimmed.match(/^(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)$/);
-    if (coordMatch) {
-        return `https://www.google.com/maps?q=${coordMatch[1]},${coordMatch[2]}`;
-    }
-    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(trimmed)}`;
 }
 </script>
 
@@ -796,11 +799,10 @@ function locationMapsUrl(address: string | null): string | null {
                                 />
                             </th>
                             <th class="px-2.5 py-2.5 text-start text-[11px] font-semibold text-gray-700 dark:text-neutral-200">الطلب</th>
-                            <th class="px-2.5 py-2.5 text-start text-[11px] font-semibold text-gray-700 dark:text-neutral-200">العميل</th>
+                            <th class="w-28 max-w-[7.5rem] px-2.5 py-2.5 text-start text-[11px] font-semibold text-gray-700 dark:text-neutral-200">العميل</th>
+                            <th class="px-2.5 py-2.5 text-start text-[11px] font-semibold text-gray-700 dark:text-neutral-200">المبلغ المدفوع</th>
+                            <th class="px-2.5 py-2.5 text-start text-[11px] font-semibold text-gray-700 dark:text-neutral-200">المبلغ المستحق</th>
                             <th class="px-2.5 py-2.5 text-start text-[11px] font-semibold text-gray-700 dark:text-neutral-200">الإجمالي</th>
-                            <th class="px-2.5 py-2.5 text-start text-[11px] font-semibold text-gray-700 dark:text-neutral-200">الضريبة 15%</th>
-                            <th class="px-2.5 py-2.5 text-start text-[11px] font-semibold text-gray-700 dark:text-neutral-200">المدفوع</th>
-                            <th class="px-2.5 py-2.5 text-start text-[11px] font-semibold text-gray-700 dark:text-neutral-200">المستحق</th>
                             <th class="px-2.5 py-2.5 text-start text-[11px] font-semibold text-gray-700 dark:text-neutral-200">تاريخ الفعالية</th>
                             <th class="px-2.5 py-2.5 text-start text-[11px] font-semibold text-gray-700 dark:text-neutral-200">وقت الفعالية</th>
                             <th class="px-2.5 py-2.5 text-start text-[11px] font-semibold text-gray-700 dark:text-neutral-200">التركيب</th>
@@ -811,7 +813,7 @@ function locationMapsUrl(address: string | null): string | null {
                     </thead>
                     <tbody>
                         <tr v-if="orders.data.length === 0">
-                            <td colspan="13" class="px-4 py-16 text-center text-gray-500 dark:text-neutral-400">
+                            <td colspan="12" class="px-4 py-16 text-center text-gray-500 dark:text-neutral-400">
                                 لا توجد طلبات مطابقة للبحث أو الفلتر الحالي.
                             </td>
                         </tr>
@@ -838,31 +840,13 @@ function locationMapsUrl(address: string | null): string | null {
                                     </p>
                                 </Link>
                             </td>
-                            <td class="px-2.5 py-2.5">
-                                <div class="flex min-w-0 flex-col items-start gap-1">
-                                    <p class="font-semibold text-gray-900 dark:text-white">{{ order.customer_name }}</p>
-                                    <a
-                                        v-if="order.address && locationMapsUrl(order.address)"
-                                        :href="locationMapsUrl(order.address)!"
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        class="inline-flex max-w-full items-center gap-1 text-xs text-blue-600 hover:underline dark:text-blue-400"
-                                        @click.stop
-                                    >
-                                        <MapPin class="size-3 shrink-0" />
-                                        <span class="truncate">الموقع</span>
-                                        <ExternalLink class="size-3 shrink-0 opacity-60" />
-                                    </a>
-                                </div>
-                            </td>
-                            <td class="px-2.5 py-2.5 font-semibold tabular-nums text-gray-900 dark:text-white" dir="ltr">
-                                {{ formatPrice(Number(order.total_amount) || 0) }}
-                            </td>
-                            <td class="px-2.5 py-2.5 tabular-nums text-gray-700 dark:text-neutral-200" dir="ltr">
-                                <span v-if="vatAmount(order) > 0">
-                                    {{ formatPrice(vatAmount(order)) }}
-                                </span>
-                                <span v-else class="text-gray-400">-</span>
+                            <td class="w-28 max-w-[7.5rem] px-2.5 py-2.5">
+                                <p
+                                    class="truncate text-sm font-semibold text-gray-900 dark:text-white"
+                                    :title="order.customer_name"
+                                >
+                                    {{ displayCustomerName(order.customer_name) }}
+                                </p>
                             </td>
                             <td class="px-2.5 py-2.5 tabular-nums" dir="ltr">
                                 <span
@@ -881,6 +865,9 @@ function locationMapsUrl(address: string | null): string | null {
                                     {{ formatPrice(dueAmount(order)) }}
                                 </span>
                                 <span v-else class="text-gray-400">-</span>
+                            </td>
+                            <td class="px-2.5 py-2.5 font-semibold tabular-nums text-gray-900 dark:text-white" dir="ltr">
+                                {{ formatPrice(Number(order.total_amount) || 0) }}
                             </td>
                             <td class="px-2.5 py-2.5 text-gray-600 dark:text-neutral-300">
                                 {{ formatActivityDate(order.activity_date) }}
@@ -956,6 +943,13 @@ function locationMapsUrl(address: string | null): string | null {
                                     >
                                         {{ order.installation?.label || '—' }}
                                     </span>
+                                    <p
+                                        v-if="order.installation?.workers?.length"
+                                        class="max-w-[9rem] text-[11px] leading-snug text-gray-600 dark:text-neutral-300"
+                                        :title="order.installation.workers.join('، ')"
+                                    >
+                                        {{ order.installation.workers.join('، ') }}
+                                    </p>
                                     <button
                                         v-if="order.installation?.can_review_photos"
                                         type="button"
@@ -975,6 +969,13 @@ function locationMapsUrl(address: string | null): string | null {
                                     >
                                         {{ order.dismantling?.label || '—' }}
                                     </span>
+                                    <p
+                                        v-if="order.dismantling?.workers?.length"
+                                        class="max-w-[9rem] text-[11px] leading-snug text-gray-600 dark:text-neutral-300"
+                                        :title="order.dismantling.workers.join('، ')"
+                                    >
+                                        {{ order.dismantling.workers.join('، ') }}
+                                    </p>
                                     <span
                                         v-if="order.dismantling?.scheduled_at"
                                         class="text-[11px] text-gray-400"

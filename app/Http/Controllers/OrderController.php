@@ -29,11 +29,14 @@ class OrderController extends Controller
         $query = Order::query()
             ->releasedToOperations()
             ->with([
-            'user',
-            'invoice',
-            'products',
-            'workerOrders' => fn ($q) => $q->orderBy('line_index'),
-        ])
+                'user',
+                'invoice',
+                'products',
+                'workerOrders' => fn ($q) => $q->orderBy('line_index'),
+                'workerOrders.completedByUser:id,customer_name',
+                'workerOrders.pickupByUser:id,customer_name',
+                'workerAssemblers.workerUser:id,customer_name',
+            ])
             ->withSum([
                 'paymentReceipts as pending_payment_sum' => fn ($q) => $q
                     ->where('approval_status', OrderPaymentReceipt::STATUS_PENDING),
@@ -1459,7 +1462,8 @@ class OrderController extends Controller
      *     approved_at: string|null,
      *     has_photos: bool,
      *     can_review_photos: bool,
-     *     photos: list<array{product_name: string, url: string}>
+     *     photos: list<array{product_name: string, url: string}>,
+     *     workers: list<string>
      * }
      */
     private function installationColumnMeta(Order $order, bool $canReviewPhotos): array
@@ -1504,6 +1508,7 @@ class OrderController extends Controller
             'has_photos' => $photos !== [],
             'can_review_photos' => $canReviewPhotos && $photos !== [],
             'photos' => $photos,
+            'workers' => $this->installationWorkerNames($order, $lines),
         ];
     }
 
@@ -1514,7 +1519,8 @@ class OrderController extends Controller
      *     scheduled_at: string|null,
      *     warehouse_returned_at: string|null,
      *     progress_done: int,
-     *     progress_total: int
+     *     progress_total: int,
+     *     workers: list<string>
      * }
      */
     private function dismantlingColumnMeta(Order $order): array
@@ -1527,6 +1533,7 @@ class OrderController extends Controller
         $pickedUp = $lines->filter(fn ($line) => filled($line->pickup_photo))->count();
         $scheduledAt = $order->dismantling_at?->format('Y-m-d H:i');
         $returnedAt = $order->warehouse_returned_at?->toIso8601String();
+        $workers = $this->dismantlingWorkerNames($order, $lines);
 
         if (filled($order->warehouse_keeper_approved_at)) {
             return [
@@ -1536,6 +1543,7 @@ class OrderController extends Controller
                 'warehouse_returned_at' => $returnedAt,
                 'progress_done' => $pickedUp,
                 'progress_total' => $total,
+                'workers' => $workers,
             ];
         }
 
@@ -1547,6 +1555,7 @@ class OrderController extends Controller
                 'warehouse_returned_at' => $returnedAt,
                 'progress_done' => $pickedUp,
                 'progress_total' => $total,
+                'workers' => $workers,
             ];
         }
 
@@ -1558,6 +1567,7 @@ class OrderController extends Controller
                 'warehouse_returned_at' => null,
                 'progress_done' => 0,
                 'progress_total' => 0,
+                'workers' => $workers,
             ];
         }
 
@@ -1582,7 +1592,72 @@ class OrderController extends Controller
             'warehouse_returned_at' => null,
             'progress_done' => $pickedUp,
             'progress_total' => $total,
+            'workers' => $workers,
         ];
+    }
+
+    /**
+     * @param  \Illuminate\Support\Collection<int, \App\Models\WorkerOrder>  $lines
+     * @return list<string>
+     */
+    private function installationWorkerNames(Order $order, $lines): array
+    {
+        $names = [];
+
+        $assemblers = $order->relationLoaded('workerAssemblers')
+            ? $order->workerAssemblers
+            : $order->workerAssemblers()->get();
+
+        foreach ($assemblers as $assembler) {
+            if (! $assembler->isInstallation()) {
+                continue;
+            }
+            $name = trim((string) ($assembler->worker_name ?: $assembler->workerUser?->name));
+            if ($name !== '') {
+                $names[] = $name;
+            }
+        }
+
+        foreach ($lines as $line) {
+            $name = trim((string) ($line->completedByUser?->name ?? ''));
+            if ($name !== '') {
+                $names[] = $name;
+            }
+        }
+
+        return array_values(array_unique($names));
+    }
+
+    /**
+     * @param  \Illuminate\Support\Collection<int, \App\Models\WorkerOrder>  $lines
+     * @return list<string>
+     */
+    private function dismantlingWorkerNames(Order $order, $lines): array
+    {
+        $names = [];
+
+        $assemblers = $order->relationLoaded('workerAssemblers')
+            ? $order->workerAssemblers
+            : $order->workerAssemblers()->get();
+
+        foreach ($assemblers as $assembler) {
+            if (! $assembler->isDismantling()) {
+                continue;
+            }
+            $name = trim((string) ($assembler->worker_name ?: $assembler->workerUser?->name));
+            if ($name !== '') {
+                $names[] = $name;
+            }
+        }
+
+        foreach ($lines as $line) {
+            $name = trim((string) ($line->pickupByUser?->name ?? ''));
+            if ($name !== '') {
+                $names[] = $name;
+            }
+        }
+
+        return array_values(array_unique($names));
     }
 
     private function paymentReceiptNotes(?string $orderNotes, string $fallback): string
