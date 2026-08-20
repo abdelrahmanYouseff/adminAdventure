@@ -2,6 +2,7 @@
 
 namespace App\Mail;
 
+use App\Mail\Concerns\BuildsTransactionalEnvelope;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Attachment;
@@ -12,6 +13,7 @@ use Illuminate\Support\Facades\Storage;
 
 class DismantlingCompletedMail extends Mailable
 {
+    use BuildsTransactionalEnvelope;
     use Queueable, SerializesModels;
 
     /**
@@ -27,8 +29,8 @@ class DismantlingCompletedMail extends Mailable
 
     public function envelope(): Envelope
     {
-        return new Envelope(
-            subject: 'تم الفك — '.$this->customerName.' ('.$this->orderNumber.')',
+        return $this->transactionalEnvelope(
+            'تم الفك — '.$this->customerName.' ('.$this->orderNumber.')',
         );
     }
 
@@ -36,6 +38,7 @@ class DismantlingCompletedMail extends Mailable
     {
         return new Content(
             view: 'emails.dismantling-completed',
+            text: 'emails.text.dismantling-completed',
         );
     }
 

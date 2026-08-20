@@ -9,27 +9,34 @@ use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
 
-class TestSystemMail extends Mailable
+class NewWorkOrderIssuedMail extends Mailable
 {
     use BuildsTransactionalEnvelope;
     use Queueable, SerializesModels;
 
+    /**
+     * @param  list<string>  $products
+     */
     public function __construct(
-        public readonly string $sentAt,
+        public readonly string $orderNumber,
+        public readonly string $customerName,
+        public readonly ?string $customerPhone,
+        public readonly array $products,
+        public readonly string $assignWorkersUrl,
     ) {}
 
     public function envelope(): Envelope
     {
         return $this->transactionalEnvelope(
-            'اختبار البريد — '.config('mail.from.name'),
+            'أمر عمل جديد — '.$this->customerName.' ('.$this->orderNumber.')',
         );
     }
 
     public function content(): Content
     {
         return new Content(
-            view: 'emails.test-system',
-            text: 'emails.text.test-system',
+            view: 'emails.new-work-order-issued',
+            text: 'emails.text.new-work-order-issued',
         );
     }
 

@@ -1,76 +1,45 @@
-<!DOCTYPE html>
-<html lang="ar" dir="rtl">
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>تم الفك</title>
-</head>
-<body style="margin:0;padding:0;background:#f8fafc;font-family:Tahoma,Arial,sans-serif;color:#0f172a;">
-    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f8fafc;padding:32px 16px;">
+@extends('emails.layout')
+
+@section('title', 'تم الفك')
+@section('preheader')
+    تم رفع صور الفك — {{ $customerName }}
+@endsection
+@section('subtitle', 'إشعار اكتمال الفك')
+@section('accent', '#ea580c')
+
+@section('content')
+    <p style="margin:0 0 14px;font-size:15px;line-height:1.8;">
+        قام العامل <strong>{{ $workerName }}</strong> برفع صور الفك للطلب التالي:
+    </p>
+
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:0 0 20px;background:#fff7ed;border:1px solid #fed7aa;border-radius:12px;">
         <tr>
-            <td align="center">
-                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;background:#ffffff;border:1px solid #e2e8f0;border-radius:16px;overflow:hidden;">
-                    <tr>
-                        <td style="padding:24px 28px;background:#ea580c;color:#ffffff;">
-                            <p style="margin:0;font-size:18px;font-weight:700;">{{ config('app.name') }}</p>
-                            <p style="margin:6px 0 0;font-size:13px;opacity:0.95;">إشعار اكتمال الفك</p>
-                        </td>
-                    </tr>
-                    <tr>
-                        <td style="padding:28px;">
-                            <p style="margin:0 0 14px;font-size:15px;line-height:1.8;">
-                                قام العامل <strong>{{ $workerName }}</strong> برفع صور الفك للطلب التالي:
-                            </p>
-
-                            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:0 0 20px;background:#fff7ed;border:1px solid #fed7aa;border-radius:12px;">
-                                <tr>
-                                    <td style="padding:16px 18px;">
-                                        <p style="margin:0 0 8px;font-size:13px;color:#9a3412;">اسم الفعالية / الشركة</p>
-                                        <p style="margin:0 0 14px;font-size:16px;font-weight:700;color:#9a3412;">{{ $customerName }}</p>
-                                        <p style="margin:0 0 4px;font-size:13px;color:#9a3412;">رقم الطلب</p>
-                                        <p style="margin:0;font-size:15px;font-weight:700;letter-spacing:0.02em;" dir="ltr">{{ $orderNumber }}</p>
-                                    </td>
-                                </tr>
-                            </table>
-
-                            <p style="margin:0 0 12px;font-size:14px;font-weight:700;">صور الفك ({{ count($photos) }})</p>
-
-                            @foreach ($photos as $photo)
-                                <div style="margin:0 0 16px;padding:12px;border:1px solid #e2e8f0;border-radius:12px;">
-                                    <p style="margin:0 0 8px;font-size:13px;font-weight:600;color:#334155;">
-                                        {{ $photo['product_name'] }}
-                                    </p>
-                                    @if (!empty($photo['photo_url']))
-                                        <a href="{{ $photo['photo_url'] }}" target="_blank" rel="noopener noreferrer">
-                                            <img
-                                                src="{{ $photo['photo_url'] }}"
-                                                alt="{{ $photo['product_name'] }}"
-                                                style="display:block;width:100%;max-width:100%;height:auto;border-radius:8px;"
-                                            >
-                                        </a>
-                                    @else
-                                        <p style="margin:0;font-size:12px;color:#94a3b8;">الصورة مرفقة مع الرسالة.</p>
-                                    @endif
-                                </div>
-                            @endforeach
-
-                            <p style="margin:8px 0 0;font-size:12px;color:#64748b;line-height:1.6;">
-                                الصور مرفقة أيضاً كملفات في هذه الرسالة للمراجعة بدون فتح الرابط.
-                            </p>
-
-                            <p style="margin:22px 0 0;">
-                                <a
-                                    href="{{ $returnsUrl }}"
-                                    style="display:inline-block;background:#ea580c;color:#ffffff;text-decoration:none;font-size:14px;font-weight:700;padding:12px 18px;border-radius:10px;"
-                                >
-                                    فتح تفاصيل الاسترجاع
-                                </a>
-                            </p>
-                        </td>
-                    </tr>
-                </table>
+            <td style="padding:16px 18px;">
+                <p style="margin:0 0 8px;font-size:13px;color:#9a3412;">اسم الفعالية / الشركة</p>
+                <p style="margin:0 0 14px;font-size:16px;font-weight:700;color:#9a3412;">{{ $customerName }}</p>
+                <p style="margin:0 0 4px;font-size:13px;color:#9a3412;">رقم الطلب</p>
+                <p style="margin:0;font-size:15px;font-weight:700;letter-spacing:0.02em;" dir="ltr">{{ $orderNumber }}</p>
             </td>
         </tr>
     </table>
-</body>
-</html>
+
+    <p style="margin:0 0 10px;font-size:14px;font-weight:700;">صور الفك ({{ count($photos) }})</p>
+    <ul style="margin:0 0 16px;padding:0 18px 0 0;font-size:14px;line-height:1.9;color:#334155;">
+        @foreach ($photos as $photo)
+            <li style="margin:0 0 4px;">{{ $photo['product_name'] }}</li>
+        @endforeach
+    </ul>
+
+    <p style="margin:0 0 18px;font-size:13px;line-height:1.7;color:#64748b;">
+        الصور مرفقة مع هذه الرسالة كملفات. يمكنك أيضاً مراجعتها من المنصة عبر الرابط أدناه.
+    </p>
+
+    <p style="margin:0;">
+        <a
+            href="{{ $returnsUrl }}"
+            style="display:inline-block;background:#ea580c;color:#ffffff;text-decoration:none;font-size:14px;font-weight:700;padding:12px 18px;border-radius:10px;"
+        >
+            فتح تفاصيل الاسترجاع
+        </a>
+    </p>
+@endsection

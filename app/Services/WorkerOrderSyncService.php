@@ -2,9 +2,12 @@
 
 namespace App\Services;
 
+use App\Jobs\SendNewWorkOrderIssuedEmail;
 use App\Models\Order;
 use App\Models\Product;
 use App\Models\WorkerOrder;
+use Illuminate\Support\Facades\Log;
+use Throwable;
 
 class WorkerOrderSyncService
 {
@@ -22,32 +25,36 @@ class WorkerOrderSyncService
             return;
         }
 
+        $hadWorkerOrders = $order->workerOrders()->exists();
+
         $order->loadMissing('products');
 
         if ($order->products->isNotEmpty()) {
             foreach ($order->products as $index => $product) {
                 $this->upsertWorkerOrder($order, $index, $product->id, $product->product_name, $product->image);
             }
+        } else {
+            $items = is_array($order->items) ? $order->items : [];
 
-            return;
+            foreach ($items as $index => $item) {
+                $productId = isset($item['product_id']) ? (int) $item['product_id'] : null;
+                $productName = $item['product_name'] ?? $item['name'] ?? 'منتج';
+                $image = null;
+
+                if ($productId) {
+                    $product = Product::query()->find($productId);
+                    $image = $product?->image;
+                    if ($product && ($productName === 'منتج' || $productName === '')) {
+                        $productName = $product->product_name;
+                    }
+                }
+
+                $this->upsertWorkerOrder($order, $index, $productId, $productName, $image);
+            }
         }
 
-        $items = is_array($order->items) ? $order->items : [];
-
-        foreach ($items as $index => $item) {
-            $productId = isset($item['product_id']) ? (int) $item['product_id'] : null;
-            $productName = $item['product_name'] ?? $item['name'] ?? 'منتج';
-            $image = null;
-
-            if ($productId) {
-                $product = Product::query()->find($productId);
-                $image = $product?->image;
-                if ($product && ($productName === 'منتج' || $productName === '')) {
-                    $productName = $product->product_name;
-                }
-            }
-
-            $this->upsertWorkerOrder($order, $index, $productId, $productName, $image);
+        if (! $hadWorkerOrders && $order->workerOrders()->exists()) {
+            $this->notifyWorkersManager($order);
         }
     }
 
@@ -86,5 +93,22 @@ class WorkerOrderSyncService
     private function shouldCreateWorkOrders(Order $order): bool
     {
         return $order->shouldReleaseWorkOrders();
+    }
+
+    private function notifyWorkersManager(Order $order): void
+    {
+        if ($order->work_order_issued_notified_at !== null) {
+            return;
+        }
+
+        try {
+            $job = new SendNewWorkOrderIssuedEmail($order->id);
+            app()->call([$job, 'handle']);
+        } catch (Throwable $e) {
+            Log::error('Failed to send new work order email', [
+                'order_id' => $order->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 }
