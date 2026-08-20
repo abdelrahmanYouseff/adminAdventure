@@ -452,6 +452,7 @@ async function lookupCustomerByPhone(phone: string) {
                 customerSecondName.value = '';
                 form.customer_name = customer.customer_name;
             }
+        }
         if (customer.customer_email) {
             form.customer_email = customer.customer_email;
         }
