@@ -19,6 +19,17 @@ class OrderJourney
         $completedCount = collect($journey['steps'])->where('status', 'completed')->count();
         $visibleCount = collect($journey['steps'])->where('status', '!=', 'skipped')->count();
 
+        $visibleSteps = collect($journey['steps'])
+            ->where('status', '!=', 'skipped')
+            ->values()
+            ->map(fn (array $step) => [
+                'key' => $step['key'],
+                'icon' => $step['icon'],
+                'title' => $step['title'],
+                'status' => $step['status'],
+            ])
+            ->all();
+
         return [
             'id' => $order->id,
             'order_number' => $order->order_number,
@@ -35,6 +46,7 @@ class OrderJourney
             'completed_steps' => $completedCount,
             'total_steps' => $visibleCount,
             'is_complete' => $journey['is_complete'],
+            'steps' => $visibleSteps,
         ];
     }
 

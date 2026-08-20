@@ -139,14 +139,17 @@ function stepIcon(name: string): Component {
                                 cy="18"
                                 r="15.2"
                                 fill="none"
-                                stroke="#38bdf8"
+                                :stroke="journey.is_complete ? '#34d399' : '#38bdf8'"
                                 stroke-width="3.5"
                                 stroke-linecap="round"
                                 :stroke-dasharray="`${journey.percent * 0.955} 100`"
                             />
                         </svg>
                         <div class="absolute text-center">
-                            <p class="text-xl font-black tabular-nums">{{ journey.percent }}%</p>
+                            <p
+                                class="text-xl font-black tabular-nums"
+                                :class="journey.is_complete ? 'text-emerald-300' : ''"
+                            >{{ journey.percent }}%</p>
                             <p class="text-[10px] text-slate-400">التقدم</p>
                         </div>
                     </div>

@@ -3,13 +3,33 @@ import { computed, ref, watch } from 'vue';
 import { Head, Link, router } from '@inertiajs/vue3';
 import AppLayout from '@/layouts/AppLayout.vue';
 import {
+    Camera,
+    Check,
     ChevronLeft,
     ChevronRight,
+    FileSpreadsheet,
+    HardHat,
+    PackageCheck,
+    Receipt,
     Route,
     Search,
+    Shield,
+    ShieldCheck,
+    ShoppingCart,
     Sparkles,
+    Undo2,
+    Users,
+    Wallet,
 } from 'lucide-vue-next';
 import { formatDateTime, formatInteger } from '@/lib/formatNumber';
+import type { Component } from 'vue';
+
+interface JourneyStep {
+    key: string;
+    icon: string;
+    title: string;
+    status: 'completed' | 'current' | 'upcoming' | 'skipped';
+}
 
 interface JourneyRow {
     id: number;
@@ -27,6 +47,7 @@ interface JourneyRow {
     completed_steps: number;
     total_steps: number;
     is_complete: boolean;
+    steps: JourneyStep[];
 }
 
 interface StageOption {
@@ -97,6 +118,28 @@ function goToPage(pageNumber: number) {
     if (pageNumber >= 1 && pageNumber <= props.orders.last_page) {
         applyFilters(pageNumber);
     }
+}
+
+const iconMap: Record<string, Component> = {
+    'file-spreadsheet': FileSpreadsheet,
+    'shopping-cart': ShoppingCart,
+    receipt: Receipt,
+    wallet: Wallet,
+    'hard-hat': HardHat,
+    users: Users,
+    camera: Camera,
+    'shield-check': ShieldCheck,
+    'undo-2': Undo2,
+    'package-check': PackageCheck,
+    shield: Shield,
+};
+
+function stepIcon(name: string): Component {
+    return iconMap[name] ?? Route;
+}
+
+function visibleSteps(item: JourneyRow): JourneyStep[] {
+    return (item.steps || []).filter((step) => step.status !== 'skipped');
 }
 </script>
 
@@ -183,20 +226,23 @@ function goToPage(pageNumber: number) {
                         </p>
                     </div>
                     <div class="relative flex size-14 shrink-0 items-center justify-center">
-                        <svg class="size-14 -rotate-90" viewBox="0 0 36 36" aria-hidden="true">
+                        <svg class="journey-ring size-14 -rotate-90" viewBox="0 0 36 36" aria-hidden="true">
                             <circle cx="18" cy="18" r="15.5" fill="none" class="stroke-slate-100 dark:stroke-neutral-800" stroke-width="4" />
                             <circle
                                 cx="18"
                                 cy="18"
                                 r="15.5"
                                 fill="none"
-                                class="stroke-sky-500"
+                                :class="item.is_complete ? 'stroke-emerald-500' : 'stroke-sky-500'"
                                 stroke-width="4"
                                 stroke-linecap="round"
                                 :stroke-dasharray="`${item.percent * 0.97} 100`"
                             />
                         </svg>
-                        <span class="absolute text-[11px] font-bold tabular-nums text-slate-700 dark:text-neutral-200">
+                        <span
+                            class="absolute text-[11px] font-bold tabular-nums"
+                            :class="item.is_complete ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-700 dark:text-neutral-200'"
+                        >
                             {{ item.percent }}%
                         </span>
                     </div>
@@ -213,6 +259,47 @@ function goToPage(pageNumber: number) {
                         {{ item.waiting }}
                     </p>
                 </div>
+
+                <ol v-if="visibleSteps(item).length" class="journey-rail relative mt-4 space-y-2.5 ps-1">
+                    <li
+                        v-for="(step, index) in visibleSteps(item)"
+                        :key="step.key"
+                        class="journey-step relative flex items-center gap-2.5"
+                        :style="{ animationDelay: `${index * 70}ms` }"
+                    >
+                        <span
+                            class="relative z-10 flex size-8 shrink-0 items-center justify-center rounded-xl ring-4 ring-white dark:ring-neutral-900"
+                            :class="{
+                                'bg-emerald-500 text-white': step.status === 'completed',
+                                'journey-pulse bg-amber-500 text-white': step.status === 'current',
+                                'bg-slate-200 text-slate-400 dark:bg-neutral-800 dark:text-neutral-500': step.status === 'upcoming',
+                            }"
+                        >
+                            <Check v-if="step.status === 'completed'" class="size-3.5" />
+                            <component :is="stepIcon(step.icon)" v-else class="size-3.5" />
+                        </span>
+                        <span
+                            class="min-w-0 flex-1 truncate text-xs font-semibold"
+                            :class="{
+                                'text-emerald-700 dark:text-emerald-400': step.status === 'completed',
+                                'text-amber-800 dark:text-amber-300': step.status === 'current',
+                                'text-slate-400 dark:text-neutral-500': step.status === 'upcoming',
+                            }"
+                        >
+                            {{ step.title }}
+                        </span>
+                        <span
+                            class="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold"
+                            :class="{
+                                'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300': step.status === 'completed',
+                                'bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300': step.status === 'current',
+                                'bg-slate-100 text-slate-400 dark:bg-neutral-800 dark:text-neutral-500': step.status === 'upcoming',
+                            }"
+                        >
+                            {{ step.status === 'completed' ? 'تمت' : step.status === 'current' ? 'الجارية' : 'قادمة' }}
+                        </span>
+                    </li>
+                </ol>
 
                 <div class="mt-4 flex items-center justify-between text-xs text-slate-400">
                     <span>{{ formatInteger(item.completed_steps) }} / {{ formatInteger(item.total_steps) }} خطوات</span>
@@ -264,3 +351,77 @@ function goToPage(pageNumber: number) {
         </div>
     </div>
 </template>
+
+<style scoped>
+.journey-step {
+    animation: journey-enter 0.5s ease-out both;
+}
+
+.journey-rail::before {
+    content: '';
+    position: absolute;
+    top: 0.9rem;
+    bottom: 0.9rem;
+    right: 0.95rem;
+    width: 2px;
+    background: linear-gradient(to bottom, #34d399, #38bdf8 45%, #e2e8f0);
+    transform-origin: top;
+    animation: journey-line 1s ease-out both;
+}
+
+.journey-pulse {
+    animation: journey-pulse 1.8s ease-out infinite;
+}
+
+.journey-ring circle:last-child {
+    animation: journey-draw 1.1s ease-out both;
+}
+
+@keyframes journey-enter {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes journey-line {
+    from {
+        transform: scaleY(0);
+    }
+    to {
+        transform: scaleY(1);
+    }
+}
+
+@keyframes journey-pulse {
+    0%,
+    100% {
+        box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.55);
+    }
+    70% {
+        box-shadow: 0 0 0 10px rgba(245, 158, 11, 0);
+    }
+}
+
+@keyframes journey-draw {
+    from {
+        stroke-dashoffset: 100;
+    }
+    to {
+        stroke-dashoffset: 0;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .journey-step,
+    .journey-rail::before,
+    .journey-pulse,
+    .journey-ring circle:last-child {
+        animation: none !important;
+    }
+}
+</style>

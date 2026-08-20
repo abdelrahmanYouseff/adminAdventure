@@ -39,6 +39,7 @@ interface ReturnProduct {
     pickup_by_name?: string | null;
     pickup_condition?: string | null;
     completed_at?: string | null;
+    completed_by_name?: string | null;
 }
 
 interface ReturnNote {
@@ -419,10 +420,10 @@ function submitNote() {
                 <div>
                     <h2 class="flex items-center gap-2 text-lg font-bold text-slate-900 dark:text-white">
                         <Camera class="h-5 w-5 text-slate-500" />
-                        صور الفك من العامل
+                        صور التركيب والفك
                     </h2>
                     <p class="mt-1 text-sm text-slate-500">
-                        نفس تسلسل التركيب: العامل يصور كل منتج عند الفك، وتظهر الصور هنا للمراجعة قبل تأكيد الاسترجاع.
+                        صورة التركيب ومن ركّبها، وصورة الفك ومن فكّها — للمراجعة قبل تأكيد الاسترجاع.
                     </p>
                 </div>
                 <span
@@ -461,6 +462,11 @@ function submitNote() {
                         </div>
                         <div class="min-w-0 flex-1">
                             <h3 class="truncate font-semibold text-slate-900 dark:text-white">{{ product.product_name }}</h3>
+                            <p v-if="product.completed_by_name || product.completed_at" class="mt-0.5 text-xs text-sky-700">
+                                التركيب
+                                <span v-if="product.completed_by_name"> · {{ product.completed_by_name }}</span>
+                                <span v-if="product.completed_at"> · {{ formatDateTime(product.completed_at) }}</span>
+                            </p>
                             <p v-if="product.pickup_at" class="mt-0.5 text-xs text-emerald-600">
                                 تم الفك {{ formatDateTime(product.pickup_at) }}
                                 <span v-if="product.pickup_by_name"> · {{ product.pickup_by_name }}</span>
@@ -469,25 +475,55 @@ function submitNote() {
                         </div>
                     </div>
 
-                    <div class="p-4">
-                        <p class="mb-2 text-xs font-semibold text-slate-500">صورة الفك</p>
-                        <button
-                            v-if="product.pickup_photo_url"
-                            type="button"
-                            class="group relative block w-full max-w-md overflow-hidden rounded-xl bg-slate-100 ring-1 ring-slate-200"
-                            @click="openLightbox(product.pickup_photo_url!, `فك · ${product.product_name}`)"
-                        >
-                            <img
-                                :src="product.pickup_photo_url"
-                                :alt="`فك ${product.product_name}`"
-                                class="aspect-[4/3] w-full object-cover transition group-hover:scale-[1.02]"
+                    <div class="grid gap-4 p-4 sm:grid-cols-2">
+                        <div>
+                            <p class="mb-2 text-xs font-semibold text-slate-500">صورة التركيب</p>
+                            <p v-if="product.completed_by_name" class="mb-2 text-xs text-slate-600">
+                                ركّبها {{ product.completed_by_name }}
+                            </p>
+                            <button
+                                v-if="product.installation_photo_url"
+                                type="button"
+                                class="group relative block w-full overflow-hidden rounded-xl bg-slate-100 ring-1 ring-slate-200"
+                                @click="openLightbox(product.installation_photo_url!, `تركيب · ${product.product_name}`)"
                             >
-                        </button>
-                        <div
-                            v-else
-                            class="flex aspect-[4/3] max-w-md items-center justify-center rounded-xl border border-dashed border-slate-200 bg-white text-sm text-slate-400 dark:border-neutral-700 dark:bg-neutral-900"
-                        >
-                            لا توجد صورة فك بعد
+                                <img
+                                    :src="product.installation_photo_url"
+                                    :alt="`تركيب ${product.product_name}`"
+                                    class="aspect-[4/3] w-full object-cover transition group-hover:scale-[1.02]"
+                                >
+                            </button>
+                            <div
+                                v-else
+                                class="flex aspect-[4/3] items-center justify-center rounded-xl border border-dashed border-slate-200 bg-white text-sm text-slate-400 dark:border-neutral-700 dark:bg-neutral-900"
+                            >
+                                لا توجد صورة تركيب
+                            </div>
+                        </div>
+
+                        <div>
+                            <p class="mb-2 text-xs font-semibold text-slate-500">صورة الفك</p>
+                            <p v-if="product.pickup_by_name" class="mb-2 text-xs text-slate-600">
+                                فكّها {{ product.pickup_by_name }}
+                            </p>
+                            <button
+                                v-if="product.pickup_photo_url"
+                                type="button"
+                                class="group relative block w-full overflow-hidden rounded-xl bg-slate-100 ring-1 ring-slate-200"
+                                @click="openLightbox(product.pickup_photo_url!, `فك · ${product.product_name}`)"
+                            >
+                                <img
+                                    :src="product.pickup_photo_url"
+                                    :alt="`فك ${product.product_name}`"
+                                    class="aspect-[4/3] w-full object-cover transition group-hover:scale-[1.02]"
+                                >
+                            </button>
+                            <div
+                                v-else
+                                class="flex aspect-[4/3] items-center justify-center rounded-xl border border-dashed border-slate-200 bg-white text-sm text-slate-400 dark:border-neutral-700 dark:bg-neutral-900"
+                            >
+                                لا توجد صورة فك بعد
+                            </div>
                         </div>
                     </div>
                 </article>

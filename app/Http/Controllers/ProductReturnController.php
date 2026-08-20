@@ -86,7 +86,7 @@ class ProductReturnController extends Controller
             'workerOrders.completedByUser:id,customer_name',
             'workerOrders.pickupByUser:id,customer_name',
             'warehouseReturnedBy:id,customer_name',
-            'workerAssemblers' => fn ($q) => $q->dismantling()->latest(),
+            'workerAssemblers' => fn ($q) => $q->latest(),
             'workerNotes' => fn ($q) => $q->latest(),
             'workerNotes.user:id,customer_name,role',
         ]);
@@ -328,6 +328,14 @@ class ProductReturnController extends Controller
         $assemblers = $order->workerAssemblers
             ->filter(fn (WorkerOrderAssembler $assembler) => $assembler->isDismantling())
             ->values();
+        $installationWorkerNames = $order->workerAssemblers
+            ->filter(fn (WorkerOrderAssembler $assembler) => $assembler->isInstallation())
+            ->pluck('worker_name')
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+        $installationWorkerFallback = $installationWorkerNames[0] ?? null;
 
         $products = $lines->isNotEmpty()
             ? $lines->map(fn (WorkerOrder $line) => [
@@ -341,6 +349,7 @@ class ProductReturnController extends Controller
                 'pickup_by_name' => $line->pickupByUser?->name,
                 'pickup_condition' => $line->pickup_condition,
                 'completed_at' => $line->completed_at?->toIso8601String(),
+                'completed_by_name' => $line->completedByUser?->name ?: $installationWorkerFallback,
             ])->values()->all()
             : collect($order->items ?? [])->values()->map(function ($item, int $index) {
                 $row = is_array($item) ? $item : [];
@@ -356,6 +365,7 @@ class ProductReturnController extends Controller
                     'pickup_by_name' => null,
                     'pickup_condition' => null,
                     'completed_at' => null,
+                    'completed_by_name' => null,
                 ];
             })->all();
 
