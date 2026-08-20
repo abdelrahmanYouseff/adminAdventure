@@ -25,7 +25,8 @@ return [
     ],
 
     'resend' => [
-        'key' => env('RESEND_KEY'),
+        // Prefer RESEND_KEY; fall back to RESEND_API_KEY (Laravel docs alias).
+        'key' => env('RESEND_KEY', env('RESEND_API_KEY')),
     ],
 
     'slack' => [

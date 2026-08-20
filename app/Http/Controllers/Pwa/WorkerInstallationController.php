@@ -3,15 +3,19 @@
 namespace App\Http\Controllers\Pwa;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\SendDismantlingPhotosEmail;
+use App\Jobs\SendInstallationPhotosEmail;
 use App\Models\Order;
 use App\Models\WorkerOrder;
 use App\Models\WorkerOrderNote;
 use App\Support\OrderWhatsAppMessage;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
+use Throwable;
 
 class WorkerInstallationController extends Controller
 {
@@ -155,6 +159,8 @@ class WorkerInstallationController extends Controller
                 'pickup_condition' => 'returned',
             ]);
 
+            $this->notifyDismantlingPhotosIfComplete($workerOrder->order, (int) $user->id);
+
             return redirect()
                 ->route('pwa.installations.show', $workerOrder->order_id)
                 ->with('success', 'تم إرسال صورة الفك بنجاح. ستظهر للمسؤول في تفاصيل الاسترجاع.');
@@ -187,6 +193,8 @@ class WorkerInstallationController extends Controller
             'completed_by' => $user->id,
         ]);
 
+        $this->notifyInstallationPhotosIfComplete($workerOrder->order, (int) $user->id);
+
         return redirect()
             ->route('pwa.installations.show', $workerOrder->order_id)
             ->with('success', 'تم تسجيل صورة التركيب بنجاح.');
@@ -195,6 +203,65 @@ class WorkerInstallationController extends Controller
     public function destroyPhoto(Request $request, WorkerOrder $workerOrder): RedirectResponse
     {
         abort(403, 'لا يمكن للعامل حذف الصور. تواصل مع مدير العمال إن كانت الصورة تحتاج إعادة رفع.');
+    }
+
+    private function notifyInstallationPhotosIfComplete(?Order $order, int $workerUserId): void
+    {
+        if (! $order) {
+            return;
+        }
+
+        $order->refresh();
+        $order->loadMissing(['workerOrders']);
+
+        if ($order->installation_photos_notified_at !== null) {
+            return;
+        }
+
+        $lines = $order->workerOrders;
+        if ($lines->isEmpty() || $lines->contains(fn (WorkerOrder $line) => $line->status !== 'completed' || blank($line->installation_photo))) {
+            return;
+        }
+
+        try {
+            $job = new SendInstallationPhotosEmail($order->id, $workerUserId);
+            app()->call([$job, 'handle']);
+        } catch (Throwable $e) {
+            Log::error('Failed to send installation photos email', [
+                'order_id' => $order->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    private function notifyDismantlingPhotosIfComplete(?Order $order, int $workerUserId): void
+    {
+        if (! $order) {
+            return;
+        }
+
+        $order->refresh();
+        $order->loadMissing(['workerOrders']);
+
+        if ($order->dismantling_photos_notified_at !== null) {
+            return;
+        }
+
+        $lines = $order->workerOrders;
+        if ($lines->isEmpty() || $lines->contains(fn (WorkerOrder $line) => blank($line->pickup_photo))) {
+            return;
+        }
+
+        try {
+            // Sync so the email goes out without depending on a queue worker.
+            $job = new SendDismantlingPhotosEmail($order->id, $workerUserId);
+            app()->call([$job, 'handle']);
+        } catch (Throwable $e) {
+            Log::error('Failed to send dismantling photos email', [
+                'order_id' => $order->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 
     private function resolveMapUrl(?string $address): ?string

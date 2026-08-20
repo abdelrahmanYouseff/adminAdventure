@@ -17,6 +17,7 @@
         "laravel/tinker": "^2.10.1",
         "maatwebsite/excel": "^3.1",
         "mpdf/mpdf": "^8.3",
+        "resend/resend-php": "^1.9",
         "tightenco/ziggy": "^2.4"
     },
     "require-dev": {

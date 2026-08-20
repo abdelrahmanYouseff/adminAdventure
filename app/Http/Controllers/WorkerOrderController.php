@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\SendInstallationPhotosEmail;
 use App\Models\Order;
 use App\Models\ShortLink;
 use App\Models\User;
@@ -17,10 +18,12 @@ use App\Support\OrderInsuranceCalculator;
 use App\Support\WorkOrderPresenter;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Symfony\Component\HttpFoundation\Response;
+use Throwable;
 
 class WorkerOrderController extends Controller
 {
@@ -172,6 +175,8 @@ class WorkerOrderController extends Controller
             'completed_at' => now(),
             'completed_by' => $request->user()->id,
         ]);
+
+        $this->notifyInstallationPhotosIfComplete($workerOrder->order, (int) $request->user()->id);
 
         $redirectToShow = $request->boolean('redirect_to_show', true);
 
@@ -689,5 +694,34 @@ class WorkerOrderController extends Controller
         return redirect()
             ->route('worker-orders.show', $reference)
             ->with('success', $message);
+    }
+
+    private function notifyInstallationPhotosIfComplete(?Order $order, int $workerUserId): void
+    {
+        if (! $order) {
+            return;
+        }
+
+        $order->refresh();
+        $order->loadMissing(['workerOrders']);
+
+        if ($order->installation_photos_notified_at !== null) {
+            return;
+        }
+
+        $lines = $order->workerOrders;
+        if ($lines->isEmpty() || $lines->contains(fn (WorkerOrder $line) => $line->status !== 'completed' || blank($line->installation_photo))) {
+            return;
+        }
+
+        try {
+            $job = new SendInstallationPhotosEmail($order->id, $workerUserId);
+            app()->call([$job, 'handle']);
+        } catch (Throwable $e) {
+            Log::error('Failed to send installation photos email', [
+                'order_id' => $order->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 }
