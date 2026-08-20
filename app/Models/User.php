@@ -114,6 +114,26 @@ class User extends Authenticatable
         ];
     }
 
+    public const ONLINE_MINUTES = 10;
+
+    public function isOnline(): bool
+    {
+        return filled($this->last_seen_at)
+            && $this->last_seen_at->gte(now()->subMinutes(self::ONLINE_MINUTES));
+    }
+
+    public function touchLastSeen(): void
+    {
+        $cacheKey = 'user-last-seen:'.$this->id;
+
+        if (\Illuminate\Support\Facades\Cache::has($cacheKey)) {
+            return;
+        }
+
+        \Illuminate\Support\Facades\Cache::put($cacheKey, true, now()->addMinute());
+        $this->forceFill(['last_seen_at' => now()])->saveQuietly();
+    }
+
     /**
      * Get the user's carts.
      */

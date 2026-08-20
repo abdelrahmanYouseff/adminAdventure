@@ -33,9 +33,10 @@ class QuotationController extends Controller
             $status = (string) $request->query('status', 'all');
             $perPage = (int) $request->query('per_page', 15);
             $perPage = in_array($perPage, [10, 15, 25, 50], true) ? $perPage : 15;
-            $allowedStatuses = ['draft', 'sent', 'accepted', 'rejected', 'expired'];
+            $allowedStatuses = ['draft', 'sent', 'accepted', 'rejected', 'expired', 'pending_accountant'];
 
-            $query = Quotation::with(['user', 'items', 'brand'])
+            $query = Quotation::with(['user', 'brand', 'order'])
+                ->withCount('items')
                 ->when($brandId, fn ($q) => $q->where('brand_id', $brandId));
 
             if ($search !== '') {
@@ -50,7 +51,15 @@ class QuotationController extends Controller
                 });
             }
 
-            if ($status !== 'all' && in_array($status, $allowedStatuses, true)) {
+            if ($status === 'pending_accountant') {
+                $query->where(function ($q) {
+                    $q->where('status', 'accepted')
+                        ->where(function ($inner) {
+                            $inner->whereDoesntHave('order')
+                                ->orWhereHas('order', fn ($order) => $order->whereNull('operations_released_at'));
+                        });
+                });
+            } elseif ($status !== 'all' && in_array($status, $allowedStatuses, true)) {
                 $query->where('status', $status);
             }
 
@@ -58,14 +67,28 @@ class QuotationController extends Controller
                 ->paginate($perPage)
                 ->withQueryString();
 
+            $quotations->getCollection()->transform(function (Quotation $quotation) use ($request) {
+                $this->appendApprovalMeta($quotation, $request->user());
+
+                return $quotation;
+            });
+
             $statusCountsBase = Quotation::query()
                 ->when($brandId, fn ($q) => $q->where('brand_id', $brandId));
+
+            $pendingAccountantQuery = (clone $statusCountsBase)
+                ->where('status', 'accepted')
+                ->where(function ($q) {
+                    $q->whereDoesntHave('order')
+                        ->orWhereHas('order', fn ($order) => $order->whereNull('operations_released_at'));
+                });
 
             $statusCounts = [
                 'all' => (clone $statusCountsBase)->count(),
                 'draft' => (clone $statusCountsBase)->where('status', 'draft')->count(),
                 'sent' => (clone $statusCountsBase)->where('status', 'sent')->count(),
                 'accepted' => (clone $statusCountsBase)->where('status', 'accepted')->count(),
+                'pending_accountant' => $pendingAccountantQuery->count(),
                 'rejected' => (clone $statusCountsBase)->where('status', 'rejected')->count(),
                 'expired' => (clone $statusCountsBase)->where('status', 'expired')->count(),
             ];
@@ -565,7 +588,7 @@ class QuotationController extends Controller
      */
     public function edit(Quotation $quotation)
     {
-        $quotation->load(['items.product', 'brand']);
+        $quotation->load(['items.product', 'brand', 'order']);
 
         $brandId = $quotation->brand_id;
 
@@ -586,6 +609,8 @@ class QuotationController extends Controller
             })
             ->orderBy('category_name')
             ->get(['id', 'category_name', 'brand_id']);
+
+        $this->appendApprovalMeta($quotation, request()->user());
 
         return Inertia::render('Quotations/Edit', [
             'quotation' => $quotation,
@@ -787,8 +812,74 @@ class QuotationController extends Controller
             'status' => 'required|in:draft,sent,accepted,rejected,expired',
         ]);
 
+        if ($request->status === 'accepted') {
+            return $this->approve($request, $quotation);
+        }
+
         $quotation->update(['status' => $request->status]);
 
         return back()->with('success', 'تم تحديث حالة عرض السعر بنجاح.');
+    }
+
+    public function approve(Request $request, Quotation $quotation)
+    {
+        $user = $request->user();
+        abort_unless(
+            $user?->hasAnyRole(User::ROLE_ADMIN, User::ROLE_GENERAL_MANAGER, User::ROLE_MANAGER),
+            403
+        );
+
+        try {
+            app(\App\Services\QuotationToOrderService::class)->approveQuotation($quotation, $user);
+        } catch (\RuntimeException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        return back()->with('success', 'تم اعتماد عرض السعر. الطلب بانتظار اعتماد المحاسب قبل ظهوره في الطلبات.');
+    }
+
+    public function accountantApprove(Request $request, Quotation $quotation)
+    {
+        $user = $request->user();
+        abort_unless(
+            $user?->hasAnyRole(User::ROLE_ADMIN, User::ROLE_ACCOUNTS),
+            403
+        );
+
+        try {
+            app(\App\Services\QuotationToOrderService::class)->releaseByAccountant($quotation, $user);
+        } catch (\RuntimeException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        return back()->with('success', 'تم اعتماد المحاسب. الطلب ظهر في الطلبات وصدر أمر العمل.');
+    }
+
+    private function appendApprovalMeta(Quotation $quotation, ?User $user): void
+    {
+        $quotation->loadMissing('order');
+
+        $stage = $quotation->approvalStage();
+        $hasItems = $quotation->relationLoaded('items')
+            ? $quotation->items->isNotEmpty()
+            : ((int) ($quotation->items_count ?? 0) > 0);
+
+        $quotation->setAttribute('approval_stage', $stage);
+        $quotation->setAttribute('order_number', $quotation->order?->order_number);
+        $quotation->unsetRelation('order');
+        $quotation->setAttribute(
+            'can_approve',
+            $user
+                && $user->hasAnyRole(User::ROLE_ADMIN, User::ROLE_GENERAL_MANAGER, User::ROLE_MANAGER)
+                && $stage === 'pending_approval'
+                && $hasItems
+        );
+        $quotation->setAttribute(
+            'can_accountant_approve',
+            $user
+                && $user->hasAnyRole(User::ROLE_ADMIN, User::ROLE_ACCOUNTS)
+                && $stage === 'pending_accountant'
+                && $hasItems
+        );
     }
 }

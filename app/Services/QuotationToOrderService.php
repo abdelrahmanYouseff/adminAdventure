@@ -102,7 +102,10 @@ class QuotationToOrderService
             $this->syncQuotationPaidFromOrder($locked);
             $this->markQuotationAcceptedFromOrder($locked);
 
-            app(WorkerOrderSyncService::class)->syncFromOrder($locked->fresh());
+            $fresh = $locked->fresh();
+            if ($fresh?->isReleasedToOperations()) {
+                app(WorkerOrderSyncService::class)->syncFromOrder($fresh);
+            }
         });
     }
 
@@ -226,10 +229,94 @@ class QuotationToOrderService
             return;
         }
 
-        Quotation::query()
-            ->whereKey($order->quotation_id)
-            ->whereIn('status', ['draft', 'sent'])
-            ->update(['status' => 'accepted']);
+        $quotation = Quotation::query()->lockForUpdate()->find($order->quotation_id);
+        if (! $quotation || in_array($quotation->status, ['rejected', 'expired'], true)) {
+            return;
+        }
+
+        $quotation->status = 'accepted';
+        if (blank($quotation->approved_at)) {
+            $quotation->approved_at = now();
+        }
+        $quotation->save();
+    }
+
+    /**
+     * Manager / admin accepts the quotation. A linked order is created but
+     * stays off the orders page until the accountant releases it.
+     */
+    public function approveQuotation(Quotation $quotation, User $actor): Order
+    {
+        $quotation->loadMissing('items');
+
+        if (in_array($quotation->status, ['rejected', 'expired'], true)) {
+            throw new RuntimeException('لا يمكن اعتماد عرض سعر مرفوض أو منتهٍ.');
+        }
+
+        if ($quotation->items->isEmpty()) {
+            throw new RuntimeException('لا يمكن اعتماد عرض سعر بدون بنود.');
+        }
+
+        return DB::transaction(function () use ($quotation, $actor) {
+            $locked = Quotation::query()->lockForUpdate()->findOrFail($quotation->id);
+            $locked->loadMissing('items');
+
+            $order = $this->ensureOrder($locked, $actor);
+
+            $locked->status = 'accepted';
+            if (blank($locked->approved_at)) {
+                $locked->approved_at = now();
+                $locked->approved_by = $actor->id;
+            }
+            $locked->save();
+
+            return $order->fresh();
+        });
+    }
+
+    /**
+     * Accountant release: the order appears on /orders and a work order is issued.
+     */
+    public function releaseByAccountant(Quotation $quotation, User $actor): Order
+    {
+        $quotation->loadMissing('items');
+
+        if (! $quotation->isManagerApproved()) {
+            throw new RuntimeException('يجب اعتماد عرض السعر أولاً قبل اعتماد المحاسب.');
+        }
+
+        if ($quotation->items->isEmpty()) {
+            throw new RuntimeException('لا يمكن تحويل عرض سعر بدون بنود إلى طلب.');
+        }
+
+        return DB::transaction(function () use ($quotation, $actor) {
+            $locked = Quotation::query()->lockForUpdate()->findOrFail($quotation->id);
+            $locked->loadMissing('items');
+
+            $order = $this->ensureOrder($locked, $actor);
+
+            if (blank($order->operations_released_at)) {
+                $order->operations_released_at = now();
+                $order->operations_released_by = $actor->id;
+                $order->save();
+            }
+
+            $locked->status = 'accepted';
+            if (blank($locked->approved_at)) {
+                $locked->approved_at = now();
+                $locked->approved_by = $actor->id;
+            }
+            if (blank($locked->accountant_approved_at)) {
+                $locked->accountant_approved_at = now();
+                $locked->accountant_approved_by = $actor->id;
+            }
+            $locked->save();
+
+            $fresh = $order->fresh();
+            app(WorkerOrderSyncService::class)->syncFromOrder($fresh);
+
+            return $fresh;
+        });
     }
 
     private function createOrderFromQuotation(Quotation $quotation, ?User $actor): Order

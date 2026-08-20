@@ -329,7 +329,7 @@ class WorkOrderPresenter
 
         abort_unless($order, 404);
 
-        if (! $order->workerOrders()->exists() && $order->hasApprovedPaymentReceipt()) {
+        if (! $order->workerOrders()->exists() && $order->shouldReleaseWorkOrders()) {
             $syncService->syncFromOrder($order->fresh());
             $order->unsetRelation('workerOrders');
         }

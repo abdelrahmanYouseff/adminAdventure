@@ -11,7 +11,9 @@ import {
 } from '@/components/ui/dropdown-menu';
 import {
     ArrowUpRight,
+    BadgeCheck,
     Building2,
+    Check,
     ChevronLeft,
     ChevronRight,
     Download,
@@ -39,6 +41,10 @@ interface Quotation {
     customer_phone?: string | null;
     total_amount: number | string;
     status: string;
+    approval_stage?: string;
+    can_approve?: boolean;
+    can_accountant_approve?: boolean;
+    order_number?: string | null;
     valid_until: string | null;
     created_at: string;
     brand?: Brand | null;
@@ -47,7 +53,7 @@ interface Quotation {
     } | null;
 }
 
-type StatusTab = 'all' | 'draft' | 'sent' | 'accepted' | 'rejected' | 'expired';
+type StatusTab = 'all' | 'draft' | 'sent' | 'accepted' | 'pending_accountant' | 'rejected' | 'expired';
 
 interface Props {
     quotations: {
@@ -82,6 +88,7 @@ const props = withDefaults(defineProps<Props>(), {
         draft: 0,
         sent: 0,
         accepted: 0,
+        pending_accountant: 0,
         rejected: 0,
         expired: 0,
     }),
@@ -91,6 +98,7 @@ defineOptions({ layout: AppLayout });
 
 const page = usePage();
 const successMessage = computed(() => page.props.flash?.success as string | undefined);
+const errorMessage = computed(() => page.props.flash?.error as string | undefined);
 
 const searchInput = ref(props.filters?.search ?? '');
 const statusFilter = ref<StatusTab>(props.filters?.status ?? 'all');
@@ -102,6 +110,7 @@ const statusTabs: { key: StatusTab; label: string }[] = [
     { key: 'draft', label: 'مسودة' },
     { key: 'sent', label: 'مرسل' },
     { key: 'accepted', label: 'مقبول' },
+    { key: 'pending_accountant', label: 'بانتظار المحاسب' },
     { key: 'rejected', label: 'مرفوض' },
     { key: 'expired', label: 'منتهي' },
 ];
@@ -138,6 +147,13 @@ const summaryCards = computed(() => [
         value: props.statusCounts.accepted,
         unit: 'عرض',
         hint: 'عرض المقبولة',
+    },
+    {
+        key: 'pending_accountant' as const,
+        label: 'بانتظار المحاسب',
+        value: props.statusCounts.pending_accountant ?? 0,
+        unit: 'عرض',
+        hint: 'معتمدة وبانتظار المحاسب',
     },
 ]);
 
@@ -249,7 +265,13 @@ function toggleSelect(id: number) {
     selectedIds.value = [...selectedIds.value, id];
 }
 
-function getStatusText(status: string): string {
+function getStatusText(quotation: Quotation): string {
+    if (quotation.approval_stage === 'pending_accountant') {
+        return 'بانتظار المحاسب';
+    }
+    if (quotation.approval_stage === 'released') {
+        return 'في الطلبات';
+    }
     const map: Record<string, string> = {
         draft: 'مسودة',
         sent: 'مرسل',
@@ -257,18 +279,35 @@ function getStatusText(status: string): string {
         rejected: 'مرفوض',
         expired: 'منتهي',
     };
-    return map[status] || status;
+    return map[quotation.status] || quotation.status;
 }
 
-function statusBadgeClass(status: string): string {
+function statusBadgeClass(quotation: Quotation): string {
+    const stage = quotation.approval_stage || quotation.status;
     const map: Record<string, string> = {
         draft: 'bg-gray-100 text-gray-600 ring-1 ring-inset ring-gray-200 dark:bg-neutral-800 dark:text-neutral-300 dark:ring-neutral-700',
         sent: 'bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-100 dark:bg-blue-950/40 dark:text-blue-300 dark:ring-blue-900/50',
         accepted: 'bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-300 dark:ring-emerald-900/50',
+        pending_accountant: 'bg-amber-50 text-amber-800 ring-1 ring-inset ring-amber-100 dark:bg-amber-950/40 dark:text-amber-300 dark:ring-amber-900/50',
+        released: 'bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-300 dark:ring-emerald-900/50',
         rejected: 'bg-red-50 text-red-700 ring-1 ring-inset ring-red-100 dark:bg-red-950/40 dark:text-red-300 dark:ring-red-900/50',
         expired: 'bg-amber-50 text-amber-800 ring-1 ring-inset ring-amber-100 dark:bg-amber-950/40 dark:text-amber-300 dark:ring-amber-900/50',
     };
-    return map[status] || 'bg-gray-100 text-gray-700 ring-1 ring-inset ring-gray-200';
+    return map[stage] || 'bg-gray-100 text-gray-700 ring-1 ring-inset ring-gray-200';
+}
+
+function approveQuotation(quotation: Quotation) {
+    if (!confirm('اعتماد عرض السعر؟ سيتحول إلى طلب، ولن يظهر في صفحة الطلبات حتى يعتمد المحاسب.')) {
+        return;
+    }
+    router.post(route('quotations.approve', quotation.id), {}, { preserveScroll: true });
+}
+
+function accountantApprove(quotation: Quotation) {
+    if (!confirm('اعتماد المحاسب؟ سيظهر الطلب في الطلبات ويُصدر أمر العمل.')) {
+        return;
+    }
+    router.post(route('quotations.accountant-approve', quotation.id), {}, { preserveScroll: true });
 }
 
 function deleteQuotation(quotation: Quotation) {
@@ -297,7 +336,7 @@ function quotationPdfUrl(id: number): string {
                 <p class="mt-1 text-sm text-gray-500 dark:text-neutral-400">
                     {{ selectedBrand
                         ? `عرض عروض الأسعار الخاصة ببراند ${selectedBrand.name}`
-                        : 'إدارة ومتابعة طلبات عروض الأسعار' }}
+                        : 'اعتماد العرض ثم اعتماد المحاسب قبل ظهور الطلب في الطلبات وإصدار أمر العمل' }}
                 </p>
             </div>
             <Link
@@ -315,8 +354,14 @@ function quotationPdfUrl(id: number): string {
         >
             {{ successMessage }}
         </p>
+        <p
+            v-if="errorMessage"
+            class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-800 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300"
+        >
+            {{ errorMessage }}
+        </p>
 
-        <div class="grid grid-cols-2 gap-3 xl:grid-cols-4 sm:gap-4">
+        <div class="grid grid-cols-2 gap-3 xl:grid-cols-5 sm:gap-4">
             <button
                 v-for="card in summaryCards"
                 :key="card.key"
@@ -428,12 +473,13 @@ function quotationPdfUrl(id: number): string {
                             <th class="px-3 py-3.5 text-start text-[13px] font-semibold text-gray-700 dark:text-neutral-200">صالح حتى</th>
                             <th class="px-3 py-3.5 text-start text-[13px] font-semibold text-gray-700 dark:text-neutral-200">أنشأه</th>
                             <th class="px-3 py-3.5 text-start text-[13px] font-semibold text-gray-700 dark:text-neutral-200">الحالة</th>
+                            <th class="px-3 py-3.5 text-start text-[13px] font-semibold text-gray-700 dark:text-neutral-200">الاعتماد</th>
                             <th class="px-4 py-3.5 text-end text-[13px] font-semibold text-gray-700 dark:text-neutral-200" />
                         </tr>
                     </thead>
                     <tbody>
                         <tr v-if="quotations.data.length === 0">
-                            <td colspan="8" class="px-4 py-16 text-center text-gray-500 dark:text-neutral-400">
+                            <td colspan="9" class="px-4 py-16 text-center text-gray-500 dark:text-neutral-400">
                                 {{ selectedBrand ? 'لا توجد عروض أسعار لهذا البراند.' : 'لا توجد عروض مطابقة للبحث أو الفلتر الحالي.' }}
                             </td>
                         </tr>
@@ -486,10 +532,45 @@ function quotationPdfUrl(id: number): string {
                             <td class="px-3 py-4">
                                 <span
                                     class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold"
-                                    :class="statusBadgeClass(quotation.status)"
+                                    :class="statusBadgeClass(quotation)"
                                 >
-                                    {{ getStatusText(quotation.status) }}
+                                    {{ getStatusText(quotation) }}
                                 </span>
+                            </td>
+                            <td class="px-3 py-4">
+                                <div class="flex flex-wrap items-center gap-2">
+                                    <button
+                                        v-if="quotation.can_approve"
+                                        type="button"
+                                        class="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-2.5 py-1.5 text-xs font-semibold text-white transition hover:bg-emerald-700"
+                                        @click="approveQuotation(quotation)"
+                                    >
+                                        <Check class="size-3.5" />
+                                        اعتماد
+                                    </button>
+                                    <button
+                                        v-else-if="quotation.can_accountant_approve"
+                                        type="button"
+                                        class="inline-flex items-center gap-1.5 rounded-lg bg-amber-600 px-2.5 py-1.5 text-xs font-semibold text-white transition hover:bg-amber-700"
+                                        @click="accountantApprove(quotation)"
+                                    >
+                                        <BadgeCheck class="size-3.5" />
+                                        اعتماد المحاسب
+                                    </button>
+                                    <span
+                                        v-else-if="quotation.approval_stage === 'released'"
+                                        class="text-xs text-emerald-700 dark:text-emerald-300"
+                                    >
+                                        {{ quotation.order_number || 'تم التحويل' }}
+                                    </span>
+                                    <span
+                                        v-else-if="quotation.approval_stage === 'pending_accountant'"
+                                        class="text-xs text-amber-700 dark:text-amber-300"
+                                    >
+                                        بانتظار المحاسب
+                                    </span>
+                                    <span v-else class="text-xs text-gray-400">—</span>
+                                </div>
                             </td>
                             <td class="px-4 py-4">
                                 <div class="flex justify-end">
@@ -521,7 +602,23 @@ function quotationPdfUrl(id: number): string {
                                                 <Pencil class="size-4" />
                                                 تعديل
                                             </DropdownMenuItem>
-                                            <DropdownMenuSeparator />
+                                            <DropdownMenuItem
+                                                v-if="quotation.can_approve"
+                                                class="gap-2"
+                                                @click="approveQuotation(quotation)"
+                                            >
+                                                <Check class="size-4" />
+                                                اعتماد عرض السعر
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem
+                                                v-if="quotation.can_accountant_approve"
+                                                class="gap-2"
+                                                @click="accountantApprove(quotation)"
+                                            >
+                                                <BadgeCheck class="size-4" />
+                                                اعتماد المحاسب
+                                            </DropdownMenuItem>
+                                            <DropdownMenuSeparator v-if="quotation.can_approve || quotation.can_accountant_approve" />
                                             <DropdownMenuItem
                                                 class="gap-2 text-red-600 focus:text-red-600"
                                                 @click="deleteQuotation(quotation)"

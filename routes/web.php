@@ -418,6 +418,14 @@ Route::patch('quotations/{quotation}/status', [QuotationController::class, 'upda
     ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,accounts'])
     ->name('quotations.update-status');
 
+Route::post('quotations/{quotation}/approve', [QuotationController::class, 'approve'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager'])
+    ->name('quotations.approve');
+
+Route::post('quotations/{quotation}/accountant-approve', [QuotationController::class, 'accountantApprove'])
+    ->middleware(['auth', 'verified', 'role:admin,accounts'])
+    ->name('quotations.accountant-approve');
+
 // Orders Routes
 Route::get('orders', [OrderController::class, 'index'])
     ->middleware(['auth', 'verified', 'role:admin,general_manager,manager'])

@@ -19,6 +19,8 @@ class Order extends Model
         'dismantling_at',
         'invoice_id',
         'quotation_id',
+        'operations_released_at',
+        'operations_released_by',
         'order_number',
         'location_slug',
         'total_amount',
@@ -72,6 +74,7 @@ class Order extends Model
         'whatsapp_notified_at' => 'datetime',
         'insurance_refunded_at' => 'datetime',
         'insurance_refund_requested_at' => 'datetime',
+        'operations_released_at' => 'datetime',
         'work_order_approved_at' => 'datetime',
         'warehouse_returned_at' => 'datetime',
         'warehouse_keeper_approved_at' => 'datetime',
@@ -187,6 +190,45 @@ class Order extends Model
     public function quotation()
     {
         return $this->belongsTo(Quotation::class);
+    }
+
+    public function operationsReleasedBy()
+    {
+        return $this->belongsTo(User::class, 'operations_released_by');
+    }
+
+    /**
+     * Direct store orders are always visible. Quotation-originated orders
+     * stay off the orders / work-order lists until the accountant releases them.
+     */
+    public function isReleasedToOperations(): bool
+    {
+        if (! $this->quotation_id) {
+            return true;
+        }
+
+        return filled($this->operations_released_at);
+    }
+
+    public function shouldReleaseWorkOrders(): bool
+    {
+        if ($this->quotation_id) {
+            return filled($this->operations_released_at);
+        }
+
+        return $this->hasApprovedPaymentReceipt();
+    }
+
+    /**
+     * @param  \Illuminate\Database\Eloquent\Builder<Order>  $query
+     * @return \Illuminate\Database\Eloquent\Builder<Order>
+     */
+    public function scopeReleasedToOperations($query)
+    {
+        return $query->where(function ($inner) {
+            $inner->whereNull('quotation_id')
+                ->orWhereNotNull('operations_released_at');
+        });
     }
 
     /**

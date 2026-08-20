@@ -36,6 +36,7 @@ class SidebarNavBadges
     public static function openWorkOrdersCount(): int
     {
         return Order::query()
+            ->releasedToOperations()
             ->whereHas('workerOrders')
             ->whereNull('work_order_approved_at')
             ->whereNotIn('status', ['cancelled', 'refunded'])

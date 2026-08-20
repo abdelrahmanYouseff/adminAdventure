@@ -32,6 +32,10 @@ class Quotation extends Model
         'payment_token',
         'status',
         'user_id',
+        'approved_at',
+        'approved_by',
+        'accountant_approved_at',
+        'accountant_approved_by',
     ];
 
     protected $casts = [
@@ -47,6 +51,8 @@ class Quotation extends Model
         'amount_paid' => 'decimal:2',
         'show_online_payment' => 'boolean',
         'terms' => 'array',
+        'approved_at' => 'datetime',
+        'accountant_approved_at' => 'datetime',
     ];
 
     public function amountDue(): float
@@ -106,6 +112,56 @@ class Quotation extends Model
     public function order(): \Illuminate\Database\Eloquent\Relations\HasOne
     {
         return $this->hasOne(Order::class);
+    }
+
+    public function approvedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'approved_by');
+    }
+
+    public function accountantApprovedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'accountant_approved_by');
+    }
+
+    public function isManagerApproved(): bool
+    {
+        return filled($this->approved_at) || $this->status === 'accepted';
+    }
+
+    public function isAccountantApproved(): bool
+    {
+        if (filled($this->accountant_approved_at)) {
+            return true;
+        }
+
+        $order = $this->relationLoaded('order') ? $this->order : $this->order()->first();
+
+        return filled($order?->operations_released_at);
+    }
+
+    /**
+     * pending_approval | pending_accountant | released | rejected | expired
+     */
+    public function approvalStage(): string
+    {
+        if ($this->status === 'rejected') {
+            return 'rejected';
+        }
+
+        if ($this->status === 'expired') {
+            return 'expired';
+        }
+
+        if ($this->isAccountantApproved()) {
+            return 'released';
+        }
+
+        if ($this->isManagerApproved()) {
+            return 'pending_accountant';
+        }
+
+        return 'pending_approval';
     }
 
     protected static function boot()

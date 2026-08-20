@@ -26,7 +26,9 @@ class OrderController extends Controller
         $perPage = (int) $request->query('per_page', 15);
         $perPage = in_array($perPage, [10, 15, 25, 50], true) ? $perPage : 15;
 
-        $query = Order::with([
+        $query = Order::query()
+            ->releasedToOperations()
+            ->with([
             'user',
             'invoice',
             'products',
@@ -127,6 +129,7 @@ class OrderController extends Controller
         });
 
         $statusCountsBase = Order::query()
+            ->releasedToOperations()
             ->when($currency !== 'all' && in_array($currency, ['SAR', 'USD', 'EUR'], true), fn ($q) => $q->where('currency', $currency));
 
         $statusCounts = [
@@ -153,6 +156,8 @@ class OrderController extends Controller
 
     public function show(Order $order)
     {
+        abort_unless($order->isReleasedToOperations(), 404);
+
         $order->load([
             'user',
             'invoice',
@@ -198,6 +203,8 @@ class OrderController extends Controller
 
     public function edit(Order $order)
     {
+        abort_unless($order->isReleasedToOperations(), 404);
+
         $user = request()->user();
         if (! $user || ! $user->hasAnyRole(User::ROLE_ADMIN, User::ROLE_GENERAL_MANAGER, User::ROLE_MANAGER)) {
             abort(403);

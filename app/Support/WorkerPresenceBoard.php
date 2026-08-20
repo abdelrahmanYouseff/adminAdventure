@@ -116,7 +116,7 @@ class WorkerPresenceBoard
 
         foreach ($workers as $worker) {
             $isOnline = filled($worker->last_seen_at)
-                && $worker->last_seen_at->gte(now()->subMinutes(self::ONLINE_MINUTES));
+                && $worker->last_seen_at->gte(now()->subMinutes(User::ONLINE_MINUTES));
 
             $installation = $byWorker[$worker->id]['installation'] ?? null;
             $dismantling = $byWorker[$worker->id]['dismantling'] ?? null;

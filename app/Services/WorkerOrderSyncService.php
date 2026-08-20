@@ -75,12 +75,11 @@ class WorkerOrderSyncService
     }
 
     /**
-     * Work orders are released once the accountant approves at least one
-     * payment receipt — even a partial one — regardless of whether the order
-     * is fully paid yet.
+     * Quotation orders wait for accountant release. Direct orders wait for
+     * at least one approved payment receipt.
      */
     private function shouldCreateWorkOrders(Order $order): bool
     {
-        return $order->hasApprovedPaymentReceipt();
+        return $order->shouldReleaseWorkOrders();
     }
 }

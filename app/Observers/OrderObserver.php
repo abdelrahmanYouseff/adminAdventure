@@ -35,6 +35,7 @@ class OrderObserver
             || $order->wasChanged('activity_date')
             || $order->wasChanged('customer_name')
             || $order->wasChanged('address')
+            || $order->wasChanged('operations_released_at')
         ) {
             if ($this->shouldNotify($order)) {
                 $this->dispatchNotification($order);
@@ -95,7 +96,7 @@ class OrderObserver
      */
     private function shouldCreateWorkOrders(Order $order): bool
     {
-        return $order->hasApprovedPaymentReceipt();
+        return $order->shouldReleaseWorkOrders();
     }
 
     private function syncWorkerOrders(Order $order): void

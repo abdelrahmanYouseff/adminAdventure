@@ -23,7 +23,7 @@ import {
     EyeOff,
 } from 'lucide-vue-next';
 import Swal from 'sweetalert2';
-import { formatDate, formatInteger } from '@/lib/formatNumber';
+import { formatDate, formatDateTime, formatInteger } from '@/lib/formatNumber';
 import type { StaffRole } from '@/types';
 
 interface User {
@@ -35,10 +35,13 @@ interface User {
     address: string | null;
     role: StaffRole;
     created_at: string;
+    last_seen_at?: string | null;
+    is_online?: boolean;
 }
 
 type RoleTab = 'all' | StaffRole;
 type DateFilter = 'all' | '7' | '30';
+type PresenceFilter = 'all' | 'online' | 'offline';
 
 const roleLabels: Record<StaffRole, string> = {
     admin: 'ادمن',
@@ -88,6 +91,7 @@ const canImpersonate = computed(() => authUser.value?.role === 'admin' && !isImp
 const activeTab = ref<RoleTab>('all');
 const searchQuery = ref('');
 const dateFilter = ref<DateFilter>('all');
+const presenceFilter = ref<PresenceFilter>('all');
 const showFilters = ref(false);
 const currentPage = ref(1);
 const perPage = 10;
@@ -115,6 +119,14 @@ const filteredUsers = computed(() => {
 
     return props.users.filter((user) => {
         if (activeTab.value !== 'all' && user.role !== activeTab.value) {
+            return false;
+        }
+
+        if (presenceFilter.value === 'online' && !user.is_online) {
+            return false;
+        }
+
+        if (presenceFilter.value === 'offline' && user.is_online) {
             return false;
         }
 
@@ -188,7 +200,7 @@ const allVisibleSelected = computed(
     () => paginatedUsers.value.length > 0 && paginatedUsers.value.every((user) => selectedIds.value.includes(user.id)),
 );
 
-watch([activeTab, searchQuery, dateFilter], () => {
+watch([activeTab, searchQuery, dateFilter, presenceFilter], () => {
     currentPage.value = 1;
     selectedIds.value = [];
 });
@@ -205,6 +217,9 @@ function tabCount(tab: RoleTab): number {
     }
     return props.users.filter((user) => user.role === tab).length;
 }
+
+const onlineCount = computed(() => props.users.filter((user) => user.is_online).length);
+const offlineCount = computed(() => props.users.length - onlineCount.value);
 
 function toggleSelectAll() {
     if (allVisibleSelected.value) {
@@ -403,6 +418,41 @@ async function impersonateUser(user: User) {
                         </select>
                         <CalendarDays class="pointer-events-none absolute start-3.5 top-1/2 size-4 -translate-y-1/2 text-gray-400" />
                     </div>
+
+                    <div class="flex gap-1.5">
+                        <button
+                            type="button"
+                            class="inline-flex h-10 items-center gap-1.5 rounded-full px-3 text-xs font-semibold transition"
+                            :class="presenceFilter === 'all'
+                                ? 'bg-slate-900 text-white'
+                                : 'border border-gray-200 text-gray-600 hover:bg-gray-50 dark:border-neutral-700 dark:text-neutral-300'"
+                            @click="presenceFilter = 'all'"
+                        >
+                            الكل
+                        </button>
+                        <button
+                            type="button"
+                            class="inline-flex h-10 items-center gap-1.5 rounded-full px-3 text-xs font-semibold transition"
+                            :class="presenceFilter === 'online'
+                                ? 'bg-emerald-600 text-white'
+                                : 'border border-gray-200 text-gray-600 hover:bg-gray-50 dark:border-neutral-700 dark:text-neutral-300'"
+                            @click="presenceFilter = 'online'"
+                        >
+                            <span class="size-1.5 rounded-full bg-current" />
+                            أونلاين {{ formatInteger(onlineCount) }}
+                        </button>
+                        <button
+                            type="button"
+                            class="inline-flex h-10 items-center gap-1.5 rounded-full px-3 text-xs font-semibold transition"
+                            :class="presenceFilter === 'offline'
+                                ? 'bg-slate-500 text-white'
+                                : 'border border-gray-200 text-gray-600 hover:bg-gray-50 dark:border-neutral-700 dark:text-neutral-300'"
+                            @click="presenceFilter = 'offline'"
+                        >
+                            <span class="size-1.5 rounded-full bg-current" />
+                            أوفلاين {{ formatInteger(offlineCount) }}
+                        </button>
+                    </div>
                 </div>
 
                 <p class="text-xs text-gray-400 sm:text-sm">
@@ -430,7 +480,7 @@ async function impersonateUser(user: User) {
             </div>
 
             <div class="overflow-x-auto">
-                <table class="w-full min-w-[920px] border-collapse text-sm">
+                <table class="w-full min-w-[1040px] border-collapse text-sm">
                     <thead>
                         <tr class="border-b border-gray-100 text-start dark:border-neutral-800">
                             <th class="w-12 px-4 py-3.5">
@@ -442,6 +492,7 @@ async function impersonateUser(user: User) {
                                 />
                             </th>
                             <th class="px-3 py-3.5 text-start text-[13px] font-semibold text-gray-700 dark:text-neutral-200">الاسم</th>
+                            <th class="px-3 py-3.5 text-start text-[13px] font-semibold text-gray-700 dark:text-neutral-200">الحالة</th>
                             <th class="px-3 py-3.5 text-start text-[13px] font-semibold text-gray-700 dark:text-neutral-200">البريد</th>
                             <th class="px-3 py-3.5 text-start text-[13px] font-semibold text-gray-700 dark:text-neutral-200">الهاتف</th>
                             <th class="px-3 py-3.5 text-start text-[13px] font-semibold text-gray-700 dark:text-neutral-200">البلد</th>
@@ -453,7 +504,7 @@ async function impersonateUser(user: User) {
                     </thead>
                     <tbody>
                         <tr v-if="paginatedUsers.length === 0">
-                            <td colspan="9" class="px-4 py-16 text-center text-gray-500 dark:text-neutral-400">
+                            <td colspan="10" class="px-4 py-16 text-center text-gray-500 dark:text-neutral-400">
                                 لا يوجد مستخدمون مطابقون للبحث أو الفلتر الحالي.
                             </td>
                         </tr>
@@ -472,6 +523,25 @@ async function impersonateUser(user: User) {
                             </td>
                             <td class="px-3 py-4">
                                 <span class="font-semibold text-gray-900 dark:text-white">{{ user.name }}</span>
+                            </td>
+                            <td class="px-3 py-4">
+                                <div class="flex flex-col items-start gap-1">
+                                    <span
+                                        class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold"
+                                        :class="user.is_online
+                                            ? 'bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-300 dark:ring-emerald-900/50'
+                                            : 'bg-slate-100 text-slate-500 ring-1 ring-inset ring-slate-200 dark:bg-neutral-800 dark:text-neutral-400 dark:ring-neutral-700'"
+                                    >
+                                        <span
+                                            class="size-1.5 rounded-full"
+                                            :class="user.is_online ? 'bg-emerald-500' : 'bg-slate-400'"
+                                        />
+                                        {{ user.is_online ? 'أونلاين' : 'أوفلاين' }}
+                                    </span>
+                                    <span v-if="user.last_seen_at && !user.is_online" class="text-[11px] text-slate-400" dir="ltr">
+                                        {{ formatDateTime(user.last_seen_at) }}
+                                    </span>
+                                </div>
                             </td>
                             <td class="px-3 py-4 text-gray-600 dark:text-neutral-300">
                                 <div class="flex items-center gap-2" dir="ltr">

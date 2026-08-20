@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Head, Link, useForm } from '@inertiajs/vue3';
+import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -8,8 +8,10 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import {
     ArrowRight,
+    BadgeCheck,
     Building2,
     Calendar,
+    Check,
     FileSpreadsheet,
     Link2,
     Mail,
@@ -94,6 +96,10 @@ interface QuotationRecord {
         total_price: number | string;
         product?: Product | null;
     }>;
+    approval_stage?: string;
+    can_approve?: boolean;
+    can_accountant_approve?: boolean;
+    order_number?: string | null;
 }
 
 interface QuotationTerm {
@@ -114,6 +120,24 @@ const props = withDefaults(defineProps<Props>(), {
     selectedBrand: null,
     defaultTerms: () => [],
 });
+
+const page = usePage();
+const successMessage = computed(() => page.props.flash?.success as string | undefined);
+const errorMessage = computed(() => page.props.flash?.error as string | undefined);
+
+function approveQuotation() {
+    if (!confirm('اعتماد عرض السعر؟ سيتحول إلى طلب، ولن يظهر في صفحة الطلبات حتى يعتمد المحاسب.')) {
+        return;
+    }
+    router.post(route('quotations.approve', props.quotation.id), {}, { preserveScroll: true });
+}
+
+function accountantApprove() {
+    if (!confirm('اعتماد المحاسب؟ سيظهر الطلب في الطلبات ويُصدر أمر العمل.')) {
+        return;
+    }
+    router.post(route('quotations.accountant-approve', props.quotation.id), {}, { preserveScroll: true });
+}
 
 function toDateInput(value: string | null | undefined): string {
     if (!value) return '';
@@ -494,10 +518,40 @@ watch(
                         <p class="mt-1 text-sm text-muted-foreground">
                             {{ quotation.quotation_number }}
                             <template v-if="selectedBrand"> — {{ selectedBrand.name }}</template>
+                            <span
+                                v-if="quotation.approval_stage === 'pending_accountant'"
+                                class="ms-2 inline-flex rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-800"
+                            >
+                                بانتظار المحاسب
+                            </span>
+                            <span
+                                v-else-if="quotation.approval_stage === 'released'"
+                                class="ms-2 inline-flex rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700"
+                            >
+                                {{ quotation.order_number || 'في الطلبات' }}
+                            </span>
                         </p>
                     </div>
                 </div>
                 <div class="flex flex-wrap gap-2 self-start">
+                    <Button
+                        v-if="quotation.can_approve"
+                        type="button"
+                        class="shrink-0 gap-2 bg-emerald-600 hover:bg-emerald-700"
+                        @click="approveQuotation"
+                    >
+                        <Check class="h-4 w-4" />
+                        اعتماد عرض السعر
+                    </Button>
+                    <Button
+                        v-else-if="quotation.can_accountant_approve"
+                        type="button"
+                        class="shrink-0 gap-2 bg-amber-600 hover:bg-amber-700"
+                        @click="accountantApprove"
+                    >
+                        <BadgeCheck class="h-4 w-4" />
+                        اعتماد المحاسب
+                    </Button>
                     <Button as-child variant="outline" class="shrink-0 gap-2">
                         <Link :href="route('quotations.index')">
                             <ArrowRight class="h-4 w-4" />
@@ -506,6 +560,19 @@ watch(
                     </Button>
                 </div>
             </div>
+
+            <p
+                v-if="successMessage"
+                class="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm font-medium text-green-800 dark:border-green-900/50 dark:bg-green-950/30 dark:text-green-300"
+            >
+                {{ successMessage }}
+            </p>
+            <p
+                v-if="errorMessage"
+                class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-800 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300"
+            >
+                {{ errorMessage }}
+            </p>
 
             <!-- Errors -->
             <div
@@ -1209,7 +1276,7 @@ watch(
                                     placeholder="0.00"
                                 />
                                 <p class="text-xs text-muted-foreground">
-                                    أدخل المبلغ الذي دفعه العميل. عند الحفظ يُنشأ سند قبض تلقائياً، وبعد اعتماد المحاسب يتحول العرض لطلب وأمر عمل.
+                                    أدخل المبلغ الذي دفعه العميل. عند الحفظ يُنشأ سند قبض تلقائياً. اعتماد عرض السعر ينشئ طلباً مخفياً، وبعد اعتماد المحاسب يظهر في الطلبات ويُصدر أمر العمل.
                                 </p>
                                 <p v-if="form.errors.amount_paid" class="text-xs text-rose-600">{{ form.errors.amount_paid }}</p>
                                 <div class="flex items-center justify-between border-t border-border/60 pt-3 text-sm">

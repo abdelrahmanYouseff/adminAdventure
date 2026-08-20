@@ -484,6 +484,7 @@ class WorkerOrderController extends Controller
     ): array
     {
         $query = Order::query()
+            ->releasedToOperations()
             ->when(! $warehouseView, fn ($q) => $q->whereHas('workerOrders'))
             ->with([
                 'invoice:id,invoice_number',
@@ -573,12 +574,12 @@ class WorkerOrderController extends Controller
     private function workOrderStats(): array
     {
         return [
-            'pending' => Order::whereHas('workerOrders', fn ($q) => $q->where('status', 'pending'))->count(),
-            'completed' => Order::whereHas('workerOrders')
+            'pending' => Order::query()->releasedToOperations()->whereHas('workerOrders', fn ($q) => $q->where('status', 'pending'))->count(),
+            'completed' => Order::query()->releasedToOperations()->whereHas('workerOrders')
                 ->whereDoesntHave('workerOrders', fn ($q) => $q->where('status', 'pending'))
                 ->count(),
             'warehouse' => $this->warehouseOrdersQuery()->count(),
-            'total' => Order::whereHas('workerOrders')->count(),
+            'total' => Order::query()->releasedToOperations()->whereHas('workerOrders')->count(),
         ];
     }
 

@@ -33,6 +33,8 @@ class OrderJourneyController extends Controller
 
     public function show(Order $order): Response
     {
+        abort_unless($order->isReleasedToOperations(), 404);
+
         $this->loadJourneyRelations($order);
 
         return Inertia::render('OrderJourney/Show', [
@@ -45,7 +47,7 @@ class OrderJourneyController extends Controller
      */
     private function filteredQuery(string $search, string $stage)
     {
-        $query = Order::query()->with($this->summaryRelations());
+        $query = Order::query()->releasedToOperations()->with($this->summaryRelations());
 
         if ($search !== '') {
             $query->where(function ($builder) use ($search) {

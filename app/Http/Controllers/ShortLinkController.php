@@ -53,7 +53,7 @@ class ShortLinkController extends Controller
         $order = $link->order;
         abort_unless($order, 404);
 
-        if (! $order->workerOrders()->exists() && $order->hasApprovedPaymentReceipt()) {
+        if (! $order->workerOrders()->exists() && $order->shouldReleaseWorkOrders()) {
             $syncService->syncFromOrder($order->fresh());
         }
 

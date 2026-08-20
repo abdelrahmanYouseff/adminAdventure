@@ -1391,7 +1391,7 @@ watch(
                                     placeholder="0.00"
                                 />
                                 <p class="text-xs text-muted-foreground">
-                                    أدخل المبلغ الذي دفعه العميل. عند الحفظ يُنشأ سند قبض تلقائياً، وبعد اعتماد المحاسب يتحول العرض لطلب وأمر عمل.
+                                    أدخل المبلغ الذي دفعه العميل. عند الحفظ يُنشأ سند قبض تلقائياً. اعتماد عرض السعر ينشئ طلباً مخفياً، وبعد اعتماد المحاسب يظهر في الطلبات ويُصدر أمر العمل.
                                 </p>
                                 <p v-if="form.errors.amount_paid" class="text-xs text-rose-600">{{ form.errors.amount_paid }}</p>
                                 <div class="flex items-center justify-between border-t border-border/60 pt-3 text-sm">

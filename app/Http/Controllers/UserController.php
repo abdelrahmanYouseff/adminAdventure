@@ -14,7 +14,18 @@ class UserController extends Controller
         $users = User::query()
             ->whereIn('role', User::STAFF_ROLES)
             ->orderBy('created_at', 'desc')
-            ->get();
+            ->get()
+            ->map(fn (User $user) => [
+                'id' => $user->id,
+                'name' => $user->name,
+                'email' => $user->email,
+                'phone' => $user->phone,
+                'country' => $user->country,
+                'role' => $user->role,
+                'created_at' => $user->created_at?->toIso8601String(),
+                'last_seen_at' => $user->last_seen_at?->toIso8601String(),
+                'is_online' => $user->isOnline(),
+            ]);
 
         return Inertia::render('Users/Index', [
             'users' => $users,

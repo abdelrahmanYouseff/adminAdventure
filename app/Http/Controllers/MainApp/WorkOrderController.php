@@ -57,6 +57,7 @@ class WorkOrderController extends Controller
     private function paginatedWorkOrders(string $status, string $search = ''): array
     {
         $query = Order::query()
+            ->releasedToOperations()
             ->whereHas('workerOrders')
             ->with([
                 'invoice:id,invoice_number',
@@ -120,11 +121,11 @@ class WorkOrderController extends Controller
     private function workOrderStats(): array
     {
         return [
-            'pending' => Order::whereHas('workerOrders', fn ($q) => $q->where('status', 'pending'))->count(),
-            'completed' => Order::whereHas('workerOrders')
+            'pending' => Order::query()->releasedToOperations()->whereHas('workerOrders', fn ($q) => $q->where('status', 'pending'))->count(),
+            'completed' => Order::query()->releasedToOperations()->whereHas('workerOrders')
                 ->whereDoesntHave('workerOrders', fn ($q) => $q->where('status', 'pending'))
                 ->count(),
-            'total' => Order::whereHas('workerOrders')->count(),
+            'total' => Order::query()->releasedToOperations()->whereHas('workerOrders')->count(),
         ];
     }
 }

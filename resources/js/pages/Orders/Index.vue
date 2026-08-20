@@ -139,6 +139,7 @@ defineOptions({ layout: AppLayout });
 
 const page = usePage();
 const userRole = computed(() => (page.props.auth as { user?: { role?: string } } | undefined)?.user?.role ?? null);
+const isAdmin = computed(() => userRole.value === 'admin');
 const canCreateOrders = computed(() =>
     ['admin', 'general_manager', 'manager'].includes(userRole.value ?? ''),
 );
@@ -655,7 +656,7 @@ function locationMapsUrl(address: string | null): string | null {
             </Link>
         </div>
 
-        <div class="grid grid-cols-2 gap-3 xl:grid-cols-4 sm:gap-4">
+        <div v-if="isAdmin" class="grid grid-cols-2 gap-3 xl:grid-cols-4 sm:gap-4">
             <button
                 v-for="card in summaryCards"
                 :key="card.key"
