@@ -17,6 +17,7 @@ import {
     CalendarClock,
     CheckCircle2,
     ChevronDown,
+    Filter,
     MessageSquareText,
     PackageCheck,
     Search,
@@ -25,6 +26,7 @@ import {
     Users,
     UserX,
     Wrench,
+    X,
 } from 'lucide-vue-next';
 import Swal from 'sweetalert2';
 
@@ -88,14 +90,24 @@ interface WorkersBoard {
     };
 }
 
+interface AvailableWorker {
+    id: number;
+    name: string;
+}
+
 interface PaginatedReturns {
     data: ProductReturn[];
     links: { url: string | null; label: string; active: boolean }[];
+    total?: number;
 }
+
+type AssignmentFilter = 'all' | 'assigned' | 'unassigned';
+type UrgencyFilter = 'all' | 'overdue' | 'due_today' | 'upcoming' | 'no_date';
 
 interface Props {
     returns: PaginatedReturns;
     workersBoard: WorkersBoard;
+    availableWorkers?: AvailableWorker[];
     stats: {
         pending: number;
         returned: number;
@@ -103,7 +115,17 @@ interface Props {
     filters: {
         status: string;
         search: string;
+        assignment?: AssignmentFilter;
+        urgency?: UrgencyFilter;
+        dismantling_from?: string;
+        dismantling_to?: string;
+        activity_from?: string;
+        activity_to?: string;
+        returned_from?: string;
+        returned_to?: string;
+        worker_id?: number | null;
     };
+    activeFiltersCount?: number;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -111,12 +133,24 @@ const props = withDefaults(defineProps<Props>(), {
         workers: [],
         counts: { online: 0, installation: 0, dismantling: 0, offline: 0, total: 0 },
     }),
+    availableWorkers: () => [],
+    activeFiltersCount: 0,
 });
 defineOptions({ layout: AppLayout });
 
 const page = usePage();
 const flash = computed(() => (page.props.flash as { success?: string; error?: string } | undefined) ?? {});
 const searchQuery = ref(props.filters.search || '');
+const assignmentFilter = ref<AssignmentFilter>((props.filters.assignment as AssignmentFilter) || 'all');
+const urgencyFilter = ref<UrgencyFilter>((props.filters.urgency as UrgencyFilter) || 'all');
+const dismantlingFrom = ref(props.filters.dismantling_from || '');
+const dismantlingTo = ref(props.filters.dismantling_to || '');
+const activityFrom = ref(props.filters.activity_from || '');
+const activityTo = ref(props.filters.activity_to || '');
+const returnedFrom = ref(props.filters.returned_from || '');
+const returnedTo = ref(props.filters.returned_to || '');
+const workerId = ref(props.filters.worker_id ? String(props.filters.worker_id) : '');
+const showFilters = ref((props.activeFiltersCount ?? 0) > 0);
 const confirmDialogOpen = ref(false);
 const confirmTarget = ref<ProductReturn | null>(null);
 const confirmForm = useForm({
@@ -132,6 +166,20 @@ const statusTabs = [
     { key: 'all', label: 'الكل' },
 ] as const;
 
+const assignmentOptions: { key: AssignmentFilter; label: string }[] = [
+    { key: 'all', label: 'كل التعيينات' },
+    { key: 'assigned', label: 'معيّن عامل فك' },
+    { key: 'unassigned', label: 'بدون تعيين' },
+];
+
+const urgencyOptions: { key: UrgencyFilter; label: string }[] = [
+    { key: 'all', label: 'كل المواعيد' },
+    { key: 'overdue', label: 'متأخر' },
+    { key: 'due_today', label: 'اليوم' },
+    { key: 'upcoming', label: 'قادم' },
+    { key: 'no_date', label: 'بدون تاريخ فك' },
+];
+
 const filteredWorkers = computed(() => {
     const list = props.workersBoard.workers ?? [];
     if (workerFilter.value === 'all') return list;
@@ -140,6 +188,25 @@ const filteredWorkers = computed(() => {
     if (workerFilter.value === 'installation') return list.filter((w) => w.has_installation);
     return list.filter((w) => w.has_dismantling);
 });
+
+const hasDetailedFilters = computed(() => (props.activeFiltersCount ?? 0) > 0);
+
+watch(
+    () => props.filters,
+    (filters) => {
+        searchQuery.value = filters.search || '';
+        assignmentFilter.value = (filters.assignment as AssignmentFilter) || 'all';
+        urgencyFilter.value = (filters.urgency as UrgencyFilter) || 'all';
+        dismantlingFrom.value = filters.dismantling_from || '';
+        dismantlingTo.value = filters.dismantling_to || '';
+        activityFrom.value = filters.activity_from || '';
+        activityTo.value = filters.activity_to || '';
+        returnedFrom.value = filters.returned_from || '';
+        returnedTo.value = filters.returned_to || '';
+        workerId.value = filters.worker_id ? String(filters.worker_id) : '';
+    },
+    { deep: true },
+);
 
 onMounted(() => {
     presenceTimer = setInterval(() => {
@@ -180,26 +247,49 @@ watch(
     { immediate: true },
 );
 
+function filterPayload(status = props.filters.status) {
+    return {
+        status: status === 'pending' ? undefined : status,
+        search: searchQuery.value.trim() || undefined,
+        assignment: assignmentFilter.value !== 'all' ? assignmentFilter.value : undefined,
+        urgency: urgencyFilter.value !== 'all' ? urgencyFilter.value : undefined,
+        dismantling_from: dismantlingFrom.value || undefined,
+        dismantling_to: dismantlingTo.value || undefined,
+        activity_from: activityFrom.value || undefined,
+        activity_to: activityTo.value || undefined,
+        returned_from: returnedFrom.value || undefined,
+        returned_to: returnedTo.value || undefined,
+        worker_id: workerId.value || undefined,
+    };
+}
+
+function applyFilters(status = props.filters.status) {
+    router.get('/returns', filterPayload(status), {
+        preserveState: true,
+        preserveScroll: true,
+        replace: true,
+    });
+}
+
 function setStatusFilter(status: string) {
-    router.get(
-        '/returns',
-        {
-            status: status === 'pending' ? undefined : status,
-            search: searchQuery.value || undefined,
-        },
-        { preserveState: true, preserveScroll: true, replace: true },
-    );
+    applyFilters(status);
 }
 
 function submitSearch() {
-    router.get(
-        '/returns',
-        {
-            status: props.filters.status === 'pending' ? undefined : props.filters.status,
-            search: searchQuery.value || undefined,
-        },
-        { preserveState: true, preserveScroll: true, replace: true },
-    );
+    applyFilters();
+}
+
+function resetDetailedFilters() {
+    assignmentFilter.value = 'all';
+    urgencyFilter.value = 'all';
+    dismantlingFrom.value = '';
+    dismantlingTo.value = '';
+    activityFrom.value = '';
+    activityTo.value = '';
+    returnedFrom.value = '';
+    returnedTo.value = '';
+    workerId.value = '';
+    applyFilters();
 }
 
 function tabCount(key: string): number {
@@ -297,46 +387,183 @@ function workerStatusClass(key: WorkerBoardRow['status_key']): string {
                 </div>
 
                 <div class="rounded-2xl border border-gray-200 bg-white dark:border-neutral-700 dark:bg-neutral-900">
-                    <div class="flex flex-col gap-3 border-b border-gray-100 p-4 dark:border-neutral-800 sm:flex-row sm:items-center sm:justify-between">
-                        <div class="overflow-x-auto">
-                            <div class="flex min-w-max items-center gap-1">
+                    <div class="flex flex-col gap-3 border-b border-gray-100 p-4 dark:border-neutral-800">
+                        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                            <div class="overflow-x-auto">
+                                <div class="flex min-w-max items-center gap-1">
+                                    <button
+                                        v-for="tab in statusTabs"
+                                        :key="tab.key"
+                                        type="button"
+                                        class="relative px-3 py-2 text-sm font-medium transition-colors"
+                                        :class="
+                                            filters.status === tab.key
+                                                ? 'text-blue-700 dark:text-blue-300'
+                                                : 'text-gray-500 hover:text-gray-800 dark:text-neutral-400'
+                                        "
+                                        @click="setStatusFilter(tab.key)"
+                                    >
+                                        {{ tab.label }}
+                                        <span class="ms-1.5 text-xs tabular-nums text-gray-400">({{ formatInteger(tabCount(tab.key)) }})</span>
+                                        <span
+                                            v-if="filters.status === tab.key"
+                                            class="absolute inset-x-0 -bottom-px h-0.5 rounded-full bg-blue-600"
+                                        />
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
+                                <form class="w-full max-w-sm" @submit.prevent="submitSearch">
+                                    <label class="flex h-10 items-center gap-2 rounded-full border border-gray-200 bg-white px-3.5 text-gray-400 dark:border-neutral-700 dark:bg-neutral-950">
+                                        <Search class="size-4 shrink-0" />
+                                        <input
+                                            v-model="searchQuery"
+                                            type="search"
+                                            placeholder="ابحث برقم الطلب أو العميل..."
+                                            class="w-full bg-transparent text-sm text-gray-800 outline-none placeholder:text-gray-400 dark:text-neutral-100"
+                                        />
+                                    </label>
+                                </form>
+
                                 <button
-                                    v-for="tab in statusTabs"
-                                    :key="tab.key"
                                     type="button"
-                                    class="relative px-3 py-2 text-sm font-medium transition-colors"
-                                    :class="
-                                        filters.status === tab.key
-                                            ? 'text-blue-700 dark:text-blue-300'
-                                            : 'text-gray-500 hover:text-gray-800 dark:text-neutral-400'
-                                    "
-                                    @click="setStatusFilter(tab.key)"
+                                    class="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-full border border-gray-200 px-4 text-sm font-medium text-gray-600 transition hover:bg-gray-50 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800"
+                                    :class="showFilters || hasDetailedFilters
+                                        ? 'border-orange-200 bg-orange-50 text-orange-700 dark:border-orange-900 dark:bg-orange-950/40 dark:text-orange-300'
+                                        : ''"
+                                    @click="showFilters = !showFilters"
                                 >
-                                    {{ tab.label }}
-                                    <span class="ms-1.5 text-xs tabular-nums text-gray-400">({{ formatInteger(tabCount(tab.key)) }})</span>
+                                    <Filter class="size-4" />
+                                    فلتر مفصل
                                     <span
-                                        v-if="filters.status === tab.key"
-                                        class="absolute inset-x-0 -bottom-px h-0.5 rounded-full bg-blue-600"
-                                    />
+                                        v-if="hasDetailedFilters"
+                                        class="inline-flex size-5 items-center justify-center rounded-full bg-orange-600 text-[10px] font-bold text-white"
+                                    >
+                                        {{ formatInteger(activeFiltersCount) }}
+                                    </span>
                                 </button>
                             </div>
                         </div>
 
-                        <form class="w-full max-w-sm" @submit.prevent="submitSearch">
-                            <label class="flex h-10 items-center gap-2 rounded-full border border-gray-200 bg-white px-3.5 text-gray-400 dark:border-neutral-700 dark:bg-neutral-950">
-                                <Search class="size-4 shrink-0" />
-                                <input
-                                    v-model="searchQuery"
-                                    type="search"
-                                    placeholder="ابحث برقم الطلب أو العميل..."
-                                    class="w-full bg-transparent text-sm text-gray-800 outline-none placeholder:text-gray-400 dark:text-neutral-100"
-                                />
-                            </label>
-                        </form>
+                        <div
+                            v-if="showFilters"
+                            class="rounded-2xl border border-orange-100 bg-orange-50/40 p-4 dark:border-orange-950 dark:bg-orange-950/20"
+                        >
+                            <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                                <div class="space-y-1.5">
+                                    <Label class="text-xs text-gray-500">التعيين</Label>
+                                    <select
+                                        v-model="assignmentFilter"
+                                        class="h-10 w-full rounded-xl border border-gray-200 bg-white px-3 text-sm outline-none dark:border-neutral-700 dark:bg-neutral-950"
+                                    >
+                                        <option v-for="option in assignmentOptions" :key="option.key" :value="option.key">
+                                            {{ option.label }}
+                                        </option>
+                                    </select>
+                                </div>
+
+                                <div class="space-y-1.5">
+                                    <Label class="text-xs text-gray-500">موعد الفك</Label>
+                                    <select
+                                        v-model="urgencyFilter"
+                                        class="h-10 w-full rounded-xl border border-gray-200 bg-white px-3 text-sm outline-none dark:border-neutral-700 dark:bg-neutral-950"
+                                    >
+                                        <option v-for="option in urgencyOptions" :key="option.key" :value="option.key">
+                                            {{ option.label }}
+                                        </option>
+                                    </select>
+                                </div>
+
+                                <div class="space-y-1.5">
+                                    <Label class="text-xs text-gray-500">عامل الفك</Label>
+                                    <select
+                                        v-model="workerId"
+                                        class="h-10 w-full rounded-xl border border-gray-200 bg-white px-3 text-sm outline-none dark:border-neutral-700 dark:bg-neutral-950"
+                                    >
+                                        <option value="">كل العمال</option>
+                                        <option v-for="worker in availableWorkers" :key="worker.id" :value="String(worker.id)">
+                                            {{ worker.name }}
+                                        </option>
+                                    </select>
+                                </div>
+
+                                <div class="space-y-1.5 sm:col-span-2 xl:col-span-1">
+                                    <Label class="text-xs text-gray-500">تاريخ الفك من</Label>
+                                    <input
+                                        v-model="dismantlingFrom"
+                                        type="date"
+                                        class="h-10 w-full rounded-xl border border-gray-200 bg-white px-3 text-sm outline-none dark:border-neutral-700 dark:bg-neutral-950"
+                                    />
+                                </div>
+
+                                <div class="space-y-1.5">
+                                    <Label class="text-xs text-gray-500">تاريخ الفك إلى</Label>
+                                    <input
+                                        v-model="dismantlingTo"
+                                        type="date"
+                                        class="h-10 w-full rounded-xl border border-gray-200 bg-white px-3 text-sm outline-none dark:border-neutral-700 dark:bg-neutral-950"
+                                    />
+                                </div>
+
+                                <div class="space-y-1.5">
+                                    <Label class="text-xs text-gray-500">تاريخ الفعالية من</Label>
+                                    <input
+                                        v-model="activityFrom"
+                                        type="date"
+                                        class="h-10 w-full rounded-xl border border-gray-200 bg-white px-3 text-sm outline-none dark:border-neutral-700 dark:bg-neutral-950"
+                                    />
+                                </div>
+
+                                <div class="space-y-1.5">
+                                    <Label class="text-xs text-gray-500">تاريخ الفعالية إلى</Label>
+                                    <input
+                                        v-model="activityTo"
+                                        type="date"
+                                        class="h-10 w-full rounded-xl border border-gray-200 bg-white px-3 text-sm outline-none dark:border-neutral-700 dark:bg-neutral-950"
+                                    />
+                                </div>
+
+                                <div class="space-y-1.5">
+                                    <Label class="text-xs text-gray-500">تاريخ التعميد من</Label>
+                                    <input
+                                        v-model="returnedFrom"
+                                        type="date"
+                                        class="h-10 w-full rounded-xl border border-gray-200 bg-white px-3 text-sm outline-none dark:border-neutral-700 dark:bg-neutral-950"
+                                    />
+                                </div>
+
+                                <div class="space-y-1.5">
+                                    <Label class="text-xs text-gray-500">تاريخ التعميد إلى</Label>
+                                    <input
+                                        v-model="returnedTo"
+                                        type="date"
+                                        class="h-10 w-full rounded-xl border border-gray-200 bg-white px-3 text-sm outline-none dark:border-neutral-700 dark:bg-neutral-950"
+                                    />
+                                </div>
+                            </div>
+
+                            <div class="mt-4 flex flex-wrap items-center gap-2">
+                                <Button type="button" class="h-10 gap-2 rounded-xl" @click="applyFilters()">
+                                    <Filter class="size-4" />
+                                    تطبيق الفلتر
+                                </Button>
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    class="h-10 gap-2 rounded-xl"
+                                    :disabled="!hasDetailedFilters"
+                                    @click="resetDetailedFilters"
+                                >
+                                    <X class="size-4" />
+                                    مسح الفلاتر
+                                </Button>
+                            </div>
+                        </div>
                     </div>
 
                     <div v-if="returns.data.length === 0" class="px-4 py-16 text-center text-sm text-gray-500">
-                        لا توجد طلبات في هذه القائمة حالياً.
+                        لا توجد طلبات مطابقة للبحث أو الفلتر الحالي.
                     </div>
 
                     <div v-else class="overflow-x-auto">

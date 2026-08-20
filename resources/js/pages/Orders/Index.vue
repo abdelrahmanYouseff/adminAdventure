@@ -787,10 +787,24 @@ function formatActivityDate(date: string | null): string {
             </div>
 
             <div class="overflow-x-auto">
-                <table class="w-full min-w-[1380px] border-collapse text-xs">
+                <table class="w-full min-w-[1280px] table-fixed border-collapse text-xs">
+                    <colgroup>
+                        <col class="w-10" />
+                        <col class="w-[9.5rem]" />
+                        <col class="w-[6.5rem]" />
+                        <col class="w-[7rem]" />
+                        <col class="w-[7rem]" />
+                        <col class="w-[6.5rem]" />
+                        <col class="w-[6.5rem]" />
+                        <col class="w-[6rem]" />
+                        <col class="w-[8.5rem]" />
+                        <col class="w-[8.5rem]" />
+                        <col class="w-[7.5rem]" />
+                        <col class="w-16" />
+                    </colgroup>
                     <thead>
-                        <tr class="border-b border-gray-100 text-start dark:border-neutral-800">
-                            <th class="w-12 px-3 py-2.5">
+                        <tr class="border-b border-gray-100 dark:border-neutral-800">
+                            <th class="px-2 py-2.5 text-center">
                                 <input
                                     type="checkbox"
                                     class="size-3.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
@@ -798,17 +812,17 @@ function formatActivityDate(date: string | null): string {
                                     @change="toggleSelectAll"
                                 />
                             </th>
-                            <th class="px-2.5 py-2.5 text-start text-[11px] font-semibold text-gray-700 dark:text-neutral-200">الطلب</th>
-                            <th class="w-28 max-w-[7.5rem] px-2.5 py-2.5 text-start text-[11px] font-semibold text-gray-700 dark:text-neutral-200">العميل</th>
-                            <th class="px-2.5 py-2.5 text-start text-[11px] font-semibold text-gray-700 dark:text-neutral-200">المبلغ المدفوع</th>
-                            <th class="px-2.5 py-2.5 text-start text-[11px] font-semibold text-gray-700 dark:text-neutral-200">المبلغ المستحق</th>
-                            <th class="px-2.5 py-2.5 text-start text-[11px] font-semibold text-gray-700 dark:text-neutral-200">الإجمالي</th>
-                            <th class="px-2.5 py-2.5 text-start text-[11px] font-semibold text-gray-700 dark:text-neutral-200">تاريخ الفعالية</th>
-                            <th class="px-2.5 py-2.5 text-start text-[11px] font-semibold text-gray-700 dark:text-neutral-200">وقت الفعالية</th>
-                            <th class="px-2.5 py-2.5 text-start text-[11px] font-semibold text-gray-700 dark:text-neutral-200">التركيب</th>
-                            <th class="px-2.5 py-2.5 text-start text-[11px] font-semibold text-gray-700 dark:text-neutral-200">الفك</th>
-                            <th class="px-2.5 py-2.5 text-start text-[11px] font-semibold text-gray-700 dark:text-neutral-200">الحالة</th>
-                            <th class="px-3 py-2.5 text-end text-[11px] font-semibold text-gray-700 dark:text-neutral-200" />
+                            <th class="px-2 py-2.5 text-center text-[11px] font-semibold text-gray-700 dark:text-neutral-200">الطلب</th>
+                            <th class="px-2 py-2.5 text-center text-[11px] font-semibold text-gray-700 dark:text-neutral-200">العميل</th>
+                            <th class="px-2 py-2.5 text-center text-[11px] font-semibold text-gray-700 dark:text-neutral-200">المبلغ المدفوع</th>
+                            <th class="px-2 py-2.5 text-center text-[11px] font-semibold text-gray-700 dark:text-neutral-200">المبلغ المستحق</th>
+                            <th class="px-2 py-2.5 text-center text-[11px] font-semibold text-gray-700 dark:text-neutral-200">الإجمالي</th>
+                            <th class="px-2 py-2.5 text-center text-[11px] font-semibold text-gray-700 dark:text-neutral-200">تاريخ الفعالية</th>
+                            <th class="px-2 py-2.5 text-center text-[11px] font-semibold text-gray-700 dark:text-neutral-200">وقت الفعالية</th>
+                            <th class="px-2 py-2.5 text-center text-[11px] font-semibold text-gray-700 dark:text-neutral-200">التركيب</th>
+                            <th class="px-2 py-2.5 text-center text-[11px] font-semibold text-gray-700 dark:text-neutral-200">الفك</th>
+                            <th class="px-2 py-2.5 text-center text-[11px] font-semibold text-gray-700 dark:text-neutral-200">الحالة</th>
+                            <th class="px-2 py-2.5" />
                         </tr>
                     </thead>
                     <tbody>
@@ -822,7 +836,7 @@ function formatActivityDate(date: string | null): string {
                             :key="order.id"
                             class="border-b border-gray-100 transition hover:bg-gray-50/70 dark:border-neutral-800 dark:hover:bg-neutral-800/40"
                         >
-                            <td class="px-3 py-2.5">
+                            <td class="px-2 py-2.5 text-center align-middle">
                                 <input
                                     type="checkbox"
                                     class="size-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
@@ -830,25 +844,25 @@ function formatActivityDate(date: string | null): string {
                                     @change="toggleSelect(order.id)"
                                 />
                             </td>
-                            <td class="px-2.5 py-2.5">
-                                <Link :href="route('orders.show', order.id)" class="flex flex-col items-start gap-0.5">
+                            <td class="px-2 py-2.5 text-center align-middle">
+                                <Link :href="route('orders.show', order.id)" class="inline-flex flex-col items-center gap-0.5">
                                     <p class="font-semibold tabular-nums text-gray-900 dark:text-white" dir="ltr">
                                         {{ order.order_number }}
                                     </p>
-                                    <p class="text-xs text-gray-400">
-                                        أُنشئ في: <span dir="ltr">{{ formatDate(order.created_at) }}</span>
+                                    <p class="text-[10px] text-gray-400">
+                                        <span dir="ltr">{{ formatDate(order.created_at) }}</span>
                                     </p>
                                 </Link>
                             </td>
-                            <td class="w-28 max-w-[7.5rem] px-2.5 py-2.5">
+                            <td class="px-2 py-2.5 text-center align-middle">
                                 <p
-                                    class="truncate text-sm font-semibold text-gray-900 dark:text-white"
+                                    class="mx-auto truncate text-sm font-semibold text-gray-900 dark:text-white"
                                     :title="order.customer_name"
                                 >
                                     {{ displayCustomerName(order.customer_name) }}
                                 </p>
                             </td>
-                            <td class="px-2.5 py-2.5 tabular-nums" dir="ltr">
+                            <td class="px-2 py-2.5 text-center align-middle tabular-nums" dir="ltr">
                                 <span
                                     v-if="paidAmount(order) > 0"
                                     class="font-semibold text-emerald-600 dark:text-emerald-400"
@@ -857,7 +871,7 @@ function formatActivityDate(date: string | null): string {
                                 </span>
                                 <span v-else class="text-gray-400">-</span>
                             </td>
-                            <td class="px-2.5 py-2.5 tabular-nums" dir="ltr">
+                            <td class="px-2 py-2.5 text-center align-middle tabular-nums" dir="ltr">
                                 <span
                                     v-if="dueAmount(order) > 0"
                                     class="font-semibold text-red-600 dark:text-red-400"
@@ -866,14 +880,14 @@ function formatActivityDate(date: string | null): string {
                                 </span>
                                 <span v-else class="text-gray-400">-</span>
                             </td>
-                            <td class="px-2.5 py-2.5 font-semibold tabular-nums text-gray-900 dark:text-white" dir="ltr">
+                            <td class="px-2 py-2.5 text-center align-middle font-semibold tabular-nums text-gray-900 dark:text-white" dir="ltr">
                                 {{ formatPrice(Number(order.total_amount) || 0) }}
                             </td>
-                            <td class="px-2.5 py-2.5 text-gray-600 dark:text-neutral-300">
+                            <td class="px-2 py-2.5 text-center align-middle text-gray-600 dark:text-neutral-300">
                                 {{ formatActivityDate(order.activity_date) }}
                             </td>
-                            <td class="px-2.5 py-2.5" @click.stop>
-                                <div v-if="editingTime.id === order.id" class="flex items-center gap-1.5" dir="ltr">
+                            <td class="px-2 py-2.5 text-center align-middle" @click.stop>
+                                <div v-if="editingTime.id === order.id" class="inline-flex items-center justify-center gap-1.5" dir="ltr">
                                     <div class="inline-flex h-8 items-center gap-0.5 rounded-md border border-gray-200 bg-white px-1 dark:border-neutral-700 dark:bg-neutral-950">
                                         <select
                                             v-model="editingTime.hour"
@@ -920,7 +934,7 @@ function formatActivityDate(date: string | null): string {
                                         <X class="size-3.5" />
                                     </Button>
                                 </div>
-                                <div v-else class="flex items-center gap-2">
+                                <div v-else class="inline-flex items-center justify-center gap-1.5">
                                     <span class="text-sm font-medium tabular-nums text-gray-700 dark:text-neutral-200" dir="ltr">
                                         {{ formatActivityTime(order.activity_time) }}
                                     </span>
@@ -935,8 +949,8 @@ function formatActivityDate(date: string | null): string {
                                     </button>
                                 </div>
                             </td>
-                            <td class="px-2.5 py-2.5">
-                                <div class="flex min-w-[8.5rem] flex-col items-start gap-1.5">
+                            <td class="px-2 py-2.5 text-center align-middle">
+                                <div class="mx-auto flex max-w-full flex-col items-center gap-1">
                                     <span
                                         class="inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold"
                                         :class="installBadgeClass(order.installation?.status || 'none')"
@@ -945,7 +959,7 @@ function formatActivityDate(date: string | null): string {
                                     </span>
                                     <p
                                         v-if="order.installation?.workers?.length"
-                                        class="max-w-[9rem] text-[11px] leading-snug text-gray-600 dark:text-neutral-300"
+                                        class="w-full truncate text-[11px] leading-snug text-gray-600 dark:text-neutral-300"
                                         :title="order.installation.workers.join('، ')"
                                     >
                                         {{ order.installation.workers.join('، ') }}
@@ -961,17 +975,17 @@ function formatActivityDate(date: string | null): string {
                                     </button>
                                 </div>
                             </td>
-                            <td class="px-2.5 py-2.5">
-                                <div class="flex min-w-[7.5rem] flex-col items-start gap-1">
+                            <td class="px-2 py-2.5 text-center align-middle">
+                                <div class="mx-auto flex max-w-full flex-col items-center gap-1">
                                     <span
-                                        class="inline-flex max-w-[220px] rounded-full px-2 py-0.5 text-[10px] font-semibold leading-snug"
+                                        class="inline-flex max-w-full truncate rounded-full px-2 py-0.5 text-[10px] font-semibold leading-snug"
                                         :class="dismantleBadgeClass(order.dismantling?.status || 'none')"
                                     >
                                         {{ order.dismantling?.label || '—' }}
                                     </span>
                                     <p
                                         v-if="order.dismantling?.workers?.length"
-                                        class="max-w-[9rem] text-[11px] leading-snug text-gray-600 dark:text-neutral-300"
+                                        class="w-full truncate text-[11px] leading-snug text-gray-600 dark:text-neutral-300"
                                         :title="order.dismantling.workers.join('، ')"
                                     >
                                         {{ order.dismantling.workers.join('، ') }}
@@ -992,8 +1006,8 @@ function formatActivityDate(date: string | null): string {
                                     </span>
                                 </div>
                             </td>
-                            <td class="px-2.5 py-2.5">
-                                <div class="flex min-w-[7.5rem] flex-col items-start gap-1">
+                            <td class="px-2 py-2.5 text-center align-middle">
+                                <div class="mx-auto flex max-w-full flex-col items-center gap-1">
                                     <span
                                         class="inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold"
                                         :class="statusBadgeClass(order.status)"
@@ -1002,17 +1016,18 @@ function formatActivityDate(date: string | null): string {
                                     </span>
                                     <span
                                         v-if="order.status_detail"
-                                        class="max-w-[10rem] text-[10px] leading-snug"
+                                        class="w-full truncate text-[10px] leading-snug"
                                         :class="order.status_detail === 'تم الاسترجاع' || order.status_detail === 'مقفول — تم تعميد المستودع'
                                             ? 'text-emerald-700 dark:text-emerald-400'
                                             : 'text-sky-700 dark:text-sky-400'"
+                                        :title="order.status_detail"
                                     >
                                         {{ order.status_detail }}
                                     </span>
                                 </div>
                             </td>
-                            <td class="px-3 py-2.5">
-                                <div class="flex items-center justify-end gap-1">
+                            <td class="px-2 py-2.5 text-center align-middle">
+                                <div class="inline-flex items-center justify-center gap-1">
                                     <button
                                         v-if="order.payment_url"
                                         type="button"

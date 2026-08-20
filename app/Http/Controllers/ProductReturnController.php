@@ -23,7 +23,28 @@ class ProductReturnController extends Controller
     public function index(Request $request): Response
     {
         $status = $request->string('status')->toString() ?: 'pending';
+        if (! in_array($status, ['pending', 'returned', 'all'], true)) {
+            $status = 'pending';
+        }
+
         $search = trim($request->string('search')->toString());
+        $assignment = $request->string('assignment')->toString() ?: 'all';
+        if (! in_array($assignment, ['all', 'assigned', 'unassigned'], true)) {
+            $assignment = 'all';
+        }
+
+        $urgency = $request->string('urgency')->toString() ?: 'all';
+        if (! in_array($urgency, ['all', 'overdue', 'due_today', 'upcoming', 'no_date'], true)) {
+            $urgency = 'all';
+        }
+
+        $dismantlingFrom = $request->string('dismantling_from')->toString();
+        $dismantlingTo = $request->string('dismantling_to')->toString();
+        $activityFrom = $request->string('activity_from')->toString();
+        $activityTo = $request->string('activity_to')->toString();
+        $returnedFrom = $request->string('returned_from')->toString();
+        $returnedTo = $request->string('returned_to')->toString();
+        $workerId = $request->integer('worker_id') ?: null;
 
         $query = $this->eligibleReturnsQuery()
             ->with([
@@ -53,6 +74,51 @@ class ProductReturnController extends Controller
             });
         }
 
+        if ($assignment === 'assigned') {
+            $query->whereHas('workerAssemblers', fn (Builder $q) => $q->dismantling());
+        } elseif ($assignment === 'unassigned') {
+            $query->whereDoesntHave('workerAssemblers', fn (Builder $q) => $q->dismantling());
+        }
+
+        if ($urgency === 'no_date') {
+            $query->whereNull('dismantling_at');
+        } elseif ($urgency === 'overdue') {
+            $query->whereNull('warehouse_returned_at')
+                ->whereNotNull('dismantling_at')
+                ->whereDate('dismantling_at', '<', now()->toDateString());
+        } elseif ($urgency === 'due_today') {
+            $query->whereNull('warehouse_returned_at')
+                ->whereDate('dismantling_at', now()->toDateString());
+        } elseif ($urgency === 'upcoming') {
+            $query->whereNull('warehouse_returned_at')
+                ->whereDate('dismantling_at', '>', now()->toDateString());
+        }
+
+        if ($dismantlingFrom !== '') {
+            $query->whereDate('dismantling_at', '>=', $dismantlingFrom);
+        }
+        if ($dismantlingTo !== '') {
+            $query->whereDate('dismantling_at', '<=', $dismantlingTo);
+        }
+        if ($activityFrom !== '') {
+            $query->whereDate('activity_date', '>=', $activityFrom);
+        }
+        if ($activityTo !== '') {
+            $query->whereDate('activity_date', '<=', $activityTo);
+        }
+        if ($returnedFrom !== '') {
+            $query->whereDate('warehouse_returned_at', '>=', $returnedFrom);
+        }
+        if ($returnedTo !== '') {
+            $query->whereDate('warehouse_returned_at', '<=', $returnedTo);
+        }
+
+        if ($workerId) {
+            $query->whereHas('workerAssemblers', function (Builder $q) use ($workerId) {
+                $q->dismantling()->where('user_id', $workerId);
+            });
+        }
+
         $user = $request->user();
         $canDecide = $this->canDecideReturn($user);
 
@@ -63,17 +129,40 @@ class ProductReturnController extends Controller
 
         $base = $this->eligibleReturnsQuery();
 
+        $activeFiltersCount = collect([
+            $assignment !== 'all',
+            $urgency !== 'all',
+            $dismantlingFrom !== '',
+            $dismantlingTo !== '',
+            $activityFrom !== '',
+            $activityTo !== '',
+            $returnedFrom !== '',
+            $returnedTo !== '',
+            (bool) $workerId,
+        ])->filter()->count();
+
         return Inertia::render('Returns/Index', [
             'returns' => $returns,
             'workersBoard' => WorkerPresenceBoard::forReturns(),
+            'availableWorkers' => WorkOrderPresenter::availableWorkers(),
             'stats' => [
                 'pending' => (clone $base)->whereNull('warehouse_returned_at')->count(),
                 'returned' => (clone $base)->whereNotNull('warehouse_returned_at')->count(),
             ],
             'filters' => [
-                'status' => in_array($status, ['pending', 'returned', 'all'], true) ? $status : 'pending',
+                'status' => $status,
                 'search' => $search,
+                'assignment' => $assignment,
+                'urgency' => $urgency,
+                'dismantling_from' => $dismantlingFrom,
+                'dismantling_to' => $dismantlingTo,
+                'activity_from' => $activityFrom,
+                'activity_to' => $activityTo,
+                'returned_from' => $returnedFrom,
+                'returned_to' => $returnedTo,
+                'worker_id' => $workerId,
             ],
+            'activeFiltersCount' => $activeFiltersCount,
         ]);
     }
 
