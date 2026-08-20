@@ -21,6 +21,7 @@ class Order extends Model
         'quotation_id',
         'operations_released_at',
         'operations_released_by',
+        'skip_work_order',
         'order_number',
         'location_slug',
         'total_amount',
@@ -75,6 +76,7 @@ class Order extends Model
         'insurance_refunded_at' => 'datetime',
         'insurance_refund_requested_at' => 'datetime',
         'operations_released_at' => 'datetime',
+        'skip_work_order' => 'boolean',
         'work_order_approved_at' => 'datetime',
         'warehouse_returned_at' => 'datetime',
         'warehouse_keeper_approved_at' => 'datetime',
@@ -213,15 +215,25 @@ class Order extends Model
 
     /**
      * Work orders require the order to be live and at least one payment receipt
-     * approved by the accountant (partial payment is enough).
+     * approved by the accountant (partial payment is enough). Orders flagged
+     * skip_work_order never get work orders.
      */
     public function shouldReleaseWorkOrders(): bool
     {
+        if ($this->skip_work_order) {
+            return false;
+        }
+
         if (! $this->isReleasedToOperations()) {
             return false;
         }
 
         return $this->hasApprovedPaymentReceipt();
+    }
+
+    public function skipsWorkOrder(): bool
+    {
+        return (bool) $this->skip_work_order;
     }
 
     /**

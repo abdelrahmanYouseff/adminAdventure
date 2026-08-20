@@ -13,6 +13,11 @@ class WorkerOrderSyncService
      */
     public function syncFromOrder(Order $order, bool $force = false): void
     {
+        // Permanently blocked for quotation orders marked "no work order".
+        if ($order->skipsWorkOrder()) {
+            return;
+        }
+
         if (! $force && ! $this->shouldCreateWorkOrders($order)) {
             return;
         }

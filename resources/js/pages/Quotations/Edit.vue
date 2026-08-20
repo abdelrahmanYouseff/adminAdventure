@@ -84,6 +84,7 @@ interface QuotationRecord {
     notes: string | null;
     amount_paid?: number | string | null;
     show_online_payment?: boolean;
+    skip_work_order?: boolean;
     terms?: Array<{ ar: string; en: string }> | null;
     items: Array<{
         product_id: number | null;
@@ -188,6 +189,7 @@ const form = useForm({
     insurance_amount: Number(props.quotation.insurance_amount || 0),
     amount_paid: Number(props.quotation.amount_paid || 0),
     show_online_payment: Boolean(props.quotation.show_online_payment),
+    skip_work_order: Boolean(props.quotation.skip_work_order),
     notes: props.quotation.notes || '',
     terms: initialTerms(),
     items: props.quotation.items.map((item) => ({
@@ -867,6 +869,28 @@ watch(
                                         </div>
                                     </label>
                                 </div>
+
+                                <div class="sm:col-span-2">
+                                    <label
+                                        for="skip_work_order"
+                                        class="flex cursor-pointer items-start gap-3 rounded-xl border-2 border-amber-300/60 bg-amber-50/70 p-4 transition hover:border-amber-400 hover:bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30"
+                                    >
+                                        <input
+                                            id="skip_work_order"
+                                            v-model="form.skip_work_order"
+                                            type="checkbox"
+                                            class="mt-1 size-4 shrink-0 rounded border-input text-amber-600 accent-amber-600"
+                                        />
+                                        <div class="space-y-1">
+                                            <div class="text-sm font-semibold text-foreground">
+                                                بدون أمر عمل
+                                            </div>
+                                            <p class="text-xs leading-relaxed text-muted-foreground">
+                                                عند التفعيل: بعد اعتماد العرض يصير طلباً عادياً، ولن يُصدر له أمر عمل نهائياً حتى بعد السداد.
+                                            </p>
+                                        </div>
+                                    </label>
+                                </div>
                             </div>
                         </div>
                     </section>
@@ -1308,6 +1332,24 @@ watch(
                                     </div>
                                     <p class="text-xs leading-relaxed text-muted-foreground">
                                         يظهر رابط الدفع في ملف PDF عند وجود مبلغ متبقي.
+                                    </p>
+                                </div>
+                            </label>
+
+                            <label
+                                for="skip_work_order_summary"
+                                class="flex cursor-pointer items-start gap-3 rounded-xl border border-amber-200 bg-amber-50/60 p-4 transition hover:bg-amber-50 dark:border-amber-900 dark:bg-amber-950/20"
+                            >
+                                <input
+                                    id="skip_work_order_summary"
+                                    v-model="form.skip_work_order"
+                                    type="checkbox"
+                                    class="mt-1 size-4 shrink-0 rounded border-input text-amber-600 accent-amber-600"
+                                />
+                                <div class="space-y-1">
+                                    <div class="text-sm font-medium text-foreground">بدون أمر عمل</div>
+                                    <p class="text-xs leading-relaxed text-muted-foreground">
+                                        الطلب الناتج لن يظهر في أوامر العمل نهائياً.
                                     </p>
                                 </div>
                             </label>

@@ -112,6 +112,7 @@ const form = useForm({
     insurance_amount: 0 as number,
     amount_paid: 0 as number,
     show_online_payment: false,
+    skip_work_order: false,
     notes: '',
     terms: cloneTerms(props.defaultTerms),
     items: [] as QuotationItem[],
@@ -933,6 +934,28 @@ watch(
                                         </div>
                                     </label>
                                 </div>
+
+                                <div class="sm:col-span-2">
+                                    <label
+                                        for="skip_work_order"
+                                        class="flex cursor-pointer items-start gap-3 rounded-xl border-2 border-amber-300/60 bg-amber-50/70 p-4 transition hover:border-amber-400 hover:bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30"
+                                    >
+                                        <input
+                                            id="skip_work_order"
+                                            v-model="form.skip_work_order"
+                                            type="checkbox"
+                                            class="mt-1 size-4 shrink-0 rounded border-input text-amber-600 accent-amber-600"
+                                        />
+                                        <div class="space-y-1">
+                                            <div class="text-sm font-semibold text-foreground">
+                                                بدون أمر عمل
+                                            </div>
+                                            <p class="text-xs leading-relaxed text-muted-foreground">
+                                                عند التفعيل: بعد اعتماد العرض يصير طلباً عادياً، ولن يُصدر له أمر عمل نهائياً حتى بعد السداد.
+                                            </p>
+                                        </div>
+                                    </label>
+                                </div>
                             </div>
                         </div>
                     </section>
@@ -1409,6 +1432,24 @@ watch(
                                     </div>
                                     <p class="text-xs leading-relaxed text-muted-foreground">
                                         يظهر رابط الدفع في ملف PDF عند وجود مبلغ متبقي.
+                                    </p>
+                                </div>
+                            </label>
+
+                            <label
+                                for="skip_work_order_summary"
+                                class="flex cursor-pointer items-start gap-3 rounded-xl border border-amber-200 bg-amber-50/60 p-4 transition hover:bg-amber-50 dark:border-amber-900 dark:bg-amber-950/20"
+                            >
+                                <input
+                                    id="skip_work_order_summary"
+                                    v-model="form.skip_work_order"
+                                    type="checkbox"
+                                    class="mt-1 size-4 shrink-0 rounded border-input text-amber-600 accent-amber-600"
+                                />
+                                <div class="space-y-1">
+                                    <div class="text-sm font-medium text-foreground">بدون أمر عمل</div>
+                                    <p class="text-xs leading-relaxed text-muted-foreground">
+                                        الطلب الناتج لن يظهر في أوامر العمل نهائياً.
                                     </p>
                                 </div>
                             </label>

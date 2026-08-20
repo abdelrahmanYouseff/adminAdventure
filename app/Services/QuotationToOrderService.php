@@ -37,6 +37,11 @@ class QuotationToOrderService
 
             $this->refreshOrderTotalsFromQuotation($order, $quotation);
 
+            if ((bool) $order->skip_work_order !== (bool) $quotation->skip_work_order) {
+                $order->skip_work_order = (bool) $quotation->skip_work_order;
+                $order->save();
+            }
+
             return $order->fresh();
         });
     }
@@ -363,6 +368,7 @@ class QuotationToOrderService
             'payment_method' => 'bank_transfer',
             'status' => 'processing',
             'payment_status' => 'pending',
+            'skip_work_order' => (bool) $quotation->skip_work_order,
             'items' => $built['items'],
             'notes' => trim(($quotation->notes ? $quotation->notes."\n" : '').'محوّل من عرض السعر '.$quotation->quotation_number),
             'user_id' => $userId,
@@ -397,6 +403,7 @@ class QuotationToOrderService
             'discount_total' => $built['discount_total'],
             'insurance_amount' => $built['insurance_amount'],
             'insurance_status' => $built['insurance_amount'] > 0 ? ($order->insurance_status ?: 'pending') : 'none',
+            'skip_work_order' => (bool) $quotation->skip_work_order,
             'items' => $built['items'],
         ]);
         $order->save();

@@ -388,6 +388,7 @@ class QuotationController extends Controller
             'insurance_amount' => 'nullable|numeric|min:0',
             'amount_paid' => 'nullable|numeric|min:0',
             'show_online_payment' => 'nullable|boolean',
+            'skip_work_order' => 'nullable|boolean',
             'notes' => 'nullable|string',
             'terms' => 'nullable|array',
             'terms.*.ar' => 'nullable|string|max:2000',
@@ -522,6 +523,7 @@ class QuotationController extends Controller
                 'total_amount' => $totalAmount,
                 'amount_paid' => $amountPaid,
                 'show_online_payment' => $request->boolean('show_online_payment'),
+                'skip_work_order' => $request->boolean('skip_work_order'),
             ]);
 
             DB::commit();
@@ -639,6 +641,7 @@ class QuotationController extends Controller
             'insurance_amount' => 'nullable|numeric|min:0',
             'amount_paid' => 'nullable|numeric|min:0',
             'show_online_payment' => 'nullable|boolean',
+            'skip_work_order' => 'nullable|boolean',
             'notes' => 'nullable|string',
             'terms' => 'nullable|array',
             'terms.*.ar' => 'nullable|string|max:2000',
@@ -738,7 +741,13 @@ class QuotationController extends Controller
                 'total_amount' => $totalAmount,
                 'amount_paid' => $amountPaid,
                 'show_online_payment' => $request->boolean('show_online_payment'),
+                'skip_work_order' => $request->boolean('skip_work_order'),
             ]);
+
+            // Keep linked order flag in sync (even after payment approval).
+            Order::query()
+                ->where('quotation_id', $quotation->id)
+                ->update(['skip_work_order' => $request->boolean('skip_work_order')]);
 
             DB::commit();
 
