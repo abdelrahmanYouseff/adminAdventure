@@ -77,6 +77,7 @@ let photoChangeSeq = 0;
 
 const installForm = useForm({
     installation_photo: null as File | null,
+    task_type: props.installation.task_type === 'dismantling' ? 'dismantling' : 'installation',
 });
 
 const noteForm = useForm({
@@ -94,6 +95,13 @@ const finishedProducts = computed(() =>
 const notes = computed(() => props.installation.notes ?? []);
 
 const isDismantling = computed(() => props.installation.task_type === 'dismantling');
+
+watch(
+    () => props.installation.task_type,
+    (taskType) => {
+        installForm.task_type = taskType === 'dismantling' ? 'dismantling' : 'installation';
+    },
+);
 
 const pageTitle = computed(() =>
     isDismantling.value
@@ -204,6 +212,7 @@ function closeCapture() {
     dialogOpen.value = false;
     selectedProduct.value = null;
     installForm.reset();
+    installForm.task_type = isDismantling.value ? 'dismantling' : 'installation';
     installForm.clearErrors();
     photoError.value = null;
     clearPreview();

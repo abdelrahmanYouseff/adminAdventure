@@ -7,6 +7,7 @@ use App\Jobs\SendDismantlingPhotosEmail;
 use App\Jobs\SendInstallationPhotosEmail;
 use App\Models\Order;
 use App\Models\WorkerOrder;
+use App\Models\WorkerOrderAssembler;
 use App\Models\WorkerOrderNote;
 use App\Support\OrderWhatsAppMessage;
 use Illuminate\Http\RedirectResponse;
@@ -19,9 +20,9 @@ use Throwable;
 
 class WorkerInstallationController extends Controller
 {
-    public function show(Order $order): Response
+    public function show(Request $request, Order $order): Response
     {
-        $user = request()->user();
+        $user = $request->user();
         abort_unless($order->isAssignedToWorker($user), 403, 'هذا الطلب غير معيّن لك.');
 
         $order->load([
@@ -30,8 +31,8 @@ class WorkerInstallationController extends Controller
             'workerNotes.user:id,customer_name,role',
         ]);
 
-        $assignmentType = $order->primaryWorkerAssignmentType($user);
-        $isDismantling = $order->workerIsInDismantlingPhase($user);
+        $requestedTask = $request->string('task')->toString();
+        $isDismantling = $this->resolveTaskIsDismantling($order, $user, $requestedTask);
         $lines = $order->workerOrders;
         $firstLine = $lines->first();
         $address = $firstLine?->customer_address ?? $order->address;
@@ -65,8 +66,8 @@ class WorkerInstallationController extends Controller
                 // العمال لا يحذفون الصور — حذف الصور متاح لمدير العمال من لوحة التحكم فقط.
                 'can_replace_photos' => false,
                 'status' => $pendingCount > 0 ? 'pending' : 'completed',
-                'task_type' => $isDismantling ? 'dismantling' : ($assignmentType === 'both' ? 'both' : 'installation'),
-                'task_label' => $isDismantling ? 'فك' : ($assignmentType === 'both' ? 'تركيب + فك' : 'تركيب'),
+                'task_type' => $isDismantling ? 'dismantling' : 'installation',
+                'task_label' => $isDismantling ? 'فك' : 'تركيب',
                 'rejection_reason' => $isDismantling && filled($order->warehouse_rejected_at) && blank($order->warehouse_returned_at)
                     ? (string) ($order->warehouse_rejection_reason ?: '')
                     : null,
@@ -132,7 +133,11 @@ class WorkerInstallationController extends Controller
             'هذا الطلب غير معيّن لك.',
         );
 
-        $isDismantling = $workerOrder->order->workerIsInDismantlingPhase($user);
+        $isDismantling = $this->resolveTaskIsDismantling(
+            $workerOrder->order,
+            $user,
+            (string) $request->input('task_type', ''),
+        );
 
         if ($isDismantling) {
             if (filled($workerOrder->pickup_photo)) {
@@ -265,6 +270,37 @@ class WorkerInstallationController extends Controller
                 'error' => $e->getMessage(),
             ]);
         }
+    }
+
+    /**
+     * Prefer explicit task from the separate list card / form; otherwise fall back
+     * to the legacy phase detection (dismantling after installation when both).
+     */
+    private function resolveTaskIsDismantling(Order $order, $user, string $requestedTask): bool
+    {
+        $requestedTask = trim($requestedTask);
+
+        if ($requestedTask === WorkerOrderAssembler::TYPE_DISMANTLING) {
+            abort_unless(
+                $order->isAssignedToWorker($user, WorkerOrderAssembler::TYPE_DISMANTLING),
+                403,
+                'هذا الطلب غير معيّن لك كمهمة فك.',
+            );
+
+            return true;
+        }
+
+        if ($requestedTask === WorkerOrderAssembler::TYPE_INSTALLATION) {
+            abort_unless(
+                $order->isAssignedToWorker($user, WorkerOrderAssembler::TYPE_INSTALLATION),
+                403,
+                'هذا الطلب غير معيّن لك كمهمة تركيب.',
+            );
+
+            return false;
+        }
+
+        return $order->workerIsInDismantlingPhase($user);
     }
 
     private function resolveMapUrl(?string $address): ?string

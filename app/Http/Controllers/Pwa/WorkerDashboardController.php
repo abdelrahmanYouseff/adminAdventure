@@ -4,7 +4,9 @@ namespace App\Http\Controllers\Pwa;
 
 use App\Http\Controllers\Controller;
 use App\Models\Order;
+use App\Models\User;
 use App\Models\WorkerOrder;
+use App\Models\WorkerOrderAssembler;
 use App\Support\OrderWhatsAppMessage;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -15,7 +17,7 @@ class WorkerDashboardController extends Controller
     {
         $user = auth()->user();
 
-        $installations = Order::query()
+        $orders = Order::query()
             ->assignedToWorker($user)
             ->whereHas('workerOrders')
             ->with([
@@ -37,8 +39,10 @@ class WorkerDashboardController extends Controller
             ->orderByRaw('activity_date IS NULL')
             ->orderBy('activity_date')
             ->orderByDesc('created_at')
-            ->get()
-            ->map(fn (Order $order) => $this->formatInstallation($order, $user))
+            ->get();
+
+        $installations = $orders
+            ->flatMap(fn (Order $order) => $this->formatTaskCards($order, $user))
             ->values()
             ->all();
 
@@ -63,20 +67,40 @@ class WorkerDashboardController extends Controller
     }
 
     /**
+     * One card per assigned task (installation and/or dismantling), never merged.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function formatTaskCards(Order $order, User $user): array
+    {
+        $hasInstallation = $order->isAssignedToWorker($user, WorkerOrderAssembler::TYPE_INSTALLATION);
+        $hasDismantling = $order->isAssignedToWorker($user, WorkerOrderAssembler::TYPE_DISMANTLING);
+
+        $cards = [];
+
+        if ($hasInstallation) {
+            $cards[] = $this->formatTaskCard($order, $user, WorkerOrderAssembler::TYPE_INSTALLATION);
+        }
+
+        if ($hasDismantling) {
+            $cards[] = $this->formatTaskCard($order, $user, WorkerOrderAssembler::TYPE_DISMANTLING);
+        }
+
+        return $cards;
+    }
+
+    /**
      * @return array<string, mixed>
      */
-    private function formatInstallation(Order $order, $user): array
+    private function formatTaskCard(Order $order, User $user, string $taskType): array
     {
         $firstLine = $order->workerOrders->first();
-        $assignmentType = $order->primaryWorkerAssignmentType($user);
-        $isDismantling = $order->workerIsInDismantlingPhase($user);
         $address = $firstLine?->customer_address ?? $order->address;
-        $isApproved = (bool) $order->work_order_approved_at;
-        $photosReady = $order->hasAllWorkerPhotos();
+        $isDismantling = $taskType === WorkerOrderAssembler::TYPE_DISMANTLING;
+        $totalLines = (int) ($order->total_lines ?? $order->workerOrders->count());
 
         if ($isDismantling) {
             $pendingLines = (int) ($order->pending_pickup_lines ?? $order->workerOrders->whereNull('pickup_photo')->count());
-            $totalLines = (int) ($order->total_lines ?? $order->workerOrders->count());
             $completedLines = (int) ($order->completed_pickup_lines ?? ($totalLines - $pendingLines));
 
             if ($pendingLines > 0) {
@@ -92,10 +116,12 @@ class WorkerDashboardController extends Controller
 
             $scheduledDate = $order->dismantling_at?->format('Y-m-d');
             $scheduledTime = $order->dismantling_at?->format('H:i');
+            $isApproved = filled($order->warehouse_returned_at);
         } else {
             $pendingLines = (int) ($order->pending_lines ?? 0);
-            $totalLines = (int) ($order->total_lines ?? $order->workerOrders->count());
             $completedLines = (int) ($order->completed_lines ?? 0);
+            $isApproved = (bool) $order->work_order_approved_at;
+            $photosReady = $order->hasAllWorkerPhotos();
 
             if ($pendingLines > 0) {
                 $listStatus = 'current';
@@ -114,6 +140,7 @@ class WorkerDashboardController extends Controller
 
         return [
             'id' => $order->id,
+            'list_key' => $order->id.'-'.$taskType,
             'customer_name' => $firstLine?->customer_name ?? $order->customer_name,
             'map_url' => $this->resolveMapUrl($address),
             'customer_phone' => $order->customer_phone,
@@ -122,15 +149,9 @@ class WorkerDashboardController extends Controller
             'status' => $pendingLines > 0 ? 'pending' : 'completed',
             'list_status' => $listStatus,
             'phase' => $phase,
-            'task_type' => $isDismantling
-                ? 'dismantling'
-                : ($assignmentType === 'both' ? 'both' : 'installation'),
-            'task_label' => $isDismantling
-                ? 'فك'
-                : ($assignmentType === 'both' ? 'تركيب + فك' : 'تركيب'),
-            'is_approved' => $isDismantling
-                ? filled($order->warehouse_returned_at)
-                : $isApproved,
+            'task_type' => $isDismantling ? 'dismantling' : 'installation',
+            'task_label' => $isDismantling ? 'فك' : 'تركيب',
+            'is_approved' => $isApproved,
             'products_count' => $totalLines,
             'pending_count' => $pendingLines,
             'completed_count' => $completedLines,
