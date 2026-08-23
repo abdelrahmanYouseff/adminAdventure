@@ -143,6 +143,15 @@ class WorkerPresenceBoard
                 default => 'offline',
             };
 
+            // Keep installation and dismantling as separate task labels even for the same customer.
+            $statusLabel = match ($statusKey) {
+                'dismantling' => 'ميعاد فك',
+                'installation' => 'ميعاد تركيب',
+                'both' => 'تركيب · فك',
+                'active' => 'نشط',
+                default => 'غير متصل',
+            };
+
             $rows[] = [
                 'id' => $worker->id,
                 'name' => $worker->name,
@@ -155,13 +164,7 @@ class WorkerPresenceBoard
                 'installation' => $installation,
                 'dismantling' => $dismantling,
                 'status_key' => $statusKey,
-                'status_label' => match ($statusKey) {
-                    'dismantling' => 'ميعاد فك',
-                    'installation' => 'ميعاد تركيب',
-                    'both' => 'تركيب + فك',
-                    'active' => 'نشط',
-                    default => 'غير متصل',
-                },
+                'status_label' => $statusLabel,
                 'last_seen_at' => $worker->last_seen_at?->toIso8601String(),
             ];
         }

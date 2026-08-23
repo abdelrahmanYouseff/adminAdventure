@@ -548,7 +548,7 @@ function paidAmount(order: Order): number {
     return Number(order.amount_paid ?? 0) || 0;
 }
 
-/** First + second name only; strip tax numbers / trailing tax labels. */
+/** Full customer/company name; strip tax numbers only. */
 function displayCustomerName(name: string | null | undefined): string {
     if (!name) {
         return '—';
@@ -561,12 +561,7 @@ function displayCustomerName(name: string | null | undefined): string {
         .replace(/\s+/g, ' ')
         .trim();
 
-    const words = cleaned.split(/\s+/).filter(Boolean);
-    if (words.length === 0) {
-        return '—';
-    }
-
-    return words.slice(0, 2).join(' ');
+    return cleaned || '—';
 }
 
 function dueAmount(order: Order): number {
@@ -791,15 +786,15 @@ function formatActivityDate(date: string | null): string {
                     <colgroup>
                         <col class="w-10" />
                         <col class="w-[9.5rem]" />
-                        <col class="w-[6.5rem]" />
-                        <col class="w-[7rem]" />
-                        <col class="w-[7rem]" />
+                        <col class="w-[8.5rem]" />
                         <col class="w-[6.5rem]" />
                         <col class="w-[6.5rem]" />
                         <col class="w-[6rem]" />
-                        <col class="w-[8.5rem]" />
-                        <col class="w-[8.5rem]" />
-                        <col class="w-[7.5rem]" />
+                        <col class="w-[6.25rem]" />
+                        <col class="w-[5.75rem]" />
+                        <col class="w-[8.75rem]" />
+                        <col class="w-[8.75rem]" />
+                        <col class="w-[7.25rem]" />
                         <col class="w-16" />
                     </colgroup>
                     <thead>
@@ -856,7 +851,7 @@ function formatActivityDate(date: string | null): string {
                             </td>
                             <td class="px-2 py-2.5 text-center align-middle">
                                 <p
-                                    class="mx-auto truncate text-sm font-semibold text-gray-900 dark:text-white"
+                                    class="mx-auto max-w-[8.25rem] text-[10px] font-medium leading-tight text-gray-900 dark:text-white"
                                     :title="order.customer_name"
                                 >
                                     {{ displayCustomerName(order.customer_name) }}
@@ -950,20 +945,26 @@ function formatActivityDate(date: string | null): string {
                                 </div>
                             </td>
                             <td class="px-2 py-2.5 text-center align-middle">
-                                <div class="mx-auto flex max-w-full flex-col items-center gap-1">
+                                <div class="mx-auto flex max-w-full flex-col items-center gap-1 border-e border-gray-100 pe-1.5 dark:border-neutral-800">
                                     <span
                                         class="inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold"
                                         :class="installBadgeClass(order.installation?.status || 'none')"
                                     >
                                         {{ order.installation?.label || '—' }}
                                     </span>
-                                    <p
+                                    <ul
                                         v-if="order.installation?.workers?.length"
-                                        class="w-full truncate text-[11px] leading-snug text-gray-600 dark:text-neutral-300"
-                                        :title="order.installation.workers.join('، ')"
+                                        class="w-full space-y-0.5"
                                     >
-                                        {{ order.installation.workers.join('، ') }}
-                                    </p>
+                                        <li
+                                            v-for="(worker, wi) in order.installation.workers"
+                                            :key="`install-worker-${order.id}-${wi}`"
+                                            class="truncate text-[10px] leading-snug text-sky-700 dark:text-sky-300"
+                                            :title="worker"
+                                        >
+                                            {{ worker }}
+                                        </li>
+                                    </ul>
                                     <button
                                         v-if="order.installation?.can_review_photos"
                                         type="button"
@@ -976,20 +977,26 @@ function formatActivityDate(date: string | null): string {
                                 </div>
                             </td>
                             <td class="px-2 py-2.5 text-center align-middle">
-                                <div class="mx-auto flex max-w-full flex-col items-center gap-1">
+                                <div class="mx-auto flex max-w-full flex-col items-center gap-1 ps-1.5">
                                     <span
                                         class="inline-flex max-w-full truncate rounded-full px-2 py-0.5 text-[10px] font-semibold leading-snug"
                                         :class="dismantleBadgeClass(order.dismantling?.status || 'none')"
                                     >
                                         {{ order.dismantling?.label || '—' }}
                                     </span>
-                                    <p
+                                    <ul
                                         v-if="order.dismantling?.workers?.length"
-                                        class="w-full truncate text-[11px] leading-snug text-gray-600 dark:text-neutral-300"
-                                        :title="order.dismantling.workers.join('، ')"
+                                        class="w-full space-y-0.5"
                                     >
-                                        {{ order.dismantling.workers.join('، ') }}
-                                    </p>
+                                        <li
+                                            v-for="(worker, wi) in order.dismantling.workers"
+                                            :key="`dismantle-worker-${order.id}-${wi}`"
+                                            class="truncate text-[10px] leading-snug text-orange-700 dark:text-orange-300"
+                                            :title="worker"
+                                        >
+                                            {{ worker }}
+                                        </li>
+                                    </ul>
                                     <span
                                         v-if="order.dismantling?.scheduled_at"
                                         class="text-[11px] text-gray-400"

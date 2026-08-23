@@ -603,7 +603,9 @@ function workerStatusClass(key: WorkerBoardRow['status_key']): string {
                                             </div>
                                         </td>
                                         <td class="px-4 py-3">
-                                            <p class="font-medium text-gray-900 dark:text-white">{{ item.customer_name }}</p>
+                                            <p class="text-[11px] font-medium leading-tight text-gray-900 dark:text-white" :title="item.customer_name">
+                                                {{ item.customer_name }}
+                                            </p>
                                             <p v-if="item.customer_phone" class="mt-0.5 text-xs text-gray-500" dir="ltr">{{ item.customer_phone }}</p>
                                         </td>
                                         <td class="px-4 py-3">
@@ -779,7 +781,16 @@ function workerStatusClass(key: WorkerBoardRow['status_key']): string {
                                 <div class="min-w-0 flex-1">
                                     <div class="flex flex-wrap items-center gap-1.5">
                                         <p class="truncate text-sm font-semibold text-slate-900 dark:text-white">{{ worker.name }}</p>
+                                        <template v-if="worker.status_key === 'both'">
+                                            <span class="inline-flex rounded-full bg-sky-50 px-1.5 py-0.5 text-[10px] font-semibold text-sky-700 ring-1 ring-inset ring-sky-100">
+                                                تركيب
+                                            </span>
+                                            <span class="inline-flex rounded-full bg-orange-50 px-1.5 py-0.5 text-[10px] font-semibold text-orange-700 ring-1 ring-inset ring-orange-100">
+                                                فك
+                                            </span>
+                                        </template>
                                         <span
+                                            v-else
                                             class="inline-flex rounded-full px-1.5 py-0.5 text-[10px] font-semibold ring-1 ring-inset"
                                             :class="workerStatusClass(worker.status_key)"
                                         >
@@ -795,7 +806,9 @@ function workerStatusClass(key: WorkerBoardRow['status_key']): string {
                                             <Wrench class="size-3" />
                                             ميعاد تركيب
                                         </p>
-                                        <p class="mt-1 truncate font-medium">{{ worker.installation.customer_name }}</p>
+                                        <p class="mt-1 text-[10px] font-medium leading-tight" :title="worker.installation.customer_name">
+                                            {{ worker.installation.customer_name }}
+                                        </p>
                                         <p class="mt-0.5 tabular-nums text-sky-700" dir="ltr">
                                             {{ worker.installation.at ? formatDateTime(worker.installation.at) : 'الموعد غير محدد' }}
                                         </p>
@@ -806,7 +819,9 @@ function workerStatusClass(key: WorkerBoardRow['status_key']): string {
                                             <PackageCheck class="size-3" />
                                             ميعاد فك
                                         </p>
-                                        <p class="mt-1 truncate font-medium">{{ worker.dismantling.customer_name }}</p>
+                                        <p class="mt-1 text-[10px] font-medium leading-tight" :title="worker.dismantling.customer_name">
+                                            {{ worker.dismantling.customer_name }}
+                                        </p>
                                         <p class="mt-0.5 tabular-nums text-orange-700" dir="ltr">
                                             {{ worker.dismantling.at ? formatDateTime(worker.dismantling.at) : 'الموعد غير محدد' }}
                                         </p>
