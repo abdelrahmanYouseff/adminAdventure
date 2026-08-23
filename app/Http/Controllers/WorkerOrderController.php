@@ -198,24 +198,26 @@ class WorkerOrderController extends Controller
     {
         $user = $request->user();
         abort_unless(
-            $user?->hasAnyRole(User::ROLE_ADMIN, User::ROLE_MANAGER, User::ROLE_WORKERS_MANAGER),
+            $user?->hasAnyRole(
+                User::ROLE_ADMIN,
+                User::ROLE_GENERAL_MANAGER,
+                User::ROLE_MANAGER,
+                User::ROLE_WORKERS_MANAGER,
+            ),
             403,
-            'حذف صور التركيب مخصص لمدير العمال والمسئول فقط.',
+            'رفض صور التركيب مخصص لمدير العمال والمسئول فقط.',
         );
 
         $workerOrder->loadMissing('order.invoice');
         $order = $workerOrder->order;
         abort_unless($order, 404);
 
-        abort_if(
-            filled($order->work_order_approved_at),
-            403,
-            'لا يمكن حذف الصورة بعد تعميد أمر العمل.',
-        );
-
         if (blank($workerOrder->installation_photo) && $workerOrder->status !== 'completed') {
-            return back()->with('error', 'لا توجد صورة تركيب لحذفها.');
+            return back()->with('error', 'لا توجد صورة تركيب لرفضها.');
         }
+
+        $productName = (string) ($workerOrder->product_name ?: 'منتج');
+        $wasApproved = filled($order->work_order_approved_at);
 
         if ($workerOrder->installation_photo) {
             Storage::disk('public')->delete($workerOrder->installation_photo);
@@ -228,11 +230,34 @@ class WorkerOrderController extends Controller
             'completed_by' => null,
         ]);
 
+        // رفض صورة بعد التعميد يلغي التعميد حتى يرفع العامل صورة جديدة ويُراجع الطلب من جديد.
+        if ($wasApproved) {
+            $order->forceFill([
+                'work_order_approved_at' => null,
+                'work_order_approved_by' => null,
+            ])->save();
+        }
+
+        $order->forceFill([
+            'installation_photos_notified_at' => null,
+        ])->save();
+
+        WorkerOrderNote::create([
+            'order_id' => $order->id,
+            'user_id' => $user->id,
+            'body' => 'رفض صورة التركيب وإعادة للعامل: '.$productName
+                .($wasApproved ? ' (تم إلغاء تعميد أمر العمل)' : ''),
+        ]);
+
         $reference = $order->invoice?->invoice_number ?? $order->order_number;
 
         return redirect()
             ->route('worker-orders.show', $reference)
-            ->with('success', 'تم حذف صورة التركيب. يمكن للعامل رفع صورة جديدة.');
+            ->with(
+                'success',
+                'تم رفض صورة التركيب للمنتج «'.$productName.'». يمكن للعامل رفع صورة جديدة.'
+                .($wasApproved ? ' تم إلغاء التعميد حتى اكتمال المراجعة.' : ''),
+            );
     }
 
     public function approve(Request $request, string $workOrderKey, WorkerOrderSyncService $syncService)

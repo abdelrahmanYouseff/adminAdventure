@@ -180,8 +180,7 @@ const canDeleteNotes = computed(() =>
 /** مدير العمال يراجع الصور فقط قبل التعميد */
 const isPhotoReviewer = computed(() => authRole.value === 'workers_manager');
 const canRejectPhotos = computed(() =>
-    ['admin', 'manager', 'workers_manager'].includes(authRole.value || '')
-    && !props.workOrder.is_approved,
+    ['admin', 'general_manager', 'manager', 'workers_manager'].includes(authRole.value || ''),
 );
 const approving = ref(false);
 const approvingWarehouse = ref(false);
@@ -424,12 +423,16 @@ async function rejectPhoto(line: WorkOrderLine) {
         return;
     }
 
+    const approvalNote = props.workOrder.is_approved
+        ? '<p class="mt-2 text-sm text-amber-700">ملاحظة: الطلب معتمد حالياً — الرفض سيلغي التعميد حتى يرفع العامل صورة جديدة.</p>'
+        : '';
+
     const result = await Swal.fire({
         icon: 'warning',
-        title: 'حذف صورة التركيب؟',
-        html: `سيتم حذف صورة <strong>${line.product_name}</strong> وإعادة المنتج للعامل لرفع صورة جديدة.`,
+        title: 'رفض صورة التركيب؟',
+        html: `سيتم حذف صورة <strong>${line.product_name}</strong> وإعادة المنتج للعامل لرفع صورة جديدة.${approvalNote}`,
         showCancelButton: true,
-        confirmButtonText: 'حذف وإعادة الرفع',
+        confirmButtonText: 'رفض الصورة',
         cancelButtonText: 'إلغاء',
         confirmButtonColor: '#DC2626',
         cancelButtonColor: '#64748B',
@@ -1019,8 +1022,8 @@ watch(dialogOpen, (isOpen) => { if (!isOpen) closeCompleteDialog(); });
                                 :disabled="deletingPhotoId === line.id"
                                 @click="rejectPhoto(line)"
                             >
-                                <Trash2 class="ms-1.5 h-4 w-4" />
-                                {{ deletingPhotoId === line.id ? 'جاري الحذف...' : 'حذف وإعادة الرفع' }}
+                                <X class="ms-1.5 h-4 w-4" />
+                                {{ deletingPhotoId === line.id ? 'جاري الرفض...' : 'رفض الصورة' }}
                             </Button>
                         </div>
                     </article>
@@ -1318,7 +1321,7 @@ watch(dialogOpen, (isOpen) => { if (!isOpen) closeCompleteDialog(); });
                                         رفع صورة التركيب
                                     </Button>
                                     <Button
-                                        v-else-if="canRejectPhotos && line.installation_photo_url"
+                                        v-if="canRejectPhotos && line.installation_photo_url"
                                         type="button"
                                         variant="outline"
                                         size="sm"
@@ -1326,13 +1329,16 @@ watch(dialogOpen, (isOpen) => { if (!isOpen) closeCompleteDialog(); });
                                         :disabled="deletingPhotoId === line.id"
                                         @click="rejectPhoto(line)"
                                     >
-                                        <Trash2 class="ms-1.5 h-4 w-4" />
-                                        {{ deletingPhotoId === line.id ? 'جاري الحذف...' : 'حذف وإعادة الرفع' }}
+                                        <X class="ms-1.5 h-4 w-4" />
+                                        {{ deletingPhotoId === line.id ? 'جاري الرفض...' : 'رفض الصورة' }}
                                     </Button>
-                                    <span v-else-if="line.installation_photo_url" class="text-xs font-medium text-emerald-600">
+                                    <span
+                                        v-else-if="line.installation_photo_url && !canRejectPhotos"
+                                        class="text-xs font-medium text-emerald-600"
+                                    >
                                         صورة مرفوعة ✓ — اضغط للتكبير
                                     </span>
-                                    <span v-else-if="!canUploadPhotos" class="text-xs font-medium text-amber-600">
+                                    <span v-else-if="!line.installation_photo_url && !canUploadPhotos" class="text-xs font-medium text-amber-600">
                                         بانتظار رفع العامل للصورة
                                     </span>
                                 </div>
