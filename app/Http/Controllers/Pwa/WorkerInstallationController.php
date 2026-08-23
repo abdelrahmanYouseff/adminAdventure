@@ -20,7 +20,7 @@ use Throwable;
 
 class WorkerInstallationController extends Controller
 {
-    public function show(Request $request, Order $order): Response
+    public function show(Request $request, Order $order): Response|RedirectResponse
     {
         $user = $request->user();
         abort_unless($order->isAssignedToWorker($user), 403, 'هذا الطلب غير معيّن لك.');
@@ -32,6 +32,14 @@ class WorkerInstallationController extends Controller
         ]);
 
         $requestedTask = $request->string('task')->toString();
+        $canonical = $this->canonicalTaskQuery($order, $user, $requestedTask);
+        if ($canonical !== null) {
+            return redirect()->route('pwa.installations.show', [
+                'order' => $order->id,
+                'task' => $canonical,
+            ]);
+        }
+
         $isDismantling = $this->resolveTaskIsDismantling($order, $user, $requestedTask);
         $lines = $order->workerOrders;
         $firstLine = $lines->first();
@@ -43,12 +51,18 @@ class WorkerInstallationController extends Controller
             $scheduledDate = $order->dismantling_at?->format('Y-m-d');
             $scheduledTime = $order->dismantling_at?->format('H:i');
             $isApproved = filled($order->warehouse_returned_at);
+            $notes = $order->workerNotes
+                ->filter(fn (WorkerOrderNote $note) => $this->isDismantlingRelatedNote($note->body))
+                ->values();
         } else {
             $pendingCount = $lines->where('status', 'pending')->count();
             $completedCount = $lines->where('status', 'completed')->count();
             $scheduledDate = ($order->scheduledInstallationDate() ?? $firstLine?->installation_date)?->format('Y-m-d');
             $scheduledTime = $order->scheduledInstallationTime();
             $isApproved = (bool) $order->work_order_approved_at;
+            $notes = $order->workerNotes
+                ->reject(fn (WorkerOrderNote $note) => $this->isDismantlingRelatedNote($note->body))
+                ->values();
         }
 
         return Inertia::render('InstallationShow', [
@@ -63,7 +77,6 @@ class WorkerInstallationController extends Controller
                 'pending_count' => $pendingCount,
                 'completed_count' => $completedCount,
                 'is_approved' => $isApproved,
-                // العمال لا يحذفون الصور — حذف الصور متاح لمدير العمال من لوحة التحكم فقط.
                 'can_replace_photos' => false,
                 'status' => $pendingCount > 0 ? 'pending' : 'completed',
                 'task_type' => $isDismantling ? 'dismantling' : 'installation',
@@ -78,6 +91,7 @@ class WorkerInstallationController extends Controller
                     'status' => $isDismantling
                         ? (filled($line->pickup_photo) ? 'completed' : 'pending')
                         : $line->status,
+                    // Dismantling never exposes installation photos.
                     'installation_photo_url' => $isDismantling
                         ? $line->pickup_photo_url
                         : $line->installation_photo_url,
@@ -85,7 +99,7 @@ class WorkerInstallationController extends Controller
                         ? $line->pickup_at?->toIso8601String()
                         : $line->completed_at?->toIso8601String(),
                 ])->values()->all(),
-                'notes' => $order->workerNotes
+                'notes' => $notes
                     ->map(fn (WorkerOrderNote $note) => [
                         'id' => $note->id,
                         'body' => $note->body,
@@ -117,8 +131,12 @@ class WorkerInstallationController extends Controller
             'body' => trim($validated['body']),
         ]);
 
+        $task = $this->resolveTaskIsDismantling($order, $user, (string) $request->input('task_type', $request->query('task', '')))
+            ? 'dismantling'
+            : 'installation';
+
         return redirect()
-            ->route('pwa.installations.show', $order)
+            ->route('pwa.installations.show', ['order' => $order->id, 'task' => $task])
             ->with('success', 'تم حفظ الملاحظة.');
     }
 
@@ -170,7 +188,10 @@ class WorkerInstallationController extends Controller
             $this->notifyDismantlingPhotosIfComplete($workerOrder->order, (int) $user->id);
 
             return redirect()
-                ->route('pwa.installations.show', $workerOrder->order_id)
+                ->route('pwa.installations.show', [
+                    'order' => $workerOrder->order_id,
+                    'task' => 'dismantling',
+                ])
                 ->with('success', 'تم إرسال صورة الفك بنجاح. ستظهر للمسؤول في تفاصيل الاسترجاع.');
         }
 
@@ -204,7 +225,10 @@ class WorkerInstallationController extends Controller
         $this->notifyInstallationPhotosIfComplete($workerOrder->order, (int) $user->id);
 
         return redirect()
-            ->route('pwa.installations.show', $workerOrder->order_id)
+            ->route('pwa.installations.show', [
+                'order' => $workerOrder->order_id,
+                'task' => 'installation',
+            ])
             ->with('success', 'تم تسجيل صورة التركيب بنجاح.');
     }
 
@@ -273,6 +297,39 @@ class WorkerInstallationController extends Controller
     }
 
     /**
+     * When the URL has no task, force a canonical task so فك never opens as تركيب.
+     */
+    private function canonicalTaskQuery(Order $order, $user, string $requestedTask): ?string
+    {
+        if (in_array($requestedTask, [
+            WorkerOrderAssembler::TYPE_INSTALLATION,
+            WorkerOrderAssembler::TYPE_DISMANTLING,
+        ], true)) {
+            return null;
+        }
+
+        $hasInstallation = $order->isAssignedToWorker($user, WorkerOrderAssembler::TYPE_INSTALLATION);
+        $hasDismantling = $order->isAssignedToWorker($user, WorkerOrderAssembler::TYPE_DISMANTLING);
+
+        if ($hasDismantling && ! $hasInstallation) {
+            return WorkerOrderAssembler::TYPE_DISMANTLING;
+        }
+
+        if ($hasInstallation && ! $hasDismantling) {
+            return WorkerOrderAssembler::TYPE_INSTALLATION;
+        }
+
+        if ($hasInstallation && $hasDismantling) {
+            // Bare URL with both assignments: keep install-first only while install photos pending.
+            return $order->hasAllWorkerPhotos()
+                ? WorkerOrderAssembler::TYPE_DISMANTLING
+                : WorkerOrderAssembler::TYPE_INSTALLATION;
+        }
+
+        return null;
+    }
+
+    /**
      * Prefer explicit task from the separate list card / form; otherwise fall back
      * to the legacy phase detection (dismantling after installation when both).
      */
@@ -301,6 +358,18 @@ class WorkerInstallationController extends Controller
         }
 
         return $order->workerIsInDismantlingPhase($user);
+    }
+
+    private function isDismantlingRelatedNote(string $body): bool
+    {
+        $body = mb_strtolower($body);
+
+        return str_contains($body, 'فك')
+            || str_contains($body, 'استرجاع')
+            || str_contains($body, 'رفض')
+            || str_contains($body, 'تعميد الاسترجاع')
+            || str_contains($body, 'pickup')
+            || str_contains($body, 'dismantl');
     }
 
     private function resolveMapUrl(?string $address): ?string

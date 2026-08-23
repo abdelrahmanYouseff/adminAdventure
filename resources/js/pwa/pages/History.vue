@@ -106,7 +106,7 @@ function formatInstallDate(date: string | null): string {
                     :key="item.id"
                     class="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm"
                 >
-                    <Link :href="`/worker-app/installations/${item.id}`" class="block p-5">
+                    <Link :href="`/worker-app/installations/${item.id}?task=installation`" class="block p-5">
                         <div class="flex items-start justify-between gap-3">
                             <div class="min-w-0">
                                 <h3 class="truncate text-base font-bold text-slate-900">{{ item.customer_name }}</h3>

@@ -82,6 +82,7 @@ const installForm = useForm({
 
 const noteForm = useForm({
     body: '',
+    task_type: props.installation.task_type === 'dismantling' ? 'dismantling' : 'installation',
 });
 
 const pendingProducts = computed(() =>
@@ -99,7 +100,9 @@ const isDismantling = computed(() => props.installation.task_type === 'dismantli
 watch(
     () => props.installation.task_type,
     (taskType) => {
-        installForm.task_type = taskType === 'dismantling' ? 'dismantling' : 'installation';
+        const task = taskType === 'dismantling' ? 'dismantling' : 'installation';
+        installForm.task_type = task;
+        noteForm.task_type = task;
     },
 );
 
@@ -138,8 +141,9 @@ function submitNote() {
     noteForm.post(`/worker-app/installations/${props.installation.id}/notes`, {
         preserveScroll: true,
         onSuccess: () => {
-            noteForm.reset();
+            noteForm.reset('body');
             noteForm.clearErrors();
+            noteForm.task_type = isDismantling.value ? 'dismantling' : 'installation';
         },
     });
 }
@@ -152,6 +156,7 @@ function clearPreview() {
 function openInstallCapture(product: ProductLine) {
     selectedProduct.value = product;
     installForm.reset();
+    installForm.task_type = isDismantling.value ? 'dismantling' : 'installation';
     installForm.clearErrors();
     photoError.value = null;
     clearPreview();
@@ -274,7 +279,17 @@ const canLeaveBody = computed(() =>
     isDismantling.value ? t('can_leave_body_dismantling') : t('can_leave_body'),
 );
 
-const leaveDismissKey = `aw-can-leave-${props.installation.id}`;
+const leaveDismissKey = computed(
+    () => `aw-can-leave-${props.installation.id}-${props.installation.task_type || 'installation'}`,
+);
+
+const taskQuery = computed(() =>
+    props.installation.task_type === 'dismantling' ? 'dismantling' : 'installation',
+);
+
+const showPath = computed(
+    () => `/worker-app/installations/${props.installation.id}?task=${taskQuery.value}`,
+);
 
 const showLeaveModal = ref(false);
 
@@ -305,10 +320,11 @@ function syncLeaveGuards() {
     }
 
     pollTimer = setInterval(() => {
-        router.reload({
+        router.get(showPath.value, {}, {
             only: ['installation'],
             preserveScroll: true,
             preserveState: true,
+            replace: true,
         });
     }, 10000);
 
@@ -328,10 +344,11 @@ function syncLeaveGuards() {
         }
     });
 
-    history.pushState({ workerStay: props.installation.id }, '');
+    history.pushState({ workerStay: leaveDismissKey.value }, '');
     popStateHandler = () => {
         if (waitApproval.value) {
-            history.pushState({ workerStay: props.installation.id }, '');
+            history.pushState({ workerStay: leaveDismissKey.value }, '');
+            showLeaveModal.value = true;
         }
     };
     window.addEventListener('popstate', popStateHandler);
@@ -342,7 +359,7 @@ watch(waitApproval, () => syncLeaveGuards(), { immediate: true });
 watch(
     () => props.installation.is_approved,
     (approved) => {
-        if (allPhotosDone.value && approved && !localStorage.getItem(leaveDismissKey)) {
+        if (allPhotosDone.value && approved && !localStorage.getItem(leaveDismissKey.value)) {
             showLeaveModal.value = true;
         }
     },
@@ -350,7 +367,7 @@ watch(
 );
 
 function confirmLeave() {
-    localStorage.setItem(leaveDismissKey, '1');
+    localStorage.setItem(leaveDismissKey.value, '1');
     showLeaveModal.value = false;
 }
 
@@ -545,7 +562,8 @@ function attemptBack() {
                         <h3 class="font-bold text-slate-900">{{ product.product_name }}</h3>
                         <button
                             type="button"
-                            class="inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-sky-600 text-sm font-semibold text-white shadow-sm transition active:scale-[0.99] hover:bg-sky-700"
+                            class="inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl text-sm font-semibold text-white shadow-sm transition active:scale-[0.99]"
+                            :class="isDismantling ? 'bg-orange-600 hover:bg-orange-700' : 'bg-sky-600 hover:bg-sky-700'"
                             @click="openInstallCapture(product)"
                         >
                             <Camera class="h-5 w-5" />
@@ -578,7 +596,7 @@ function attemptBack() {
                         <img
                             v-if="product.installation_photo_url"
                             :src="product.installation_photo_url"
-                            :alt="t('install_photo_alt')"
+                            :alt="isDismantling ? t('dismantle_photo_alt') : t('install_photo_alt')"
                             class="h-full w-full object-cover"
                         />
                     </div>
