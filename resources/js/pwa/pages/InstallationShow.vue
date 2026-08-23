@@ -52,6 +52,7 @@ interface Installation {
     status: 'pending' | 'completed';
     task_type?: 'installation' | 'dismantling' | 'both';
     task_label?: string;
+    rejection_reason?: string | null;
     products: ProductLine[];
     notes: WorkNote[];
 }
@@ -385,6 +386,14 @@ function attemptBack() {
             </div>
             <WorkerLanguageSwitcher />
         </header>
+
+        <div
+            v-if="installation.rejection_reason"
+            class="relative mx-auto mt-4 w-full max-w-md rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800"
+        >
+            <p class="font-semibold">تم رفض صور الفك — أعد التصوير</p>
+            <p class="mt-1 leading-relaxed">{{ installation.rejection_reason }}</p>
+        </div>
 
         <main
             class="relative mx-auto mt-5 flex w-full max-w-md flex-1 flex-col gap-4"

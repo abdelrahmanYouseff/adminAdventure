@@ -14,6 +14,7 @@ use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -188,6 +189,7 @@ class ProductReturnController extends Controller
             'availableWorkers' => WorkOrderPresenter::availableWorkers(),
             'canAssignWorkers' => $this->canAssignWorkers($user),
             'canConfirm' => $canDecide && blank($order->warehouse_returned_at),
+            'canReject' => $canDecide && blank($order->warehouse_returned_at),
         ]);
     }
 
@@ -224,6 +226,58 @@ class ProductReturnController extends Controller
         ]);
 
         return back()->with('success', 'تم تعميد استرجاع منتجات الطلب '.$order->order_number.' للمستودع مع تسجيل الملاحظة. أصبح التأمين ظاهرًا الآن في صفحة استرداد التأمين.');
+    }
+
+    public function reject(Request $request, Order $order): RedirectResponse
+    {
+        abort_unless($this->isEligibleReturn($order), 404);
+        abort_unless($this->canDecideReturn($request->user()), 403, 'غير مصرح لك برفض الاسترجاع.');
+
+        if ($order->warehouse_returned_at) {
+            return back()->with('error', 'لا يمكن رفض طلب تم تعميده مسبقاً.');
+        }
+
+        $validated = $request->validate([
+            'note' => ['required', 'string', 'max:2000'],
+        ], [
+            'note.required' => 'يجب كتابة سبب الرفض.',
+            'note.max' => 'سبب الرفض يجب ألا يتجاوز 2000 حرف.',
+        ]);
+
+        $note = trim($validated['note']);
+
+        $order->loadMissing(['workerOrders']);
+
+        foreach ($order->workerOrders as $line) {
+            if ($line->pickup_photo) {
+                Storage::disk('public')->delete($line->pickup_photo);
+            }
+
+            $line->forceFill([
+                'pickup_photo' => null,
+                'pickup_at' => null,
+                'pickup_by' => null,
+                'pickup_condition' => null,
+            ])->save();
+        }
+
+        $order->forceFill([
+            'warehouse_rejection_reason' => $note,
+            'warehouse_rejected_at' => now(),
+            'warehouse_rejected_by' => $request->user()?->id,
+            'dismantling_photos_notified_at' => null,
+        ])->save();
+
+        WorkerOrderNote::create([
+            'order_id' => $order->id,
+            'user_id' => $request->user()->id,
+            'body' => 'رفض الاسترجاع وإعادة للعامل: '.$note,
+        ]);
+
+        return back()->with(
+            'success',
+            'تم رفض الاسترجاع وإرجاع الطلب للعامل لإعادة رفع صور الفك. السبب: '.$note
+        );
     }
 
     public function storeNote(Request $request, Order $order): RedirectResponse
@@ -392,10 +446,14 @@ class ProductReturnController extends Controller
             'dismantling_tone' => $dismantlingMeta['tone'],
             'warehouse_returned_at' => $order->warehouse_returned_at?->toIso8601String(),
             'warehouse_returned_by_name' => $order->warehouseReturnedBy?->name,
+            'warehouse_rejected_at' => $order->warehouse_rejected_at?->toIso8601String(),
+            'warehouse_rejection_reason' => $order->warehouse_rejection_reason,
             'is_returned' => $isReturned,
+            'is_rejected' => filled($order->warehouse_rejected_at) && ! $isReturned,
             'is_assigned' => count($assignedWorkers) > 0,
             'assigned_workers' => $assignedWorkers,
             'can_confirm' => ($canDecide ?? false) && ! $isReturned,
+            'can_reject' => ($canDecide ?? false) && ! $isReturned,
             'notes' => $notes->map(fn (WorkerOrderNote $note) => [
                 'id' => $note->id,
                 'body' => $note->body,

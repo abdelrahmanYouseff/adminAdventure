@@ -67,6 +67,9 @@ class WorkerInstallationController extends Controller
                 'status' => $pendingCount > 0 ? 'pending' : 'completed',
                 'task_type' => $isDismantling ? 'dismantling' : ($assignmentType === 'both' ? 'both' : 'installation'),
                 'task_label' => $isDismantling ? 'فك' : ($assignmentType === 'both' ? 'تركيب + فك' : 'تركيب'),
+                'rejection_reason' => $isDismantling && filled($order->warehouse_rejected_at) && blank($order->warehouse_returned_at)
+                    ? (string) ($order->warehouse_rejection_reason ?: '')
+                    : null,
                 'products' => $lines->map(fn (WorkerOrder $line) => [
                     'id' => $line->id,
                     'product_name' => $line->product_name,

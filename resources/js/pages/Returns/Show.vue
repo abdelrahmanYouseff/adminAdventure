@@ -17,6 +17,7 @@ import {
     Undo2,
     Users,
     X,
+    XCircle,
 } from 'lucide-vue-next';
 import Swal from 'sweetalert2';
 import {
@@ -81,8 +82,12 @@ interface ReturnOrder {
     dismantling_tone: 'ok' | 'warn' | 'due' | 'overdue' | 'muted';
     warehouse_returned_at: string | null;
     warehouse_returned_by_name: string | null;
+    warehouse_rejected_at?: string | null;
+    warehouse_rejection_reason?: string | null;
     is_returned: boolean;
+    is_rejected?: boolean;
     can_confirm: boolean;
+    can_reject?: boolean;
     notes: ReturnNote[];
     notes_count: number;
     assemblers: Assembler[];
@@ -96,6 +101,7 @@ interface Props {
     availableWorkers: AvailableWorker[];
     canAssignWorkers: boolean;
     canConfirm: boolean;
+    canReject?: boolean;
 }
 
 const props = defineProps<Props>();
@@ -106,6 +112,8 @@ const flash = computed(() => (page.props.flash as { success?: string; error?: st
 
 const confirmDialogOpen = ref(false);
 const confirmForm = useForm({ note: '' });
+const rejectDialogOpen = ref(false);
+const rejectForm = useForm({ note: '' });
 const assemblerFormOpen = ref(false);
 const deletingAssemblerId = ref<number | null>(null);
 const assemblerForm = useForm({ user_id: '' as string | number });
@@ -193,6 +201,25 @@ function submitConfirm() {
     });
 }
 
+function openRejectDialog() {
+    rejectForm.clearErrors();
+    rejectForm.note = '';
+    rejectDialogOpen.value = true;
+}
+
+function closeRejectDialog() {
+    rejectDialogOpen.value = false;
+    rejectForm.reset();
+    rejectForm.clearErrors();
+}
+
+function submitReject() {
+    rejectForm.post(`/returns/${props.returnOrder.id}/reject`, {
+        preserveScroll: true,
+        onSuccess: () => closeRejectDialog(),
+    });
+}
+
 function openAssemblerForm() {
     assemblerForm.reset();
     assemblerForm.clearErrors();
@@ -262,15 +289,36 @@ function submitNote() {
 
             <div class="flex flex-wrap items-center gap-2">
                 <Button
+                    v-if="canReject && returnOrder.can_reject"
+                    variant="outline"
+                    class="gap-1.5 border-rose-200 text-rose-700 hover:bg-rose-50 hover:text-rose-800"
+                    :disabled="rejectForm.processing || confirmForm.processing"
+                    @click="openRejectDialog"
+                >
+                    <XCircle class="size-3.5" />
+                    {{ rejectForm.processing ? 'جاري الرفض...' : 'رفض وإعادة للعامل' }}
+                </Button>
+                <Button
                     v-if="canConfirm && returnOrder.can_confirm"
                     class="gap-1.5"
-                    :disabled="confirmForm.processing"
+                    :disabled="confirmForm.processing || rejectForm.processing"
                     @click="openConfirmDialog"
                 >
                     <Undo2 class="size-3.5" />
                     {{ confirmForm.processing ? 'جاري التعميد...' : 'تعميد الاسترجاع' }}
                 </Button>
             </div>
+        </div>
+
+        <div
+            v-if="returnOrder.is_rejected && returnOrder.warehouse_rejection_reason"
+            class="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800 dark:border-rose-900/50 dark:bg-rose-950/30 dark:text-rose-200"
+        >
+            <p class="font-semibold">تم رفض الاسترجاع وإرجاعه للعامل</p>
+            <p class="mt-1 leading-relaxed">السبب: {{ returnOrder.warehouse_rejection_reason }}</p>
+            <p v-if="returnOrder.warehouse_rejected_at" class="mt-1 text-xs text-rose-600/80" dir="ltr">
+                {{ formatDateTime(returnOrder.warehouse_rejected_at) }}
+            </p>
         </div>
 
         <section class="grid gap-4 lg:grid-cols-3">
@@ -292,6 +340,13 @@ function submitNote() {
                         >
                             <CheckCircle2 class="size-3.5" />
                             تم التعميد
+                        </span>
+                        <span
+                            v-else-if="returnOrder.is_rejected"
+                            class="inline-flex items-center gap-1 rounded-full bg-rose-50 px-2.5 py-1 text-xs font-semibold text-rose-700 ring-1 ring-inset ring-rose-100"
+                        >
+                            <XCircle class="size-3.5" />
+                            مرفوض — بانتظار العامل
                         </span>
                         <span
                             v-else
@@ -670,6 +725,53 @@ function submitNote() {
                             {{ confirmForm.processing ? 'جاري التعميد...' : 'تعميد' }}
                         </Button>
                         <Button type="button" variant="outline" class="h-10 rounded-xl" @click="closeConfirmDialog">
+                            إلغاء
+                        </Button>
+                    </DialogFooter>
+                </form>
+            </DialogContent>
+        </Dialog>
+
+        <Dialog :open="rejectDialogOpen" @update:open="(open) => !open && closeRejectDialog()">
+            <DialogContent class="max-w-md sm:max-w-lg" dir="rtl">
+                <DialogHeader>
+                    <DialogTitle>رفض الاسترجاع</DialogTitle>
+                    <DialogDescription>
+                        الطلب
+                        <span class="font-semibold tabular-nums" dir="ltr">{{ returnOrder.order_number }}</span>
+                        —
+                        {{ returnOrder.customer_name }}
+                        <br>
+                        سيتم مسح صور الفك الحالية وإرجاع الطلب للعامل ليعيد رفعها.
+                    </DialogDescription>
+                </DialogHeader>
+
+                <form class="space-y-4" @submit.prevent="submitReject">
+                    <div class="space-y-2">
+                        <Label for="show-reject-note">سبب الرفض</Label>
+                        <textarea
+                            id="show-reject-note"
+                            v-model="rejectForm.note"
+                            rows="4"
+                            class="flex min-h-[100px] w-full rounded-xl border border-input bg-background px-3 py-2 text-sm outline-none ring-offset-background placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring"
+                            placeholder="اكتب سبب الرفض للعامل..."
+                            required
+                        />
+                        <p v-if="rejectForm.errors.note" class="text-xs text-red-600">
+                            {{ rejectForm.errors.note }}
+                        </p>
+                    </div>
+
+                    <DialogFooter class="gap-2 sm:justify-start">
+                        <Button
+                            type="submit"
+                            class="h-10 gap-2 rounded-xl bg-rose-600 hover:bg-rose-700"
+                            :disabled="rejectForm.processing || !rejectForm.note.trim()"
+                        >
+                            <XCircle class="size-4" />
+                            {{ rejectForm.processing ? 'جاري الرفض...' : 'رفض وإعادة للعامل' }}
+                        </Button>
+                        <Button type="button" variant="outline" class="h-10 rounded-xl" @click="closeRejectDialog">
                             إلغاء
                         </Button>
                     </DialogFooter>
