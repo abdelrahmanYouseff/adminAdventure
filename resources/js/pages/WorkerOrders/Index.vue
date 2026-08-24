@@ -304,6 +304,26 @@ function formatEventDate(date: string | null): string {
     return formatDate(date);
 }
 
+/** First + second name only; strip tax numbers. */
+function displayCustomerName(name: string | null | undefined): string {
+    if (!name) {
+        return '—';
+    }
+
+    const cleaned = String(name)
+        .replace(/الرقم\s*الضريبي\s*[:：]?\s*\S*/gi, ' ')
+        .replace(/\b\d{10,15}\b/g, ' ')
+        .replace(/\s*[||/]\s*/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+    if (!cleaned) {
+        return '—';
+    }
+
+    return cleaned.split(/\s+/).slice(0, 2).join(' ');
+}
+
 function workOrderUrl(item: WorkOrderItem, warehouse = isWarehouseView.value): string {
     const base = `/worker-orders/${encodeURIComponent(item.reference_number)}`;
     return warehouse ? `${base}?view=warehouse` : base;
@@ -630,7 +650,7 @@ watch(
                     </div>
 
                     <div class="overflow-x-auto">
-                        <table class="w-full border-collapse text-sm" :class="isWarehouseView ? 'min-w-[820px]' : 'min-w-[1220px]'">
+                        <table class="w-full border-collapse text-sm" :class="isWarehouseView ? 'min-w-[760px]' : 'min-w-[1100px]'">
                             <thead>
                                 <tr class="border-b border-gray-100 text-start dark:border-neutral-800">
                                     <th v-if="!isWarehouseView" class="w-12 px-4 py-3.5">
@@ -642,7 +662,7 @@ watch(
                                         />
                                     </th>
                                     <th class="px-3 py-3.5 text-start text-[13px] font-semibold text-gray-700 dark:text-neutral-200">الرقم المرجعي</th>
-                                    <th class="px-3 py-3.5 text-start text-[13px] font-semibold text-gray-700 dark:text-neutral-200">العميل</th>
+                                    <th class="w-[7.5rem] max-w-[7.5rem] px-2 py-3.5 text-start text-[13px] font-semibold text-gray-700 dark:text-neutral-200">العميل</th>
                                     <th class="px-3 py-3.5 text-start text-[13px] font-semibold text-gray-700 dark:text-neutral-200">يوم الفعالية</th>
                                     <th class="px-3 py-3.5 text-start text-[13px] font-semibold text-gray-700 dark:text-neutral-200">المنتجات</th>
                                     <th v-if="!isWarehouseView" class="px-3 py-3.5 text-start text-[13px] font-semibold text-gray-700 dark:text-neutral-200">الحالة</th>
@@ -690,12 +710,17 @@ watch(
                                             </p>
                                         </div>
                                     </td>
-                                    <td class="px-3 py-4">
+                                    <td class="w-[7.5rem] max-w-[7.5rem] px-2 py-4">
                                         <div class="flex min-w-0 flex-col items-start gap-1">
-                                            <p class="font-semibold text-gray-900 dark:text-white">{{ item.customer_name }}</p>
+                                            <p
+                                                class="max-w-[7.5rem] truncate text-[11px] font-semibold leading-tight text-gray-900 dark:text-white"
+                                                :title="item.customer_name"
+                                            >
+                                                {{ displayCustomerName(item.customer_name) }}
+                                            </p>
                                             <p
                                                 v-if="!isWarehouseView && (item.remaining_amount || 0) > 0"
-                                                class="text-xs font-semibold text-amber-600"
+                                                class="text-[10px] font-semibold text-amber-600"
                                             >
                                                 متبقي <span dir="ltr" class="tabular-nums">{{ formatCurrency(item.remaining_amount || 0, item.currency || 'SAR') }}</span>
                                             </p>
