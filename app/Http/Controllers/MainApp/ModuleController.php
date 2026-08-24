@@ -156,6 +156,7 @@ class ModuleController extends Controller
     {
         $query = Order::query()
             ->whereNotNull('work_order_approved_at')
+            ->whereNotIn('status', ['cancelled', 'refunded'])
             ->with('warehouseReturnedBy:id,customer_name')
             ->latest('updated_at');
 

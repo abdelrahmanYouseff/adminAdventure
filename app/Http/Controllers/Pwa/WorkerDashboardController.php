@@ -82,7 +82,7 @@ class WorkerDashboardController extends Controller
             $cards[] = $this->formatTaskCard($order, $user, WorkerOrderAssembler::TYPE_INSTALLATION);
         }
 
-        if ($hasDismantling) {
+        if ($hasDismantling && $order->canEnterReturnsFlow()) {
             $cards[] = $this->formatTaskCard($order, $user, WorkerOrderAssembler::TYPE_DISMANTLING);
         }
 

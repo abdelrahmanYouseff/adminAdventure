@@ -348,6 +348,20 @@ class Order extends Model
         return filled($this->warehouse_keeper_approved_at);
     }
 
+    public function canEnterReturnsFlow(): bool
+    {
+        return filled($this->work_order_approved_at)
+            && ! in_array($this->status, ['cancelled', 'refunded'], true);
+    }
+
+    public function canEnterWarehouseQueue(): bool
+    {
+        return $this->canEnterReturnsFlow()
+            && filled($this->warehouse_returned_at)
+            && filled($this->warehouse_returned_by)
+            && blank($this->warehouse_keeper_approved_at);
+    }
+
     public function insuranceRefundRequestedBy()
     {
         return $this->belongsTo(User::class, 'insurance_refund_requested_by');
@@ -484,6 +498,10 @@ class Order extends Model
     public function workerIsInDismantlingPhase(User $user): bool
     {
         if (! $this->isAssignedToWorker($user, WorkerOrderAssembler::TYPE_DISMANTLING)) {
+            return false;
+        }
+
+        if (! $this->canEnterReturnsFlow()) {
             return false;
         }
 

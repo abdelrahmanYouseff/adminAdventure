@@ -368,12 +368,13 @@ class ProductReturnController extends Controller
     private function eligibleReturnsQuery(): Builder
     {
         return Order::query()
+            ->whereNotNull('work_order_approved_at')
             ->whereNotIn('status', ['cancelled', 'refunded']);
     }
 
     private function isEligibleReturn(Order $order): bool
     {
-        return ! in_array($order->status, ['cancelled', 'refunded'], true);
+        return $order->canEnterReturnsFlow();
     }
 
     private function canAssignWorkers(?User $user): bool

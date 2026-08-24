@@ -46,6 +46,14 @@ class WorkerInstallationController extends Controller
         $address = $firstLine?->customer_address ?? $order->address;
 
         if ($isDismantling) {
+            abort_unless(
+                $order->canEnterReturnsFlow(),
+                403,
+                'لا يمكن بدء الفك قبل تعميد التركيب من المسؤول.',
+            );
+        }
+
+        if ($isDismantling) {
             $pendingCount = $lines->whereNull('pickup_photo')->count();
             $completedCount = $lines->whereNotNull('pickup_photo')->count();
             $scheduledDate = $order->dismantling_at?->format('Y-m-d');
@@ -158,6 +166,12 @@ class WorkerInstallationController extends Controller
         );
 
         if ($isDismantling) {
+            abort_unless(
+                $workerOrder->order->canEnterReturnsFlow(),
+                403,
+                'لا يمكن رفع صور الفك قبل تعميد التركيب من المسؤول.',
+            );
+
             if (filled($workerOrder->pickup_photo)) {
                 return back()->withErrors([
                     'installation_photo' => 'تم رفع صورة الفك مسبقاً لهذا المنتج.',
@@ -312,6 +326,10 @@ class WorkerInstallationController extends Controller
         $hasDismantling = $order->isAssignedToWorker($user, WorkerOrderAssembler::TYPE_DISMANTLING);
 
         if ($hasDismantling && ! $hasInstallation) {
+            if (! $order->canEnterReturnsFlow()) {
+                return null;
+            }
+
             return WorkerOrderAssembler::TYPE_DISMANTLING;
         }
 
@@ -320,6 +338,10 @@ class WorkerInstallationController extends Controller
         }
 
         if ($hasInstallation && $hasDismantling) {
+            if (! $order->canEnterReturnsFlow()) {
+                return WorkerOrderAssembler::TYPE_INSTALLATION;
+            }
+
             // Bare URL with both assignments: keep install-first only while install photos pending.
             return $order->hasAllWorkerPhotos()
                 ? WorkerOrderAssembler::TYPE_DISMANTLING
@@ -342,6 +364,11 @@ class WorkerInstallationController extends Controller
                 $order->isAssignedToWorker($user, WorkerOrderAssembler::TYPE_DISMANTLING),
                 403,
                 'هذا الطلب غير معيّن لك كمهمة فك.',
+            );
+            abort_unless(
+                $order->canEnterReturnsFlow(),
+                403,
+                'لا يمكن بدء الفك قبل تعميد التركيب من المسؤول.',
             );
 
             return true;

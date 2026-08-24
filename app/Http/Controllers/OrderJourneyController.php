@@ -83,8 +83,11 @@ class OrderJourneyController extends Controller
                 ->whereNull('work_order_approved_at'),
             'return' => $query
                 ->whereNotNull('work_order_approved_at')
+                ->whereNotIn('status', ['cancelled', 'refunded'])
                 ->whereNull('warehouse_returned_at'),
-            'done' => $query->whereNotNull('warehouse_returned_at'),
+            'done' => $query
+                ->whereNotIn('status', ['cancelled', 'refunded'])
+                ->whereNotNull('warehouse_returned_at'),
             default => $query,
         };
     }

@@ -616,6 +616,7 @@ class WorkerOrderController extends Controller
     private function warehouseOrdersQuery()
     {
         return Order::query()
+            ->whereNotNull('work_order_approved_at')
             ->whereNotNull('warehouse_returned_at')
             ->whereNotNull('warehouse_returned_by')
             ->whereNull('warehouse_keeper_approved_at')
@@ -624,10 +625,7 @@ class WorkerOrderController extends Controller
 
     private function isWarehouseQueueOrder(Order $order): bool
     {
-        return filled($order->warehouse_returned_at)
-            && filled($order->warehouse_returned_by)
-            && blank($order->warehouse_keeper_approved_at)
-            && ! in_array($order->status, ['cancelled', 'refunded'], true);
+        return $order->canEnterWarehouseQueue();
     }
 
     private function assertCanViewDeliveryNote(Request $request, Order $order): void

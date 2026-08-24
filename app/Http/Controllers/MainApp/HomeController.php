@@ -82,6 +82,7 @@ class HomeController extends Controller
                 'label' => 'استرجاع معلّق',
                 'value' => Order::query()
                     ->whereNotNull('work_order_approved_at')
+                    ->whereNotIn('status', ['cancelled', 'refunded'])
                     ->whereNull('warehouse_returned_at')
                     ->count(),
             ];
