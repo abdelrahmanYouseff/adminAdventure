@@ -74,11 +74,18 @@ class OrderJourneyController extends Controller
                 fn ($receipts) => $receipts->where('approval_status', 'approved'),
             ),
             'assignment' => $query
+                ->whereHas('paymentReceipts', fn ($receipts) => $receipts->where('approval_status', 'approved'))
                 ->whereHas('workerOrders')
                 ->whereDoesntHave('workerAssemblers', fn ($assemblers) => $assemblers->installation()),
-            'installation' => $query->whereHas('workerOrders', fn ($lines) => $lines->where('status', 'pending')),
+            'installation' => $query
+                ->whereHas('paymentReceipts', fn ($receipts) => $receipts->where('approval_status', 'approved'))
+                ->whereHas('workerAssemblers', fn ($assemblers) => $assemblers->installation())
+                ->whereHas('workerOrders', fn ($lines) => $lines->where('status', 'pending'))
+                ->whereNull('work_order_approved_at'),
             'approval' => $query
+                ->whereHas('paymentReceipts', fn ($receipts) => $receipts->where('approval_status', 'approved'))
                 ->whereHas('workerOrders')
+                ->whereHas('workerAssemblers', fn ($assemblers) => $assemblers->installation())
                 ->whereDoesntHave('workerOrders', fn ($lines) => $lines->where('status', 'pending'))
                 ->whereNull('work_order_approved_at'),
             'return' => $query
@@ -87,7 +94,7 @@ class OrderJourneyController extends Controller
                 ->whereNull('warehouse_returned_at'),
             'done' => $query
                 ->whereNotIn('status', ['cancelled', 'refunded'])
-                ->whereNotNull('warehouse_returned_at'),
+                ->whereNotNull('warehouse_keeper_approved_at'),
             default => $query,
         };
     }
@@ -104,7 +111,7 @@ class OrderJourneyController extends Controller
             ['key' => 'installation', 'label' => 'قيد التركيب'],
             ['key' => 'approval', 'label' => 'بانتظار التعميد'],
             ['key' => 'return', 'label' => 'بانتظار الاسترجاع'],
-            ['key' => 'done', 'label' => 'مكتملة'],
+            ['key' => 'done', 'label' => 'مقفلة'],
         ];
     }
 

@@ -70,7 +70,7 @@ class OrderJourney
                 'order' => '/orders/'.$order->id,
                 'quotation' => $order->quotation_id ? '/quotations/'.$order->quotation_id : null,
                 'work_order' => $order->workerOrders->isNotEmpty() ? '/worker-orders/'.rawurlencode($order->order_number) : null,
-                'returns' => '/returns/'.$order->id,
+                'returns' => $order->canEnterReturnsFlow() ? '/returns/'.$order->id : null,
                 'payment_receipts' => '/payment-receipts',
             ],
             'steps' => $journey['steps'],
@@ -99,6 +99,10 @@ class OrderJourney
             ->filter(fn (WorkerOrderAssembler $assembler) => $assembler->isInstallation())
             ->sortBy('created_at')
             ->values();
+        $dismantlingWorkers = $assemblers
+            ->filter(fn (WorkerOrderAssembler $assembler) => $assembler->isDismantling())
+            ->sortBy('created_at')
+            ->values();
 
         $firstReceipt = $receipts->sortBy('created_at')->first();
         $pendingReceipt = $receipts->firstWhere('approval_status', OrderPaymentReceipt::STATUS_PENDING);
@@ -116,12 +120,14 @@ class OrderJourney
         $allPhotosDone = $photosTotal > 0 && $photosDone === $photosTotal;
 
         $pickupsDone = $lines->filter(fn (WorkerOrder $line) => filled($line->pickup_photo))->count();
-        $hasReturnTrack = filled($order->dismantling_at)
+        $hasReturnTrack = $order->canEnterReturnsFlow()
             || filled($order->warehouse_returned_at)
             || $pickupsDone > 0
-            || $order->work_order_approved_at !== null;
+            || $dismantlingWorkers->isNotEmpty();
 
-        $hasInsurance = round((float) ($order->insurance_amount ?? 0), 2) > 0
+        $hasInsurance = filled($order->warehouse_keeper_approved_at)
+            || filled($order->insurance_refund_requested_at)
+            || filled($order->insurance_refunded_at)
             || in_array($order->insurance_status, ['pending', 'refunded', 'withheld'], true);
 
         $quotation = $order->quotation;
@@ -258,10 +264,40 @@ class OrderJourney
 
         if ($hasReturnTrack) {
             $dismantleDone = $photosTotal > 0 && $pickupsDone === $photosTotal;
+            $dismantlingWorkerNames = $dismantlingWorkers->pluck('worker_name')->unique()->filter()->values();
+
+            $steps[] = self::step(
+                key: 'returns_opened',
+                icon: 'undo-2',
+                title: 'فتح الاسترجاع',
+                description: $order->canEnterReturnsFlow()
+                    ? 'ظهر الطلب في صفحة الاسترجاع بعد تعميد التركيب.'
+                    : 'لن يظهر الطلب في الاسترجاع قبل تعميد التركيب.',
+                completed: $order->canEnterReturnsFlow(),
+                at: $order->work_order_approved_at?->toIso8601String(),
+                actor: $order->workOrderApprovedBy?->name,
+                waiting: 'بانتظار تعميد التركيب لفتح مرحلة الاسترجاع',
+                href: '/returns',
+            );
+
+            $steps[] = self::step(
+                key: 'dismantling_workers_assigned',
+                icon: 'users',
+                title: 'تعيين عمال الفك',
+                description: $dismantlingWorkerNames->isNotEmpty()
+                    ? 'تم تعيين: '.$dismantlingWorkerNames->implode('، ').'.'
+                    : 'لم يتم تعيين عمال الفك بعد.',
+                completed: $dismantlingWorkerNames->isNotEmpty(),
+                at: $dismantlingWorkers->first()?->created_at?->toIso8601String(),
+                actor: $dismantlingWorkerNames->first(),
+                waiting: 'بانتظار تعيين عمال الفك من صفحة الاسترجاع',
+                href: $order->canEnterReturnsFlow() ? '/returns/'.$order->id : '/returns',
+            );
+
             $steps[] = self::step(
                 key: 'dismantling',
                 icon: 'undo-2',
-                title: 'الفك والاسترجاع',
+                title: 'رفع صور الفك',
                 description: $dismantleDone
                     ? 'تم فك المنتجات واستلام صور الفك ('.$pickupsDone.'/'.$photosTotal.').'
                     : ($pickupsDone > 0
@@ -272,8 +308,8 @@ class OrderJourney
                     ? $lines->sortByDesc('pickup_at')->first()?->pickup_at?->toIso8601String()
                     : ($order->dismantling_at?->toIso8601String()),
                 actor: null,
-                waiting: 'بانتظار فك المنتجات ورفع صور الاسترجاع',
-                href: '/returns/'.$order->id,
+                waiting: 'بانتظار رفع صور الفك من العمال',
+                href: $order->canEnterReturnsFlow() ? '/returns/'.$order->id : '/returns',
             );
 
             $steps[] = self::step(
@@ -287,7 +323,7 @@ class OrderJourney
                 at: $order->warehouse_returned_at?->toIso8601String(),
                 actor: $order->warehouseReturnedBy?->name,
                 waiting: 'بانتظار تعميد الاسترجاع',
-                href: '/returns/'.$order->id,
+                href: $order->canEnterReturnsFlow() ? '/returns/'.$order->id : '/returns',
             );
 
             $steps[] = self::step(
@@ -303,7 +339,7 @@ class OrderJourney
                 at: $order->warehouse_keeper_approved_at?->toIso8601String(),
                 actor: $order->warehouseKeeperApprovedBy?->name,
                 waiting: 'بانتظار تعميد أمين المستودع',
-                href: '/worker-orders/'.$order->id,
+                href: '/worker-orders/'.rawurlencode($order->order_number).'?view=warehouse',
             );
         }
 

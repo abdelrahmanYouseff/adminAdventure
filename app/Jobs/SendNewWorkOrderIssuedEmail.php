@@ -5,6 +5,7 @@ namespace App\Jobs;
 use App\Mail\NewWorkOrderIssuedMail;
 use App\Models\Order;
 use App\Models\User;
+use App\Support\EmailLogRecorder;
 use App\Support\PublicAppUrl;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
@@ -47,6 +48,14 @@ class SendNewWorkOrderIssuedEmail implements ShouldQueue
                 'order_number' => $order->order_number,
             ]);
 
+            EmailLogRecorder::record(
+                type: 'work_order_issued',
+                status: 'skipped',
+                order: $order,
+                subject: 'تم تجاهل إصدار أمر العمل: أُرسل سابقاً',
+                meta: ['reason' => 'already_sent'],
+            );
+
             return;
         }
 
@@ -55,6 +64,14 @@ class SendNewWorkOrderIssuedEmail implements ShouldQueue
                 'order_id' => $order->id,
                 'order_number' => $order->order_number,
             ]);
+
+            EmailLogRecorder::record(
+                type: 'work_order_issued',
+                status: 'skipped',
+                order: $order,
+                subject: 'تم تجاهل إصدار أمر العمل: لا توجد سطور',
+                meta: ['reason' => 'no_worker_order_lines'],
+            );
 
             return;
         }
@@ -65,6 +82,15 @@ class SendNewWorkOrderIssuedEmail implements ShouldQueue
                 'order_id' => $order->id,
                 'order_number' => $order->order_number,
             ]);
+
+            EmailLogRecorder::record(
+                type: 'work_order_issued',
+                status: 'failed',
+                order: $order,
+                subject: 'فشل إرسال إشعار أمر العمل',
+                errorMessage: 'No recipients found',
+                meta: ['reason' => 'no_recipients'],
+            );
 
             return;
         }
@@ -102,6 +128,16 @@ class SendNewWorkOrderIssuedEmail implements ShouldQueue
         try {
             Mail::to($recipients)->send($mailable);
         } catch (Throwable $e) {
+            EmailLogRecorder::record(
+                type: 'work_order_issued',
+                status: 'failed',
+                order: $order,
+                recipients: $recipients,
+                subject: $mailable->envelope()->subject,
+                errorMessage: $e->getMessage(),
+                meta: ['products' => count($products)],
+            );
+
             Log::error('New work order email failed', [
                 'order_id' => $order->id,
                 'order_number' => $order->order_number,
@@ -115,6 +151,15 @@ class SendNewWorkOrderIssuedEmail implements ShouldQueue
         $order->forceFill([
             'work_order_issued_notified_at' => now(),
         ])->save();
+
+        EmailLogRecorder::record(
+            type: 'work_order_issued',
+            status: 'sent',
+            order: $order,
+            recipients: $recipients,
+            subject: $mailable->envelope()->subject,
+            meta: ['products' => count($products)],
+        );
 
         Log::info('New work order email sent', [
             'order_id' => $order->id,

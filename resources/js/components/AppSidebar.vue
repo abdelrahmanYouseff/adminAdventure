@@ -24,6 +24,7 @@ import {
     BarChart3,
     Route,
     Settings,
+    Mailbox,
 } from 'lucide-vue-next';
 import AppLogo from './AppLogo.vue';
 import { computed, ref } from 'vue';
@@ -168,6 +169,12 @@ const allNavItems: NavItemWithRoles[] = [
         href: '/quotations',
         icon: FileSpreadsheet,
         roles: ['admin', 'general_manager', 'manager', 'accounts'],
+    },
+    {
+        title: 'Email Log',
+        href: '/email-logs',
+        icon: Mailbox,
+        roles: ['admin', 'general_manager', 'manager', 'workers_manager', 'accounts'],
     },
     {
         title: 'إعدادات واتساب',

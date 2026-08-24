@@ -515,6 +515,10 @@ Route::get('orders/{order}/payment-receipts/{receipt}', [OrderController::class,
     ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,accounts'])
     ->name('orders.payment-receipts.show');
 
+Route::get('email-logs', [\App\Http\Controllers\EmailLogController::class, 'index'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,workers_manager,accounts'])
+    ->name('email-logs.index');
+
 Route::get('worker-orders', [\App\Http\Controllers\WorkerOrderController::class, 'index'])
     ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,workers_manager,warehouse_keeper'])
     ->name('worker-orders.index');

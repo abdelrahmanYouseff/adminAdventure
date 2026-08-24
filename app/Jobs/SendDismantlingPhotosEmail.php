@@ -7,6 +7,7 @@ use App\Models\Order;
 use App\Models\User;
 use App\Models\WorkerOrder;
 use App\Models\WorkerOrderAssembler;
+use App\Support\EmailLogRecorder;
 use App\Support\PublicAppUrl;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
@@ -51,6 +52,14 @@ class SendDismantlingPhotosEmail implements ShouldQueue
                 'order_number' => $order->order_number,
             ]);
 
+            EmailLogRecorder::record(
+                type: 'dismantling_photos',
+                status: 'skipped',
+                order: $order,
+                subject: 'تم تجاهل إرسال صور الفك: أُرسل سابقاً',
+                meta: ['reason' => 'already_sent'],
+            );
+
             return;
         }
 
@@ -61,6 +70,14 @@ class SendDismantlingPhotosEmail implements ShouldQueue
                 'order_number' => $order->order_number,
             ]);
 
+            EmailLogRecorder::record(
+                type: 'dismantling_photos',
+                status: 'skipped',
+                order: $order,
+                subject: 'تم تجاهل إرسال صور الفك: الصور غير مكتملة',
+                meta: ['reason' => 'photos_incomplete'],
+            );
+
             return;
         }
 
@@ -70,6 +87,15 @@ class SendDismantlingPhotosEmail implements ShouldQueue
                 'order_id' => $order->id,
                 'order_number' => $order->order_number,
             ]);
+
+            EmailLogRecorder::record(
+                type: 'dismantling_photos',
+                status: 'failed',
+                order: $order,
+                subject: 'فشل إرسال صور الفك',
+                errorMessage: 'No recipients found',
+                meta: ['reason' => 'no_recipients'],
+            );
 
             return;
         }
@@ -101,6 +127,16 @@ class SendDismantlingPhotosEmail implements ShouldQueue
         try {
             Mail::to($recipients)->send($mailable);
         } catch (Throwable $e) {
+            EmailLogRecorder::record(
+                type: 'dismantling_photos',
+                status: 'failed',
+                order: $order,
+                recipients: $recipients,
+                subject: $mailable->envelope()->subject,
+                errorMessage: $e->getMessage(),
+                meta: ['photos' => count($photos)],
+            );
+
             Log::error('Dismantling photos email failed', [
                 'order_id' => $order->id,
                 'order_number' => $order->order_number,
@@ -114,6 +150,15 @@ class SendDismantlingPhotosEmail implements ShouldQueue
         $order->forceFill([
             'dismantling_photos_notified_at' => now(),
         ])->save();
+
+        EmailLogRecorder::record(
+            type: 'dismantling_photos',
+            status: 'sent',
+            order: $order,
+            recipients: $recipients,
+            subject: $mailable->envelope()->subject,
+            meta: ['photos' => count($photos)],
+        );
 
         Log::info('Dismantling photos email sent', [
             'order_id' => $order->id,
