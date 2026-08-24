@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-import { Head, router } from '@inertiajs/vue3';
+import { Head, Link, router } from '@inertiajs/vue3';
 import AppLayout from '@/layouts/AppLayout.vue';
 import {
     ArrowDownRight,
@@ -238,6 +238,20 @@ function kpiIcon(key: string) {
                 </div>
 
                 <div class="flex flex-col gap-3">
+                    <div class="flex flex-wrap gap-2">
+                        <Link
+                            :href="route('reports.index')"
+                            class="inline-flex h-10 items-center rounded-full bg-white px-4 text-sm font-semibold text-slate-900 shadow-lg"
+                        >
+                            المبيعات
+                        </Link>
+                        <Link
+                            :href="route('reports.commissions')"
+                            class="inline-flex h-10 items-center rounded-full bg-white/10 px-4 text-sm font-semibold text-white ring-1 ring-white/10 hover:bg-white/15"
+                        >
+                            عمولات
+                        </Link>
+                    </div>
                     <div class="flex flex-wrap gap-2">
                         <button
                             v-for="preset in presets"

@@ -165,6 +165,14 @@ Route::get('reports', [\App\Http\Controllers\ReportController::class, 'index'])
     ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,accounts'])
     ->name('reports.index');
 
+Route::get('reports/commissions', [\App\Http\Controllers\ReportController::class, 'commissions'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,accounts'])
+    ->name('reports.commissions');
+
+Route::get('reports/commissions/export', [\App\Http\Controllers\ReportController::class, 'exportCommissions'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,accounts'])
+    ->name('reports.commissions.export');
+
 Route::middleware(['auth', 'verified', 'admin'])->prefix('settings')->name('settings.')->group(function () {
     Route::get('whatsapp', [\App\Http\Controllers\Settings\WhatsappNotificationSettingsController::class, 'index'])
         ->name('whatsapp.index');

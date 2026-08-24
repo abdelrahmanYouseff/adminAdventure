@@ -25,6 +25,7 @@ import {
     Route,
     Settings,
     Mailbox,
+    Percent,
 } from 'lucide-vue-next';
 import AppLogo from './AppLogo.vue';
 import { computed, ref } from 'vue';
@@ -160,9 +161,22 @@ const allNavItems: NavItemWithRoles[] = [
     },
     {
         title: 'التقارير',
-        href: '/reports',
         icon: BarChart3,
         roles: ['admin', 'general_manager', 'manager', 'accounts'],
+        children: [
+            {
+                title: 'المبيعات',
+                href: '/reports',
+                icon: BarChart3,
+                roles: ['admin', 'general_manager', 'manager', 'accounts'],
+            },
+            {
+                title: 'عمولات',
+                href: '/reports/commissions',
+                icon: Percent,
+                roles: ['admin', 'general_manager', 'manager', 'accounts'],
+            },
+        ],
     },
     {
         title: 'عروض الأسعار',
