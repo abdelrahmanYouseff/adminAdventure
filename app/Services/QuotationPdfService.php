@@ -82,6 +82,38 @@ class QuotationPdfService
             'bottomMargin' => $bottomMargin,
         ])->render());
 
-        return [$mpdf->Output('', Destination::STRING_RETURN), $mpdf->page];
+        $content = $mpdf->Output('', Destination::STRING_RETURN);
+
+        return [$this->normalizeLinkRects($content), $mpdf->page];
+    }
+
+    /**
+     * mPDF writes Link /Rect as [x y x+w y-h] (y2 < y1). Some PDF viewers
+     * ignore those hit-boxes, so normalize opposite corners to ll/ur order.
+     */
+    private function normalizeLinkRects(string $pdf): string
+    {
+        return (string) preg_replace_callback(
+            '/(\/Subtype\s*\/Link\s*\/Rect\s*\[)([^\]]+)(\])/',
+            static function (array $matches): string {
+                $parts = preg_split('/\s+/', trim($matches[2])) ?: [];
+                if (count($parts) !== 4) {
+                    return $matches[0];
+                }
+
+                [$x1, $y1, $x2, $y2] = array_map('floatval', $parts);
+
+                return sprintf(
+                    '%s%.3F %.3F %.3F %.3F%s',
+                    $matches[1],
+                    min($x1, $x2),
+                    min($y1, $y2),
+                    max($x1, $x2),
+                    max($y1, $y2),
+                    $matches[3],
+                );
+            },
+            $pdf,
+        );
     }
 }

@@ -7,7 +7,7 @@
     $pt = fn (float $size) => round($size * $scale, 2).'pt';
 
     // Height of the pinned acknowledgment box, in unscaled pt.
-    $ackReservedHeight = 100;
+    $ackReservedHeight = $data->hasOnlinePaymentSection() ? 110 : 100;
 
     $border = 'border: 1px solid #333;';
     $sectionTitle = 'font-size: '.$pt(7.5).'; font-weight: bold; color: #1a1a1a; margin: 0 0 '.$pt(4).' 0; letter-spacing: 0.2px; line-height: 1.35;';
@@ -449,17 +449,27 @@
             <span style="font-family: xbriyaz, dejavusans, sans-serif;">الدفع الإلكتروني</span>
             / Online Payment
         </div>
-        <div dir="rtl" align="right" style="font-size: {{ $pt(7.5) }}; line-height: 1.45; padding: {{ $pt(5) }}; border: 1px solid #333; background-color: #f8fafc; text-align: right;">
-            <div>
+        <div style="font-size: {{ $pt(7.5) }}; line-height: 1.45; padding: {{ $pt(5) }}; border: 1px solid #333; background-color: #f8fafc;">
+            <div dir="rtl" align="right" style="text-align: right;">
                 <span class="meta-label" style="font-family: xbriyaz, dejavusans, sans-serif;">ادفع المبلغ المستحق إلكترونياً</span>
                 / Pay the due amount online:
                 <span dir="ltr">{{ $data->formatSar($data->amountDue(), 2) }}</span>
             </div>
-            <div style="margin-top: {{ $pt(2) }};">
-                <a href="{{ $data->paymentUrl() }}" style="color: #1d4ed8; font-weight: bold;">
-                    <span style="font-family: xbriyaz, dejavusans, sans-serif;">رابط الدفع</span>
-                    / Payment Link
-                </a>
+            {{-- Keep the <a> LTR/ASCII-only: mixed Arabic inside anchors breaks mPDF link hit-boxes. --}}
+            <div dir="ltr" align="left" style="margin-top: {{ $pt(4) }}; text-align: left;">
+                <div style="margin-bottom: {{ $pt(2) }};">
+                    <a href="{{ $data->paymentUrl() }}" style="color: #1d4ed8; font-weight: bold; text-decoration: underline;">
+                        Open Noon Payment Link
+                    </a>
+                    <span dir="rtl" style="font-family: xbriyaz, dejavusans, sans-serif; color: #334155;">
+                        &nbsp;/ اضغط هنا للدفع
+                    </span>
+                </div>
+                <div style="font-size: {{ $pt(6.2) }}; word-break: break-all;">
+                    <a href="{{ $data->paymentUrl() }}" style="color: #1d4ed8; text-decoration: underline;">
+                        {{ $data->paymentUrl() }}
+                    </a>
+                </div>
             </div>
         </div>
     @endif

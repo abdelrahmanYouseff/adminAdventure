@@ -88,7 +88,9 @@ class Quotation extends Model
             return null;
         }
 
-        return url('/q/'.$this->ensurePaymentToken());
+        return route('quotations.pay.short', [
+            'token' => $this->ensurePaymentToken(),
+        ], absolute: true);
     }
 
     public function noonPaymentUrl(): ?string
