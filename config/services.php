@@ -86,6 +86,8 @@ return [
         'waba_id' => env('WHATSAPP_WABA_ID'),
         'dispatch_sync' => env('WHATSAPP_DISPATCH_SYNC', true),
         'graph_version' => env('WHATSAPP_GRAPH_VERSION', 'v21.0'),
+        // إشعارات الطلب للموظفين (OrderObserver) — منفصلة عن إرسال إذن التسليم للعميل
+        'order_notifications' => env('WHATSAPP_ORDER_NOTIFICATIONS', false),
     ],
 
 ];

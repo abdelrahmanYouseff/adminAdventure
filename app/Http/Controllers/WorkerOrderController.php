@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\SendDeliveryNoteWhatsAppNotification;
 use App\Jobs\SendInstallationPhotosEmail;
 use App\Models\Order;
 use App\Models\ShortLink;
@@ -10,8 +11,7 @@ use App\Models\WorkerOrder;
 use App\Models\WorkerOrderAssembler;
 use App\Models\WorkerOrderNote;
 use App\Services\DeliveryNotePdfService;
-use App\Services\ShortLinkService;
-use App\Services\WhatsAppCloudService;
+use App\Services\DeliveryNoteWhatsAppService;
 use App\Services\WorkerOrderSyncService;
 use App\Support\DeliveryNotePdfData;
 use App\Support\OrderInsuranceCalculator;
@@ -95,52 +95,29 @@ class WorkerOrderController extends Controller
     public function testDeliveryNoteWhatsApp(
         Request $request,
         string $workOrderKey,
-        DeliveryNotePdfService $pdfService,
         WorkerOrderSyncService $syncService,
-        WhatsAppCloudService $whatsApp,
-        ShortLinkService $shortLinks,
+        DeliveryNoteWhatsAppService $deliveryNoteWhatsApp,
     ): RedirectResponse {
         $order = WorkOrderPresenter::resolve($workOrderKey, $syncService);
 
         $requestedPhone = trim((string) $request->input('phone', ''));
-        $to = WhatsAppCloudService::normalizePhone(
-            $requestedPhone !== '' ? $requestedPhone : (string) ($order->customer_phone ?? ''),
+        $result = $deliveryNoteWhatsApp->sendToCustomer(
+            $order,
+            $requestedPhone !== '' ? $requestedPhone : null,
+            'manual',
         );
 
-        if (! preg_match('/^9665\d{8}$/', $to)) {
-            return back()->with('error', 'أدخل رقم جوال سعودي صحيح يبدأ بـ 5.');
+        if (! $result['success']) {
+            return back()->with('error', $result['message'].($result['error'] ? ': '.$result['error'] : ''));
         }
 
-        $shortLink = $shortLinks->createDeliveryNoteLink($order);
-        $deliveryNoteUrl = $shortLinks->publicUrl($shortLink);
-
-        $data = DeliveryNotePdfData::fromOrder($order, $deliveryNoteUrl);
-        $pdf = $pdfService->render($data);
-        $filename = 'delivery-note-'.$data->referenceNumber().'.pdf';
-
-        $upload = $whatsApp->uploadMedia($pdf, 'application/pdf', $filename);
-        if (! $upload['success'] || ! $upload['media_id']) {
-            return back()->with('error', 'فشل رفع إذن التسليم إلى واتساب: '.($upload['error'] ?? 'خطأ غير معروف'));
+        if ($order->delivery_note_whatsapp_notified_at === null) {
+            $order->forceFill([
+                'delivery_note_whatsapp_notified_at' => now(),
+            ])->saveQuietly();
         }
 
-        $send = $whatsApp->sendDeliveryNoteToCustomer(
-            $to,
-            $upload['media_id'],
-            $filename,
-            $deliveryNoteUrl,
-            $shortLinks->whatsappButtonSuffix($shortLink),
-        );
-
-        if (! $send['success']) {
-            return back()->with('error', 'فشل إرسال إذن التسليم عبر واتساب: '.($send['error'] ?? 'خطأ غير معروف'));
-        }
-
-        $from = $send['from'] ?? $whatsApp->cloudSendingDisplayPhone();
-        $message = 'تم إرسال إذن التسليم عبر واتساب إلى +'.$to
-            .' من رقم '.$from
-            .' — رابط النظام: '.$deliveryNoteUrl;
-
-        return back()->with('success', $message);
+        return back()->with('success', $result['message']);
     }
 
     public function complete(Request $request, WorkerOrder $workerOrder)
@@ -322,6 +299,8 @@ class WorkerOrderController extends Controller
         }
 
         $order->update($updates);
+
+        $this->dispatchDeliveryNoteWhatsAppAfterApproval($order);
 
         $reference = $order->invoice?->invoice_number ?? $order->order_number;
 
@@ -744,6 +723,41 @@ class WorkerOrderController extends Controller
         } catch (Throwable $e) {
             Log::error('Failed to send installation photos email', [
                 'order_id' => $order->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    /**
+     * After workers-manager approval: send delivery-note WhatsApp to the customer
+     * when every installation photo is present. Failures are logged and do not
+     * roll back the approval.
+     */
+    private function dispatchDeliveryNoteWhatsAppAfterApproval(Order $order): void
+    {
+        $order->refresh();
+        $order->loadMissing(['workerOrders', 'invoice:id,invoice_number']);
+
+        if ($order->delivery_note_whatsapp_notified_at !== null) {
+            return;
+        }
+
+        if (! $order->hasAllWorkerPhotos()) {
+            Log::info('Delivery note WhatsApp not sent on approve: photos incomplete', [
+                'order_id' => $order->id,
+                'order_number' => $order->order_number,
+            ]);
+
+            return;
+        }
+
+        try {
+            $job = new SendDeliveryNoteWhatsAppNotification($order->id);
+            app()->call([$job, 'handle']);
+        } catch (Throwable $e) {
+            Log::error('Failed to send delivery note WhatsApp after approval', [
+                'order_id' => $order->id,
+                'order_number' => $order->order_number,
                 'error' => $e->getMessage(),
             ]);
         }

@@ -15,7 +15,7 @@ class EmailLogController extends Controller
         $type = $request->string('type')->toString() ?: 'all';
         $status = $request->string('status')->toString() ?: 'all';
 
-        $allowedTypes = ['all', 'installation_photos', 'dismantling_photos', 'work_order_issued'];
+        $allowedTypes = ['all', 'installation_photos', 'dismantling_photos', 'work_order_issued', 'delivery_note_whatsapp'];
         $allowedStatuses = ['all', 'sent', 'failed', 'skipped'];
 
         if (! in_array($type, $allowedTypes, true)) {
@@ -91,6 +91,7 @@ class EmailLogController extends Controller
             'installation_photos' => 'صور التركيب',
             'dismantling_photos' => 'صور الفك',
             'work_order_issued' => 'إصدار أمر العمل',
+            'delivery_note_whatsapp' => 'إذن تسليم واتساب',
             default => $type,
         };
     }

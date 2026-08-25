@@ -115,7 +115,7 @@ function statusClass(status: string): string {
                         Email Log
                     </h1>
                     <p class="mt-2 max-w-2xl text-sm leading-relaxed text-slate-300">
-                        سجل الإيميلات المرسلة فعليًا للتركيب والفك وإصدار أوامر العمل، مع المستلمين وحالة الإرسال.
+                        سجل الإيميلات وإشعارات واتساب (إذن التسليم) مع المستلمين وحالة الإرسال ووقت الإرسال.
                     </p>
                 </div>
                 <p class="text-sm text-slate-400">{{ formatInteger(logs.total) }} سجل</p>
@@ -148,7 +148,7 @@ function statusClass(status: string): string {
                     <input
                         v-model="searchQuery"
                         type="search"
-                        placeholder="ابحث برقم الطلب أو الإيميل..."
+                        placeholder="ابحث برقم الطلب أو الجوال أو الإيميل..."
                         class="w-full bg-transparent text-sm text-slate-800 outline-none placeholder:text-slate-400"
                     />
                 </label>
@@ -159,6 +159,7 @@ function statusClass(status: string): string {
                 <option value="installation_photos">صور التركيب</option>
                 <option value="dismantling_photos">صور الفك</option>
                 <option value="work_order_issued">إصدار أمر العمل</option>
+                <option value="delivery_note_whatsapp">إذن تسليم واتساب</option>
             </select>
 
             <select v-model="statusFilter" class="h-11 rounded-full border border-slate-200 bg-white px-4 text-sm" @change="applyFilters(1)">
@@ -209,6 +210,14 @@ function statusClass(status: string): string {
                                 {{ recipient }}
                             </span>
                         </div>
+
+                        <p
+                            v-if="typeof log.meta?.delivery_note_url === 'string' && log.meta.delivery_note_url"
+                            class="mt-2 text-xs text-slate-500"
+                            dir="ltr"
+                        >
+                            {{ log.meta.delivery_note_url }}
+                        </p>
 
                         <p v-if="log.error_message" class="mt-3 rounded-2xl bg-rose-50 px-4 py-3 text-sm text-rose-700">
                             {{ log.error_message }}
