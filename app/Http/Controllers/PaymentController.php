@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Invoice;
 use App\Models\Order;
+use App\Models\OrderPaymentReceipt;
 use App\Models\PaymentSession;
 use App\Models\Product;
 use App\Models\User;
@@ -597,6 +598,7 @@ class PaymentController extends Controller
             ]);
         }
 
+        // Retry confirmation on each poll — Noon often redirects without orderStatus.
         $this->confirmStorePaymentOrder($order, null, '');
 
         $orderModel = $orderModel?->fresh() ?? Order::where('order_number', $order)->first();
@@ -633,8 +635,22 @@ class PaymentController extends Controller
             return redirect()->to(CheckoutRedirect::homeAfterPayment($orderId));
         }
 
-        $noonOrderId = $input['orderId'] ?? null;
-        $noonStatus  = strtoupper((string) ($input['orderStatus'] ?? $input['status'] ?? ''));
+        $noonOrderId = $input['orderId']
+            ?? $input['noonOrderId']
+            ?? $input['noon_order_id']
+            ?? null;
+        // Noon sometimes echoes the merchant reference in orderId — ignore that.
+        if (is_string($noonOrderId) && is_string($orderId) && strcasecmp($noonOrderId, $orderId) === 0) {
+            $noonOrderId = null;
+        }
+
+        $noonStatus = strtoupper(trim((string) (
+            $input['orderStatus']
+            ?? $input['paymentStatus']
+            ?? $input['status']
+            ?? $input['order']['status']
+            ?? ''
+        )));
 
         Log::info('payment return hit', [
             'order_id' => $orderId,
@@ -651,7 +667,7 @@ class PaymentController extends Controller
         }
 
         if ($orderId) {
-            $this->confirmStorePaymentOrder($orderId, $noonOrderId, $noonStatus);
+            $this->confirmStorePaymentOrder($orderId, is_string($noonOrderId) ? $noonOrderId : null, $noonStatus);
         }
 
         $success = $this->isPaymentProcessed($orderId);
@@ -685,7 +701,7 @@ class PaymentController extends Controller
     <script>
         (function () {
             var attempts = 0;
-            var maxAttempts = 30;
+            var maxAttempts = 45;
             var statusUrl = {$statusUrlJson};
             var timer = setInterval(function () {
                 attempts++;
@@ -1153,21 +1169,45 @@ HTML;
             return true;
         }
         try {
-            $url = rtrim($noon['api_url'], '/') . '/order/' . $noonOrderId;
+            $url = rtrim($noon['api_url'], '/').'/order/'.$noonOrderId;
             $authHeader = $this->resolveNoonAuthHeader($noon);
             $response = Http::withHeaders([
                 'Authorization' => $authHeader,
                 'Accept' => 'application/json',
                 'x-api-key' => $noon['api_key'],
             ])->timeout(15)->get($url);
+
             if (! $response->successful()) {
+                Log::warning('Noon order status check HTTP failed', [
+                    'noon_order_id' => $noonOrderId,
+                    'status' => $response->status(),
+                    'body' => $response->json() ?? $response->body(),
+                ]);
+
                 return false;
             }
-            $data = $response->json();
-            $status = $data['order']['status'] ?? $data['result']['order']['status'] ?? null;
-            return in_array($status, ['CAPTURED', 'AUTHORIZED'], true);
+
+            $data = $response->json() ?? [];
+            $status = strtoupper((string) (
+                $data['result']['order']['status']
+                ?? $data['order']['status']
+                ?? $data['result']['status']
+                ?? ''
+            ));
+
+            $ok = $this->isNoonSuccessStatus($status);
+
+            Log::info('Noon order status check', [
+                'noon_order_id' => $noonOrderId,
+                'status' => $status,
+                'expected' => $expectedStatus,
+                'ok' => $ok,
+            ]);
+
+            return $ok;
         } catch (\Throwable $e) {
             Log::warning('Noon order status check failed', ['message' => $e->getMessage()]);
+
             return false;
         }
     }
@@ -1330,7 +1370,7 @@ HTML;
     }
 
     /**
-     * Confirm a store checkout payment from Noon return URL or API verification.
+     * Confirm a store/quotation/order-link payment from Noon return URL or polling.
      */
     protected function confirmStorePaymentOrder(?string $orderId, ?string $noonOrderId, string $noonStatus): void
     {
@@ -1338,72 +1378,63 @@ HTML;
             return;
         }
 
-        $noonConfirmed = in_array($noonStatus, ['CAPTURED', 'AUTHORIZED'], true);
-
-        if ($noonConfirmed) {
-            if ($this->isOrderPaymentLinkSession($orderId)) {
-                $this->finalizeOrderPaymentLink($orderId, $noonOrderId);
-
-                return;
-            }
-
-            $order = Order::where('order_number', $orderId)->first();
-            if ($order?->quotation_id) {
-                $this->finalizeQuotationNoonPayment($order, $orderId, $noonOrderId);
-
-                return;
-            }
-
-            try {
-                $this->processPaymentSuccess($orderId, $noonOrderId);
-            } catch (\Throwable $e) {
-                Log::warning('confirmStorePaymentOrder processPaymentSuccess failed', [
-                    'order_id' => $orderId,
-                    'message' => $e->getMessage(),
-                ]);
-            }
-
-            $order = Order::where('order_number', $orderId)->first();
-
-            if ($order && $order->payment_status !== 'paid') {
-                $order->update([
-                    'payment_status' => 'paid',
-                    'status' => 'paid',
-                    'payment_id' => $noonOrderId ?? $order->payment_id,
-                    'payment_order_reference' => $orderId,
-                ]);
-            }
-
+        if ($this->isPaymentProcessed($orderId)) {
             return;
         }
 
         $session = PaymentSession::where('merchant_reference', $orderId)->first();
-        $cacheData = Cache::get('payment_session_' . $orderId);
+        $cacheData = Cache::get('payment_session_'.$orderId);
+
         $storedNoonId = $noonOrderId
             ?: $session?->noon_order_id
             ?: (is_array($cacheData) ? ($cacheData['noon_order_id'] ?? null) : null);
 
-        if (! $storedNoonId || ! $this->verifyNoonOrderStatus($storedNoonId, 'CAPTURED')) {
+        $noonConfirmed = $this->isNoonSuccessStatus($noonStatus);
+
+        if (! $noonConfirmed && $storedNoonId) {
+            $noonConfirmed = $this->verifyNoonOrderStatus((string) $storedNoonId, 'CAPTURED');
+            if ($noonConfirmed) {
+                $noonOrderId = $storedNoonId;
+            }
+        } elseif ($noonConfirmed) {
+            $noonOrderId = $noonOrderId ?: $storedNoonId;
+        }
+
+        if (! $noonConfirmed) {
+            Log::info('confirmStorePaymentOrder waiting for Noon capture', [
+                'order_id' => $orderId,
+                'noon_order_id' => $storedNoonId,
+                'noon_status' => $noonStatus,
+                'has_session' => (bool) $session,
+                'has_cache' => is_array($cacheData),
+            ]);
+
             return;
         }
 
         if ($this->isOrderPaymentLinkSession($orderId)) {
-            $this->finalizeOrderPaymentLink($orderId, $storedNoonId);
+            $this->finalizeOrderPaymentLink($orderId, $noonOrderId);
 
             return;
         }
 
         $order = Order::where('order_number', $orderId)->first();
-        if ($order?->quotation_id) {
-            $this->finalizeQuotationNoonPayment($order, $orderId, $storedNoonId);
+        if ($order?->quotation_id || ($session?->payload['source'] ?? $cacheData['source'] ?? null) === 'quotation_pdf') {
+            if ($order) {
+                $this->finalizeQuotationNoonPayment($order, $orderId, $noonOrderId);
+            } else {
+                Log::warning('confirmStorePaymentOrder: quotation payment without order', [
+                    'order_id' => $orderId,
+                ]);
+            }
 
             return;
         }
 
         try {
-            $this->processPaymentSuccess($orderId, $storedNoonId);
+            $this->processPaymentSuccess($orderId, $noonOrderId);
         } catch (\Throwable $e) {
-            Log::warning('confirmStorePaymentOrder API verify failed', [
+            Log::warning('confirmStorePaymentOrder processPaymentSuccess failed', [
                 'order_id' => $orderId,
                 'message' => $e->getMessage(),
             ]);
@@ -1415,13 +1446,27 @@ HTML;
             $order->update([
                 'payment_status' => 'paid',
                 'status' => 'paid',
-                'payment_id' => $storedNoonId,
+                'payment_id' => $noonOrderId ?? $order->payment_id,
                 'payment_order_reference' => $orderId,
             ]);
         }
 
-        Cache::forget('payment_session_' . $orderId);
+        Cache::forget('payment_session_'.$orderId);
         $this->markPaymentSessionUsed($orderId);
+    }
+
+    protected function isNoonSuccessStatus(string $status): bool
+    {
+        $status = strtoupper(trim($status));
+
+        return in_array($status, [
+            'CAPTURED',
+            'AUTHORIZED',
+            'PARTIALLY_CAPTURED',
+            'SUCCESS',
+            'PAID',
+            'COMPLETED',
+        ], true);
     }
 
     private function isOrderPaymentLinkSession(string $orderId): bool
@@ -1501,7 +1546,7 @@ HTML;
 
     protected function finalizeQuotationNoonPayment(Order $order, string $orderId, ?string $noonOrderId): void
     {
-        $cacheData = Cache::get('payment_session_' . $orderId);
+        $cacheData = Cache::get('payment_session_'.$orderId);
         $session = PaymentSession::where('merchant_reference', $orderId)->first();
         $amount = round((float) (
             (is_array($cacheData) ? ($cacheData['amount'] ?? null) : null)
@@ -1509,8 +1554,30 @@ HTML;
             ?? 0
         ), 2);
 
-        if ($amount <= 0) {
-            $amount = round(max(0, (float) $order->total_amount - (float) ($order->amount_paid ?? 0)), 2);
+        $order = $order->fresh() ?? $order;
+
+        $pendingSum = round((float) $order->paymentReceipts()
+            ->where('approval_status', OrderPaymentReceipt::STATUS_PENDING)
+            ->sum('amount'), 2);
+        $available = round(max(0, (float) $order->total_amount - (float) ($order->amount_paid ?? 0) - $pendingSum), 2);
+
+        if ($available <= 0.009) {
+            Cache::forget('payment_session_'.$orderId);
+            $this->markPaymentSessionUsed($orderId);
+
+            Log::info('finalizeQuotationNoonPayment: order already covered', [
+                'order_id' => $orderId,
+                'amount_paid' => $order->amount_paid,
+                'payment_status' => $order->payment_status,
+            ]);
+
+            return;
+        }
+
+        if ($amount <= 0.009) {
+            $amount = $available;
+        } else {
+            $amount = min($amount, $available);
         }
 
         try {
@@ -1522,11 +1589,14 @@ HTML;
         } catch (\Throwable $e) {
             Log::warning('finalizeQuotationNoonPayment failed', [
                 'order_id' => $orderId,
+                'amount' => $amount,
                 'message' => $e->getMessage(),
             ]);
+
+            return;
         }
 
-        Cache::forget('payment_session_' . $orderId);
+        Cache::forget('payment_session_'.$orderId);
         $this->markPaymentSessionUsed($orderId);
     }
 
