@@ -271,19 +271,9 @@
             </div>
             {{-- Keep the <a> LTR/ASCII-only: mixed Arabic inside anchors breaks mPDF link hit-boxes. --}}
             <div dir="ltr" align="left" style="margin-top: {{ $pt(4) }}; text-align: left;">
-                <div style="margin-bottom: {{ $pt(2) }};">
-                    <a href="{{ $data->paymentUrl() }}" style="color: #1d4ed8; font-weight: bold; text-decoration: underline;">
-                        Open Noon Payment Link
-                    </a>
-                    <span dir="rtl" style="color: #334155;">
-                        &nbsp;/ اضغط هنا للدفع
-                    </span>
-                </div>
-                <div style="font-size: {{ $pt(6.2) }}; word-break: break-all;">
-                    <a href="{{ $data->paymentUrl() }}" style="color: #1d4ed8; text-decoration: underline;">
-                        {{ $data->paymentUrl() }}
-                    </a>
-                </div>
+                <a href="{{ $data->paymentUrl() }}" style="color: #1d4ed8; font-weight: bold; text-decoration: underline;">
+                    Payment Link
+                </a>
             </div>
         </div>
     @endif
