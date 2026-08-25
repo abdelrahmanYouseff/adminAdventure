@@ -5,9 +5,18 @@ namespace App\Support;
 use App\Models\Order;
 use App\Models\OrderPaymentReceipt;
 use App\Models\User;
+use Illuminate\Support\Facades\Cache;
 
 class SidebarNavBadges
 {
+    /**
+     * Badge counts are global operational queue sizes (not filtered per user).
+     * Only access is gated by canAccessDashboard(); all eligible staff see the same numbers.
+     */
+    private const CACHE_KEY = 'sidebar_nav_badges:global';
+
+    private const CACHE_TTL_SECONDS = 45;
+
     /**
      * @return array{work_orders: int, warehouse: int, returns: int, payment_receipts: int}
      */
@@ -22,12 +31,15 @@ class SidebarNavBadges
             ];
         }
 
-        return [
-            'work_orders' => static::openWorkOrdersCount(),
-            'warehouse' => static::pendingWarehouseCount(),
-            'returns' => static::openReturnsCount(),
-            'payment_receipts' => static::pendingPaymentReceiptsCount(),
-        ];
+        /** @var array{work_orders: int, warehouse: int, returns: int, payment_receipts: int} */
+        return Cache::remember(self::CACHE_KEY, self::CACHE_TTL_SECONDS, static function (): array {
+            return [
+                'work_orders' => static::openWorkOrdersCount(),
+                'warehouse' => static::pendingWarehouseCount(),
+                'returns' => static::openReturnsCount(),
+                'payment_receipts' => static::pendingPaymentReceiptsCount(),
+            ];
+        });
     }
 
     /**

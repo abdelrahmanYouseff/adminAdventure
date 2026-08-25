@@ -6,6 +6,8 @@ use App\Imports\ProductsImport;
 use App\Models\Brand;
 use App\Models\Category;
 use App\Models\Product;
+use App\Models\WorkerOrder;
+use App\Support\MediaStorage;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
@@ -109,7 +111,7 @@ class ProductController extends Controller
         $data['show_on_storefront'] = true;
 
         if ($request->hasFile('image')) {
-            $data['image'] = $request->file('image')->store('products', 'public');
+            $data['image'] = MediaStorage::store($request->file('image'), 'products');
         }
 
         Product::create($data);
@@ -173,13 +175,15 @@ class ProductController extends Controller
         unset($data['insurance_amount']);
 
         if ($request->hasFile('image')) {
-            $data['image'] = $request->file('image')->store('products', 'public');
+            $oldImage = $product->image;
+            $data['image'] = MediaStorage::store($request->file('image'), 'products');
+            $product->update($data);
+            $this->deleteProductImageIfUnreferenced($oldImage, $product->id);
         } else {
             // Never overwrite existing image unless a new file was explicitly uploaded
             unset($data['image']);
+            $product->update($data);
         }
-
-        $product->update($data);
 
         return redirect()->route('products')->with('success', 'تم تعديل المنتج بنجاح');
     }
@@ -189,9 +193,36 @@ class ProductController extends Controller
      */
     public function destroy(Product $product)
     {
+        $oldImage = $product->image;
         $product->delete();
+        $this->deleteProductImageIfUnreferenced($oldImage);
 
         return redirect()->route('products')->with('success', 'تم حذف المنتج بنجاح');
+    }
+
+    /**
+     * Delete a product image from S3 only when no other record still references it.
+     */
+    private function deleteProductImageIfUnreferenced(?string $path, ?int $exceptProductId = null): void
+    {
+        if (! is_string($path) || $path === '') {
+            return;
+        }
+
+        $stillOnProduct = Product::query()
+            ->where('image', $path)
+            ->when($exceptProductId, fn ($q) => $q->where('id', '!=', $exceptProductId))
+            ->exists();
+
+        if ($stillOnProduct) {
+            return;
+        }
+
+        if (WorkerOrder::query()->where('product_image', $path)->exists()) {
+            return;
+        }
+
+        MediaStorage::delete($path);
     }
 
     /**

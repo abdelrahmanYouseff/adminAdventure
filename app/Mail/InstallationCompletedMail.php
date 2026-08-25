@@ -3,13 +3,13 @@
 namespace App\Mail;
 
 use App\Mail\Concerns\BuildsTransactionalEnvelope;
+use App\Support\MediaStorage;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Attachment;
 use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
-use Illuminate\Support\Facades\Storage;
 
 class InstallationCompletedMail extends Mailable
 {
@@ -51,16 +51,16 @@ class InstallationCompletedMail extends Mailable
 
         foreach ($this->photos as $index => $photo) {
             $path = $photo['photo_path'] ?? null;
-            if (! is_string($path) || $path === '' || ! Storage::disk('public')->exists($path)) {
+            if (! is_string($path) || $path === '' || ! MediaStorage::exists($path)) {
                 continue;
             }
 
             $extension = pathinfo($path, PATHINFO_EXTENSION) ?: 'jpg';
             $safeName = 'installation-'.($index + 1).'.'.$extension;
 
-            $attachments[] = Attachment::fromStorageDisk('public', $path)
+            $attachments[] = Attachment::fromStorageDisk(MediaStorage::DISK, $path)
                 ->as($safeName)
-                ->withMime(Storage::disk('public')->mimeType($path) ?: 'image/jpeg');
+                ->withMime(MediaStorage::mimeType($path) ?: 'image/jpeg');
         }
 
         return $attachments;

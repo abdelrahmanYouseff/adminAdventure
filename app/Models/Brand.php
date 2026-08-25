@@ -55,9 +55,7 @@ class Brand extends Model
             return null;
         }
 
-        return Str::startsWith($this->logo, ['http://', 'https://'])
-            ? $this->logo
-            : asset('storage/'.ltrim($this->logo, '/'));
+        return \App\Support\MediaStorage::url($this->logo);
     }
 
     public function products()

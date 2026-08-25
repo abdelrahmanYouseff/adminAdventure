@@ -40,7 +40,7 @@ class AuthenticaOtpService
 
         Log::info('Authentica send-otp success', [
             'phone' => $phoneE164,
-            'response' => $response->json(),
+            'status' => $response->status(),
         ]);
 
         return $otp;
@@ -70,7 +70,6 @@ class AuthenticaOtpService
         Log::info('Authentica verify-otp response', [
             'phone' => $phoneE164,
             'verified' => $verified,
-            'body' => $data,
         ]);
 
         return $verified;

@@ -3,7 +3,6 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use App\Models\Category;
 use App\Models\CartItem;
@@ -130,10 +129,7 @@ class Product extends Model
         if (empty($this->image)) {
             return null;
         }
-        // Use asset() so the URL works with any APP_URL and avoids symlink issues
-        return Str::startsWith($this->image, ['http://', 'https://'])
-            ? $this->image
-            : asset('storage/'.ltrim($this->image, '/'));
+        return \App\Support\MediaStorage::url($this->image);
     }
 
     public function category()

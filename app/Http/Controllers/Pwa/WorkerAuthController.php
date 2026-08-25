@@ -88,7 +88,7 @@ class WorkerAuthController extends Controller
             Cache::put($this->cacheKey($data['phone']), self::FIXED_OTP_CODE, now()->addMinutes(5));
 
             if (config('app.debug')) {
-                Log::info('Worker OTP fixed test phone', ['phone' => $e164, 'code' => self::FIXED_OTP_CODE]);
+                Log::info('Worker OTP fixed test phone', ['phone' => $e164]);
             }
 
             RateLimiter::clear($throttleKey);
@@ -117,7 +117,7 @@ class WorkerAuthController extends Controller
             Cache::put($this->cacheKey($data['phone']), $code, now()->addMinutes(5));
 
             if (config('app.debug')) {
-                Log::info('Worker OTP dev fallback', ['phone' => $e164, 'code' => $code]);
+                Log::info('Worker OTP dev fallback', ['phone' => $e164]);
             }
         }
 

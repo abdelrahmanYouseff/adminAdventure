@@ -6,11 +6,16 @@ use App\Models\Order;
 use App\Models\OrderPaymentReceipt;
 use App\Models\Quotation;
 use App\Services\QuotationToOrderService;
+use App\Support\PublicAppUrl;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\View\View;
 
+/**
+ * Public payment entry for quotation PDFs.
+ * Intentionally has NO auth — any customer with the token can pay.
+ */
 class QuotationPaymentController extends Controller
 {
     public function pay(Request $request, string $token): RedirectResponse|View
@@ -72,6 +77,7 @@ class QuotationPaymentController extends Controller
                 'ip_address' => $request->ip(),
                 'quotation_id' => $quotation->id,
                 'source' => 'quotation_pdf',
+                'return_base_url' => PublicAppUrl::base(),
             ]);
 
             $payload = json_decode($sessionResponse->getContent(), true);

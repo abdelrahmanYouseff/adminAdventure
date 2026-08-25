@@ -19,7 +19,7 @@ use App\Support\WorkOrderPresenter;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Storage;
+use App\Support\MediaStorage;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Symfony\Component\HttpFoundation\Response;
@@ -161,11 +161,8 @@ class WorkerOrderController extends Controller
             'installation_photo.max' => 'حجم الصورة يجب ألا يتجاوز 5 ميجابايت.',
         ]);
 
-        $path = $validated['installation_photo']->store('worker-installations', 'public');
-
-        if ($workerOrder->installation_photo) {
-            Storage::disk('public')->delete($workerOrder->installation_photo);
-        }
+        $path = MediaStorage::store($validated['installation_photo'], 'worker-installations');
+        $oldPhoto = $workerOrder->installation_photo;
 
         $workerOrder->loadMissing('order.invoice');
 
@@ -175,6 +172,10 @@ class WorkerOrderController extends Controller
             'completed_at' => now(),
             'completed_by' => $request->user()->id,
         ]);
+
+        if ($oldPhoto && $oldPhoto !== $path) {
+            MediaStorage::delete($oldPhoto);
+        }
 
         $this->notifyInstallationPhotosIfComplete($workerOrder->order, (int) $request->user()->id);
 
@@ -220,7 +221,7 @@ class WorkerOrderController extends Controller
         $wasApproved = filled($order->work_order_approved_at);
 
         if ($workerOrder->installation_photo) {
-            Storage::disk('public')->delete($workerOrder->installation_photo);
+            MediaStorage::delete($workerOrder->installation_photo);
         }
 
         $workerOrder->update([

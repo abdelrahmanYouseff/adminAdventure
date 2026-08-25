@@ -85,7 +85,7 @@ const submit = () => {
                             <div v-if="props.category.image" class="mb-4">
                                 <p class="mb-2 text-sm text-blue-600 dark:text-blue-400">الصورة الحالية:</p>
                                 <img
-                                    :src="`/storage/${props.category.image}`"
+                                    :src="props.category.image_url"
                                     :alt="props.category.category_name"
                                     class="h-24 w-24 rounded-lg border border-gray-300 object-cover"
                                 />

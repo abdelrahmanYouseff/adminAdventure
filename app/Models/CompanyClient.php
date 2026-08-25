@@ -29,8 +29,6 @@ class CompanyClient extends Model
             return null;
         }
 
-        return str_starts_with($this->iban_image, 'http')
-            ? $this->iban_image
-            : asset('storage/'.ltrim($this->iban_image, '/'));
+        return \App\Support\MediaStorage::url($this->iban_image);
     }
 }

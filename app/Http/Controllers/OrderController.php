@@ -12,7 +12,7 @@ use App\Support\OrderInsuranceCalculator;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
+use App\Support\MediaStorage;
 use Inertia\Inertia;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -135,13 +135,19 @@ class OrderController extends Controller
             ->releasedToOperations()
             ->when($currency !== 'all' && in_array($currency, ['SAR', 'USD', 'EUR'], true), fn ($q) => $q->where('currency', $currency));
 
+        $statusCountRows = (clone $statusCountsBase)
+            ->toBase()
+            ->selectRaw('status, COUNT(*) as aggregate_count')
+            ->groupBy('status')
+            ->pluck('aggregate_count', 'status');
+
         $statusCounts = [
-            'all' => (clone $statusCountsBase)->count(),
-            'pending' => (clone $statusCountsBase)->where('status', 'pending')->count(),
-            'processing' => (clone $statusCountsBase)->where('status', 'processing')->count(),
-            'paid' => (clone $statusCountsBase)->where('status', 'paid')->count(),
-            'cancelled' => (clone $statusCountsBase)->where('status', 'cancelled')->count(),
-            'refunded' => (clone $statusCountsBase)->where('status', 'refunded')->count(),
+            'all' => (int) $statusCountRows->sum(),
+            'pending' => (int) ($statusCountRows['pending'] ?? 0),
+            'processing' => (int) ($statusCountRows['processing'] ?? 0),
+            'paid' => (int) ($statusCountRows['paid'] ?? 0),
+            'cancelled' => (int) ($statusCountRows['cancelled'] ?? 0),
+            'refunded' => (int) ($statusCountRows['refunded'] ?? 0),
         ];
 
         return Inertia::render('Orders/Index', [
@@ -1687,7 +1693,7 @@ class OrderController extends Controller
                 continue;
             }
 
-            $paths[] = $file->store('payment-proofs', 'public');
+            $paths[] = MediaStorage::store($file, 'payment-proofs');
         }
 
         return $paths;
@@ -1700,7 +1706,7 @@ class OrderController extends Controller
     {
         foreach ($paths as $path) {
             if (is_string($path) && $path !== '') {
-                Storage::disk('public')->delete($path);
+                MediaStorage::delete($path);
             }
         }
     }

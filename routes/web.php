@@ -119,15 +119,23 @@ Route::get('/home', function (Request $request) {
 
     $products = \App\Models\Product::query()
         ->storefront()
-        ->with('category')
+        ->with('category:id,category_name')
         ->orderBy('created_at', 'desc')
-        ->get();
+        ->get([
+            'id',
+            'category_id',
+            'product_name',
+            'description',
+            'price',
+            'image',
+            'created_at',
+        ]);
 
     $categories = \App\Models\Category::query()
         ->where('brand_id', $storefrontBrandId)
         ->whereHas('products', fn ($query) => $query->storefront())
         ->orderBy('category_name')
-        ->get();
+        ->get(['id', 'category_name', 'brand_id', 'image']);
 
     $paymentSuccess = $request->session()->get('payment_success');
 
@@ -617,6 +625,7 @@ Route::match(['GET', 'POST'], 'payment/fail', [\App\Http\Controllers\PaymentCont
 Route::match(['GET', 'POST'], 'payment/cancel', [\App\Http\Controllers\PaymentController::class, 'paymentCancelPage'])
     ->name('payment.cancel');
 
+// Public payment links — no auth (customers pay from PDF / WhatsApp / email)
 Route::get('pay/quotation/{token}', [\App\Http\Controllers\QuotationPaymentController::class, 'pay'])
     ->where('token', '[A-Za-z0-9]+')
     ->name('quotations.pay');

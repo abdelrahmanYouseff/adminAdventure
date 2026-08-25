@@ -3,7 +3,6 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Str;
 
 class Category extends Model
 {
@@ -31,8 +30,6 @@ class Category extends Model
             return null;
         }
 
-        return Str::startsWith($this->image, ['http://', 'https://'])
-            ? $this->image
-            : asset('storage/'.ltrim($this->image, '/'));
+        return \App\Support\MediaStorage::url($this->image);
     }
 }

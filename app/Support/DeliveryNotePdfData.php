@@ -240,19 +240,7 @@ class DeliveryNotePdfData
             return null;
         }
 
-        $relative = ltrim($path, '/');
-        $candidates = [
-            storage_path('app/public/'.$relative),
-            public_path('storage/'.$relative),
-        ];
-
-        foreach ($candidates as $candidate) {
-            if (is_file($candidate)) {
-                return $candidate;
-            }
-        }
-
-        return null;
+        return \App\Support\MediaStorage::temporaryLocalPath($path);
     }
 
     private function formatDate(mixed $date): string

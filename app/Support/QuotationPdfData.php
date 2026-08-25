@@ -117,19 +117,7 @@ class QuotationPdfData
             return null;
         }
 
-        $relative = ltrim($logo, '/');
-        $candidates = [
-            storage_path('app/public/'.$relative),
-            public_path('storage/'.$relative),
-        ];
-
-        foreach ($candidates as $path) {
-            if (is_file($path)) {
-                return $path;
-            }
-        }
-
-        return null;
+        return \App\Support\MediaStorage::temporaryLocalPath($logo);
     }
 
     public function quotationNumber(): string

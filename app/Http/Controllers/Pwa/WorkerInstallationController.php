@@ -13,7 +13,7 @@ use App\Support\OrderWhatsAppMessage;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Storage;
+use App\Support\MediaStorage;
 use Inertia\Inertia;
 use Inertia\Response;
 use Throwable;
@@ -186,11 +186,8 @@ class WorkerInstallationController extends Controller
                 'installation_photo.max' => 'حجم الصورة يجب ألا يتجاوز 5 ميجابايت.',
             ]);
 
-            $path = $validated['installation_photo']->store('worker-pickups', 'public');
-
-            if ($workerOrder->pickup_photo) {
-                Storage::disk('public')->delete($workerOrder->pickup_photo);
-            }
+            $path = MediaStorage::store($validated['installation_photo'], 'worker-pickups');
+            $oldPhoto = $workerOrder->pickup_photo;
 
             $workerOrder->update([
                 'pickup_photo' => $path,
@@ -198,6 +195,10 @@ class WorkerInstallationController extends Controller
                 'pickup_by' => $user->id,
                 'pickup_condition' => 'returned',
             ]);
+
+            if ($oldPhoto && $oldPhoto !== $path) {
+                MediaStorage::delete($oldPhoto);
+            }
 
             $this->notifyDismantlingPhotosIfComplete($workerOrder->order, (int) $user->id);
 
@@ -223,11 +224,8 @@ class WorkerInstallationController extends Controller
             'installation_photo.max' => 'حجم الصورة يجب ألا يتجاوز 5 ميجابايت.',
         ]);
 
-        $path = $validated['installation_photo']->store('worker-installations', 'public');
-
-        if ($workerOrder->installation_photo) {
-            Storage::disk('public')->delete($workerOrder->installation_photo);
-        }
+        $path = MediaStorage::store($validated['installation_photo'], 'worker-installations');
+        $oldPhoto = $workerOrder->installation_photo;
 
         $workerOrder->update([
             'installation_photo' => $path,
@@ -235,6 +233,10 @@ class WorkerInstallationController extends Controller
             'completed_at' => now(),
             'completed_by' => $user->id,
         ]);
+
+        if ($oldPhoto && $oldPhoto !== $path) {
+            MediaStorage::delete($oldPhoto);
+        }
 
         $this->notifyInstallationPhotosIfComplete($workerOrder->order, (int) $user->id);
 

@@ -13,7 +13,9 @@ return new class extends Migration
             $table->dropForeign(['product_id']);
         });
 
-        DB::statement('ALTER TABLE quotation_items MODIFY product_id BIGINT UNSIGNED NULL');
+        if (Schema::getConnection()->getDriverName() === 'mysql') {
+            DB::statement('ALTER TABLE quotation_items MODIFY product_id BIGINT UNSIGNED NULL');
+        }
 
         Schema::table('quotation_items', function (Blueprint $table) {
             if (! Schema::hasColumn('quotation_items', 'statement')) {
@@ -37,7 +39,9 @@ return new class extends Migration
             }
         });
 
-        DB::statement('ALTER TABLE quotation_items MODIFY product_id BIGINT UNSIGNED NOT NULL');
+        if (Schema::getConnection()->getDriverName() === 'mysql') {
+            DB::statement('ALTER TABLE quotation_items MODIFY product_id BIGINT UNSIGNED NOT NULL');
+        }
 
         Schema::table('quotation_items', function (Blueprint $table) {
             $table->foreign('product_id')

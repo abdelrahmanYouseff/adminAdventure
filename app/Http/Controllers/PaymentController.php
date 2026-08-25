@@ -247,9 +247,12 @@ class PaymentController extends Controller
             ];
 
             Log::info('Noon API Request', [
-                'url' => $noonApiUrl . 'order',
+                'url' => $noonApiUrl.'order',
                 'returnUrl' => $returnUrl,
-                'data' => $paymentData,
+                'order_reference' => $orderId,
+                'amount' => $orderPayload['amount'] ?? null,
+                'currency' => $orderPayload['currency'] ?? null,
+                'channel' => $orderPayload['channel'] ?? null,
             ]);
 
             $headers = [
@@ -259,13 +262,17 @@ class PaymentController extends Controller
                 'x-api-key' => $noon['api_key'],
             ];
 
-            $response = Http::withHeaders($headers)->post($noonApiUrl . 'order', $paymentData);
+            $response = Http::withHeaders($headers)
+                ->timeout(30)
+                ->post($noonApiUrl.'order', $paymentData);
 
             if (! $response->successful() && $response->status() === 403 && ! empty($configuration['cancelUrl'])) {
                 unset($configuration['cancelUrl']);
                 $paymentData['configuration'] = $configuration;
                 Log::info('Noon API Retry without cancelUrl');
-                $response = Http::withHeaders($headers)->post($noonApiUrl . 'order', $paymentData);
+                $response = Http::withHeaders($headers)
+                    ->timeout(30)
+                    ->post($noonApiUrl.'order', $paymentData);
             }
 
             if ($response->successful()) {
@@ -634,7 +641,7 @@ class PaymentController extends Controller
             'noon_order_id' => $noonOrderId,
             'noon_status' => $noonStatus,
             'method' => $request->method(),
-            'input' => $input,
+            'input_keys' => array_keys($input),
         ]);
 
         if ($orderId && $noonOrderId) {
@@ -1091,8 +1098,9 @@ HTML;
         } catch (\Throwable $e) {
             Log::error('Noon Webhook Processing Error', [
                 'message' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
-                'payload' => $payload,
+                'order_reference' => $payload['order']['reference'] ?? null,
+                'order_status' => $payload['order']['status'] ?? null,
+                'payload_keys' => array_keys($payload),
             ]);
 
             return response()->json(['error' => 'Webhook processing failed'], 500);
@@ -1151,7 +1159,7 @@ HTML;
                 'Authorization' => $authHeader,
                 'Accept' => 'application/json',
                 'x-api-key' => $noon['api_key'],
-            ])->get($url);
+            ])->timeout(15)->get($url);
             if (! $response->successful()) {
                 return false;
             }

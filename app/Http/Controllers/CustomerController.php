@@ -10,7 +10,7 @@ use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\Storage;
+use App\Support\MediaStorage;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -18,11 +18,10 @@ class CustomerController extends Controller
 {
     public function index()
     {
+        // Match against quotations without loading line items for every row.
+        // Items are loaded only for quotations that actually match a company.
         $quotations = Quotation::query()
-            ->with([
-                'items:id,quotation_id,product_name,description,quantity,unit_price,total_price',
-                'user:id,customer_name',
-            ])
+            ->with(['user:id,customer_name'])
             ->orderByDesc('created_at')
             ->get();
 
@@ -55,34 +54,55 @@ class CustomerController extends Controller
                 'quotations' => [],
             ]);
 
-        $companies = CompanyClient::query()
+        $companyClients = CompanyClient::query()
             ->orderByDesc('created_at')
-            ->get()
-            ->map(function (CompanyClient $client) use ($quotations) {
-                $matched = $this->matchQuotationsForClient($client, $quotations);
+            ->get();
 
-                return [
-                    'key' => 'company-'.$client->id,
-                    'id' => $client->id,
-                    'type' => 'company',
-                    'name' => $client->company_name,
-                    'contact_name' => $client->contact_name,
-                    'phone' => $client->phone,
-                    'phone_secondary' => $client->phone_secondary,
-                    'email' => $client->email,
-                    'address' => $client->address,
-                    'tax_number' => $client->tax_number,
-                    'iban' => $client->iban,
-                    'iban_image_url' => $client->iban_image_url,
-                    'notes' => $client->notes,
-                    'country' => null,
-                    'gender' => null,
-                    'date_of_birth' => null,
-                    'created_at' => $client->created_at?->toIso8601String(),
-                    'quotations_count' => $matched->count(),
-                    'quotations' => $matched->map(fn (Quotation $quotation) => $this->formatQuotation($quotation))->values(),
-                ];
-            });
+        /** @var array<int, Collection<int, Quotation>> $matchedByCompanyId */
+        $matchedByCompanyId = [];
+        $matchedQuotationIds = [];
+
+        foreach ($companyClients as $client) {
+            $matched = $this->matchQuotationsForClient($client, $quotations);
+            $matchedByCompanyId[$client->id] = $matched;
+            foreach ($matched as $quotation) {
+                $matchedQuotationIds[$quotation->id] = true;
+            }
+        }
+
+        if ($matchedQuotationIds !== []) {
+            $quotations
+                ->whereIn('id', array_keys($matchedQuotationIds))
+                ->load([
+                    'items:id,quotation_id,product_name,description,quantity,unit_price,total_price',
+                ]);
+        }
+
+        $companies = $companyClients->map(function (CompanyClient $client) use ($matchedByCompanyId) {
+            $matched = $matchedByCompanyId[$client->id] ?? collect();
+
+            return [
+                'key' => 'company-'.$client->id,
+                'id' => $client->id,
+                'type' => 'company',
+                'name' => $client->company_name,
+                'contact_name' => $client->contact_name,
+                'phone' => $client->phone,
+                'phone_secondary' => $client->phone_secondary,
+                'email' => $client->email,
+                'address' => $client->address,
+                'tax_number' => $client->tax_number,
+                'iban' => $client->iban,
+                'iban_image_url' => $client->iban_image_url,
+                'notes' => $client->notes,
+                'country' => null,
+                'gender' => null,
+                'date_of_birth' => null,
+                'created_at' => $client->created_at?->toIso8601String(),
+                'quotations_count' => $matched->count(),
+                'quotations' => $matched->map(fn (Quotation $quotation) => $this->formatQuotation($quotation))->values(),
+            ];
+        });
 
         $customers = $individuals
             ->concat($companies)
@@ -151,15 +171,16 @@ class CustomerController extends Controller
             $user->iban = $iban;
 
             if ($request->boolean('remove_iban_image') && $user->iban_image) {
-                Storage::disk('public')->delete($user->iban_image);
+                MediaStorage::delete($user->iban_image);
                 $user->iban_image = null;
             }
 
             if ($request->hasFile('iban_image')) {
-                if ($user->iban_image) {
-                    Storage::disk('public')->delete($user->iban_image);
+                $oldIban = $user->iban_image;
+                $user->iban_image = MediaStorage::store($request->file('iban_image'), 'customer-ibans');
+                if ($oldIban && $oldIban !== $user->iban_image) {
+                    MediaStorage::delete($oldIban);
                 }
-                $user->iban_image = $request->file('iban_image')->store('customer-ibans', 'public');
             }
 
             $user->save();
@@ -169,15 +190,16 @@ class CustomerController extends Controller
             $client->iban = $iban;
 
             if ($request->boolean('remove_iban_image') && $client->iban_image) {
-                Storage::disk('public')->delete($client->iban_image);
+                MediaStorage::delete($client->iban_image);
                 $client->iban_image = null;
             }
 
             if ($request->hasFile('iban_image')) {
-                if ($client->iban_image) {
-                    Storage::disk('public')->delete($client->iban_image);
+                $oldIban = $client->iban_image;
+                $client->iban_image = MediaStorage::store($request->file('iban_image'), 'customer-ibans');
+                if ($oldIban && $oldIban !== $client->iban_image) {
+                    MediaStorage::delete($oldIban);
                 }
-                $client->iban_image = $request->file('iban_image')->store('customer-ibans', 'public');
             }
 
             $client->save();
@@ -227,7 +249,7 @@ class CustomerController extends Controller
         }
 
         if ($user->iban_image) {
-            Storage::disk('public')->delete($user->iban_image);
+            MediaStorage::delete($user->iban_image);
         }
 
         $user->delete();
@@ -249,7 +271,7 @@ class CustomerController extends Controller
         }
 
         if ($client->iban_image) {
-            Storage::disk('public')->delete($client->iban_image);
+            MediaStorage::delete($client->iban_image);
         }
 
         $client->delete();
@@ -299,15 +321,16 @@ class CustomerController extends Controller
             : null;
 
         if ($request->boolean('remove_iban_image') && $user->iban_image) {
-            Storage::disk('public')->delete($user->iban_image);
+            MediaStorage::delete($user->iban_image);
             $user->iban_image = null;
         }
 
         if ($request->hasFile('iban_image')) {
-            if ($user->iban_image) {
-                Storage::disk('public')->delete($user->iban_image);
+            $oldIban = $user->iban_image;
+            $user->iban_image = MediaStorage::store($request->file('iban_image'), 'customer-ibans');
+            if ($oldIban && $oldIban !== $user->iban_image) {
+                MediaStorage::delete($oldIban);
             }
-            $user->iban_image = $request->file('iban_image')->store('customer-ibans', 'public');
         }
 
         $user->save();
@@ -354,15 +377,16 @@ class CustomerController extends Controller
             : null;
 
         if ($request->boolean('remove_iban_image') && $client->iban_image) {
-            Storage::disk('public')->delete($client->iban_image);
+            MediaStorage::delete($client->iban_image);
             $client->iban_image = null;
         }
 
         if ($request->hasFile('iban_image')) {
-            if ($client->iban_image) {
-                Storage::disk('public')->delete($client->iban_image);
+            $oldIban = $client->iban_image;
+            $client->iban_image = MediaStorage::store($request->file('iban_image'), 'customer-ibans');
+            if ($oldIban && $oldIban !== $client->iban_image) {
+                MediaStorage::delete($oldIban);
             }
-            $client->iban_image = $request->file('iban_image')->store('customer-ibans', 'public');
         }
 
         $client->save();

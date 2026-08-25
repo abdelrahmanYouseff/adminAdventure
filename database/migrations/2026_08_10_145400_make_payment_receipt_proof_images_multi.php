@@ -12,8 +12,10 @@ return new class extends Migration
             return;
         }
 
-        // Allow storing a JSON array of image paths.
-        DB::statement('ALTER TABLE order_payment_receipts MODIFY proof_image TEXT NULL');
+        // Allow storing a JSON array of image paths (MySQL). SQLite does not need MODIFY.
+        if (Schema::getConnection()->getDriverName() === 'mysql') {
+            DB::statement('ALTER TABLE order_payment_receipts MODIFY proof_image TEXT NULL');
+        }
 
         $rows = DB::table('order_payment_receipts')
             ->whereNotNull('proof_image')
@@ -57,6 +59,8 @@ return new class extends Migration
                 ]);
         }
 
-        DB::statement('ALTER TABLE order_payment_receipts MODIFY proof_image VARCHAR(255) NULL');
+        if (Schema::getConnection()->getDriverName() === 'mysql') {
+            DB::statement('ALTER TABLE order_payment_receipts MODIFY proof_image VARCHAR(255) NULL');
+        }
     }
 };

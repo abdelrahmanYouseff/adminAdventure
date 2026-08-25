@@ -83,6 +83,12 @@ class OrderObserver
 
     private function shouldNotify(Order $order): bool
     {
+        // Kill-switch: WHATSAPP_ENABLED=false stops order WhatsApp notices
+        // without changing release/work-order logic or deleting the feature.
+        if (! config('services.whatsapp.enabled', false)) {
+            return false;
+        }
+
         if ($order->whatsapp_notified_at !== null) {
             return false;
         }

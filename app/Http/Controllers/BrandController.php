@@ -3,9 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Models\Brand;
+use App\Support\MediaStorage;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -26,7 +26,7 @@ class BrandController extends Controller
         $data = $this->validateBrand($request);
 
         if ($request->hasFile('logo')) {
-            $data['logo'] = $request->file('logo')->store('brands', 'public');
+            $data['logo'] = MediaStorage::store($request->file('logo'), 'brands');
         }
 
         Brand::create($data);
@@ -39,13 +39,15 @@ class BrandController extends Controller
         $data = $this->validateBrand($request);
 
         if ($request->hasFile('logo')) {
-            if ($brand->logo) {
-                Storage::disk('public')->delete($brand->logo);
+            $oldLogo = $brand->logo;
+            $data['logo'] = MediaStorage::store($request->file('logo'), 'brands');
+            $brand->update($data);
+            if ($oldLogo && $oldLogo !== $data['logo']) {
+                MediaStorage::delete($oldLogo);
             }
-            $data['logo'] = $request->file('logo')->store('brands', 'public');
+        } else {
+            $brand->update($data);
         }
-
-        $brand->update($data);
 
         return back()->with('success', 'تم تحديث البراند بنجاح.');
     }
@@ -64,11 +66,9 @@ class BrandController extends Controller
             return back()->with('error', 'لا يمكن حذف براند مرتبط بعروض أسعار.');
         }
 
-        if ($brand->logo) {
-            Storage::disk('public')->delete($brand->logo);
-        }
-
+        $oldLogo = $brand->logo;
         $brand->delete();
+        MediaStorage::delete($oldLogo);
 
         return back()->with('success', 'تم حذف البراند بنجاح.');
     }

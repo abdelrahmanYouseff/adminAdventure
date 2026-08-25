@@ -69,7 +69,7 @@ watch(
 );
 
 const imagePreview = ref<string | null>(
-    props.product.image_url ?? (props.product.image ? `/storage/${props.product.image}` : null)
+    props.product.image_url ?? null
 );
 
 const handleFileChange = (e: Event) => {

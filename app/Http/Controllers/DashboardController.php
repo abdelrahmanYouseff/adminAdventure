@@ -10,6 +10,7 @@ use App\Models\Product;
 use App\Models\Quotation;
 use App\Models\User;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 
 class DashboardController extends Controller
@@ -91,13 +92,31 @@ class DashboardController extends Controller
     private function dailyCounts($query, int $days): array
     {
         $dateColumn = $query->getModel()->getCreatedAtColumn() ?: 'created_at';
+        $startDay = today()->subDays($days - 1);
+        $endDay = today();
+
+        $driver = $query->getConnection()->getDriverName();
+        $dateExpression = $driver === 'sqlite'
+            ? "strftime('%Y-%m-%d', {$dateColumn})"
+            : "DATE({$dateColumn})";
+
+        $builder = clone $query;
+        $builder->getQuery()->columns = null;
+
+        $countsByDay = $builder
+            ->whereDate($dateColumn, '>=', $startDay)
+            ->whereDate($dateColumn, '<=', $endDay)
+            ->selectRaw("{$dateExpression} as day_date, COUNT(*) as aggregate_count")
+            ->groupBy(DB::raw($dateExpression))
+            ->pluck('aggregate_count', 'day_date');
+
         $series = [];
 
         for ($i = $days - 1; $i >= 0; $i--) {
             $day = today()->subDays($i);
             $series[] = [
                 'label' => $day->translatedFormat('D'),
-                'count' => (clone $query)->whereDate($dateColumn, $day)->count(),
+                'count' => (int) ($countsByDay[$day->toDateString()] ?? 0),
             ];
         }
 

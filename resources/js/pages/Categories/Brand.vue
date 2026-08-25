@@ -31,9 +31,7 @@ defineOptions({ layout: AppLayout });
 const deleteForm = useForm({});
 
 function categoryImage(category: Category): string | null {
-    if (category.image_url) return category.image_url;
-    if (category.image) return `/storage/${category.image}`;
-    return null;
+    return category.image_url ?? null;
 }
 
 const deleteCategory = (categoryId: number) => {

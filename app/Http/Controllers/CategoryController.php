@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Brand;
 use App\Models\Category;
+use App\Support\MediaStorage;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
@@ -91,7 +92,7 @@ class CategoryController extends Controller
         ]);
 
         if ($request->hasFile('image')) {
-            $data['image'] = $request->file('image')->store('categories', 'public');
+            $data['image'] = MediaStorage::store($request->file('image'), 'categories');
         }
 
         $category = Category::create($data);
@@ -132,12 +133,17 @@ class CategoryController extends Controller
         ]);
 
         if ($request->hasFile('image')) {
-            $data['image'] = $request->file('image')->store('categories', 'public');
+            $oldImage = $category->image;
+            $data['image'] = MediaStorage::store($request->file('image'), 'categories');
+            $category->update($data);
+            if ($oldImage && $oldImage !== $data['image']) {
+                MediaStorage::delete($oldImage);
+            }
         } else {
             unset($data['image']);
+            $category->update($data);
         }
 
-        $category->update($data);
         $brand = Brand::find($category->brand_id);
 
         return redirect()
@@ -155,7 +161,9 @@ class CategoryController extends Controller
         }
 
         $brand = $category->brand;
+        $oldImage = $category->image;
         $category->delete();
+        MediaStorage::delete($oldImage);
 
         if ($brand) {
             return redirect()

@@ -169,8 +169,6 @@ class OrderPaymentReceipt extends Model
             return null;
         }
 
-        return str_starts_with($path, 'http')
-            ? $path
-            : asset('storage/'.ltrim($path, '/'));
+        return \App\Support\MediaStorage::url($path);
     }
 }

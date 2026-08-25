@@ -34,8 +34,7 @@ defineOptions({
     layout: AppLayout,
 });
 
-const imageUrl = (product: Product) =>
-    product.image_url ?? (product.image ? `/storage/${product.image}` : null);
+const imageUrl = (product: Product) => product.image_url ?? null;
 
 // Track which product IDs are being toggled to prevent double-clicks
 const toggling = ref<Set<number>>(new Set());
@@ -76,9 +75,9 @@ function toggleStatus(product: Product) {
                     </Link>
                 </Button>
                 <div class="flex items-center gap-3">
-                    <div v-if="category.image" class="flex-shrink-0">
+                    <div v-if="category.image_url" class="flex-shrink-0">
                         <img
-                            :src="`/storage/${category.image}`"
+                            :src="category.image_url"
                             :alt="category.category_name"
                             class="w-14 h-14 object-cover rounded-lg border"
                         />

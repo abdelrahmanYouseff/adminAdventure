@@ -4,9 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Models\Package;
 use App\Models\Product;
+use App\Support\MediaStorage;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
-use Illuminate\Support\Facades\Storage;
 
 class PackageController extends Controller
 {
@@ -88,7 +88,7 @@ class PackageController extends Controller
         $data = $request->except('product_ids');
 
         if ($request->hasFile('image')) {
-            $imagePath = $request->file('image')->store('packages', 'public');
+            $imagePath = MediaStorage::store($request->file('image'), 'packages');
             $data['image'] = $imagePath;
         }
 
@@ -140,17 +140,18 @@ class PackageController extends Controller
         $data = $request->except('product_ids');
 
         if ($request->hasFile('image')) {
-            // Delete old image if exists
-            if ($package->image) {
-                Storage::disk('public')->delete($package->image);
-            }
-
-            $imagePath = $request->file('image')->store('packages', 'public');
+            $oldImage = $package->image;
+            $imagePath = MediaStorage::store($request->file('image'), 'packages');
             $data['image'] = $imagePath;
+            $package->update($data);
+            $package->products()->sync($request->input('product_ids'));
+            if ($oldImage && $oldImage !== $imagePath) {
+                MediaStorage::delete($oldImage);
+            }
+        } else {
+            $package->update($data);
+            $package->products()->sync($request->input('product_ids'));
         }
-
-        $package->update($data);
-        $package->products()->sync($request->input('product_ids'));
 
         return redirect()->route('packages.index')->with('success', 'Package updated successfully.');
     }
@@ -163,12 +164,9 @@ class PackageController extends Controller
         // Detach all products before deleting the package
         $package->products()->detach();
 
-        // Delete image if exists
-        if ($package->image) {
-            Storage::disk('public')->delete($package->image);
-        }
-
+        $oldImage = $package->image;
         $package->delete();
+        MediaStorage::delete($oldImage);
 
         return redirect()->route('packages.index')->with('success', 'Package deleted successfully.');
     }

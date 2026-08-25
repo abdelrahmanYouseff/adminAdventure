@@ -39,7 +39,7 @@ return new class extends Migration
                         ->orWhereNotNull('insurance_accounts_approved_at');
                 })
                 ->update([
-                    'insurance_refund_requested_at' => DB::raw('COALESCE(warehouse_returned_at, NOW())'),
+                    'insurance_refund_requested_at' => DB::raw("COALESCE(warehouse_returned_at, '".now()->toDateTimeString()."')"),
                 ]);
         }
     }

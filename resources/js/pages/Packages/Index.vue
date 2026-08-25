@@ -366,8 +366,8 @@ function deletePackage(pkg: PackageItem) {
                             <td class="px-3 py-4">
                                 <div class="flex items-start gap-3">
                                     <img
-                                        v-if="pkg.image"
-                                        :src="`/storage/${pkg.image}`"
+                                        v-if="pkg.image_url"
+                                        :src="pkg.image_url"
                                         :alt="pkg.name"
                                         class="size-11 shrink-0 rounded-xl object-cover"
                                     />

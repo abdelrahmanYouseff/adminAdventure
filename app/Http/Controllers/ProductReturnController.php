@@ -14,7 +14,7 @@ use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
+use App\Support\MediaStorage;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -250,7 +250,7 @@ class ProductReturnController extends Controller
 
         foreach ($order->workerOrders as $line) {
             if ($line->pickup_photo) {
-                Storage::disk('public')->delete($line->pickup_photo);
+                MediaStorage::delete($line->pickup_photo);
             }
 
             $line->forceFill([

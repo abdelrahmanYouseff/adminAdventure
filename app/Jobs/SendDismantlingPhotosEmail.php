@@ -2,6 +2,8 @@
 
 namespace App\Jobs;
 
+use App\Support\MediaStorage;
+
 use App\Mail\DismantlingCompletedMail;
 use App\Models\Order;
 use App\Models\User;
@@ -111,7 +113,7 @@ class SendDismantlingPhotosEmail implements ShouldQueue
                 'product_name' => (string) ($line->product_name ?: 'منتج'),
                 'photo_path' => $path,
                 'photo_url' => $path !== ''
-                    ? PublicAppUrl::to('/storage/'.ltrim($path, '/'))
+                    ? MediaStorage::url($path)
                     : null,
             ];
         })->values()->all();

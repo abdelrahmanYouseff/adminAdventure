@@ -80,7 +80,6 @@ function initReveal() {
 }
 
 const imageUrl = (p: Product): string | null => {
-    if (p.image) return `/storage/${p.image.replace(/^\//, '')}`;
     if (p.image_url) return p.image_url;
     return null;
 };

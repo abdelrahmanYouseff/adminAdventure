@@ -3,8 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\CompanyClient;
+use App\Support\MediaStorage;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
 
 class CompanyClientController extends Controller
 {
@@ -39,7 +39,7 @@ class CompanyClientController extends Controller
         }
 
         if ($request->hasFile('iban_image')) {
-            $validated['iban_image'] = $request->file('iban_image')->store('customer-ibans', 'public');
+            $validated['iban_image'] = MediaStorage::store($request->file('iban_image'), 'customer-ibans');
         } else {
             unset($validated['iban_image']);
         }

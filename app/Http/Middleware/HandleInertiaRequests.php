@@ -13,7 +13,7 @@ use Symfony\Component\HttpFoundation\Response;
 class HandleInertiaRequests extends Middleware
 {
     /**
-     * The root templatee that's loaded on the first page visit.
+     * The root template that's loaded on the first page visit.
      *
      * @see https://inertiajs.com/server-side-setup#root-template
      *
@@ -33,7 +33,18 @@ class HandleInertiaRequests extends Middleware
 
     public function handle(Request $request, Closure $next): Response
     {
-        if ($request->routeIs('quotations.pdf', 'invoices.pdf')) {
+        if ($request->routeIs(
+            'quotations.pdf',
+            'invoices.pdf',
+            'quotations.pay',
+            'quotations.pay.short',
+            'orders.pay',
+            'payment.return',
+            'payment.return.status',
+            'payment.success',
+            'payment.fail',
+            'payment.cancel',
+        )) {
             return $next($request);
         }
 

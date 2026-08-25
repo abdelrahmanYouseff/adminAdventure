@@ -4,9 +4,9 @@ namespace App\Http\Controllers\Settings;
 
 use App\Http\Controllers\Controller;
 use App\Models\Brand;
+use App\Support\MediaStorage;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -45,13 +45,16 @@ class QuotationSettingsController extends Controller
             'logo.max' => 'حجم اللوجو يجب ألا يتجاوز 4 ميجابايت.',
         ]);
 
-        if ($brand->logo) {
-            Storage::disk('public')->delete($brand->logo);
-        }
+        $oldLogo = $brand->logo;
+        $newLogo = MediaStorage::store($request->file('logo'), 'brands');
 
         $brand->update([
-            'logo' => $request->file('logo')->store('brands', 'public'),
+            'logo' => $newLogo,
         ]);
+
+        if ($oldLogo && $oldLogo !== $newLogo) {
+            MediaStorage::delete($oldLogo);
+        }
 
         return back()->with('success', 'تم تحديث لوجو عرض السعر بنجاح.');
     }

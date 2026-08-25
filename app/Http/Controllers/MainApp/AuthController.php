@@ -141,7 +141,7 @@ class AuthController extends Controller
             Cache::put($this->cacheKey($data['phone']), self::FIXED_OTP_CODE, now()->addMinutes(5));
 
             if (config('app.debug')) {
-                Log::info('Main-app OTP fixed test phone', ['phone' => $e164, 'code' => self::FIXED_OTP_CODE]);
+                Log::info('Main-app OTP fixed test phone', ['phone' => $e164]);
             }
 
             RateLimiter::clear($throttleKey);
@@ -170,7 +170,7 @@ class AuthController extends Controller
             Cache::put($this->cacheKey($data['phone']), $code, now()->addMinutes(5));
 
             if (config('app.debug')) {
-                Log::info('Main-app OTP dev fallback', ['phone' => $e164, 'code' => $code]);
+                Log::info('Main-app OTP dev fallback', ['phone' => $e164]);
             }
         }
 

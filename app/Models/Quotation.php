@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\PublicAppUrl;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -88,9 +89,9 @@ class Quotation extends Model
             return null;
         }
 
-        return route('quotations.pay.short', [
-            'token' => $this->ensurePaymentToken(),
-        ], absolute: true);
+        // Public absolute URL (APP_PUBLIC_URL) so customers can pay
+        // without logging into the admin system.
+        return PublicAppUrl::to('/q/'.$this->ensurePaymentToken());
     }
 
     public function noonPaymentUrl(): ?string

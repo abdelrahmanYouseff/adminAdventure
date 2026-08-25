@@ -146,9 +146,7 @@ onMounted(() => {
 });
 
 const imageUrl = (product: Product): string | null => {
-    if (product.image) return `/storage/${product.image.replace(/^\//, '')}`;
-    if (product.image_url) return product.image_url;
-    return null;
+    return product.image_url ?? null;
 };
 
 const categoriesWithCounts = computed(() =>
@@ -351,8 +349,8 @@ const features = [
                                 aria-hidden="true"
                             />
                             <img
-                                v-if="cat.image"
-                                :src="`/storage/${cat.image.replace(/^\//, '')}`"
+                                v-if="cat.image_url"
+                                :src="cat.image_url"
                                 :alt="cat.category_name"
                                 class="relative z-10 max-h-[88%] max-w-[94%] object-contain transition duration-300 group-hover:scale-[1.03]"
                                 loading="lazy"

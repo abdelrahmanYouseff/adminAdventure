@@ -17,18 +17,22 @@ class QuotationPdfService
 
     public function render(QuotationPdfData $data): string
     {
-        $smallest = null;
+        try {
+            $smallest = null;
 
-        foreach (self::SCALES as $scale) {
-            [$content, $pages] = $this->build($data, $scale);
-            $smallest = $content;
+            foreach (self::SCALES as $scale) {
+                [$content, $pages] = $this->build($data, $scale);
+                $smallest = $content;
 
-            if ($pages <= 1) {
-                return $content;
+                if ($pages <= 1) {
+                    return $content;
+                }
             }
-        }
 
-        return $smallest;
+            return (string) $smallest;
+        } finally {
+            \App\Support\MediaStorage::cleanupTempFiles();
+        }
     }
 
     /**

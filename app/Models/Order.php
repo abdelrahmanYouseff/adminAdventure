@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Support\OrderInsuranceCalculator;
+use App\Support\PublicAppUrl;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Str;
 
@@ -164,7 +166,7 @@ class Order extends Model
             return null;
         }
 
-        return url('/pay/order/'.$this->ensurePaymentToken());
+        return PublicAppUrl::to('/pay/order/'.$this->ensurePaymentToken());
     }
 
     protected static function booted(): void

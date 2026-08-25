@@ -23,6 +23,7 @@ interface Package {
     description: string | null;
     price: number;
     image: string | null;
+    image_url?: string | null;
     status: string;
     products: Product[];
 }
@@ -44,7 +45,7 @@ const form = useForm({
     product_ids: props.package.products.map(p => p.id),
 });
 
-const imagePreview = ref<string | null>(props.package.image ? `/storage/${props.package.image}` : null);
+const imagePreview = ref<string | null>(props.package.image_url ?? null);
 
 const handleFileChange = (e: Event) => {
     const target = e.target as HTMLInputElement;

@@ -436,13 +436,52 @@ class InvoicePdfData
                 },
                 'date' => $r->created_at?->format('Y-m-d') ?? '—',
                 'notes' => $r->notes ? trim($r->notes) : null,
-                'image_paths' => collect($r->proof_image_urls ?? [])
-                    ->map(fn (string $url) => $this->urlToAbsolutePath($url))
+                'image_paths' => collect($this->normalizeProofPaths($r->proof_image))
+                    ->map(fn (string $path) => \App\Support\MediaStorage::temporaryLocalPath($path))
                     ->filter()
                     ->values()
                     ->all(),
             ])
             ->all();
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function normalizeProofPaths(mixed $raw): array
+    {
+        if ($raw === null || $raw === '') {
+            return [];
+        }
+
+        if (is_array($raw)) {
+            return array_values(array_filter(array_map(
+                fn ($path) => is_string($path) ? trim($path) : '',
+                $raw,
+            )));
+        }
+
+        if (! is_string($raw)) {
+            return [];
+        }
+
+        $trimmed = trim($raw);
+
+        if ($trimmed === '') {
+            return [];
+        }
+
+        if (str_starts_with($trimmed, '[')) {
+            $decoded = json_decode($trimmed, true);
+            if (is_array($decoded)) {
+                return array_values(array_filter(array_map(
+                    fn ($path) => is_string($path) ? trim($path) : '',
+                    $decoded,
+                )));
+            }
+        }
+
+        return [$trimmed];
     }
 
     public function hasPaymentReceipts(): bool
@@ -468,27 +507,6 @@ class InvoicePdfData
         }
 
         return $terms;
-    }
-
-    private function urlToAbsolutePath(string $url): ?string
-    {
-        // لو URL كامل من storage
-        $storagePublicPath = public_path('storage');
-        $storagePublicUrl = asset('storage');
-
-        if (str_starts_with($url, $storagePublicUrl)) {
-            $relative = ltrim(substr($url, strlen($storagePublicUrl)), '/');
-            $absolute = $storagePublicPath.'/'.$relative;
-
-            return file_exists($absolute) ? $absolute : null;
-        }
-
-        // لو مسار مباشر
-        if (str_starts_with($url, '/') && file_exists($url)) {
-            return $url;
-        }
-
-        return null;
     }
 
     private function formatDate(mixed $date): string

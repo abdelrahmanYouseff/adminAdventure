@@ -36,7 +36,7 @@ class PhoneOtpController extends Controller
             Cache::put($this->cacheKey($data['phone']), self::FIXED_OTP_CODE, now()->addMinutes(5));
 
             if (config('app.debug')) {
-                Log::info('Store OTP fixed test phone', ['phone' => $e164, 'code' => self::FIXED_OTP_CODE]);
+                Log::info('Store OTP fixed test phone', ['phone' => $e164]);
             }
 
             return back();
@@ -61,7 +61,7 @@ class PhoneOtpController extends Controller
             Cache::put($this->cacheKey($data['phone']), $code, now()->addMinutes(5));
 
             if (config('app.debug')) {
-                Log::info('Store OTP dev fallback', ['phone' => $e164, 'code' => $code]);
+                Log::info('Store OTP dev fallback', ['phone' => $e164]);
             }
         }
 

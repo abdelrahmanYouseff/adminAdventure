@@ -5,7 +5,6 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Support\Str;
 
 class WorkerOrder extends Model
 {
@@ -86,8 +85,6 @@ class WorkerOrder extends Model
             return null;
         }
 
-        return Str::startsWith($path, ['http://', 'https://'])
-            ? $path
-            : asset('storage/'.ltrim($path, '/'));
+        return \App\Support\MediaStorage::url($path);
     }
 }
