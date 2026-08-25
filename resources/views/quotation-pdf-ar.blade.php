@@ -6,7 +6,10 @@
     $bottomMargin = $bottomMargin ?? 16;
     $pt = fn (float $size) => round($size * $scale, 2).'pt';
 
-    $ackReservedHeight = $data->hasOnlinePaymentSection() ? 110 : 100;
+    $ackReservedHeight = $data->hasOnlinePaymentSection() ? 40 : 100;
+    $pinAck = ! $data->hasOnlinePaymentSection();
+    $paymentUrl = $data->paymentUrl();
+    $paymentQrPath = $data->hasOnlinePaymentSection() ? $data->paymentQrPath() : null;
 
     $border = 'border: 1px solid #333;';
     $sectionTitle = 'font-size: '.$pt(8).'; font-weight: bold; color: #1a1a1a; margin: 0 0 '.$pt(4).' 0;';
@@ -71,10 +74,14 @@
             text-align: right;
         }
         .ack-box {
+            @if($pinAck)
             position: absolute;
             bottom: {{ $bottomMargin }}mm;
             left: 0;
             right: 0;
+            @else
+            margin-top: {{ $pt(8) }};
+            @endif
             border: 1px solid #333;
             padding: {{ $pt(6) }} {{ $pt(9) }};
             font-size: {{ $pt(7.5) }};
@@ -262,24 +269,40 @@
         اسم الحساب: {{ $data->bankAccountName() }}
     </div>
 
-    @if($data->hasOnlinePaymentSection())
+    @if($data->hasOnlinePaymentSection() && $paymentUrl)
         <div style="{{ $sectionTitle }} margin-top: {{ $pt(7) }};">الدفع الإلكتروني</div>
         <div style="font-size: {{ $pt(7.5) }}; line-height: 1.45; padding: {{ $pt(5) }}; border: 1px solid #333; background-color: #f8fafc;">
-            <div style="text-align: right;">
+            <div style="text-align: right; margin-bottom: {{ $pt(4) }};">
                 <strong>ادفع المبلغ المستحق إلكترونيًا:</strong>
                 <span class="ltr">{{ $data->formatSar($data->amountDue(), 2) }}</span>
             </div>
-            {{-- Keep the <a> LTR/ASCII-only: mixed Arabic inside anchors breaks mPDF link hit-boxes. --}}
-            <div dir="ltr" align="left" style="margin-top: {{ $pt(4) }}; text-align: left;">
-                <a href="{{ $data->paymentUrl() }}" style="color: #1d4ed8; font-weight: bold; text-decoration: underline;">
-                    Payment Link
-                </a>
-            </div>
+            <table width="100%" cellpadding="0" cellspacing="0" dir="ltr">
+                <tr>
+                    <td width="{{ $paymentQrPath ? '72%' : '100%' }}" valign="middle" align="left" style="text-align: left; padding-right: {{ $pt(6) }};">
+                        <a href="{{ $paymentUrl }}" style="color: #1d4ed8; font-weight: bold; font-size: {{ $pt(10) }}; text-decoration: underline;">
+                            Payment Link
+                        </a>
+                        <div style="margin-top: {{ $pt(3) }}; font-size: {{ $pt(6.5) }}; color: #334155;" dir="rtl" align="right">
+                            انسخ الرابط أو امسح رمز QR إن لم يفتح الضغط
+                        </div>
+                        <div style="margin-top: {{ $pt(2) }}; font-size: {{ $pt(6.2) }}; color: #1d4ed8; word-break: break-all;">
+                            <a href="{{ $paymentUrl }}" style="color: #1d4ed8; text-decoration: underline;">{{ $paymentUrl }}</a>
+                        </div>
+                    </td>
+                    @if($paymentQrPath)
+                        <td width="28%" valign="middle" align="center" style="text-align: center;">
+                            <img src="{{ $paymentQrPath }}" width="{{ round(78 * $scale) }}" height="{{ round(78 * $scale) }}" alt="Payment QR">
+                        </td>
+                    @endif
+                </tr>
+            </table>
         </div>
     @endif
 </div>
 
+@if($pinAck)
 <div style="height: {{ $pt($ackReservedHeight) }};"></div>
+@endif
 
 <div class="ack-box">
     <div style="font-weight: bold; font-size: {{ $pt(8.5) }}; margin-bottom: {{ $pt(4) }};">إقرار العميل</div>

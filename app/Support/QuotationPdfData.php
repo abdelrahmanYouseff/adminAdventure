@@ -384,6 +384,38 @@ class QuotationPdfData
         return $this->quotation->paymentUrl();
     }
 
+    /**
+     * Local PNG path for a payment QR (WhatsApp/mobile PDF viewers often ignore hyperlinks).
+     */
+    public function paymentQrPath(): ?string
+    {
+        $url = $this->paymentUrl();
+        if (! filled($url)) {
+            return null;
+        }
+
+        try {
+            $qr = new \Endroid\QrCode\QrCode(
+                data: $url,
+                errorCorrectionLevel: \Endroid\QrCode\ErrorCorrectionLevel::Medium,
+                size: 220,
+                margin: 6,
+            );
+            $png = (new \Endroid\QrCode\Writer\PngWriter())->write($qr)->getString();
+            $path = storage_path('app/mpdf-tmp/payment-qr-'.uniqid('', true).'.png');
+            $dir = dirname($path);
+            if (! is_dir($dir)) {
+                mkdir($dir, 0755, true);
+            }
+            file_put_contents($path, $png);
+            MediaStorage::trackTempFile($path);
+
+            return $path;
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
     public function insuranceNoteEn(): string
     {
         return 'Insurance deposit is refundable upon product pickup/collection after the event.';

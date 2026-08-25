@@ -105,6 +105,13 @@ class MediaStorage
         return $tmp;
     }
 
+    public static function trackTempFile(string $path): void
+    {
+        if ($path !== '') {
+            self::$tempFiles[] = $path;
+        }
+    }
+
     public static function cleanupTempFiles(): void
     {
         foreach (self::$tempFiles as $file) {
