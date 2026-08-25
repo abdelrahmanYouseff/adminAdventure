@@ -20,10 +20,27 @@ class QuotationPaymentController extends Controller
 {
     public function pay(Request $request, string $token): RedirectResponse|View
     {
+        // WhatsApp / PDF copy-paste can inject spaces or hidden chars → strip them.
+        $token = preg_replace('/[^A-Za-z0-9]/', '', $token) ?? '';
+
+        if ($token === '') {
+            return $this->missingTokenView();
+        }
+
         $quotation = Quotation::query()
             ->where('payment_token', $token)
             ->with('items')
-            ->firstOrFail();
+            ->first();
+
+        if (! $quotation) {
+            Log::warning('Quotation payment link token not found', [
+                'token_prefix' => substr($token, 0, 8),
+                'token_length' => strlen($token),
+                'ip' => $request->ip(),
+            ]);
+
+            return $this->missingTokenView();
+        }
 
         if ($quotation->status === 'rejected' || $quotation->status === 'expired') {
             return $this->statusView($quotation, 'هذا العرض لم يعد متاحاً للدفع.', 'unavailable');
@@ -129,6 +146,17 @@ class QuotationPaymentController extends Controller
             'state' => $state,
             'due' => $quotation->amountDue(),
             'total' => round((float) $quotation->total_amount, 2),
+        ]);
+    }
+
+    private function missingTokenView(): View
+    {
+        return view('quotation-pay-status', [
+            'quotation' => null,
+            'message' => 'رابط الدفع غير صالح أو منتهي. اطلب من البائع إرسال عرض السعر من جديد.',
+            'state' => 'unavailable',
+            'due' => 0,
+            'total' => 0,
         ]);
     }
 }

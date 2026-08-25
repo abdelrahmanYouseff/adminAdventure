@@ -13,9 +13,21 @@ class OrderPaymentController extends Controller
 {
     public function pay(Request $request, string $token): RedirectResponse|View
     {
-        $order = Order::query()
-            ->where('payment_token', $token)
-            ->firstOrFail();
+        $token = preg_replace('/[^A-Za-z0-9]/', '', $token) ?? '';
+
+        $order = $token !== ''
+            ? Order::query()->where('payment_token', $token)->first()
+            : null;
+
+        if (! $order) {
+            return view('order-pay-status', [
+                'order' => null,
+                'message' => 'رابط الدفع غير صالح أو منتهي.',
+                'state' => 'unavailable',
+                'due' => 0,
+                'total' => 0,
+            ]);
+        }
 
         if (in_array($order->status, ['cancelled', 'refunded'], true)) {
             return $this->statusView($order, 'هذا الطلب لم يعد متاحاً للدفع.', 'unavailable');

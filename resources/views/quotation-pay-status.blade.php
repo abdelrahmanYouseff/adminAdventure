@@ -3,7 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>دفع عرض السعر {{ $quotation->quotation_number }}</title>
+    <title>
+        @if($quotation)
+            دفع عرض السعر {{ $quotation->quotation_number }}
+        @else
+            رابط الدفع
+        @endif
+    </title>
     <style>
         body {
             font-family: Tahoma, Arial, sans-serif;
@@ -46,14 +52,22 @@
             @else تعذر الدفع
             @endif
         </div>
-        <h1>عرض السعر {{ $quotation->quotation_number }}</h1>
-        <p>{{ $message }}</p>
-        <div class="meta">
-            الإجمالي: {{ number_format($total, 2) }} ر.س
-            @if($due > 0)
-                <br>المستحق: {{ number_format($due, 2) }} ر.س
+        <h1>
+            @if($quotation)
+                عرض السعر {{ $quotation->quotation_number }}
+            @else
+                رابط الدفع
             @endif
-        </div>
+        </h1>
+        <p>{{ $message }}</p>
+        @if($quotation)
+            <div class="meta">
+                الإجمالي: {{ number_format($total, 2) }} ر.س
+                @if($due > 0)
+                    <br>المستحق: {{ number_format($due, 2) }} ر.س
+                @endif
+            </div>
+        @endif
     </div>
 </body>
 </html>

@@ -3,7 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>دفع الطلب {{ $order->order_number }}</title>
+    <title>
+        @if($order)
+            دفع الطلب {{ $order->order_number }}
+        @else
+            رابط الدفع
+        @endif
+    </title>
     <style>
         body { font-family: Tahoma, Arial, sans-serif; background: #f5f6f8; color: #1a1a1a; margin: 0; padding: 24px; }
         .card { max-width: 480px; margin: 48px auto; background: #fff; border-radius: 16px; padding: 28px 24px; box-shadow: 0 8px 30px rgba(0,0,0,.06); text-align: center; }
@@ -25,14 +31,22 @@
             @else تعذر الدفع
             @endif
         </div>
-        <h1>الطلب {{ $order->order_number }}</h1>
-        <p>{{ $message }}</p>
-        <div class="meta">
-            الإجمالي: {{ number_format($total, 2) }} ر.س
-            @if($due > 0)
-                <br>المستحق: {{ number_format($due, 2) }} ر.س
+        <h1>
+            @if($order)
+                الطلب {{ $order->order_number }}
+            @else
+                رابط الدفع
             @endif
-        </div>
+        </h1>
+        <p>{{ $message }}</p>
+        @if($order)
+            <div class="meta">
+                الإجمالي: {{ number_format($total, 2) }} ر.س
+                @if($due > 0)
+                    <br>المستحق: {{ number_format($due, 2) }} ر.س
+                @endif
+            </div>
+        @endif
     </div>
 </body>
 </html>

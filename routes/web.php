@@ -627,15 +627,12 @@ Route::match(['GET', 'POST'], 'payment/cancel', [\App\Http\Controllers\PaymentCo
 
 // Public payment links — no auth (customers pay from PDF / WhatsApp / email)
 Route::get('pay/quotation/{token}', [\App\Http\Controllers\QuotationPaymentController::class, 'pay'])
-    ->where('token', '[A-Za-z0-9]+')
     ->name('quotations.pay');
 
 Route::get('q/{token}', [\App\Http\Controllers\QuotationPaymentController::class, 'pay'])
-    ->where('token', '[A-Za-z0-9]+')
     ->name('quotations.pay.short');
 
 Route::get('pay/order/{token}', [\App\Http\Controllers\OrderPaymentController::class, 'pay'])
-    ->where('token', '[A-Za-z0-9]+')
     ->name('orders.pay');
 
 require __DIR__.'/settings.php';
