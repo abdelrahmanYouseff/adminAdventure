@@ -147,6 +147,9 @@ class Quotation extends Model
 
     /**
      * pending_approval | pending_accountant | released | rejected | expired
+     *
+     * Note: full online (Noon) payment auto-releases the order and skips the
+     * accountant gate — see QuotationToOrderService::finalizeFullOnlinePaymentIfEligible().
      */
     public function approvalStage(): string
     {
@@ -160,7 +163,7 @@ class Quotation extends Model
 
         $order = $this->relationLoaded('order') ? $this->order : $this->order()->first();
 
-        if (filled($order?->operations_released_at)) {
+        if (filled($order?->operations_released_at) || filled($this->accountant_approved_at)) {
             return 'released';
         }
 

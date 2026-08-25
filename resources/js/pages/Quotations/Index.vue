@@ -45,6 +45,8 @@ interface Quotation {
     can_approve?: boolean;
     can_accountant_approve?: boolean;
     order_number?: string | null;
+    show_online_payment?: boolean;
+    online_payment_status?: 'paid' | 'partial' | 'pending' | 'off';
     valid_until: string | null;
     created_at: string;
     brand?: Brand | null;
@@ -296,6 +298,32 @@ function statusBadgeClass(quotation: Quotation): string {
     return map[stage] || 'bg-gray-100 text-gray-700 ring-1 ring-inset ring-gray-200';
 }
 
+function onlinePaymentLabel(quotation: Quotation): string {
+    switch (quotation.online_payment_status) {
+        case 'paid':
+            return 'تم الدفع أونلاين';
+        case 'partial':
+            return 'دفع جزئي أونلاين';
+        case 'pending':
+            return 'بانتظار الدفع';
+        default:
+            return 'غير مفعّل';
+    }
+}
+
+function onlinePaymentBadgeClass(quotation: Quotation): string {
+    switch (quotation.online_payment_status) {
+        case 'paid':
+            return 'bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-300 dark:ring-emerald-900/50';
+        case 'partial':
+            return 'bg-amber-50 text-amber-800 ring-1 ring-inset ring-amber-100 dark:bg-amber-950/40 dark:text-amber-300 dark:ring-amber-900/50';
+        case 'pending':
+            return 'bg-sky-50 text-sky-700 ring-1 ring-inset ring-sky-100 dark:bg-sky-950/40 dark:text-sky-300 dark:ring-sky-900/50';
+        default:
+            return 'bg-gray-100 text-gray-500 ring-1 ring-inset ring-gray-200 dark:bg-neutral-800 dark:text-neutral-400 dark:ring-neutral-700';
+    }
+}
+
 function approveQuotation(quotation: Quotation) {
     if (!confirm('اعتماد عرض السعر؟ بدون مدفوعات يتحول فوراً إلى طلب. أمر العمل يصدر بعد سداد أي مبلغ واعتماد المحاسب.')) {
         return;
@@ -320,6 +348,26 @@ function deleteQuotation(quotation: Quotation) {
 
 function quotationPdfUrl(id: number): string {
     return `/quotations/${id}/pdf?v=${Date.now()}`;
+}
+
+/** First + second name only; strip tax numbers. */
+function displayCustomerName(name: string | null | undefined): string {
+    if (!name) {
+        return '—';
+    }
+
+    const cleaned = String(name)
+        .replace(/الرقم\s*الضريبي\s*[:：]?\s*\S*/gi, ' ')
+        .replace(/\b\d{10,15}\b/g, ' ')
+        .replace(/\s*[||/]\s*/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+    if (!cleaned) {
+        return '—';
+    }
+
+    return cleaned.split(/\s+/).slice(0, 2).join(' ');
 }
 </script>
 
@@ -456,7 +504,7 @@ function quotationPdfUrl(id: number): string {
             </div>
 
             <div class="overflow-x-auto">
-                <table class="w-full min-w-[1100px] border-collapse text-sm">
+                <table class="w-full min-w-[1220px] border-collapse text-sm">
                     <thead>
                         <tr class="border-b border-gray-100 text-start dark:border-neutral-800">
                             <th class="w-12 px-4 py-3.5">
@@ -468,8 +516,9 @@ function quotationPdfUrl(id: number): string {
                                 />
                             </th>
                             <th class="px-3 py-3.5 text-start text-[13px] font-semibold text-gray-700 dark:text-neutral-200">العرض</th>
-                            <th class="px-3 py-3.5 text-start text-[13px] font-semibold text-gray-700 dark:text-neutral-200">العميل</th>
+                            <th class="w-36 px-3 py-3.5 text-start text-[13px] font-semibold text-gray-700 dark:text-neutral-200">العميل</th>
                             <th class="px-3 py-3.5 text-start text-[13px] font-semibold text-gray-700 dark:text-neutral-200">المبلغ</th>
+                            <th class="px-3 py-3.5 text-start text-[13px] font-semibold text-gray-700 dark:text-neutral-200">الدفع أونلاين</th>
                             <th class="px-3 py-3.5 text-start text-[13px] font-semibold text-gray-700 dark:text-neutral-200">صالح حتى</th>
                             <th class="px-3 py-3.5 text-start text-[13px] font-semibold text-gray-700 dark:text-neutral-200">أنشأه</th>
                             <th class="px-3 py-3.5 text-start text-[13px] font-semibold text-gray-700 dark:text-neutral-200">الحالة</th>
@@ -479,7 +528,7 @@ function quotationPdfUrl(id: number): string {
                     </thead>
                     <tbody>
                         <tr v-if="quotations.data.length === 0">
-                            <td colspan="9" class="px-4 py-16 text-center text-gray-500 dark:text-neutral-400">
+                            <td colspan="10" class="px-4 py-16 text-center text-gray-500 dark:text-neutral-400">
                                 {{ selectedBrand ? 'لا توجد عروض أسعار لهذا البراند.' : 'لا توجد عروض مطابقة للبحث أو الفلتر الحالي.' }}
                             </td>
                         </tr>
@@ -506,22 +555,30 @@ function quotationPdfUrl(id: number): string {
                                     </p>
                                 </Link>
                             </td>
-                            <td class="px-3 py-4">
+                            <td class="w-36 max-w-[9rem] px-3 py-4">
                                 <div class="flex min-w-0 flex-col items-start gap-1">
-                                    <p class="font-semibold text-gray-900 dark:text-white">{{ quotation.customer_name }}</p>
+                                    <p class="truncate font-semibold text-gray-900 dark:text-white" :title="quotation.customer_name">
+                                        {{ displayCustomerName(quotation.customer_name) }}
+                                    </p>
                                     <p
-                                        v-if="quotation.brand?.name || quotation.customer_email"
-                                        class="flex items-center gap-1 truncate text-xs text-gray-400"
+                                        v-if="quotation.brand?.name"
+                                        class="flex max-w-full items-center gap-1 truncate text-xs text-gray-400"
                                     >
-                                        <Building2 v-if="quotation.brand?.name" class="size-3 shrink-0" />
-                                        <span :dir="quotation.brand?.name ? undefined : 'ltr'">
-                                            {{ quotation.brand?.name || quotation.customer_email }}
-                                        </span>
+                                        <Building2 class="size-3 shrink-0" />
+                                        <span class="truncate">{{ quotation.brand.name }}</span>
                                     </p>
                                 </div>
                             </td>
                             <td class="px-3 py-4 font-semibold tabular-nums text-gray-900 dark:text-white" dir="ltr">
                                 {{ formatCurrency(Number(quotation.total_amount) || 0) }}
+                            </td>
+                            <td class="px-3 py-4">
+                                <span
+                                    class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold"
+                                    :class="onlinePaymentBadgeClass(quotation)"
+                                >
+                                    {{ onlinePaymentLabel(quotation) }}
+                                </span>
                             </td>
                             <td class="px-3 py-4 text-gray-600 dark:text-neutral-300">
                                 {{ quotation.valid_until ? formatDate(quotation.valid_until) : '—' }}

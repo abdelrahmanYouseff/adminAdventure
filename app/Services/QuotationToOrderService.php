@@ -49,6 +49,9 @@ class QuotationToOrderService
     /**
      * Apply a successful Noon online payment to a quotation-linked order:
      * approved receipt, balances, work-order sync, and quotation status.
+     *
+     * When the order becomes fully paid online, accountant approval is skipped
+     * and the order is released to /orders (+ work orders if eligible) immediately.
      */
     public function applyNoonPayment(Order $order, float $amount, ?string $noonOrderId = null): void
     {
@@ -70,6 +73,8 @@ class QuotationToOrderService
                     ->where('notes', 'like', '%'.$noonOrderId.'%')
                     ->exists();
                 if ($already) {
+                    $this->finalizeFullOnlinePaymentIfEligible($locked->fresh() ?? $locked);
+
                     return;
                 }
             }
@@ -90,6 +95,7 @@ class QuotationToOrderService
                 $locked = $locked->fresh();
                 $this->refreshOrderPaymentStatus($locked);
                 $this->syncQuotationPaidFromOrder($locked);
+                $this->finalizeFullOnlinePaymentIfEligible($locked);
 
                 return;
             }
@@ -106,12 +112,59 @@ class QuotationToOrderService
 
             $this->syncQuotationPaidFromOrder($locked);
             $this->markQuotationAcceptedFromOrder($locked);
-
-            $fresh = $locked->fresh();
-            if ($fresh?->shouldReleaseWorkOrders()) {
-                app(WorkerOrderSyncService::class)->syncFromOrder($fresh);
-            }
+            $this->finalizeFullOnlinePaymentIfEligible($locked->fresh() ?? $locked);
         });
+    }
+
+    /**
+     * Full Noon payment: skip accountant gate and release the order immediately.
+     */
+    private function finalizeFullOnlinePaymentIfEligible(Order $order): void
+    {
+        if (! $order->quotation_id) {
+            return;
+        }
+
+        if (strtolower((string) ($order->payment_method ?? '')) !== 'noon') {
+            return;
+        }
+
+        $remaining = round((float) $order->total_amount - (float) ($order->amount_paid ?? 0), 2);
+        if ($remaining > 0.009) {
+            return;
+        }
+
+        if (blank($order->operations_released_at)) {
+            $order->operations_released_at = now();
+            $order->save();
+        }
+
+        $quotation = Quotation::query()->lockForUpdate()->find($order->quotation_id);
+        if ($quotation) {
+            $dirty = false;
+
+            if ($quotation->status !== 'accepted') {
+                $quotation->status = 'accepted';
+                $dirty = true;
+            }
+            if (blank($quotation->approved_at)) {
+                $quotation->approved_at = now();
+                $dirty = true;
+            }
+            if (blank($quotation->accountant_approved_at)) {
+                $quotation->accountant_approved_at = now();
+                $dirty = true;
+            }
+
+            if ($dirty) {
+                $quotation->save();
+            }
+        }
+
+        $fresh = $order->fresh();
+        if ($fresh?->shouldReleaseWorkOrders()) {
+            app(WorkerOrderSyncService::class)->syncFromOrder($fresh);
+        }
     }
 
     private function refreshOrderPaymentStatus(Order $order): void

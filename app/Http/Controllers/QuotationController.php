@@ -886,8 +886,23 @@ class QuotationController extends Controller
             ? $quotation->items->isNotEmpty()
             : ((int) ($quotation->items_count ?? 0) > 0);
 
+        $order = $quotation->order;
+        $orderPaid = round((float) ($order?->amount_paid ?? 0), 2);
+        $paidOnline = $order
+            && strtolower((string) ($order->payment_method ?? '')) === 'noon'
+            && $orderPaid > 0.009;
+
+        $onlinePaymentStatus = 'off';
+        if ($paidOnline) {
+            $onlinePaymentStatus = $quotation->amountDue() <= 0.009 ? 'paid' : 'partial';
+        } elseif ((bool) $quotation->show_online_payment) {
+            $onlinePaymentStatus = 'pending';
+        }
+
         $quotation->setAttribute('approval_stage', $stage);
-        $quotation->setAttribute('order_number', $quotation->order?->order_number);
+        $quotation->setAttribute('order_number', $order?->order_number);
+        $quotation->setAttribute('online_payment_status', $onlinePaymentStatus);
+        $quotation->setAttribute('show_online_payment', (bool) $quotation->show_online_payment);
         $quotation->unsetRelation('order');
         $quotation->setAttribute(
             'can_approve',
