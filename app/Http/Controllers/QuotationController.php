@@ -54,10 +54,7 @@ class QuotationController extends Controller
             if ($status === 'pending_accountant') {
                 $query->where('status', 'accepted')
                     ->where('amount_paid', '>', 0)
-                    ->where(function ($q) {
-                        $q->whereDoesntHave('order')
-                            ->orWhereHas('order', fn ($order) => $order->whereNull('operations_released_at'));
-                    });
+                    ->whereNull('accountant_approved_at');
             } elseif ($status !== 'all' && in_array($status, $allowedStatuses, true)) {
                 $query->where('status', $status);
             }
@@ -78,10 +75,7 @@ class QuotationController extends Controller
             $pendingAccountantQuery = (clone $statusCountsBase)
                 ->where('status', 'accepted')
                 ->where('amount_paid', '>', 0)
-                ->where(function ($q) {
-                    $q->whereDoesntHave('order')
-                        ->orWhereHas('order', fn ($order) => $order->whereNull('operations_released_at'));
-                });
+                ->whereNull('accountant_approved_at');
 
             $statusCounts = [
                 'all' => (clone $statusCountsBase)->count(),

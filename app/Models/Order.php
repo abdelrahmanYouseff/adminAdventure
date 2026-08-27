@@ -220,7 +220,24 @@ class Order extends Model
             return true;
         }
 
-        return filled($this->operations_released_at);
+        if (blank($this->operations_released_at)) {
+            return false;
+        }
+
+        $quotation = $this->relationLoaded('quotation')
+            ? $this->quotation
+            : $this->quotation()->first();
+
+        // Paid quotations must wait for accountant stamp even if released early at 0 payment.
+        if (
+            $quotation
+            && round((float) ($quotation->amount_paid ?? 0), 2) > 0.009
+            && blank($quotation->accountant_approved_at)
+        ) {
+            return false;
+        }
+
+        return true;
     }
 
     /**
@@ -254,7 +271,20 @@ class Order extends Model
     {
         return $query->where(function ($inner) {
             $inner->whereNull('quotation_id')
-                ->orWhereNotNull('operations_released_at');
+                ->orWhere(function ($released) {
+                    $released->whereNotNull('operations_released_at')
+                        ->where(function ($gate) {
+                            // Zero-payment / accountant-stamped quotations, or orphaned rows.
+                            $gate->whereDoesntHave('quotation')
+                                ->orWhereHas('quotation', function ($quotation) {
+                                    $quotation->where(function ($paidGate) {
+                                        $paidGate->whereNull('amount_paid')
+                                            ->orWhere('amount_paid', '<=', 0)
+                                            ->orWhereNotNull('accountant_approved_at');
+                                    });
+                                });
+                        });
+                });
         });
     }
 

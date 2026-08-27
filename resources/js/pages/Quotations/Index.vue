@@ -112,7 +112,7 @@ const statusTabs: { key: StatusTab; label: string }[] = [
     { key: 'draft', label: 'مسودة' },
     { key: 'sent', label: 'مرسل' },
     { key: 'accepted', label: 'مقبول' },
-    { key: 'pending_accountant', label: 'بانتظار المحاسب' },
+    { key: 'pending_accountant', label: 'في انتظار المحاسب' },
     { key: 'rejected', label: 'مرفوض' },
     { key: 'expired', label: 'منتهي' },
 ];
@@ -152,10 +152,10 @@ const summaryCards = computed(() => [
     },
     {
         key: 'pending_accountant' as const,
-        label: 'بانتظار المحاسب',
+        label: 'في انتظار المحاسب',
         value: props.statusCounts.pending_accountant ?? 0,
         unit: 'عرض',
-        hint: 'معتمدة وبانتظار المحاسب',
+        hint: 'معتمدة وفي انتظار المحاسب',
     },
 ]);
 
@@ -269,7 +269,7 @@ function toggleSelect(id: number) {
 
 function getStatusText(quotation: Quotation): string {
     if (quotation.approval_stage === 'pending_accountant') {
-        return 'بانتظار المحاسب';
+        return 'في انتظار المحاسب';
     }
     if (quotation.approval_stage === 'released') {
         return 'في الطلبات';
@@ -624,7 +624,7 @@ function displayCustomerName(name: string | null | undefined): string {
                                         v-else-if="quotation.approval_stage === 'pending_accountant'"
                                         class="text-xs text-amber-700 dark:text-amber-300"
                                     >
-                                        بانتظار المحاسب
+                                        في انتظار المحاسب
                                     </span>
                                     <span v-else class="text-xs text-gray-400">—</span>
                                 </div>

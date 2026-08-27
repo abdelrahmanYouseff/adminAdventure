@@ -155,6 +155,9 @@ class Quotation extends Model
      *
      * Note: full online (Noon) payment auto-releases the order and skips the
      * accountant gate — see QuotationToOrderService::finalizeFullOnlinePaymentIfEligible().
+     *
+     * Paid quotations stay on pending_accountant until accountant_approved_at is
+     * set — even if the linked order was released early while amount_paid was 0.
      */
     public function approvalStage(): string
     {
@@ -167,16 +170,19 @@ class Quotation extends Model
         }
 
         $order = $this->relationLoaded('order') ? $this->order : $this->order()->first();
+        $hasRecordedPayment = round((float) ($this->amount_paid ?? 0), 2) > 0.009;
 
-        if (filled($order?->operations_released_at) || filled($this->accountant_approved_at)) {
+        // Explicit accountant stamp (manual or full Noon auto-release).
+        if (filled($this->accountant_approved_at)) {
             return 'released';
         }
 
-        if ($this->isManagerApproved() && round((float) ($this->amount_paid ?? 0), 2) > 0.009) {
+        // Any recorded payment waits for accountant before "في الطلبات".
+        if ($this->isManagerApproved() && $hasRecordedPayment) {
             return 'pending_accountant';
         }
 
-        if ($this->isManagerApproved()) {
+        if (filled($order?->operations_released_at) || $this->isManagerApproved()) {
             return 'released';
         }
 

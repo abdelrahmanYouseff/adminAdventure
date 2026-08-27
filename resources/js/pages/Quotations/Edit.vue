@@ -524,7 +524,7 @@ watch(
                                 v-if="quotation.approval_stage === 'pending_accountant'"
                                 class="ms-2 inline-flex rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-800"
                             >
-                                بانتظار المحاسب
+                                في انتظار المحاسب
                             </span>
                             <span
                                 v-else-if="quotation.approval_stage === 'released'"

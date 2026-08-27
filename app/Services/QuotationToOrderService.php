@@ -247,6 +247,17 @@ class QuotationToOrderService
                 $this->refreshOrderTotalsFromQuotation($order, $quotation);
             }
 
+            // Zero-payment manager approval may have released the order early.
+            // Once payment is recorded, hold it again until accountant release.
+            if (
+                blank($quotation->accountant_approved_at)
+                && filled($order->operations_released_at)
+            ) {
+                $order->operations_released_at = null;
+                $order->operations_released_by = null;
+                $order->save();
+            }
+
             $approvedPaid = round((float) ($order->amount_paid ?? 0), 2);
             $pendingSum = round((float) $order->paymentReceipts()
                 ->where('approval_status', OrderPaymentReceipt::STATUS_PENDING)
