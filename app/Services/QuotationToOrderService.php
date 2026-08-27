@@ -212,13 +212,21 @@ class QuotationToOrderService
      * a pending payment receipt covers the unpaid-but-recorded amount.
      * Work orders are released only after accountant approval of the receipt.
      *
-     * @return array{order: Order|null, receipt: OrderPaymentReceipt|null, created_order: bool, created_receipt: bool}
+     * @param  list<string>|null  $proofImages  Stored payment-proof paths to attach.
+     * @return array{order: Order|null, receipt: OrderPaymentReceipt|null, created_order: bool, created_receipt: bool, attached_proof: bool}
      */
-    public function syncPaymentFromQuotation(Quotation $quotation, ?User $actor = null): array
-    {
+    public function syncPaymentFromQuotation(
+        Quotation $quotation,
+        ?User $actor = null,
+        ?array $proofImages = null,
+    ): array {
         $quotation->loadMissing('items');
 
         $targetPaid = round((float) ($quotation->amount_paid ?? 0), 2);
+        $proofImages = array_values(array_filter(
+            $proofImages ?? [],
+            fn ($path) => is_string($path) && trim($path) !== '',
+        ));
 
         if ($targetPaid <= 0) {
             return [
@@ -226,6 +234,7 @@ class QuotationToOrderService
                 'receipt' => null,
                 'created_order' => false,
                 'created_receipt' => false,
+                'attached_proof' => false,
             ];
         }
 
@@ -233,7 +242,7 @@ class QuotationToOrderService
             throw new RuntimeException('لا يمكن إنشاء سند قبض لعرض سعر بدون بنود.');
         }
 
-        return DB::transaction(function () use ($quotation, $targetPaid, $actor) {
+        return DB::transaction(function () use ($quotation, $targetPaid, $actor, $proofImages) {
             $createdOrder = false;
             $order = Order::query()
                 ->where('quotation_id', $quotation->id)
@@ -267,17 +276,40 @@ class QuotationToOrderService
 
             $receipt = null;
             $createdReceipt = false;
+            $attachedProof = false;
+            $receiptService = app(OrderPaymentReceiptService::class);
 
             if ($delta > 0.009) {
-                $receipt = app(OrderPaymentReceiptService::class)->recordPayment(
+                $receipt = $receiptService->recordPayment(
                     $order->fresh(),
                     $delta,
                     $actor,
                     $order->payment_method ?: 'bank_transfer',
                     $createdOrder ? 'initial' : 'payment',
                     'سند قبض من عرض السعر '.$quotation->quotation_number.' — بانتظار اعتماد المحاسب',
+                    $proofImages !== [] ? $proofImages : null,
                 );
                 $createdReceipt = true;
+                $attachedProof = $proofImages !== [];
+            } elseif ($proofImages !== []) {
+                $receipt = $order->paymentReceipts()
+                    ->where('approval_status', OrderPaymentReceipt::STATUS_PENDING)
+                    ->latest('id')
+                    ->first();
+
+                if (! $receipt) {
+                    throw new RuntimeException(
+                        'لا يوجد سند قبض معلّق لإرفاق الإيصال. زد المبلغ المدفوع أو انتظر إنشاء السند أولاً.'
+                    );
+                }
+
+                $receipt = $receiptService->attachProofImages($receipt, $proofImages);
+                $attachedProof = true;
+            } else {
+                $receipt = $order->paymentReceipts()
+                    ->where('approval_status', OrderPaymentReceipt::STATUS_PENDING)
+                    ->latest('id')
+                    ->first();
             }
 
             return [
@@ -285,6 +317,7 @@ class QuotationToOrderService
                 'receipt' => $receipt,
                 'created_order' => $createdOrder,
                 'created_receipt' => $createdReceipt,
+                'attached_proof' => $attachedProof,
             ];
         });
     }

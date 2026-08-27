@@ -11,6 +11,7 @@ import {
     Building2,
     Calendar,
     FileSpreadsheet,
+    FileText,
     Layers3,
     Link2,
     Mail,
@@ -21,12 +22,14 @@ import {
     Receipt,
     ShoppingCart,
     Trash2,
+    UploadCloud,
     User,
 } from 'lucide-vue-next';
 import AppSidebarLayout from '@/layouts/app/AppSidebarLayout.vue';
 import ProductSearchCombobox from '@/components/ProductSearchCombobox.vue';
 import { formatCurrency, formatInteger } from '@/lib/formatNumber';
-import { ref, computed, watch } from 'vue';
+import { isPdfFile, PAYMENT_PROOF_ACCEPT, paymentProofSelectedLabel } from '@/lib/paymentProof';
+import { ref, computed, watch, onBeforeUnmount } from 'vue';
 import type { BreadcrumbItem } from '@/types';
 
 interface Product {
@@ -111,6 +114,7 @@ const form = useForm({
     dismantling_at: '',
     insurance_amount: 0 as number,
     amount_paid: 0 as number,
+    payment_proof: [] as File[],
     show_online_payment: false,
     skip_work_order: false,
     notes: '',
@@ -147,8 +151,43 @@ const customerType = ref<'individual' | 'company'>('individual');
 const customerFirstName = ref('');
 const customerSecondName = ref('');
 const nameValidationError = ref('');
+const paymentProofPreviews = ref<string[]>([]);
 let phoneLookupTimer: ReturnType<typeof setTimeout> | null = null;
 let phoneLookupRequestId = 0;
+
+function clearPaymentProofPreview() {
+    paymentProofPreviews.value.forEach((url) => URL.revokeObjectURL(url));
+    paymentProofPreviews.value = [];
+}
+
+function handlePaymentProofChange(event: Event) {
+    const input = event.target as HTMLInputElement;
+    const files = Array.from(input.files ?? []);
+    if (!files.length) return;
+
+    const nextFiles = [...form.payment_proof, ...files].slice(0, 10);
+    clearPaymentProofPreview();
+    form.payment_proof = nextFiles;
+    paymentProofPreviews.value = nextFiles.map((file) => URL.createObjectURL(file));
+    input.value = '';
+}
+
+function removePaymentProof(index?: number) {
+    if (typeof index !== 'number') {
+        clearPaymentProofPreview();
+        form.payment_proof = [];
+        return;
+    }
+
+    const nextFiles = form.payment_proof.filter((_, i) => i !== index);
+    clearPaymentProofPreview();
+    form.payment_proof = nextFiles;
+    paymentProofPreviews.value = nextFiles.map((file) => URL.createObjectURL(file));
+}
+
+onBeforeUnmount(() => {
+    clearPaymentProofPreview();
+});
 
 function composeCustomerName(): string {
     return [customerFirstName.value, customerSecondName.value]
@@ -327,6 +366,7 @@ const submit = () => {
     }
 
     form.post(route('quotations.store'), {
+        forceFormData: true,
         preserveScroll: true,
         onError: () => {
             requestAnimationFrame(() => {
@@ -1400,7 +1440,7 @@ watch(
                                     placeholder="0.00"
                                 />
                                 <p class="text-xs text-muted-foreground">
-                                    أدخل المبلغ الذي دفعه العميل. عند الحفظ يُنشأ سند قبض تلقائياً. اعتماد العرض يحوّله لطلب؛ بدون مدفوعات يظهر فوراً. أمر العمل بعد اعتماد المحاسب لسند القبض.
+                                    أدخل المبلغ الذي دفعه العميل. عند الحفظ يُنشأ سند قبض تلقائياً. أرفق إيصال التحويل لمراجعة المحاسب.
                                 </p>
                                 <p v-if="form.errors.amount_paid" class="text-xs text-rose-600">{{ form.errors.amount_paid }}</p>
                                 <div class="flex items-center justify-between border-t border-border/60 pt-3 text-sm">
@@ -1413,6 +1453,68 @@ watch(
                                         {{ formatCurrency(remainingAmount) }}
                                     </span>
                                 </div>
+                            </div>
+
+                            <div
+                                v-if="amountPaid > 0"
+                                class="space-y-2 rounded-xl border border-border/60 bg-muted/20 p-4"
+                            >
+                                <Label for="payment_proof" class="text-sm font-medium text-foreground">
+                                    إرفاق إيصال الدفع
+                                </Label>
+                                <p class="text-xs text-muted-foreground">
+                                    أرفق صورة التحويل البنكي أو ملف PDF. يظهر للمحاسب مع سند القبض.
+                                </p>
+                                <label
+                                    for="payment_proof"
+                                    class="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border bg-background/60 px-4 py-5 text-center transition hover:border-primary/40 hover:bg-primary/5"
+                                >
+                                    <UploadCloud class="h-5 w-5 text-muted-foreground" />
+                                    <span class="text-sm font-medium text-foreground">
+                                        {{ paymentProofSelectedLabel(form.payment_proof.length) }}
+                                    </span>
+                                    <input
+                                        id="payment_proof"
+                                        type="file"
+                                        class="sr-only"
+                                        :accept="PAYMENT_PROOF_ACCEPT"
+                                        multiple
+                                        @change="handlePaymentProofChange"
+                                    />
+                                </label>
+                                <div v-if="form.payment_proof.length" class="grid grid-cols-3 gap-2">
+                                    <div
+                                        v-for="(_, index) in form.payment_proof"
+                                        :key="index"
+                                        class="relative overflow-hidden rounded-lg border border-border/60"
+                                    >
+                                        <span
+                                            v-if="isPdfFile(form.payment_proof[index])"
+                                            class="flex aspect-square w-full flex-col items-center justify-center gap-1 bg-muted/30 px-1 text-center"
+                                        >
+                                            <FileText class="h-5 w-5 text-rose-600" />
+                                            <span class="truncate px-1 text-[10px] font-medium">
+                                                {{ form.payment_proof[index]?.name || 'ملف PDF' }}
+                                            </span>
+                                        </span>
+                                        <img
+                                            v-else-if="paymentProofPreviews[index]"
+                                            :src="paymentProofPreviews[index]"
+                                            :alt="`معاينة إيصال ${index + 1}`"
+                                            class="aspect-square w-full object-cover"
+                                        />
+                                        <button
+                                            type="button"
+                                            class="absolute end-1 top-1 rounded-md bg-black/60 p-1 text-white"
+                                            @click="removePaymentProof(index)"
+                                        >
+                                            <Trash2 class="h-3.5 w-3.5" />
+                                        </button>
+                                    </div>
+                                </div>
+                                <p v-if="form.errors.payment_proof" class="text-xs text-rose-600">
+                                    {{ form.errors.payment_proof }}
+                                </p>
                             </div>
 
                             <label

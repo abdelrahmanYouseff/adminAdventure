@@ -6,11 +6,13 @@ use App\Models\Brand;
 use App\Models\Category;
 use App\Models\CompanyClient;
 use App\Models\Order;
+use App\Models\OrderPaymentReceipt;
 use App\Models\Quotation;
 use App\Models\QuotationItem;
 use App\Models\Product;
 use App\Models\User;
 use App\Services\QuotationPdfService;
+use App\Support\MediaStorage;
 use App\Support\OrderInsuranceCalculator;
 use App\Support\QuotationDefaultTerms;
 use App\Support\QuotationPdfData;
@@ -383,6 +385,8 @@ class QuotationController extends Controller
             'amount_paid' => 'nullable|numeric|min:0',
             'show_online_payment' => 'nullable|boolean',
             'skip_work_order' => 'nullable|boolean',
+            'payment_proof' => 'nullable|array|max:10',
+            'payment_proof.*' => 'file|mimes:jpg,jpeg,png,webp,pdf|max:5120',
             'notes' => 'nullable|string',
             'terms' => 'nullable|array',
             'terms.*.ar' => 'nullable|string|max:2000',
@@ -418,6 +422,11 @@ class QuotationController extends Controller
             'insurance_amount.min' => 'مبلغ التأمين لا يمكن أن يكون سالباً.',
             'amount_paid.numeric' => 'المبلغ المدفوع غير صالح.',
             'amount_paid.min' => 'المبلغ المدفوع لا يمكن أن يكون سالباً.',
+            'payment_proof.array' => 'مرفقات التحويل يجب أن تكون قائمة ملفات.',
+            'payment_proof.max' => 'يمكن رفع 10 ملفات كحد أقصى.',
+            'payment_proof.*.file' => 'مرفق التحويل غير صالح.',
+            'payment_proof.*.mimes' => 'الصيغ المسموحة: jpg, jpeg, png, webp, pdf.',
+            'payment_proof.*.max' => 'حجم المرفق يجب ألا يتجاوز 5 ميجابايت.',
             'items.required' => 'يجب إضافة منتج واحد على الأقل.',
             'items.min' => 'يجب إضافة منتج واحد على الأقل.',
             'items.*.product_id.exists' => 'المنتج المحدد لا ينتمي إلى البراند المختار.',
@@ -527,17 +536,38 @@ class QuotationController extends Controller
             DB::commit();
 
             $paymentSyncMessage = '';
-            if ($amountPaid > 0) {
+            $proofImages = $this->storePaymentProofImages($request);
+
+            if ($amountPaid > 0 || $proofImages !== []) {
+                if ($amountPaid <= 0 && $proofImages !== []) {
+                    $this->deleteStoredPaymentProofs($proofImages);
+
+                    return redirect()->route('quotations.index')
+                        ->with('success', 'تم إنشاء عرض السعر بنجاح.')
+                        ->with('error', 'لإرفاق إيصال أدخل المبلغ المدفوع أولاً.')
+                        ->with('open_pdf', $quotation->id);
+                }
+
                 try {
                     $sync = app(\App\Services\QuotationToOrderService::class)
-                        ->syncPaymentFromQuotation($quotation->fresh(['items']), $request->user());
+                        ->syncPaymentFromQuotation(
+                            $quotation->fresh(['items']),
+                            $request->user(),
+                            $proofImages !== [] ? $proofImages : null,
+                        );
 
                     if ($sync['created_receipt'] && $sync['receipt']) {
                         $paymentSyncMessage = ' وتم إنشاء سند القبض '.$sync['receipt']->receipt_number.' بانتظار اعتماد المحاسب.';
+                        if ($sync['attached_proof'] ?? false) {
+                            $paymentSyncMessage .= ' مع إرفاق إيصال التحويل.';
+                        }
+                    } elseif ($sync['attached_proof'] ?? false) {
+                        $paymentSyncMessage = ' وتم إرفاق الإيصال بالسند '.$sync['receipt']->receipt_number.' بانتظار المحاسب.';
                     } elseif ($sync['created_order']) {
                         $paymentSyncMessage = ' وتم تجهيز الطلب المرتبط وبانتظار اعتماد سند القبض.';
                     }
                 } catch (\Throwable $e) {
+                    $this->deleteStoredPaymentProofs($proofImages);
                     Log::error('Quotation payment sync failed on store: '.$e->getMessage(), [
                         'quotation_id' => $quotation->id,
                     ]);
@@ -614,6 +644,7 @@ class QuotationController extends Controller
 
         return Inertia::render('Quotations/Edit', [
             'quotation' => $quotation,
+            'pendingReceipts' => $this->pendingReceiptsPayload($quotation->id),
             'products' => $products,
             'categories' => $categories,
             'selectedBrand' => $quotation->brand,
@@ -640,6 +671,8 @@ class QuotationController extends Controller
             'amount_paid' => 'nullable|numeric|min:0',
             'show_online_payment' => 'nullable|boolean',
             'skip_work_order' => 'nullable|boolean',
+            'payment_proof' => 'nullable|array|max:10',
+            'payment_proof.*' => 'file|mimes:jpg,jpeg,png,webp,pdf|max:5120',
             'notes' => 'nullable|string',
             'terms' => 'nullable|array',
             'terms.*.ar' => 'nullable|string|max:2000',
@@ -754,17 +787,36 @@ class QuotationController extends Controller
             DB::commit();
 
             $paymentSyncMessage = '';
-            if ($amountPaid > 0) {
+            $proofImages = $this->storePaymentProofImages($request);
+
+            if ($amountPaid > 0 || $proofImages !== []) {
+                if ($amountPaid <= 0 && $proofImages !== []) {
+                    $this->deleteStoredPaymentProofs($proofImages);
+
+                    return redirect()->route('quotations.edit', $quotation)
+                        ->with('error', 'تم حفظ التعديلات. لإرفاق إيصال أدخل المبلغ المدفوع أولاً.');
+                }
+
                 try {
                     $sync = app(\App\Services\QuotationToOrderService::class)
-                        ->syncPaymentFromQuotation($quotation->fresh(['items']), $request->user());
+                        ->syncPaymentFromQuotation(
+                            $quotation->fresh(['items']),
+                            $request->user(),
+                            $proofImages !== [] ? $proofImages : null,
+                        );
 
                     if ($sync['created_receipt'] && $sync['receipt']) {
                         $paymentSyncMessage = ' وتم إنشاء/تحديث سند القبض '.$sync['receipt']->receipt_number.' بانتظار اعتماد المحاسب.';
+                        if ($sync['attached_proof'] ?? false) {
+                            $paymentSyncMessage .= ' مع إرفاق إيصال التحويل.';
+                        }
+                    } elseif ($sync['attached_proof'] ?? false) {
+                        $paymentSyncMessage = ' وتم إرفاق/تحديث الإيصال على السند '.$sync['receipt']->receipt_number.' بانتظار المحاسب.';
                     } elseif ($sync['order']) {
                         $paymentSyncMessage = ' وسند القبض المرتبط جاهز لاعتماد المحاسب.';
                     }
                 } catch (\Throwable $e) {
+                    $this->deleteStoredPaymentProofs($proofImages);
                     Log::error('Quotation payment sync failed on update: '.$e->getMessage(), [
                         'quotation_id' => $quotation->id,
                     ]);
@@ -920,5 +972,63 @@ class QuotationController extends Controller
                 && $stage === 'pending_accountant'
                 && $hasItems
         );
+    }
+
+    /**
+     * @return list<array{id: int, receipt_number: string, amount: float, proof_image_urls: list<string>}>
+     */
+    private function pendingReceiptsPayload(int $quotationId): array
+    {
+        return OrderPaymentReceipt::query()
+            ->whereHas('order', fn ($query) => $query->where('quotation_id', $quotationId))
+            ->where('approval_status', OrderPaymentReceipt::STATUS_PENDING)
+            ->latest('id')
+            ->get()
+            ->map(fn (OrderPaymentReceipt $receipt) => [
+                'id' => $receipt->id,
+                'receipt_number' => $receipt->receipt_number,
+                'amount' => round((float) $receipt->amount, 2),
+                'proof_image_urls' => $receipt->proof_image_urls,
+            ])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function storePaymentProofImages(Request $request): array
+    {
+        if (! $request->hasFile('payment_proof')) {
+            return [];
+        }
+
+        $files = $request->file('payment_proof');
+        if (! is_array($files)) {
+            $files = [$files];
+        }
+
+        $paths = [];
+        foreach ($files as $file) {
+            if (! $file) {
+                continue;
+            }
+
+            $paths[] = MediaStorage::store($file, 'payment-proofs');
+        }
+
+        return $paths;
+    }
+
+    /**
+     * @param  list<string>  $paths
+     */
+    private function deleteStoredPaymentProofs(array $paths): void
+    {
+        foreach ($paths as $path) {
+            if (is_string($path) && $path !== '') {
+                MediaStorage::delete($path);
+            }
+        }
     }
 }
