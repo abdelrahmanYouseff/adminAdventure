@@ -2,7 +2,6 @@
 
 namespace App\Models;
 
-use App\Support\PublicAppUrl;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -72,8 +71,13 @@ class Quotation extends Model
             return $this->payment_token;
         }
 
+        // 16 hex chars keep PDF/WhatsApp URLs short enough for mobile viewers.
+        do {
+            $token = bin2hex(random_bytes(8));
+        } while (static::query()->where('payment_token', $token)->exists());
+
         $this->forceFill([
-            'payment_token' => bin2hex(random_bytes(24)),
+            'payment_token' => $token,
         ])->save();
 
         return (string) $this->payment_token;
@@ -89,9 +93,10 @@ class Quotation extends Model
             return null;
         }
 
-        // Public absolute URL (APP_PUBLIC_URL). Token is permanent once created —
-        // never regenerated, never expires with valid_until / quotation status.
-        return PublicAppUrl::to('/q/'.$this->ensurePaymentToken());
+        // Short permanent code for PDFs (long tokens get truncated by many viewers).
+        $link = app(\App\Services\ShortLinkService::class)->createQuotationPaymentLink($this);
+
+        return app(\App\Services\ShortLinkService::class)->quotationPaymentPublicUrl($link);
     }
 
     public function noonPaymentUrl(): ?string

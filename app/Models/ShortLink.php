@@ -9,6 +9,8 @@ class ShortLink extends Model
 {
     public const TYPE_DELIVERY_NOTE = 'delivery_note';
 
+    public const TYPE_QUOTATION_PAYMENT = 'quotation_payment';
+
     protected $fillable = [
         'code',
         'type',

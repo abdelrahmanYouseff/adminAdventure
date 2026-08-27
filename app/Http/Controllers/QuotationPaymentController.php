@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Order;
 use App\Models\OrderPaymentReceipt;
 use App\Models\Quotation;
+use App\Models\ShortLink;
 use App\Services\QuotationToOrderService;
 use App\Support\PublicAppUrl;
 use Illuminate\Http\RedirectResponse;
@@ -20,27 +21,27 @@ class QuotationPaymentController extends Controller
 {
     public function pay(Request $request, string $token): RedirectResponse|View
     {
-        // WhatsApp / PDF copy-paste can inject spaces or hidden chars → strip them.
+        // WhatsApp / PDF copy-paste can inject spaces, soft-hyphens, or wrap chars.
         $token = preg_replace('/[^A-Za-z0-9]/', '', $token) ?? '';
 
         if ($token === '') {
             return $this->missingTokenView();
         }
 
-        $quotation = Quotation::query()
-            ->where('payment_token', $token)
-            ->with('items')
-            ->first();
+        $quotation = $this->resolveQuotation($token);
 
         if (! $quotation) {
             Log::warning('Quotation payment link token not found', [
-                'token_prefix' => substr($token, 0, 8),
+                'token_prefix' => substr($token, 0, 12),
                 'token_length' => strlen($token),
                 'ip' => $request->ip(),
+                'user_agent' => substr((string) $request->userAgent(), 0, 180),
             ]);
 
             return $this->missingTokenView();
         }
+
+        $quotation->loadMissing('items');
 
         // Payment links stay valid indefinitely once issued — do not gate on
         // quotation status (expired / rejected / draft / etc.).
@@ -128,6 +129,55 @@ class QuotationPaymentController extends Controller
         }
     }
 
+    private function resolveQuotation(string $token): ?Quotation
+    {
+        // 1) Permanent short PDF/WhatsApp code
+        $short = ShortLink::query()
+            ->where('type', ShortLink::TYPE_QUOTATION_PAYMENT)
+            ->where('code', $token)
+            ->first();
+
+        if ($short && filled($short->target_key)) {
+            $byId = Quotation::query()->with('items')->find((int) $short->target_key);
+            if ($byId) {
+                $short->increment('hits');
+
+                return $byId;
+            }
+        }
+
+        // 2) Exact payment_token (legacy long tokens + new shorter ones)
+        $exact = Quotation::query()
+            ->where('payment_token', $token)
+            ->with('items')
+            ->first();
+
+        if ($exact) {
+            return $exact;
+        }
+
+        // 3) Prefix match — many PDF viewers truncate long href tokens mid-string
+        if (strlen($token) >= 10) {
+            $matches = Quotation::query()
+                ->where('payment_token', 'like', $token.'%')
+                ->with('items')
+                ->limit(2)
+                ->get();
+
+            if ($matches->count() === 1) {
+                Log::info('Quotation payment resolved via truncated token prefix', [
+                    'token_prefix' => substr($token, 0, 12),
+                    'token_length' => strlen($token),
+                    'quotation_id' => $matches->first()->id,
+                ]);
+
+                return $matches->first();
+            }
+        }
+
+        return null;
+    }
+
     private function availableChargeAmount(Order $order): float
     {
         $pendingSum = round((float) $order->paymentReceipts()
@@ -153,7 +203,7 @@ class QuotationPaymentController extends Controller
     {
         return view('quotation-pay-status', [
             'quotation' => null,
-            'message' => 'رابط الدفع غير معروف. تأكد أنك فتحت الرابط كاملاً كما في عرض السعر.',
+            'message' => 'رابط الدفع غير معروف. افتح الرابط من زر Payment Link أو امسح رمز QR في عرض السعر.',
             'state' => 'error',
             'due' => 0,
             'total' => 0,

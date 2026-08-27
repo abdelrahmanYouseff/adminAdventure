@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Order;
+use App\Models\Quotation;
 use App\Models\ShortLink;
 use App\Support\PublicAppUrl;
 use Illuminate\Support\Str;
@@ -40,6 +41,44 @@ class ShortLinkService
         ]);
     }
 
+    /**
+     * Permanent short payment URL code for quotation PDFs.
+     * Long hex tokens often get truncated by mobile PDF viewers.
+     */
+    public function createQuotationPaymentLink(Quotation $quotation): ShortLink
+    {
+        $quotation->ensurePaymentToken();
+
+        $existing = ShortLink::query()
+            ->where('type', ShortLink::TYPE_QUOTATION_PAYMENT)
+            ->where('target_key', (string) $quotation->id)
+            ->latest('id')
+            ->first();
+
+        if ($existing) {
+            $existing->fill([
+                'expires_at' => null,
+            ]);
+            $existing->save();
+
+            return $existing;
+        }
+
+        return ShortLink::query()->create([
+            'code' => $this->uniqueCode(10),
+            'type' => ShortLink::TYPE_QUOTATION_PAYMENT,
+            'order_id' => null,
+            'target_key' => (string) $quotation->id,
+            'expires_at' => null,
+            'hits' => 0,
+        ]);
+    }
+
+    public function quotationPaymentPublicUrl(ShortLink $link): string
+    {
+        return rtrim(PublicAppUrl::base(), '/').'/q/'.$link->code;
+    }
+
     public function publicUrl(ShortLink $link): string
     {
         return rtrim(PublicAppUrl::base(), '/').'/dn/'.$this->whatsappButtonSuffix($link);
@@ -59,7 +98,7 @@ class ShortLinkService
         return $id !== '' ? $id : $link->code;
     }
 
-    private function uniqueCode(int $length = 8): string
+    public function uniqueCode(int $length = 8): string
     {
         do {
             $code = Str::lower(Str::random($length));
