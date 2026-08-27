@@ -89,8 +89,8 @@ class Quotation extends Model
             return null;
         }
 
-        // Public absolute URL (APP_PUBLIC_URL) so customers can pay
-        // without logging into the admin system.
+        // Public absolute URL (APP_PUBLIC_URL). Token is permanent once created —
+        // never regenerated, never expires with valid_until / quotation status.
         return PublicAppUrl::to('/q/'.$this->ensurePaymentToken());
     }
 

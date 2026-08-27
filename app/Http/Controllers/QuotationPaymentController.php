@@ -42,9 +42,9 @@ class QuotationPaymentController extends Controller
             return $this->missingTokenView();
         }
 
-        if ($quotation->status === 'rejected' || $quotation->status === 'expired') {
-            return $this->statusView($quotation, 'هذا العرض لم يعد متاحاً للدفع.', 'unavailable');
-        }
+        // Payment links stay valid indefinitely once issued — do not gate on
+        // quotation status (expired / rejected / draft / etc.).
+        // Only remaining amount and line items decide whether Noon can open.
 
         $due = $quotation->amountDue();
         if ($due <= 0.009) {
@@ -153,8 +153,8 @@ class QuotationPaymentController extends Controller
     {
         return view('quotation-pay-status', [
             'quotation' => null,
-            'message' => 'رابط الدفع غير صالح أو منتهي. اطلب من البائع إرسال عرض السعر من جديد.',
-            'state' => 'unavailable',
+            'message' => 'رابط الدفع غير معروف. تأكد أنك فتحت الرابط كاملاً كما في عرض السعر.',
+            'state' => 'error',
             'due' => 0,
             'total' => 0,
         ]);

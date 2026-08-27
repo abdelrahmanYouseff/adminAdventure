@@ -526,6 +526,10 @@ class QuotationController extends Controller
                 'skip_work_order' => $request->boolean('skip_work_order'),
             ]);
 
+            if ($quotation->show_online_payment) {
+                $quotation->ensurePaymentToken();
+            }
+
             DB::commit();
 
             $paymentSyncMessage = '';
@@ -743,6 +747,10 @@ class QuotationController extends Controller
                 'show_online_payment' => $request->boolean('show_online_payment'),
                 'skip_work_order' => $request->boolean('skip_work_order'),
             ]);
+
+            if ($quotation->show_online_payment) {
+                $quotation->ensurePaymentToken();
+            }
 
             // Keep linked order flag in sync (even after payment approval).
             Order::query()
