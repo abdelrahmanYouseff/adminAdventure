@@ -205,16 +205,16 @@ const filteredProducts = computed(() => {
 });
 
 const subtotal = computed(() => {
-    return form.items.reduce((sum, item) => sum + (parseFloat(String(item.total_price)) || 0), 0);
+    return roundMoney(form.items.reduce((sum, item) => sum + (parseFloat(String(item.total_price)) || 0), 0));
 });
 
 const discountTotal = computed(() => {
-    return form.items.reduce((sum, item) => {
+    return roundMoney(form.items.reduce((sum, item) => {
         return sum + (Number(item.discount_amount || 0) * Number(item.quantity || 0));
-    }, 0);
+    }, 0));
 });
 
-const grossSubtotal = computed(() => subtotal.value + discountTotal.value);
+const grossSubtotal = computed(() => roundMoney(subtotal.value + discountTotal.value));
 
 const suggestedInsurance = computed(() => {
     return form.items.reduce((sum, item) => {
@@ -222,11 +222,15 @@ const suggestedInsurance = computed(() => {
     }, 0);
 });
 
-const taxAmount = computed(() => subtotal.value * 0.15);
-const totalAmount = computed(() => subtotal.value + taxAmount.value);
+const taxAmount = computed(() => roundMoney(subtotal.value * 0.15));
+const totalAmount = computed(() => roundMoney(subtotal.value + taxAmount.value));
 const amountPaid = computed(() => Math.max(0, Number(form.amount_paid || 0)));
-const remainingAmount = computed(() => Math.max(0, totalAmount.value - amountPaid.value));
+const remainingAmount = computed(() => roundMoney(Math.max(0, totalAmount.value - amountPaid.value)));
 const itemsCount = computed(() => form.items.reduce((sum, item) => sum + Number(item.quantity || 0), 0));
+
+function roundMoney(value: number): number {
+    return Math.round((value + Number.EPSILON) * 100) / 100;
+}
 
 const selectedProduct = computed(() => {
     if (selectedProductId.value == null) return null;
