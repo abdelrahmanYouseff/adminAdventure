@@ -172,12 +172,14 @@ const canWarehouseApprove = computed(() =>
 const remainingAmount = computed(() => Number(props.workOrder.remaining_amount ?? 0));
 const hasRemainingBalance = computed(() => !isWarehouseView.value && remainingAmount.value > 0.009);
 const orderCurrency = computed(() => props.workOrder.currency || 'SAR');
-/** مدير العمال يعتمد فقط — رفع الصور من تطبيق العامل */
-const canUploadPhotos = computed(() => authRole.value !== 'workers_manager');
+/** رفع صور التركيب: مسئول / مدير عام / مدير / مدير العمال */
+const canUploadPhotos = computed(() =>
+    ['admin', 'general_manager', 'manager', 'workers_manager'].includes(authRole.value || ''),
+);
 const canDeleteNotes = computed(() =>
     ['admin', 'general_manager', 'manager'].includes(authRole.value || ''),
 );
-/** مدير العمال يراجع الصور فقط قبل التعميد */
+/** مدير العمال يراجع الصور قبل التعميد (عرض أكبر) */
 const isPhotoReviewer = computed(() => authRole.value === 'workers_manager');
 const canRejectPhotos = computed(() =>
     ['admin', 'general_manager', 'manager', 'workers_manager'].includes(authRole.value || ''),
@@ -424,15 +426,15 @@ async function rejectPhoto(line: WorkOrderLine) {
     }
 
     const approvalNote = props.workOrder.is_approved
-        ? '<p class="mt-2 text-sm text-amber-700">ملاحظة: الطلب معتمد حالياً — الرفض سيلغي التعميد حتى يرفع العامل صورة جديدة.</p>'
+        ? '<p class="mt-2 text-sm text-amber-700">ملاحظة: الطلب معتمد حالياً — الحذف سيلغي التعميد حتى رفع صورة جديدة.</p>'
         : '';
 
     const result = await Swal.fire({
         icon: 'warning',
-        title: 'رفض صورة التركيب؟',
-        html: `سيتم حذف صورة <strong>${line.product_name}</strong> وإعادة المنتج للعامل لرفع صورة جديدة.${approvalNote}`,
+        title: 'حذف صورة التركيب؟',
+        html: `سيتم حذف صورة <strong>${line.product_name}</strong> ويمكن رفع صورة جديدة بعدها.${approvalNote}`,
         showCancelButton: true,
-        confirmButtonText: 'رفض الصورة',
+        confirmButtonText: 'حذف الصورة',
         cancelButtonText: 'إلغاء',
         confirmButtonColor: '#DC2626',
         cancelButtonColor: '#64748B',
@@ -1005,26 +1007,47 @@ watch(dialogOpen, (isOpen) => { if (!isOpen) closeCompleteDialog(); });
                             </button>
                             <div
                                 v-else
-                                class="flex aspect-[4/3] max-w-md items-center justify-center rounded-xl border border-dashed border-slate-200 bg-white text-sm text-slate-400"
+                                class="flex aspect-[4/3] max-w-md flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-slate-200 bg-white text-sm text-slate-400"
                             >
-                                لا توجد صورة
+                                <span>لا توجد صورة</span>
+                                <Button
+                                    v-if="canUploadPhotos"
+                                    size="sm"
+                                    class="h-9 rounded-xl bg-[#2563EB] hover:bg-[#1D4ED8]"
+                                    @click="openCompleteDialog(line)"
+                                >
+                                    <Camera class="ms-1.5 h-4 w-4" />
+                                    رفع صورة التركيب
+                                </Button>
                             </div>
                             <p v-if="line.completed_at" class="mt-2 text-xs text-slate-400">
                                 {{ formatWhen(line.completed_at) }}
                                 <span v-if="line.completed_by_user?.name"> · {{ line.completed_by_user.name }}</span>
                             </p>
-                            <Button
-                                v-if="canRejectPhotos && line.installation_photo_url"
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                class="mt-3 h-9 rounded-xl border-rose-200 text-rose-700 hover:bg-rose-50"
-                                :disabled="deletingPhotoId === line.id"
-                                @click="rejectPhoto(line)"
-                            >
-                                <X class="ms-1.5 h-4 w-4" />
-                                {{ deletingPhotoId === line.id ? 'جاري الرفض...' : 'رفض الصورة' }}
-                            </Button>
+                            <div v-if="line.installation_photo_url" class="mt-3 flex flex-wrap gap-2">
+                                <Button
+                                    v-if="canUploadPhotos"
+                                    type="button"
+                                    size="sm"
+                                    class="h-9 rounded-xl bg-[#2563EB] hover:bg-[#1D4ED8]"
+                                    @click="openCompleteDialog(line)"
+                                >
+                                    <Camera class="ms-1.5 h-4 w-4" />
+                                    استبدال الصورة
+                                </Button>
+                                <Button
+                                    v-if="canRejectPhotos"
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    class="h-9 rounded-xl border-rose-200 text-rose-700 hover:bg-rose-50"
+                                    :disabled="deletingPhotoId === line.id"
+                                    @click="rejectPhoto(line)"
+                                >
+                                    <X class="ms-1.5 h-4 w-4" />
+                                    {{ deletingPhotoId === line.id ? 'جاري الحذف...' : 'حذف الصورة' }}
+                                </Button>
+                            </div>
                         </div>
                     </article>
                 </div>
@@ -1312,13 +1335,22 @@ watch(dialogOpen, (isOpen) => { if (!isOpen) closeCompleteDialog(); });
                                         />
                                     </button>
                                     <Button
-                                        v-if="canUploadPhotos && line.status === 'pending'"
+                                        v-if="canUploadPhotos && (!line.installation_photo_url || line.status === 'pending')"
                                         size="sm"
                                         class="h-9 rounded-xl bg-[#2563EB] hover:bg-[#1D4ED8]"
                                         @click="openCompleteDialog(line)"
                                     >
                                         <Camera class="ms-1.5 h-4 w-4" />
                                         رفع صورة التركيب
+                                    </Button>
+                                    <Button
+                                        v-else-if="canUploadPhotos && line.installation_photo_url"
+                                        size="sm"
+                                        class="h-9 rounded-xl bg-[#2563EB] hover:bg-[#1D4ED8]"
+                                        @click="openCompleteDialog(line)"
+                                    >
+                                        <Camera class="ms-1.5 h-4 w-4" />
+                                        استبدال الصورة
                                     </Button>
                                     <Button
                                         v-if="canRejectPhotos && line.installation_photo_url"
@@ -1330,7 +1362,7 @@ watch(dialogOpen, (isOpen) => { if (!isOpen) closeCompleteDialog(); });
                                         @click="rejectPhoto(line)"
                                     >
                                         <X class="ms-1.5 h-4 w-4" />
-                                        {{ deletingPhotoId === line.id ? 'جاري الرفض...' : 'رفض الصورة' }}
+                                        {{ deletingPhotoId === line.id ? 'جاري الحذف...' : 'حذف الصورة' }}
                                     </Button>
                                     <span
                                         v-else-if="line.installation_photo_url && !canRejectPhotos"
@@ -1339,7 +1371,7 @@ watch(dialogOpen, (isOpen) => { if (!isOpen) closeCompleteDialog(); });
                                         صورة مرفوعة ✓ — اضغط للتكبير
                                     </span>
                                     <span v-else-if="!line.installation_photo_url && !canUploadPhotos" class="text-xs font-medium text-amber-600">
-                                        بانتظار رفع العامل للصورة
+                                        بانتظار رفع صورة التركيب
                                     </span>
                                 </div>
                             </div>
@@ -1389,12 +1421,12 @@ watch(dialogOpen, (isOpen) => { if (!isOpen) closeCompleteDialog(); });
                             </div>
                             <div class="flex gap-2 pt-1">
                                 <Button
-                                    v-if="canUploadPhotos && line.status === 'pending'"
+                                    v-if="canUploadPhotos"
                                     size="sm"
                                     class="h-9 flex-1 rounded-xl bg-[#2563EB]"
                                     @click="openCompleteDialog(line)"
                                 >
-                                    رفع تركيب
+                                    {{ line.installation_photo_url ? 'استبدال التركيب' : 'رفع تركيب' }}
                                 </Button>
                                 <Button
                                     v-else

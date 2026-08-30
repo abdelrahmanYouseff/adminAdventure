@@ -124,7 +124,15 @@ class WorkerOrderController extends Controller
     {
         $this->assertCanUploadWorkerPhotos($request);
 
-        if ($workerOrder->status === 'completed') {
+        $user = $request->user();
+        $canReplace = (bool) $user?->hasAnyRole(
+            User::ROLE_ADMIN,
+            User::ROLE_GENERAL_MANAGER,
+            User::ROLE_MANAGER,
+            User::ROLE_WORKERS_MANAGER,
+        );
+
+        if ($workerOrder->status === 'completed' && ! $canReplace) {
             return back()->withErrors([
                 'installation_photo' => 'تم رفع صورة التركيب مسبقاً لهذا المنتج.',
             ]);
@@ -147,29 +155,23 @@ class WorkerOrderController extends Controller
             'installation_photo' => $path,
             'status' => 'completed',
             'completed_at' => now(),
-            'completed_by' => $request->user()->id,
+            'completed_by' => $user?->id,
         ]);
 
         if ($oldPhoto && $oldPhoto !== $path) {
             MediaStorage::delete($oldPhoto);
         }
 
-        $this->notifyInstallationPhotosIfComplete($workerOrder->order, (int) $request->user()->id);
+        $this->notifyInstallationPhotosIfComplete($workerOrder->order, (int) ($user?->id ?? 0));
 
-        $redirectToShow = $request->boolean('redirect_to_show', true);
+        $reference = $workerOrder->order->invoice?->invoice_number
+            ?? $workerOrder->order->order_number;
 
-        if ($redirectToShow) {
-            $reference = $workerOrder->order->invoice?->invoice_number
-                ?? $workerOrder->order->order_number;
+        $message = $oldPhoto
+            ? 'تم استبدال صورة التركيب بنجاح.'
+            : 'تم رفع صورة التركيب وإرسال المنتج للمراجعة.';
 
-            return redirect()
-                ->route('worker-orders.show', $reference)
-                ->with('success', 'تم رفع صورة التركيب وإرسال المنتج للمراجعة.');
-        }
-
-        return redirect()
-            ->route('worker-orders.index', ['status' => 'completed'])
-            ->with('success', 'تم رفع صورة التركيب وإرسال الطلب للمراجعة. يمكن للمسؤول مراجعته في قسم «مرفوعة للمراجعة».');
+        return $this->redirectAfterMutation($request, (string) $reference, $message);
     }
 
     public function destroyPhoto(Request $request, WorkerOrder $workerOrder): RedirectResponse
@@ -223,19 +225,18 @@ class WorkerOrderController extends Controller
         WorkerOrderNote::create([
             'order_id' => $order->id,
             'user_id' => $user->id,
-            'body' => 'رفض صورة التركيب وإعادة للعامل: '.$productName
+            'body' => 'حذف صورة التركيب: '.$productName
                 .($wasApproved ? ' (تم إلغاء تعميد أمر العمل)' : ''),
         ]);
 
         $reference = $order->invoice?->invoice_number ?? $order->order_number;
 
-        return redirect()
-            ->route('worker-orders.show', $reference)
-            ->with(
-                'success',
-                'تم رفض صورة التركيب للمنتج «'.$productName.'». يمكن للعامل رفع صورة جديدة.'
+        return $this->redirectAfterMutation(
+            $request,
+            (string) $reference,
+            'تم حذف صورة التركيب للمنتج «'.$productName.'». يمكن رفع صورة جديدة.'
                 .($wasApproved ? ' تم إلغاء التعميد حتى اكتمال المراجعة.' : ''),
-            );
+        );
     }
 
     public function approve(Request $request, string $workOrderKey, WorkerOrderSyncService $syncService)
@@ -661,11 +662,15 @@ class WorkerOrderController extends Controller
     {
         $user = $request->user();
 
-        // مدير العمال يعتمد فقط بعد رفع العامل للصور — لا يرفعها بنفسه.
-        abort_if(
-            $user?->isWorkersManager(),
+        abort_unless(
+            $user?->hasAnyRole(
+                User::ROLE_ADMIN,
+                User::ROLE_GENERAL_MANAGER,
+                User::ROLE_MANAGER,
+                User::ROLE_WORKERS_MANAGER,
+            ),
             403,
-            'لا يمكن لمدير العمال رفع الصور. يجب على العامل رفع صور التركيب أولاً ثم التعميد.',
+            'غير مصرح برفع صور التركيب.',
         );
     }
 

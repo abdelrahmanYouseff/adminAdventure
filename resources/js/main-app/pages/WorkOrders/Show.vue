@@ -117,9 +117,20 @@ const props = withDefaults(defineProps<Props>(), {
 const page = usePage();
 const successMessage = computed(() => (page.props.flash as { success?: string } | undefined)?.success);
 const errorMessage = computed(() => (page.props.flash as { error?: string } | undefined)?.error);
+const authRole = computed(() => {
+    const user = page.props.auth as { user?: { role?: string } } | undefined;
+    return user?.user?.role ?? '';
+});
 
 const returnTo = computed(
     () => `/main-app/work-orders/${encodeURIComponent(props.workOrder.reference_number)}`,
+);
+
+const canUploadPhotos = computed(() =>
+    ['admin', 'general_manager', 'manager', 'workers_manager'].includes(authRole.value),
+);
+const canDeletePhotos = computed(() =>
+    ['admin', 'general_manager', 'manager', 'workers_manager'].includes(authRole.value),
 );
 
 const assignForm = useForm({
@@ -136,8 +147,19 @@ const approveForm = useForm({
     return_to: returnTo.value,
 });
 
+const completeForm = useForm({
+    installation_photo: null as File | null,
+    return_to: returnTo.value,
+});
+
 const photoPreview = ref<string | null>(null);
 const processingAssignId = ref<number | null>(null);
+const deletingPhotoId = ref<number | null>(null);
+const dialogOpen = ref(false);
+const selectedLine = ref<WorkOrderLine | null>(null);
+const photoError = ref<string | null>(null);
+const uploadPreview = ref<string | null>(null);
+const photoInputRef = ref<HTMLInputElement | null>(null);
 
 const assemblers = computed(() => props.workOrder.assemblers ?? []);
 const notes = computed(() => props.workOrder.notes ?? []);
@@ -259,6 +281,81 @@ function submitNote() {
 
 function openPhoto(url: string) {
     photoPreview.value = url;
+}
+
+function openUploadDialog(line: WorkOrderLine) {
+    selectedLine.value = line;
+    completeForm.reset();
+    completeForm.clearErrors();
+    completeForm.return_to = returnTo.value;
+    photoError.value = null;
+    if (uploadPreview.value) URL.revokeObjectURL(uploadPreview.value);
+    uploadPreview.value = null;
+    if (photoInputRef.value) photoInputRef.value.value = '';
+    dialogOpen.value = true;
+}
+
+function closeUploadDialog() {
+    dialogOpen.value = false;
+    selectedLine.value = null;
+    completeForm.reset();
+    completeForm.clearErrors();
+    completeForm.return_to = returnTo.value;
+    photoError.value = null;
+    if (uploadPreview.value) URL.revokeObjectURL(uploadPreview.value);
+    uploadPreview.value = null;
+    if (photoInputRef.value) photoInputRef.value.value = '';
+}
+
+function handlePhotoChange(event: Event) {
+    const file = (event.target as HTMLInputElement).files?.[0] ?? null;
+    if (uploadPreview.value) URL.revokeObjectURL(uploadPreview.value);
+    completeForm.installation_photo = file;
+    uploadPreview.value = file ? URL.createObjectURL(file) : null;
+    photoError.value = null;
+    completeForm.clearErrors('installation_photo');
+}
+
+function submitUpload() {
+    if (!selectedLine.value) return;
+    if (!completeForm.installation_photo) {
+        photoError.value = 'يجب إرفاق صورة للتركيب من أرض الواقع قبل الإرسال.';
+        return;
+    }
+    completeForm.return_to = returnTo.value;
+    completeForm.post(`/worker-orders/lines/${selectedLine.value.id}/complete`, {
+        forceFormData: true,
+        preserveScroll: true,
+        onSuccess: () => closeUploadDialog(),
+    });
+}
+
+function deletePhoto(line: WorkOrderLine) {
+    if (!canDeletePhotos.value || !line.installation_photo_url || deletingPhotoId.value) {
+        return;
+    }
+
+    const note = props.workOrder.is_approved
+        ? '\n\nملاحظة: الطلب معتمد حالياً — الحذف سيلغي التعميد حتى رفع صورة جديدة.'
+        : '';
+
+    if (!confirm(`حذف صورة التركيب للمنتج «${line.product_name}»؟${note}`)) {
+        return;
+    }
+
+    deletingPhotoId.value = line.id;
+    router.delete(
+        `/worker-orders/lines/${line.id}/photo?return_to=${encodeURIComponent(returnTo.value)}`,
+        {
+            preserveScroll: true,
+            onFinish: () => {
+                deletingPhotoId.value = null;
+            },
+            onError: () => {
+                deletingPhotoId.value = null;
+            },
+        },
+    );
 }
 </script>
 
@@ -494,15 +591,36 @@ function openPhoto(url: string) {
                             ركّبها {{ line.completed_by_user.name }}
                             <span v-if="line.completed_at"> — {{ formatDateTime(line.completed_at) }}</span>
                         </p>
-                        <button
-                            v-if="line.installation_photo_url"
-                            type="button"
-                            class="inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-700"
-                            @click="openPhoto(line.installation_photo_url!)"
-                        >
-                            <Camera class="h-3.5 w-3.5" />
-                            عرض صورة التركيب
-                        </button>
+                        <div class="flex flex-col gap-2">
+                            <button
+                                v-if="line.installation_photo_url"
+                                type="button"
+                                class="inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-700"
+                                @click="openPhoto(line.installation_photo_url!)"
+                            >
+                                <Camera class="h-3.5 w-3.5" />
+                                عرض صورة التركيب
+                            </button>
+                            <button
+                                v-if="canUploadPhotos"
+                                type="button"
+                                class="inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl bg-teal-700 text-xs font-semibold text-white"
+                                @click="openUploadDialog(line)"
+                            >
+                                <Camera class="h-3.5 w-3.5" />
+                                {{ line.installation_photo_url ? 'استبدال صورة التركيب' : 'رفع صورة التركيب' }}
+                            </button>
+                            <button
+                                v-if="canDeletePhotos && line.installation_photo_url"
+                                type="button"
+                                class="inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-rose-200 text-xs font-semibold text-rose-700 disabled:opacity-50"
+                                :disabled="deletingPhotoId === line.id"
+                                @click="deletePhoto(line)"
+                            >
+                                <Trash2 class="h-3.5 w-3.5" />
+                                {{ deletingPhotoId === line.id ? 'جاري الحذف...' : 'حذف صورة التركيب' }}
+                            </button>
+                        </div>
                     </div>
                 </article>
 
@@ -634,6 +752,30 @@ function openPhoto(url: string) {
                             </span>
                         </button>
                     </div>
+                    <div
+                        v-if="canUploadPhotos || (canDeletePhotos && line.installation_photo_url)"
+                        class="flex flex-wrap gap-2 border-t border-slate-100 px-3 py-3"
+                    >
+                        <button
+                            v-if="canUploadPhotos"
+                            type="button"
+                            class="inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-xl bg-teal-700 px-3 text-xs font-semibold text-white"
+                            @click="openUploadDialog(line)"
+                        >
+                            <Camera class="h-3.5 w-3.5" />
+                            {{ line.installation_photo_url ? 'استبدال' : 'رفع تركيب' }}
+                        </button>
+                        <button
+                            v-if="canDeletePhotos && line.installation_photo_url"
+                            type="button"
+                            class="inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-xl border border-rose-200 px-3 text-xs font-semibold text-rose-700 disabled:opacity-50"
+                            :disabled="deletingPhotoId === line.id"
+                            @click="deletePhoto(line)"
+                        >
+                            <Trash2 class="h-3.5 w-3.5" />
+                            {{ deletingPhotoId === line.id ? 'جاري الحذف...' : 'حذف' }}
+                        </button>
+                    </div>
                     <p v-if="line.pickup_condition" class="px-3 py-2 text-[11px] text-slate-500">
                         حالة الاستلام: {{ conditionLabel(line.pickup_condition) }}
                         <span v-if="line.pickup_at"> — {{ formatDateTime(line.pickup_at) }}</span>
@@ -712,6 +854,73 @@ function openPhoto(url: string) {
                 </ol>
             </section>
         </div>
+
+        <Teleport to="body">
+            <div
+                v-if="dialogOpen && selectedLine"
+                class="fixed inset-0 z-[300] flex items-end justify-center bg-black/55 p-0 sm:items-center sm:p-4"
+                role="dialog"
+                aria-modal="true"
+            >
+                <button type="button" class="absolute inset-0" aria-label="إغلاق" @click="closeUploadDialog" />
+                <div
+                    class="relative z-10 flex max-h-[92vh] w-full max-w-lg flex-col overflow-hidden rounded-t-3xl bg-white shadow-2xl sm:rounded-3xl"
+                    dir="rtl"
+                >
+                    <div class="flex items-start justify-between gap-3 border-b border-slate-100 px-5 py-4">
+                        <div>
+                            <h2 class="text-lg font-bold text-slate-900">
+                                {{ selectedLine.installation_photo_url ? 'استبدال صورة التركيب' : 'رفع صورة التركيب' }}
+                            </h2>
+                            <p class="mt-1 text-sm text-slate-500">صورة من أرض الواقع بعد التركيب</p>
+                        </div>
+                        <button
+                            type="button"
+                            class="flex h-9 w-9 items-center justify-center rounded-full bg-slate-50 text-slate-500"
+                            @click="closeUploadDialog"
+                        >
+                            <X class="h-4 w-4" />
+                        </button>
+                    </div>
+                    <div class="space-y-4 overflow-y-auto px-5 py-4">
+                        <div class="rounded-2xl bg-slate-50 p-3 text-sm font-semibold text-slate-800">
+                            {{ selectedLine.product_name }}
+                        </div>
+                        <input ref="photoInputRef" type="file" accept="image/*" class="hidden" @change="handlePhotoChange" />
+                        <button
+                            type="button"
+                            class="flex min-h-32 w-full flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-teal-300 bg-teal-50/50 px-4 py-6"
+                            @click="photoInputRef?.click()"
+                        >
+                            <Camera class="h-8 w-8 text-teal-700" />
+                            <p class="font-semibold text-slate-800">اضغط لرفع صورة التركيب</p>
+                            <p class="text-xs text-slate-400">JPG أو PNG — بحد أقصى 5 ميجابايت</p>
+                        </button>
+                        <p v-if="photoError || completeForm.errors.installation_photo" class="text-sm text-rose-600">
+                            {{ photoError || completeForm.errors.installation_photo }}
+                        </p>
+                        <img v-if="uploadPreview" :src="uploadPreview" alt="معاينة" class="max-h-56 w-full rounded-2xl object-cover" />
+                    </div>
+                    <div class="grid grid-cols-2 gap-2 border-t border-slate-100 px-5 py-4">
+                        <button
+                            type="button"
+                            class="inline-flex h-11 items-center justify-center rounded-xl border border-slate-200 text-sm font-semibold text-slate-700"
+                            @click="closeUploadDialog"
+                        >
+                            إلغاء
+                        </button>
+                        <button
+                            type="button"
+                            class="inline-flex h-11 items-center justify-center rounded-xl bg-teal-700 text-sm font-semibold text-white disabled:opacity-50"
+                            :disabled="completeForm.processing"
+                            @click="submitUpload"
+                        >
+                            {{ completeForm.processing ? 'جاري الإرسال...' : 'إرسال' }}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </Teleport>
 
         <Teleport to="body">
             <div
