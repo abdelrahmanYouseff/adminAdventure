@@ -342,10 +342,27 @@ class WorkerOrderController extends Controller
             return back()->with('error', 'لا يمكن تعميد المستودع قبل تعميد الاسترجاع من صفحة الاسترجاع.');
         }
 
-        $order->update([
+        $updates = [
             'warehouse_keeper_approved_at' => now(),
             'warehouse_keeper_approved_by' => $user->id,
-        ]);
+        ];
+
+        // Surface the order on insurance refund once warehouse closes, when insurance exists.
+        if (
+            blank($order->insurance_refund_requested_at)
+            && (
+                round((float) ($order->insurance_amount ?? 0), 2) > 0.009
+                || round((float) ($order->insurance_original_amount ?? 0), 2) > 0.009
+            )
+        ) {
+            $updates['insurance_refund_requested_at'] = now();
+            $updates['insurance_refund_requested_by'] = $user->id;
+            if (! in_array($order->insurance_status, ['refunded', 'withheld'], true)) {
+                $updates['insurance_status'] = 'pending';
+            }
+        }
+
+        $order->update($updates);
 
         return redirect()
             ->route('worker-orders.index', ['view' => 'warehouse'])

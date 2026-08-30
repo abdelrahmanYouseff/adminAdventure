@@ -325,6 +325,7 @@ function typeLabel(type: string): string {
         initial: 'عند الإنشاء',
         settlement: 'سداد',
         payment: 'سداد',
+        insurance: 'استحقاق تأمين',
     };
     return map[type] || type;
 }

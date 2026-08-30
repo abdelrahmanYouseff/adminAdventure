@@ -1,31 +1,26 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
-import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
+import { Head, Link, useForm, usePage } from '@inertiajs/vue3';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { Button } from '@/components/ui/button';
-import { formatCurrency, formatDate, formatDateTime } from '@/lib/formatNumber';
-import { ArrowRight, Search, ShieldPlus } from 'lucide-vue-next';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { formatCurrency } from '@/lib/formatNumber';
+import { ArrowRight, ShieldPlus } from 'lucide-vue-next';
 import Swal from 'sweetalert2';
 
-interface Candidate {
+interface CustomerOption {
     id: number;
     order_number: string;
-    invoice_number: string | null;
     customer_name: string;
     customer_phone: string | null;
     insurance_amount: number;
-    activity_date: string | null;
-    warehouse_returned_at: string | null;
-    warehouse_returned_by_name: string | null;
-}
-
-interface PaginatedCandidates {
-    data: Candidate[];
-    links: { url: string | null; label: string; active: boolean }[];
+    remaining_amount: number;
+    label: string;
 }
 
 interface Props {
-    candidates: PaginatedCandidates;
+    customers: CustomerOption[];
     filters: {
         search: string;
     };
@@ -37,16 +32,34 @@ defineOptions({ layout: AppLayout });
 const page = usePage();
 const flash = computed(() => (page.props.flash as { success?: string; error?: string } | undefined) ?? {});
 
-const searchQuery = ref(props.filters.search || '');
-const selectedIds = ref<number[]>([]);
+const customerFilter = ref('');
 
 const form = useForm({
-    order_ids: [] as number[],
+    order_id: '' as number | '',
+    insurance_amount: 0 as number,
 });
 
-const allVisibleSelected = computed(() => {
-    const ids = props.candidates.data.map((c) => c.id);
-    return ids.length > 0 && ids.every((id) => selectedIds.value.includes(id));
+const filteredCustomers = computed(() => {
+    const q = customerFilter.value.trim().toLowerCase();
+    if (!q) {
+        return props.customers;
+    }
+
+    return props.customers.filter((row) => {
+        return (
+            row.customer_name.toLowerCase().includes(q)
+            || row.order_number.toLowerCase().includes(q)
+            || (row.customer_phone || '').includes(q)
+        );
+    });
+});
+
+const selected = computed(() => {
+    if (form.order_id === '' || form.order_id == null) {
+        return null;
+    }
+
+    return props.customers.find((row) => row.id === Number(form.order_id)) ?? null;
 });
 
 watch(
@@ -78,210 +91,156 @@ watch(
     { immediate: true },
 );
 
-function applySearch() {
-    router.get(
-        '/insurance-deposits/create',
-        { search: searchQuery.value || undefined },
-        { preserveState: true, replace: true },
-    );
-}
-
-function toggleOne(id: number) {
-    if (selectedIds.value.includes(id)) {
-        selectedIds.value = selectedIds.value.filter((x) => x !== id);
+watch(selected, (row) => {
+    if (!row) {
         return;
     }
 
-    selectedIds.value = [...selectedIds.value, id];
-}
-
-function toggleAllVisible() {
-    const ids = props.candidates.data.map((c) => c.id);
-
-    if (allVisibleSelected.value) {
-        selectedIds.value = selectedIds.value.filter((id) => !ids.includes(id));
-        return;
+    if (!form.insurance_amount || form.insurance_amount <= 0) {
+        form.insurance_amount = row.insurance_amount > 0 ? row.insurance_amount : 0;
     }
-
-    selectedIds.value = [...new Set([...selectedIds.value, ...ids])];
-}
+});
 
 function submit() {
-    if (selectedIds.value.length === 0) {
+    if (!form.order_id) {
         Swal.fire({
             icon: 'info',
-            title: 'لم يتم الاختيار',
-            text: 'اختر عميلاً واحداً على الأقل ممن أُغلق استرجاعهم واعتمد.',
+            title: 'اختر العميل',
+            text: 'اختر العميل / رقم الطلب من القائمة أولاً.',
             confirmButtonText: 'حسناً',
             confirmButtonColor: '#2563EB',
         });
         return;
     }
 
-    form.order_ids = [...selectedIds.value];
+    if (Number(form.insurance_amount) <= 0) {
+        Swal.fire({
+            icon: 'info',
+            title: 'مبلغ التأمين',
+            text: 'أدخل مبلغ استحقاق التأمين.',
+            confirmButtonText: 'حسناً',
+            confirmButtonColor: '#2563EB',
+        });
+        return;
+    }
+
     form.post('/insurance-deposits', {
         preserveScroll: true,
-        onSuccess: () => {
-            selectedIds.value = [];
-        },
     });
 }
 </script>
 
 <template>
-    <Head title="إنشاء طلب استرداد تأمين" />
+    <Head title="استحقاق تأمين" />
 
     <div class="py-8 sm:py-12" dir="rtl">
-        <div class="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
-            <div class="mb-6 flex flex-wrap items-start justify-between gap-4">
-                <div>
-                    <Link
-                        href="/insurance-deposits"
-                        class="mb-2 inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-800"
-                    >
-                        <ArrowRight class="h-4 w-4" />
-                        العودة لقائمة الاسترداد
-                    </Link>
-                    <h1 class="text-2xl font-bold text-slate-900">إنشاء طلب استرداد تأمين</h1>
-                    <p class="mt-1 text-sm text-slate-500">
-                        يظهر فقط العملاء الذين أُغلق استرجاعهم واعتمد (تعميد أمر العمل + تأكيد المستودع). اختر من تريد إدراجهم في مسار الاسترداد.
+        <div class="mx-auto max-w-2xl px-4 sm:px-6 lg:px-8">
+            <div class="mb-6">
+                <Link
+                    href="/insurance-deposits"
+                    class="mb-2 inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-800"
+                >
+                    <ArrowRight class="h-4 w-4" />
+                    العودة لقائمة الاسترداد
+                </Link>
+                <h1 class="text-2xl font-bold text-slate-900">استحقاق تأمين</h1>
+                <p class="mt-1 text-sm text-slate-500">
+                    اختر العميل ثم أدخل مبلغ التأمين. عند الإرسال يُنشأ طلب في سندات القبض تحت بند
+                    «استحقاق تأمين» على نفس رقم الطلب بانتظار اعتماد المحاسب.
+                </p>
+            </div>
+
+            <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+                <div class="mb-5 flex items-center gap-3 rounded-xl bg-emerald-50 px-4 py-3 text-emerald-800 ring-1 ring-emerald-100">
+                    <ShieldPlus class="h-5 w-5 shrink-0" />
+                    <p class="text-sm">
+                        بعد الإرسال ستنتقل إلى صفحة سندات القبض لمراجعة المحاسب.
                     </p>
                 </div>
-                <div class="inline-flex items-center gap-2 rounded-2xl bg-slate-50 px-4 py-3 text-slate-700 ring-1 ring-slate-200">
-                    <ShieldPlus class="h-5 w-5" />
-                    <div>
-                        <p class="text-xs">المحددون</p>
-                        <p class="text-lg font-bold tabular-nums">{{ selectedIds.length }}</p>
+
+                <div class="space-y-5">
+                    <div class="space-y-2">
+                        <Label for="customer_filter" class="text-sm font-medium">بحث سريع</Label>
+                        <Input
+                            id="customer_filter"
+                            v-model="customerFilter"
+                            type="search"
+                            class="h-11 rounded-xl"
+                            placeholder="ابحث بالاسم أو رقم الطلب أو الجوال..."
+                        />
+                    </div>
+
+                    <div class="space-y-2">
+                        <Label for="order_id" class="text-sm font-medium">العميل / الطلب</Label>
+                        <select
+                            id="order_id"
+                            v-model="form.order_id"
+                            class="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none ring-slate-200 focus:ring-2"
+                        >
+                            <option value="">اختر العميل...</option>
+                            <option
+                                v-for="row in filteredCustomers"
+                                :key="row.id"
+                                :value="row.id"
+                            >
+                                {{ row.label }}
+                            </option>
+                        </select>
+                        <p v-if="form.errors.order_id" class="text-xs text-rose-600">{{ form.errors.order_id }}</p>
+                        <p v-if="filteredCustomers.length === 0" class="text-xs text-amber-700">
+                            لا توجد نتائج مطابقة للبحث.
+                        </p>
+                    </div>
+
+                    <div
+                        v-if="selected"
+                        class="rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-600 ring-1 ring-slate-100"
+                    >
+                        <div class="flex flex-wrap items-center justify-between gap-2">
+                            <span class="font-semibold text-slate-900">{{ selected.customer_name }}</span>
+                            <span class="font-semibold tabular-nums text-slate-900" dir="ltr">{{ selected.order_number }}</span>
+                        </div>
+                        <div class="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
+                            <span v-if="selected.customer_phone" dir="ltr">{{ selected.customer_phone }}</span>
+                            <span>تأمين مسجّل: {{ formatCurrency(selected.insurance_amount) }}</span>
+                            <span>متبقي على الطلب: {{ formatCurrency(selected.remaining_amount) }}</span>
+                        </div>
+                    </div>
+
+                    <div class="space-y-2">
+                        <Label for="insurance_amount" class="text-sm font-medium">مبلغ استحقاق التأمين</Label>
+                        <Input
+                            id="insurance_amount"
+                            v-model.number="form.insurance_amount"
+                            type="number"
+                            min="0.01"
+                            step="0.01"
+                            class="h-11 rounded-xl tabular-nums"
+                            dir="ltr"
+                            placeholder="0.00"
+                        />
+                        <p class="text-xs text-slate-500">
+                            سيُرسل هذا المبلغ كسند قبض بانتظار اعتماد المحاسب تحت بند استحقاق تأمين.
+                        </p>
+                        <p v-if="form.errors.insurance_amount" class="text-xs text-rose-600">
+                            {{ form.errors.insurance_amount }}
+                        </p>
+                    </div>
+
+                    <div class="flex flex-wrap gap-2 pt-2">
+                        <Button
+                            type="button"
+                            class="h-11 rounded-xl bg-emerald-600 px-6 hover:bg-emerald-700"
+                            :disabled="form.processing"
+                            @click="submit"
+                        >
+                            {{ form.processing ? 'جاري الإرسال...' : 'إرسال لسندات القبض' }}
+                        </Button>
+                        <Button as-child type="button" variant="outline" class="h-11 rounded-xl">
+                            <Link href="/insurance-deposits">إلغاء</Link>
+                        </Button>
                     </div>
                 </div>
-            </div>
-
-            <div class="mb-4 flex flex-wrap gap-2">
-                <div class="relative min-w-[220px] flex-1">
-                    <Search class="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                    <input
-                        v-model="searchQuery"
-                        type="search"
-                        placeholder="بحث برقم الطلب أو اسم العميل أو الجوال..."
-                        class="w-full rounded-xl border border-slate-200 bg-white py-2.5 pr-10 pl-3 text-sm outline-none ring-slate-200 focus:ring-2"
-                        @keydown.enter.prevent="applySearch"
-                    />
-                </div>
-                <Button type="button" variant="outline" class="rounded-xl" @click="applySearch">
-                    بحث
-                </Button>
-                <Button
-                    type="button"
-                    class="rounded-xl bg-emerald-600 hover:bg-emerald-700"
-                    :disabled="form.processing || selectedIds.length === 0"
-                    @click="submit"
-                >
-                    إنشاء الطلب ({{ selectedIds.length }})
-                </Button>
-            </div>
-
-            <p v-if="form.errors.order_ids" class="mb-3 text-sm text-rose-600">{{ form.errors.order_ids }}</p>
-
-            <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-                <div class="overflow-x-auto">
-                    <table class="w-full min-w-[720px] border-collapse text-sm">
-                        <thead>
-                            <tr class="bg-slate-50 text-slate-600">
-                                <th class="px-4 py-3 text-right font-semibold">
-                                    <label class="inline-flex cursor-pointer items-center gap-2">
-                                        <input
-                                            type="checkbox"
-                                            class="h-4 w-4 rounded border-slate-300"
-                                            :checked="allVisibleSelected"
-                                            @change="toggleAllVisible"
-                                        />
-                                        اختيار
-                                    </label>
-                                </th>
-                                <th class="px-4 py-3 text-right font-semibold">رقم الطلب</th>
-                                <th class="px-4 py-3 text-right font-semibold">العميل</th>
-                                <th class="px-4 py-3 text-right font-semibold">مبلغ التأمين</th>
-                                <th class="px-4 py-3 text-right font-semibold">تاريخ الاسترجاع</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr v-if="candidates.data.length === 0">
-                                <td colspan="5" class="px-4 py-12 text-center text-slate-500">
-                                    لا يوجد عملاء باسترجاع مغلق ومعتمد بانتظار إنشاء طلب استرداد.
-                                </td>
-                            </tr>
-                            <tr
-                                v-for="item in candidates.data"
-                                :key="item.id"
-                                class="border-t border-slate-100 hover:bg-slate-50/70"
-                                :class="selectedIds.includes(item.id) ? 'bg-emerald-50/40' : ''"
-                            >
-                                <td class="px-4 py-3">
-                                    <input
-                                        type="checkbox"
-                                        class="h-4 w-4 rounded border-slate-300"
-                                        :checked="selectedIds.includes(item.id)"
-                                        @change="toggleOne(item.id)"
-                                    />
-                                </td>
-                                <td class="px-4 py-3 font-semibold text-slate-900">
-                                    {{ item.order_number }}
-                                    <p v-if="item.invoice_number" class="text-xs font-normal text-slate-400">
-                                        فاتورة {{ item.invoice_number }}
-                                    </p>
-                                </td>
-                                <td class="px-4 py-3">
-                                    <p class="font-medium text-slate-800">{{ item.customer_name }}</p>
-                                    <p v-if="item.customer_phone" class="text-xs text-slate-400" dir="ltr">
-                                        {{ item.customer_phone }}
-                                    </p>
-                                </td>
-                                <td class="px-4 py-3 tabular-nums font-semibold text-slate-900">
-                                    {{ formatCurrency(item.insurance_amount) }}
-                                </td>
-                                <td class="px-4 py-3 text-slate-600">
-                                    <p>{{ item.warehouse_returned_at ? formatDateTime(item.warehouse_returned_at) : '—' }}</p>
-                                    <p v-if="item.warehouse_returned_by_name" class="text-xs text-slate-400">
-                                        بواسطة {{ item.warehouse_returned_by_name }}
-                                    </p>
-                                    <p v-if="item.activity_date" class="text-xs text-slate-400">
-                                        النشاط {{ formatDate(item.activity_date) }}
-                                    </p>
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-
-                <div
-                    v-if="candidates.links.length > 3"
-                    class="flex flex-wrap items-center justify-center gap-1 border-t border-slate-100 px-4 py-3"
-                >
-                    <Link
-                        v-for="(link, idx) in candidates.links"
-                        :key="idx"
-                        :href="link.url || '#'"
-                        class="rounded-lg px-3 py-1.5 text-xs font-medium"
-                        :class="link.active
-                            ? 'bg-slate-900 text-white'
-                            : link.url
-                                ? 'bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50'
-                                : 'pointer-events-none text-slate-300'"
-                        v-html="link.label"
-                        :preserve-state="true"
-                    />
-                </div>
-            </div>
-
-            <div class="mt-4 flex justify-end">
-                <Button
-                    type="button"
-                    class="rounded-xl bg-emerald-600 hover:bg-emerald-700"
-                    :disabled="form.processing || selectedIds.length === 0"
-                    @click="submit"
-                >
-                    إنشاء طلب الاسترداد ({{ selectedIds.length }})
-                </Button>
             </div>
         </div>
     </div>

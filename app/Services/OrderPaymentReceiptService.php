@@ -61,7 +61,7 @@ class OrderPaymentReceiptService
                 $locked->save();
             }
 
-            $existing = $this->receiptToAccumulate($locked);
+            $existing = $this->receiptToAccumulate($locked, $type);
 
             if ($existing) {
                 return $this->accumulateOnReceipt(
@@ -95,6 +95,71 @@ class OrderPaymentReceiptService
                 'proof_image' => $proofImages !== [] ? $proofImages : null,
                 'account_number' => $accountNumber,
             ]);
+        });
+    }
+
+    /**
+     * Record a pending "استحقاق تأمين" receipt on an existing order for accountant approval.
+     * Ensures the order balance can cover the amount and keeps insurance receipts separate
+     * from regular payment vouchers.
+     */
+    public function recordInsuranceDue(
+        Order $order,
+        float $amount,
+        ?User $user = null,
+        ?string $notes = null,
+    ): OrderPaymentReceipt {
+        $amount = round(max(0, $amount), 2);
+
+        if ($amount <= 0) {
+            throw new RuntimeException('مبلغ استحقاق التأمين يجب أن يكون أكبر من صفر.');
+        }
+
+        return DB::transaction(function () use ($order, $amount, $user, $notes) {
+            /** @var Order $locked */
+            $locked = Order::query()->lockForUpdate()->findOrFail($order->id);
+
+            $approvedPaid = round((float) ($locked->amount_paid ?? 0), 2);
+            $pendingSum = round((float) $locked->paymentReceipts()
+                ->where('approval_status', OrderPaymentReceipt::STATUS_PENDING)
+                ->sum('amount'), 2);
+            $committed = round($approvedPaid + $pendingSum, 2);
+            $total = round((float) $locked->total_amount, 2);
+            $available = round(max(0, $total - $committed), 2);
+
+            if ($amount > $available + 0.009) {
+                $shortfall = round($amount - $available, 2);
+                $locked->total_amount = round($total + $shortfall, 2);
+                $total = round((float) $locked->total_amount, 2);
+            }
+
+            $currentInsurance = round((float) ($locked->insurance_amount ?? 0), 2);
+            if ($amount > $currentInsurance + 0.009) {
+                if (blank($locked->insurance_original_amount) && $currentInsurance > 0.009) {
+                    $locked->insurance_original_amount = $currentInsurance;
+                }
+                $locked->insurance_amount = $amount;
+            }
+
+            if (($locked->insurance_status ?? 'none') === 'none') {
+                $locked->insurance_status = 'pending';
+            }
+
+            $locked->save();
+
+            $notes = trim((string) $notes);
+            if ($notes === '') {
+                $notes = 'استحقاق تأمين للطلب '.$locked->order_number.' — بانتظار اعتماد المحاسب';
+            }
+
+            return $this->recordPayment(
+                $locked->fresh(),
+                $amount,
+                $user,
+                $locked->payment_method ?: 'bank_transfer',
+                'insurance',
+                $notes,
+            );
         });
     }
 
@@ -383,11 +448,14 @@ class OrderPaymentReceiptService
     }
 
     /**
-     * One live voucher per order: pending first, otherwise the single approved
+     * One live voucher per order+kind: pending first, otherwise the single approved
      * receipt so later payments on this order stay on the same record.
+     * Insurance entitlements stay on their own voucher track.
      */
-    private function receiptToAccumulate(Order $order): ?OrderPaymentReceipt
+    private function receiptToAccumulate(Order $order, string $type = 'payment'): ?OrderPaymentReceipt
     {
+        $wantInsurance = $type === 'insurance';
+
         $receipts = OrderPaymentReceipt::query()
             ->where('order_id', $order->id)
             ->whereIn('approval_status', [
@@ -396,7 +464,13 @@ class OrderPaymentReceiptService
             ])
             ->orderByDesc('id')
             ->lockForUpdate()
-            ->get();
+            ->get()
+            ->filter(function (OrderPaymentReceipt $receipt) use ($wantInsurance) {
+                $isInsurance = (string) $receipt->type === 'insurance';
+
+                return $wantInsurance ? $isInsurance : ! $isInsurance;
+            })
+            ->values();
 
         $pending = $receipts->first(
             fn (OrderPaymentReceipt $receipt) => $receipt->isPending(),
