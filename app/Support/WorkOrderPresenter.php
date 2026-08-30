@@ -26,11 +26,7 @@ class WorkOrderPresenter
             $user,
             InsuranceApprovalChain::STEP_WORKERS_MANAGER,
         );
-        // مدير العمال يقدر يعتمد اكتمال التركيب بدون انتظار صور العامل
-        $canApproveWithoutPhotos = (bool) $user?->isWorkersManager();
-        $canApprove = $roleCanApprove
-            && ! $isApproved
-            && ($photosReady || $canApproveWithoutPhotos);
+        $canApprove = $roleCanApprove && ! $isApproved && $photosReady;
 
         $isAssigned = self::hasAssignedInstallationWorkers($order);
         $isReturnConfirmed = filled($order->warehouse_returned_at);

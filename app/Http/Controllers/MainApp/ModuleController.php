@@ -156,6 +156,7 @@ class ModuleController extends Controller
     {
         $query = Order::query()
             ->whereNotNull('work_order_approved_at')
+            ->whereNull('warehouse_returned_at')
             ->whereNotIn('status', ['cancelled', 'refunded'])
             ->with('warehouseReturnedBy:id,customer_name')
             ->latest('updated_at');
@@ -169,15 +170,19 @@ class ModuleController extends Controller
 
         $pending = (clone $query)->whereNull('warehouse_returned_at')->count();
 
-        $items = $query->limit(40)->get()->map(fn (Order $order) => [
-            'id' => $order->id,
-            'title' => $order->order_number,
-            'subtitle' => $order->customer_name ?: '—',
-            'meta' => $order->warehouse_returned_at ? 'تم الاسترجاع' : 'بانتظار الاسترجاع',
-            'badge' => $order->warehouse_returned_at ? 'مسترجع' : 'معلّق',
-            'badge_tone' => $order->warehouse_returned_at ? 'emerald' : 'amber',
-            'href' => '/returns',
-        ])->all();
+        $items = (clone $query)
+            ->whereNull('warehouse_returned_at')
+            ->limit(40)
+            ->get()
+            ->map(fn (Order $order) => [
+                'id' => $order->id,
+                'title' => $order->order_number,
+                'subtitle' => $order->customer_name ?: '—',
+                'meta' => 'بانتظار الاسترجاع',
+                'badge' => 'معلّق',
+                'badge_tone' => 'amber',
+                'href' => '/returns',
+            ])->all();
 
         return [
             'stats' => [

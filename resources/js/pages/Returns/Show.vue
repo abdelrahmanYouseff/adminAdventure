@@ -632,6 +632,14 @@ function submitNote() {
                     <CheckCircle2 class="size-4" />
                     تم التعميد
                 </span>
+
+                <span
+                    v-else-if="!returnOrder.pickup_photos_ready"
+                    class="inline-flex items-center gap-1.5 rounded-full bg-amber-100 px-4 py-2 text-sm font-semibold text-amber-800 ring-1 ring-amber-200"
+                >
+                    بانتظار رفع صور الفك
+                    ({{ formatInteger(returnOrder.pickup_photos_count || 0) }}/{{ formatInteger(returnOrder.products_count) }})
+                </span>
             </div>
         </section>
 

@@ -69,11 +69,12 @@ class SidebarNavBadges
     }
 
     /**
-     * Returns waiting for warehouse confirmation (same as «بانتظار الاسترجاع»).
+     * Returns waiting for confirmation (same as «بانتظار الاسترجاع»).
      */
     public static function openReturnsCount(): int
     {
         return Order::query()
+            ->whereNotNull('work_order_approved_at')
             ->whereNotIn('status', ['cancelled', 'refunded'])
             ->whereNull('warehouse_returned_at')
             ->count();

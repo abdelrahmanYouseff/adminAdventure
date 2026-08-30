@@ -61,10 +61,12 @@ class ProductReturnController extends Controller
             ->orderByDesc('id');
 
         if ($status === 'pending') {
-            $query->whereNull('warehouse_returned_at');
+            // default — already filtered to open returns
         } elseif ($status === 'returned') {
-            $query->whereNotNull('warehouse_returned_at');
+            // تبويب قديم: المعتمد يختفي من الاسترجاع ويذهب للمستودع
+            $query->whereRaw('1 = 0');
         }
+        // status=all → نفس طابور بانتظار الاسترجاع فقط
 
         if ($search !== '') {
             $query->where(function (Builder $builder) use ($search) {
@@ -147,8 +149,8 @@ class ProductReturnController extends Controller
             'workersBoard' => WorkerPresenceBoard::forReturns(),
             'availableWorkers' => WorkOrderPresenter::availableWorkers(),
             'stats' => [
-                'pending' => (clone $base)->whereNull('warehouse_returned_at')->count(),
-                'returned' => (clone $base)->whereNotNull('warehouse_returned_at')->count(),
+                'pending' => (clone $base)->count(),
+                'returned' => 0,
             ],
             'filters' => [
                 'status' => $status,
@@ -183,12 +185,15 @@ class ProductReturnController extends Controller
 
         $user = $request->user();
         $canDecide = $this->canDecideReturn($user);
+        $canConfirmReturn = $canDecide
+            && blank($order->warehouse_returned_at)
+            && $order->hasAllPickupPhotos();
 
         return Inertia::render('Returns/Show', [
             'returnOrder' => $this->formatReturnDetail($order, $canDecide),
             'availableWorkers' => WorkOrderPresenter::availableWorkers(),
             'canAssignWorkers' => $this->canAssignWorkers($user),
-            'canConfirm' => $canDecide && blank($order->warehouse_returned_at),
+            'canConfirm' => $canConfirmReturn,
             'canReject' => $canDecide && blank($order->warehouse_returned_at),
         ]);
     }
@@ -200,6 +205,12 @@ class ProductReturnController extends Controller
 
         if ($order->warehouse_returned_at) {
             return back()->with('error', 'تم تعميد استرجاع هذا الطلب للمستودع مسبقاً.');
+        }
+
+        $order->loadMissing('workerOrders');
+
+        if (! $order->hasAllPickupPhotos()) {
+            return back()->with('error', 'لا يمكن تعميد الاسترجاع قبل رفع صور الفك لجميع المنتجات.');
         }
 
         $validated = $request->validate([
@@ -219,13 +230,25 @@ class ProductReturnController extends Controller
             'warehouse_rejected_by' => null,
         ])->save();
 
+        $order->loadMissing('invoice:id,invoice_number');
+
         WorkerOrderNote::create([
             'order_id' => $order->id,
             'user_id' => $request->user()->id,
             'body' => 'تعميد الاسترجاع: '.$note,
         ]);
 
-        return back()->with('success', 'تم تعميد استرجاع منتجات الطلب '.$order->order_number.' للمستودع مع تسجيل الملاحظة. أصبح التأمين ظاهرًا الآن في صفحة استرداد التأمين.');
+        $reference = $order->invoice?->invoice_number ?? $order->order_number;
+
+        return redirect()
+            ->route('worker-orders.show', [
+                'workOrderKey' => $reference,
+                'view' => 'warehouse',
+            ])
+            ->with(
+                'success',
+                'تم تعميد استرجاع منتجات الطلب '.$order->order_number.' وإرساله للمستودع. أصبح التأمين ظاهرًا الآن في صفحة استرداد التأمين.',
+            );
     }
 
     public function reject(Request $request, Order $order): RedirectResponse
@@ -369,6 +392,7 @@ class ProductReturnController extends Controller
     {
         return Order::query()
             ->whereNotNull('work_order_approved_at')
+            ->whereNull('warehouse_returned_at')
             ->whereNotIn('status', ['cancelled', 'refunded']);
     }
 
@@ -427,6 +451,7 @@ class ProductReturnController extends Controller
 
         $isReturned = filled($order->warehouse_returned_at);
         $dismantlingMeta = $this->dismantlingMeta($order->dismantling_at, $isReturned);
+        $pickupPhotosReady = $order->hasAllPickupPhotos();
 
         $assemblers = $order->relationLoaded('workerAssemblers')
             ? $order->workerAssemblers->filter(fn (WorkerOrderAssembler $assembler) => $assembler->isDismantling())
@@ -453,7 +478,9 @@ class ProductReturnController extends Controller
             'is_rejected' => filled($order->warehouse_rejected_at) && ! $isReturned,
             'is_assigned' => count($assignedWorkers) > 0,
             'assigned_workers' => $assignedWorkers,
-            'can_confirm' => ($canDecide ?? false) && ! $isReturned,
+            'pickup_photos_ready' => $pickupPhotosReady,
+            'pickup_photos_count' => $lines->filter(fn (WorkerOrder $line) => filled($line->pickup_photo))->count(),
+            'can_confirm' => ($canDecide ?? false) && ! $isReturned && $pickupPhotosReady,
             'can_reject' => ($canDecide ?? false) && ! $isReturned,
             'notes' => $notes->map(fn (WorkerOrderNote $note) => [
                 'id' => $note->id,

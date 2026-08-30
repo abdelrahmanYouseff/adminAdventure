@@ -437,6 +437,19 @@ class Order extends Model
         );
     }
 
+    public function hasAllPickupPhotos(): bool
+    {
+        $lines = $this->relationLoaded('workerOrders')
+            ? $this->workerOrders
+            : $this->workerOrders()->get();
+
+        if ($lines->isEmpty()) {
+            return false;
+        }
+
+        return $lines->every(fn (WorkerOrder $line) => filled($line->pickup_photo));
+    }
+
     public function scopeAssignedToWorker($query, User $user, ?string $taskType = null)
     {
         $workerId = (int) $user->id;

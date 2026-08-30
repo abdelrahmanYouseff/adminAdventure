@@ -255,29 +255,8 @@ class WorkerOrderController extends Controller
             return back()->with('error', 'تم تعميد أمر العمل مسبقاً من مدير العمال.');
         }
 
-        $isWorkersManager = (bool) $user?->isWorkersManager();
-        $hadAllPhotos = $order->hasAllWorkerPhotos();
-
-        if (! $hadAllPhotos && ! $isWorkersManager) {
-            return back()->with('error', 'لا يمكن التعميد قبل رفع العامل لصور التركيب لجميع المنتجات.');
-        }
-
-        // مدير العمال يقدر يعتمد اكتمال التركيب بدون صور — نحدّث حالة البنود غير المكتملة
-        if ($isWorkersManager) {
-            foreach ($order->workerOrders as $line) {
-                if ($line->status === 'completed') {
-                    continue;
-                }
-
-                $line->update([
-                    'status' => 'completed',
-                    'completed_at' => now(),
-                    'completed_by' => $user->id,
-                ]);
-            }
-
-            $order->unsetRelation('workerOrders');
-            $order->load('workerOrders');
+        if (! $order->hasAllWorkerPhotos()) {
+            return back()->with('error', 'لا يمكن التعميد قبل رفع صور التركيب لجميع المنتجات.');
         }
 
         $updates = [
@@ -305,9 +284,7 @@ class WorkerOrderController extends Controller
 
         $reference = $order->invoice?->invoice_number ?? $order->order_number;
 
-        $message = $isWorkersManager && ! $hadAllPhotos
-            ? 'تم تأكيد اكتمال التركيب من مدير العمال.'
-            : 'تم تعميد أمر العمل من مدير العمال بنجاح.';
+        $message = 'تم تعميد أمر العمل من مدير العمال بنجاح. أصبح الطلب ظاهراً في صفحة الاسترجاع.';
         if ($insuranceAmount > 0) {
             $message .= ' ظهر مبلغ التأمين في صفحة استرداد التأمين وبانتظار تعميد المسئول ثم المدير العام ثم المحاسب.';
         }

@@ -51,6 +51,8 @@ interface ProductReturn {
     is_returned: boolean;
     is_assigned: boolean;
     assigned_workers: string[];
+    pickup_photos_ready?: boolean;
+    pickup_photos_count?: number;
     can_confirm: boolean;
     notes_count: number;
 }
@@ -162,7 +164,6 @@ let presenceTimer: ReturnType<typeof setInterval> | null = null;
 
 const statusTabs = [
     { key: 'pending', label: 'بانتظار الاسترجاع' },
-    { key: 'returned', label: 'تم الاسترجاع' },
     { key: 'all', label: 'الكل' },
 ] as const;
 
@@ -365,24 +366,16 @@ function workerStatusClass(key: WorkerBoardRow['status_key']): string {
 
         <div class="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_300px]">
             <div class="min-w-0 space-y-5">
-                <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
+                <div class="grid grid-cols-1 gap-3 sm:grid-cols-1 sm:gap-4">
                     <button
                         type="button"
                         class="rounded-2xl border bg-white p-5 text-start transition hover:shadow-sm dark:bg-neutral-900"
-                        :class="filters.status === 'pending' ? 'border-orange-300 ring-1 ring-orange-100' : 'border-gray-200 dark:border-neutral-700'"
+                        :class="filters.status === 'pending' || filters.status === 'all' ? 'border-orange-300 ring-1 ring-orange-100' : 'border-gray-200 dark:border-neutral-700'"
                         @click="setStatusFilter('pending')"
                     >
                         <p class="text-xs font-bold uppercase tracking-wide text-gray-400">بانتظار الاسترجاع</p>
                         <p class="mt-2 text-2xl font-extrabold tabular-nums text-gray-900 dark:text-white">{{ formatInteger(stats.pending) }}</p>
-                    </button>
-                    <button
-                        type="button"
-                        class="rounded-2xl border bg-white p-5 text-start transition hover:shadow-sm dark:bg-neutral-900"
-                        :class="filters.status === 'returned' ? 'border-emerald-300 ring-1 ring-emerald-100' : 'border-gray-200 dark:border-neutral-700'"
-                        @click="setStatusFilter('returned')"
-                    >
-                        <p class="text-xs font-bold uppercase tracking-wide text-gray-400">تم الاسترجاع</p>
-                        <p class="mt-2 text-2xl font-extrabold tabular-nums text-gray-900 dark:text-white">{{ formatInteger(stats.returned) }}</p>
+                        <p class="mt-1 text-[11px] text-slate-400">يظهر بعد تعميد التركيب فقط — ويختفي بعد تعميد الاسترجاع</p>
                     </button>
                 </div>
 
@@ -658,11 +651,21 @@ function workerStatusClass(key: WorkerBoardRow['status_key']): string {
                                                 تم التعميد
                                             </span>
                                             <span
-                                                v-else
+                                                v-else-if="item.pickup_photos_ready"
                                                 class="inline-flex items-center gap-1 rounded-full bg-orange-50 px-2.5 py-1 text-xs font-semibold text-orange-700 ring-1 ring-inset ring-orange-100"
                                             >
                                                 <PackageCheck class="size-3.5" />
-                                                بانتظار التعميد
+                                                جاهز للتعميد
+                                            </span>
+                                            <span
+                                                v-else
+                                                class="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700 ring-1 ring-inset ring-amber-100"
+                                            >
+                                                <PackageCheck class="size-3.5" />
+                                                بانتظار صور الفك
+                                                <template v-if="item.products_count">
+                                                    ({{ formatInteger(item.pickup_photos_count || 0) }}/{{ formatInteger(item.products_count) }})
+                                                </template>
                                             </span>
                                             <p v-if="item.is_returned && item.warehouse_returned_by_name" class="mt-1 text-[11px] text-gray-400">
                                                 بواسطة {{ item.warehouse_returned_by_name }}
@@ -685,7 +688,7 @@ function workerStatusClass(key: WorkerBoardRow['status_key']): string {
                                                 class="text-xs font-semibold text-orange-600 hover:underline"
                                                 @click.stop
                                             >
-                                                التفاصيل
+                                                {{ item.pickup_photos_ready ? 'التفاصيل' : 'بانتظار الصور' }}
                                             </Link>
                                             <span v-else class="text-xs text-gray-400">—</span>
                                         </td>
