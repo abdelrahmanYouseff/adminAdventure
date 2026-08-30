@@ -17,9 +17,17 @@ trait BuildsTransactionalEnvelope
             $replyTo = [new Address($replyToAddress, $replyToName !== '' ? $replyToName : null)];
         }
 
+        $bcc = [];
+        foreach ((array) config('mail.bcc', []) as $email) {
+            if (is_string($email) && $email !== '' && filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                $bcc[] = new Address($email);
+            }
+        }
+
         return new Envelope(
             subject: $subject,
             replyTo: $replyTo,
+            bcc: $bcc,
         );
     }
 }

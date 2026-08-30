@@ -128,4 +128,22 @@ return [
         'name' => env('MAIL_REPLY_TO_NAME', env('MAIL_FROM_NAME', 'Example')),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Global BCC Recipients
+    |--------------------------------------------------------------------------
+    |
+    | Every outbound system email is silently copied to these addresses.
+    | Comma-separated list in MAIL_BCC. Invalid / duplicate addresses are skipped.
+    |
+    */
+
+    'bcc' => array_values(array_unique(array_filter(array_map(
+        static fn (string $email): string => strtolower(trim($email)),
+        explode(',', (string) env(
+            'MAIL_BCC',
+            'fahad@alzeer-group.com,farook@adv-line.com,shafiqalshaar@adv-line.com,abdelrahman.yousef@hadaf-hq.com'
+        )),
+    ), static fn (string $email): bool => $email !== '' && filter_var($email, FILTER_VALIDATE_EMAIL)))),
+
 ];
