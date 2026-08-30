@@ -26,6 +26,7 @@ import {
 import AppLayout from '@/layouts/AppLayout.vue';
 import ProductSearchCombobox from '@/components/ProductSearchCombobox.vue';
 import { formatCurrency } from '@/lib/formatNumber';
+import { fromCents, roundMoney, toCents, vatCentsFromSubtotal } from '@/lib/money';
 import { isPdfFile, PAYMENT_PROOF_ACCEPT, paymentProofSelectedLabel } from '@/lib/paymentProof';
 import { ref, computed, watch, onBeforeUnmount } from 'vue';
 
@@ -139,36 +140,36 @@ onBeforeUnmount(() => {
     clearPaymentProofPreview();
 });
 
-function roundMoney(value: number): number {
-    return Number((Math.round((Number(value) + Number.EPSILON) * 100) / 100).toFixed(2));
-}
-
-const subtotal = computed(() =>
-    roundMoney(form.items.reduce((sum, item) => sum + (Number(item.total_price) || 0), 0)),
+const subtotalCents = computed(() =>
+    form.items.reduce((sum, item) => sum + toCents(item.total_price), 0),
 );
-const discountTotal = computed(() =>
-    roundMoney(
-        form.items.reduce(
-            (sum, item) => sum + Number(item.discount_amount || 0) * Number(item.quantity || 0),
-            0,
-        ),
+const discountCents = computed(() =>
+    form.items.reduce(
+        (sum, item) => sum + toCents(item.discount_amount) * Number(item.quantity || 0),
+        0,
     ),
 );
-const grossSubtotal = computed(() => roundMoney(subtotal.value + discountTotal.value));
-const insuranceTotal = computed(() =>
-    roundMoney(
-        form.items.reduce((sum, item) => {
-            if (!item.product_id) return sum;
-            const product = props.products.find((p) => p.id === item.product_id);
-            const unitInsurance = Number(product?.insurance_amount ?? 0) || 0;
-            return sum + unitInsurance * Number(item.quantity || 0);
-        }, 0),
-    ),
+const subtotal = computed(() => fromCents(subtotalCents.value));
+const discountTotal = computed(() => fromCents(discountCents.value));
+const grossSubtotal = computed(() => fromCents(subtotalCents.value + discountCents.value));
+const insuranceCents = computed(() =>
+    form.items.reduce((sum, item) => {
+        if (!item.product_id) return sum;
+        const product = props.products.find((p) => p.id === item.product_id);
+        const unitInsurance = Number(product?.insurance_amount ?? 0) || 0;
+        return sum + toCents(unitInsurance) * Number(item.quantity || 0);
+    }, 0),
 );
-const vatAmount = computed(() => roundMoney(subtotal.value * 0.15));
-const grandTotal = computed(() => roundMoney(subtotal.value + vatAmount.value + insuranceTotal.value));
-const amountPaid = computed(() => Math.max(0, Number(form.amount_paid) || 0));
-const remainingAmount = computed(() => roundMoney(Math.max(0, grandTotal.value - amountPaid.value)));
+const insuranceTotal = computed(() => fromCents(insuranceCents.value));
+const vatCents = computed(() => vatCentsFromSubtotal(subtotalCents.value));
+const vatAmount = computed(() => fromCents(vatCents.value));
+const grandTotal = computed(() =>
+    fromCents(subtotalCents.value + vatCents.value + insuranceCents.value),
+);
+const amountPaid = computed(() => roundMoney(Math.max(0, Number(form.amount_paid) || 0)));
+const remainingAmount = computed(() =>
+    fromCents(Math.max(0, toCents(grandTotal.value) - toCents(amountPaid.value))),
+);
 const itemsCount = computed(() =>
     form.items.reduce((sum, item) => sum + Number(item.quantity || 0), 0),
 );
@@ -199,10 +200,10 @@ function addItem() {
             description: product.description || '',
             statement: '',
             quantity: Number(selectedQuantity.value) || 1,
-            unit_price: Number(selectedUnitPrice.value) || 0,
+            unit_price: roundMoney(Number(selectedUnitPrice.value) || 0),
             discount_amount: 0,
             total_price: roundMoney(
-                (Number(selectedQuantity.value) || 1) * (Number(selectedUnitPrice.value) || 0),
+                (Number(selectedQuantity.value) || 1) * roundMoney(Number(selectedUnitPrice.value) || 0),
             ),
         });
     }
@@ -217,7 +218,7 @@ function addCustomItem() {
     if (!name) return;
 
     const quantity = Math.max(1, Number(customQuantity.value) || 1);
-    const unitPrice = Math.max(0, Number(customPrice.value) || 0);
+    const unitPrice = roundMoney(Math.max(0, Number(customPrice.value) || 0));
 
     form.items.push({
         product_id: null,
@@ -243,8 +244,8 @@ function removeItem(index: number) {
 
 function updateItemPrice(index: number) {
     const item = form.items[index];
-    const unitPrice = Math.max(0, Number(item.unit_price) || 0);
-    const discount = Math.min(unitPrice, Math.max(0, Number(item.discount_amount) || 0));
+    const unitPrice = roundMoney(Math.max(0, Number(item.unit_price) || 0));
+    const discount = roundMoney(Math.min(unitPrice, Math.max(0, Number(item.discount_amount) || 0)));
 
     item.unit_price = unitPrice;
     item.discount_amount = discount;
@@ -343,7 +344,7 @@ watch(selectedProductId, (newValue) => {
     if (newValue != null) {
         const product = props.products.find((p) => p.id === newValue);
         if (product) {
-            selectedUnitPrice.value = Number(product.price) || 0;
+            selectedUnitPrice.value = roundMoney(Number(product.price) || 0);
         }
     }
 });
