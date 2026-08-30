@@ -319,7 +319,7 @@ const pendingReceipts = computed(() => props.pendingReceipts ?? []);
 const canAttachReceipt = computed(() => amountPaid.value > 0 || pendingReceipts.value.length > 0);
 
 function roundMoney(value: number): number {
-    return Math.round((value + Number.EPSILON) * 100) / 100;
+    return Number((Math.round((Number(value) + Number.EPSILON) * 100) / 100).toFixed(2));
 }
 const itemsCount = computed(() => form.items.reduce((sum, item) => sum + Number(item.quantity || 0), 0));
 
@@ -1360,7 +1360,7 @@ watch(
                                     v-model.number="form.amount_paid"
                                     type="number"
                                     min="0"
-                                    :max="totalAmount"
+                                    :max="totalAmount.toFixed(2)"
                                     step="0.01"
                                     class="h-11 rounded-xl tabular-nums"
                                     dir="ltr"

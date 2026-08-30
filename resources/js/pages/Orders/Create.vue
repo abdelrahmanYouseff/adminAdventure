@@ -140,26 +140,30 @@ onBeforeUnmount(() => {
 });
 
 function roundMoney(value: number): number {
-    return Math.round((value + Number.EPSILON) * 100) / 100;
+    return Number((Math.round((Number(value) + Number.EPSILON) * 100) / 100).toFixed(2));
 }
 
 const subtotal = computed(() =>
-    form.items.reduce((sum, item) => sum + (Number(item.total_price) || 0), 0),
+    roundMoney(form.items.reduce((sum, item) => sum + (Number(item.total_price) || 0), 0)),
 );
 const discountTotal = computed(() =>
-    form.items.reduce(
-        (sum, item) => sum + Number(item.discount_amount || 0) * Number(item.quantity || 0),
-        0,
+    roundMoney(
+        form.items.reduce(
+            (sum, item) => sum + Number(item.discount_amount || 0) * Number(item.quantity || 0),
+            0,
+        ),
     ),
 );
 const grossSubtotal = computed(() => roundMoney(subtotal.value + discountTotal.value));
 const insuranceTotal = computed(() =>
-    form.items.reduce((sum, item) => {
-        if (!item.product_id) return sum;
-        const product = props.products.find((p) => p.id === item.product_id);
-        const unitInsurance = Number(product?.insurance_amount ?? 0) || 0;
-        return sum + unitInsurance * Number(item.quantity || 0);
-    }, 0),
+    roundMoney(
+        form.items.reduce((sum, item) => {
+            if (!item.product_id) return sum;
+            const product = props.products.find((p) => p.id === item.product_id);
+            const unitInsurance = Number(product?.insurance_amount ?? 0) || 0;
+            return sum + unitInsurance * Number(item.quantity || 0);
+        }, 0),
+    ),
 );
 const vatAmount = computed(() => roundMoney(subtotal.value * 0.15));
 const grandTotal = computed(() => roundMoney(subtotal.value + vatAmount.value + insuranceTotal.value));
@@ -182,9 +186,11 @@ function addItem() {
 
     if (existing) {
         existing.quantity += Number(selectedQuantity.value) || 1;
-        existing.total_price = existing.quantity * Math.max(
-            0,
-            Number(existing.unit_price) - Number(existing.discount_amount || 0),
+        existing.total_price = roundMoney(
+            existing.quantity * Math.max(
+                0,
+                Number(existing.unit_price) - Number(existing.discount_amount || 0),
+            ),
         );
     } else {
         form.items.push({
@@ -195,7 +201,9 @@ function addItem() {
             quantity: Number(selectedQuantity.value) || 1,
             unit_price: Number(selectedUnitPrice.value) || 0,
             discount_amount: 0,
-            total_price: (Number(selectedQuantity.value) || 1) * (Number(selectedUnitPrice.value) || 0),
+            total_price: roundMoney(
+                (Number(selectedQuantity.value) || 1) * (Number(selectedUnitPrice.value) || 0),
+            ),
         });
     }
 
@@ -219,7 +227,7 @@ function addCustomItem() {
         quantity,
         unit_price: unitPrice,
         discount_amount: 0,
-        total_price: quantity * unitPrice,
+        total_price: roundMoney(quantity * unitPrice),
     });
 
     customName.value = '';
@@ -240,7 +248,7 @@ function updateItemPrice(index: number) {
 
     item.unit_price = unitPrice;
     item.discount_amount = discount;
-    item.total_price = Number(item.quantity || 0) * (unitPrice - discount);
+    item.total_price = roundMoney(Number(item.quantity || 0) * (unitPrice - discount));
 }
 
 function submit() {
@@ -973,7 +981,7 @@ watch(grandTotal, (total) => {
                                 type="number"
                                 step="0.01"
                                 min="0"
-                                :max="grandTotal"
+                                :max="grandTotal.toFixed(2)"
                                 class="h-11 rounded-xl tabular-nums"
                                 dir="ltr"
                             />
