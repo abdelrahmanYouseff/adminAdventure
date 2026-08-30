@@ -651,7 +651,7 @@ function workerStatusClass(key: WorkerBoardRow['status_key']): string {
                                                 تم التعميد
                                             </span>
                                             <span
-                                                v-else-if="item.pickup_photos_ready"
+                                                v-else-if="item.can_confirm || item.pickup_photos_ready"
                                                 class="inline-flex items-center gap-1 rounded-full bg-orange-50 px-2.5 py-1 text-xs font-semibold text-orange-700 ring-1 ring-inset ring-orange-100"
                                             >
                                                 <PackageCheck class="size-3.5" />

@@ -128,7 +128,7 @@ class ProductReturnController extends Controller
         $returns = $query
             ->paginate(20)
             ->withQueryString()
-            ->through(fn (Order $order) => $this->formatReturn($order, $canDecide));
+            ->through(fn (Order $order) => $this->formatReturn($order, $user));
 
         $base = $this->eligibleReturnsQuery();
 
@@ -185,15 +185,12 @@ class ProductReturnController extends Controller
 
         $user = $request->user();
         $canDecide = $this->canDecideReturn($user);
-        $canConfirmReturn = $canDecide
-            && blank($order->warehouse_returned_at)
-            && $order->hasAllPickupPhotos();
 
         return Inertia::render('Returns/Show', [
-            'returnOrder' => $this->formatReturnDetail($order, $canDecide),
+            'returnOrder' => $this->formatReturnDetail($order, $user),
             'availableWorkers' => WorkOrderPresenter::availableWorkers(),
             'canAssignWorkers' => $this->canAssignWorkers($user),
-            'canConfirm' => $canConfirmReturn,
+            'canConfirm' => $this->canConfirmReturn($user, $order),
             'canReject' => $canDecide && blank($order->warehouse_returned_at),
         ]);
     }
@@ -208,8 +205,9 @@ class ProductReturnController extends Controller
         }
 
         $order->loadMissing('workerOrders');
+        $user = $request->user();
 
-        if (! $order->hasAllPickupPhotos()) {
+        if (! $this->canConfirmReturn($user, $order)) {
             return back()->with('error', 'لا يمكن تعميد الاسترجاع قبل رفع صور الفك لجميع المنتجات.');
         }
 
@@ -423,10 +421,27 @@ class ProductReturnController extends Controller
     }
 
     /**
+     * الأدمن يقدر يعتمد الاسترجاع حتى بدون صور الفك؛ باقي الأدوار تحتاج اكتمال الصور.
+     */
+    private function canConfirmReturn(?User $user, Order $order): bool
+    {
+        if (! $this->canDecideReturn($user) || filled($order->warehouse_returned_at)) {
+            return false;
+        }
+
+        if ($user?->isAdmin()) {
+            return true;
+        }
+
+        return $order->hasAllPickupPhotos();
+    }
+
+    /**
      * @return array<string, mixed>
      */
-    private function formatReturn(Order $order, ?bool $canDecide = null): array
+    private function formatReturn(Order $order, ?User $user = null): array
     {
+        $canDecide = $this->canDecideReturn($user);
         $lines = $order->relationLoaded('workerOrders')
             ? $order->workerOrders
             : $order->workerOrders()->orderBy('line_index')->get();
@@ -480,8 +495,8 @@ class ProductReturnController extends Controller
             'assigned_workers' => $assignedWorkers,
             'pickup_photos_ready' => $pickupPhotosReady,
             'pickup_photos_count' => $lines->filter(fn (WorkerOrder $line) => filled($line->pickup_photo))->count(),
-            'can_confirm' => ($canDecide ?? false) && ! $isReturned && $pickupPhotosReady,
-            'can_reject' => ($canDecide ?? false) && ! $isReturned,
+            'can_confirm' => $this->canConfirmReturn($user, $order),
+            'can_reject' => $canDecide && ! $isReturned,
             'notes' => $notes->map(fn (WorkerOrderNote $note) => [
                 'id' => $note->id,
                 'body' => $note->body,
@@ -496,9 +511,9 @@ class ProductReturnController extends Controller
     /**
      * @return array<string, mixed>
      */
-    private function formatReturnDetail(Order $order, ?bool $canDecide = null): array
+    private function formatReturnDetail(Order $order, ?User $user = null): array
     {
-        $base = $this->formatReturn($order, $canDecide);
+        $base = $this->formatReturn($order, $user);
         $lines = $order->workerOrders;
         $assemblers = $order->workerAssemblers
             ->filter(fn (WorkerOrderAssembler $assembler) => $assembler->isDismantling())
