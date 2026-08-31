@@ -140,9 +140,23 @@ return [
 
     'bcc' => array_values(array_unique(array_filter(array_map(
         static fn (string $email): string => strtolower(trim($email)),
+        explode(',', (string) env('MAIL_BCC', 'fahad@alzeer-group.com')),
+    ), static fn (string $email): bool => $email !== '' && filter_var($email, FILTER_VALIDATE_EMAIL)))),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Daily Operations Summary
+    |--------------------------------------------------------------------------
+    |
+    | End-of-day digest: new orders, installations completed, dismantling done.
+    | Comma-separated list in MAIL_DAILY_SUMMARY_TO.
+    |
+    */
+    'daily_summary_to' => array_values(array_unique(array_filter(array_map(
+        static fn (string $email): string => strtolower(trim($email)),
         explode(',', (string) env(
-            'MAIL_BCC',
-            'fahad@alzeer-group.com,farook@adv-line.com,shafiqalshaar@adv-line.com,abdelrahman.yousef@hadaf-hq.com'
+            'MAIL_DAILY_SUMMARY_TO',
+            'fahad@alzeer-group.com,farook@adv-line.com'
         )),
     ), static fn (string $email): bool => $email !== '' && filter_var($email, FILTER_VALIDATE_EMAIL)))),
 

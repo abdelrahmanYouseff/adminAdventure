@@ -12,3 +12,9 @@ Artisan::command('inspire', function () {
 Schedule::command('orders:retry-whatsapp-notifications')
     ->everyFiveMinutes()
     ->withoutOverlapping();
+
+// ملخص يومي لـ Fahad: طلبات جديدة + تركيب + فك (نهاية اليوم بتوقيت الرياض)
+Schedule::command('reports:daily-operations-summary')
+    ->dailyAt('23:00')
+    ->timezone('Asia/Riyadh')
+    ->withoutOverlapping();

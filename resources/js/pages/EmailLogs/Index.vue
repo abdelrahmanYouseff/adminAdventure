@@ -160,6 +160,7 @@ function statusClass(status: string): string {
                 <option value="dismantling_photos">صور الفك</option>
                 <option value="work_order_issued">إصدار أمر العمل</option>
                 <option value="delivery_note_whatsapp">إذن تسليم واتساب</option>
+                <option value="daily_operations_summary">الملخص اليومي</option>
             </select>
 
             <select v-model="statusFilter" class="h-11 rounded-full border border-slate-200 bg-white px-4 text-sm" @change="applyFilters(1)">
