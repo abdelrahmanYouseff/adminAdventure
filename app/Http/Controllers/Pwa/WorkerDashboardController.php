@@ -20,6 +20,13 @@ class WorkerDashboardController extends Controller
         $orders = Order::query()
             ->assignedToWorker($user)
             ->whereHas('workerOrders')
+            ->where(function ($query) {
+                // Keep lists light on mobile: active work + recent completed only.
+                $query->whereHas('workerOrders', fn ($q) => $q->where('status', 'pending'))
+                    ->orWhereNull('work_order_approved_at')
+                    ->orWhereNull('warehouse_returned_at')
+                    ->orWhere('updated_at', '>=', now()->subDays(45));
+            })
             ->with([
                 'workerOrders' => fn ($q) => $q->orderBy('line_index'),
                 'workerAssemblers' => fn ($q) => $q->where(function ($inner) use ($user) {
@@ -39,6 +46,7 @@ class WorkerDashboardController extends Controller
             ->orderByRaw('activity_date IS NULL')
             ->orderBy('activity_date')
             ->orderByDesc('created_at')
+            ->limit(60)
             ->get();
 
         $installations = $orders

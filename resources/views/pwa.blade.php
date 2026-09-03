@@ -16,7 +16,7 @@
         <link rel="apple-touch-icon" href="/assets/logo.png">
 
         <link rel="preconnect" href="https://fonts.bunny.net">
-        <link href="https://fonts.bunny.net/css?family=noto-kufi-arabic:400,500,600,700|noto-sans:400,500,600,700|noto-naskh-arabic:400,500,600,700" rel="stylesheet" />
+        <link href="https://fonts.bunny.net/css?family=noto-kufi-arabic:400,600,700" rel="stylesheet" />
 
         <script>
             (function () {
@@ -31,9 +31,7 @@
         </script>
 
         <style>
-            html[data-locale="ar"] body { font-family: 'Noto Kufi Arabic', ui-sans-serif, system-ui, sans-serif; }
-            html[data-locale="ur"] body { font-family: 'Noto Naskh Arabic', ui-sans-serif, system-ui, sans-serif; }
-            html[data-locale="en"] body { font-family: 'Noto Sans', ui-sans-serif, system-ui, sans-serif; }
+            body { font-family: 'Noto Kufi Arabic', ui-sans-serif, system-ui, sans-serif; }
         </style>
 
         @vite(['resources/js/pwa/app.ts'])

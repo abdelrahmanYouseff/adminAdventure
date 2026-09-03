@@ -1,33 +1,14 @@
-import '../../css/app.css';
+import '../../css/mobile-app.css';
 
 import { createInertiaApp } from '@inertiajs/vue3';
 import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
 import type { DefineComponent } from 'vue';
-import { Fragment, createApp, h, watch } from 'vue';
-import ImpersonationBanner from '../components/ImpersonationBanner.vue';
-import { route as ziggyRoute, ZiggyVue } from 'ziggy-js';
-import type { Config } from 'ziggy-js';
-import { Ziggy as fallbackZiggy } from '../ziggy';
+import { Fragment, createApp, h, watch, defineAsyncComponent } from 'vue';
 import { applyDocumentLocale, t, useI18n } from './i18n';
-
-declare global {
-    interface Window {
-        Ziggy?: Config;
-        route: typeof ziggyRoute;
-    }
-}
 
 applyDocumentLocale();
 
-function buildZiggyConfig(location: string): Config & { location: URL } {
-    const routes = (window.Ziggy ?? fallbackZiggy) as Config;
-
-    return {
-        ...routes,
-        url: window.location.origin,
-        location: new URL(location, window.location.origin),
-    };
-}
+const ImpersonationBanner = defineAsyncComponent(() => import('../components/ImpersonationBanner.vue'));
 
 createInertiaApp({
     title: (title) => {
@@ -37,21 +18,17 @@ createInertiaApp({
     resolve: (name) =>
         resolvePageComponent(`./pages/${name}.vue`, import.meta.glob<DefineComponent>('./pages/**/*.vue')),
     setup({ el, App, props, plugin }) {
-        const ziggyLocation = (props.initialPage.props.ziggy as { location: string }).location;
-        const ziggyConfig = buildZiggyConfig(ziggyLocation);
-
-        window.route = ((name?: string, params?: unknown, absolute?: boolean) =>
-            ziggyRoute(name as never, params as never, absolute, ziggyConfig)) as typeof ziggyRoute;
+        const showImpersonation = Boolean(
+            (props.initialPage.props as { impersonation?: { active?: boolean } | null }).impersonation?.active,
+        );
 
         const vueApp = createApp({
             render: () =>
                 h(Fragment, null, [
-                    h(ImpersonationBanner),
+                    showImpersonation ? h(ImpersonationBanner) : null,
                     h(App, props),
                 ]),
-        })
-            .use(plugin)
-            .use(ZiggyVue, ziggyConfig);
+        }).use(plugin);
 
         const { locale } = useI18n();
         watch(locale, (next) => applyDocumentLocale(next), { immediate: true });

@@ -40,7 +40,7 @@ const { t } = useI18n();
 const pageTitle = computed(() => t('past_installations'));
 
 function logout() {
-    router.post(route('pwa.logout'));
+    router.post('/worker-app/logout');
 }
 
 function formatInstallDate(date: string | null): string {

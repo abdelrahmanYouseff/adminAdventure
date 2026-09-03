@@ -31,6 +31,8 @@ class WorkerHistoryController extends Controller
                 'workerOrders as total_lines',
                 'workerOrders as completed_lines' => fn ($q) => $q->where('status', 'completed'),
             ])
+            ->orderByDesc('updated_at')
+            ->limit(40)
             ->get()
             ->sortByDesc(function (Order $order) {
                 return $order->workerOrders

@@ -16,11 +16,11 @@
         <link rel="apple-touch-icon" href="/assets/logo.png">
 
         <link rel="preconnect" href="https://fonts.bunny.net">
-        <link href="https://fonts.bunny.net/css?family=noto-kufi-arabic:400,500,600,700|ibm-plex-sans-arabic:400,500,600,700" rel="stylesheet" />
+        <link href="https://fonts.bunny.net/css?family=noto-kufi-arabic:400,600,700" rel="stylesheet" />
 
         <style>
             html, body {
-                font-family: 'IBM Plex Sans Arabic', 'Noto Kufi Arabic', ui-sans-serif, system-ui, sans-serif;
+                font-family: 'Noto Kufi Arabic', ui-sans-serif, system-ui, sans-serif;
             }
         </style>
 

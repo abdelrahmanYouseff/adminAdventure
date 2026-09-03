@@ -1,0 +1,17 @@
+@import 'tailwindcss' source(none);
+
+/*
+ | Lightweight stylesheet for worker-app / main-app only.
+ | Automatic scanning disabled so admin UI classes stay out.
+ */
+
+@source '../js/pwa/**/*.{vue,ts}';
+@source '../js/main-app/**/*.{vue,ts}';
+@source '../js/components/ImpersonationBanner.vue';
+@source '../js/lib/**/*.{ts,js}';
+@source '../views/pwa.blade.php';
+@source '../views/main-app.blade.php';
+
+@theme inline {
+    --font-sans: 'Noto Kufi Arabic', ui-sans-serif, system-ui, sans-serif;
+}
