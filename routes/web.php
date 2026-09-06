@@ -423,6 +423,14 @@ Route::delete('returns/{order}/assemblers/{assembler}', [\App\Http\Controllers\P
     ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,warehouse_keeper,workers_manager'])
     ->name('returns.assemblers.destroy');
 
+Route::post('returns/{order}/lines/{workerOrder}/pickup-photo', [\App\Http\Controllers\ProductReturnController::class, 'storePickupPhoto'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,workers_manager'])
+    ->name('returns.pickup-photo.store');
+
+Route::delete('returns/{order}/lines/{workerOrder}/pickup-photo', [\App\Http\Controllers\ProductReturnController::class, 'destroyPickupPhoto'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,workers_manager'])
+    ->name('returns.pickup-photo.destroy');
+
 Route::get('insurance-deposits/{order}', [\App\Http\Controllers\InsuranceDepositController::class, 'show'])
     ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,accounts'])
     ->name('insurance-deposits.show');

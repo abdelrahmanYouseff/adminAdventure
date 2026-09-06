@@ -31,6 +31,7 @@ import {
 
 interface ReturnProduct {
     id: number;
+    is_worker_line?: boolean;
     product_name: string;
     product_image_url?: string | null;
     status?: string | null;
@@ -102,6 +103,7 @@ interface Props {
     canAssignWorkers: boolean;
     canConfirm: boolean;
     canReject?: boolean;
+    canUploadPickupPhotos?: boolean;
 }
 
 const props = defineProps<Props>();
@@ -109,6 +111,8 @@ defineOptions({ layout: AppLayout });
 
 const page = usePage();
 const flash = computed(() => (page.props.flash as { success?: string; error?: string } | undefined) ?? {});
+
+const canUploadPickupPhotos = computed(() => Boolean(props.canUploadPickupPhotos));
 
 const confirmDialogOpen = ref(false);
 const confirmForm = useForm({ note: '' });
@@ -120,6 +124,16 @@ const assemblerForm = useForm({ user_id: '' as string | number });
 const noteForm = useForm({ body: '' });
 const lightboxUrl = ref<string | null>(null);
 const lightboxLabel = ref('');
+
+const selectedProduct = ref<ReturnProduct | null>(null);
+const pickupDialogOpen = ref(false);
+const photoInputRef = ref<HTMLInputElement | null>(null);
+const photoPreview = ref<string | null>(null);
+const photoError = ref<string | null>(null);
+const deletingPickupId = ref<number | null>(null);
+const pickupForm = useForm({
+    pickup_photo: null as File | null,
+});
 
 function openLightbox(url: string, label: string) {
     lightboxUrl.value = url;
@@ -261,6 +275,69 @@ function submitNote() {
     noteForm.post(`/returns/${props.returnOrder.id}/notes`, {
         preserveScroll: true,
         onSuccess: () => noteForm.reset(),
+    });
+}
+
+function canUploadForProduct(product: ReturnProduct): boolean {
+    return canUploadPickupPhotos.value && product.is_worker_line === true;
+}
+
+function openPickupDialog(product: ReturnProduct) {
+    if (!canUploadForProduct(product)) return;
+    selectedProduct.value = product;
+    pickupForm.reset();
+    pickupForm.clearErrors();
+    photoError.value = null;
+    if (photoPreview.value) URL.revokeObjectURL(photoPreview.value);
+    photoPreview.value = null;
+    if (photoInputRef.value) photoInputRef.value.value = '';
+    pickupDialogOpen.value = true;
+}
+
+function closePickupDialog() {
+    pickupDialogOpen.value = false;
+    selectedProduct.value = null;
+    pickupForm.reset();
+    pickupForm.clearErrors();
+    photoError.value = null;
+    if (photoPreview.value) URL.revokeObjectURL(photoPreview.value);
+    photoPreview.value = null;
+    if (photoInputRef.value) photoInputRef.value.value = '';
+}
+
+function handlePickupPhotoChange(event: Event) {
+    const file = (event.target as HTMLInputElement).files?.[0] ?? null;
+    if (photoPreview.value) URL.revokeObjectURL(photoPreview.value);
+    pickupForm.pickup_photo = file;
+    photoPreview.value = file ? URL.createObjectURL(file) : null;
+    photoError.value = null;
+    pickupForm.clearErrors('pickup_photo');
+}
+
+function submitPickupPhoto() {
+    if (!selectedProduct.value) return;
+    if (!pickupForm.pickup_photo) {
+        photoError.value = 'يجب إرفاق صورة للفك من أرض الواقع قبل الإرسال.';
+        return;
+    }
+
+    pickupForm.post(`/returns/${props.returnOrder.id}/lines/${selectedProduct.value.id}/pickup-photo`, {
+        forceFormData: true,
+        preserveScroll: true,
+        onSuccess: () => closePickupDialog(),
+    });
+}
+
+function deletePickupPhoto(product: ReturnProduct) {
+    if (!canUploadForProduct(product) || !product.pickup_photo_url || deletingPickupId.value) return;
+    if (!confirm(`حذف صورة الفك للمنتج «${product.product_name}»؟`)) return;
+
+    deletingPickupId.value = product.id;
+    router.delete(`/returns/${props.returnOrder.id}/lines/${product.id}/pickup-photo`, {
+        preserveScroll: true,
+        onFinish: () => {
+            deletingPickupId.value = null;
+        },
     });
 }
 </script>
@@ -479,6 +556,7 @@ function submitNote() {
                     </h2>
                     <p class="mt-1 text-sm text-slate-500">
                         صورة التركيب ومن ركّبها، وصورة الفك ومن فكّها — للمراجعة قبل تأكيد الاسترجاع.
+                        <span v-if="canUploadPickupPhotos">يمكنك رفع صور الفك من هنا مباشرة.</span>
                     </p>
                 </div>
                 <span
@@ -526,7 +604,9 @@ function submitNote() {
                                 تم الفك {{ formatDateTime(product.pickup_at) }}
                                 <span v-if="product.pickup_by_name"> · {{ product.pickup_by_name }}</span>
                             </p>
-                            <p v-else class="mt-0.5 text-xs text-amber-600">بانتظار صورة الفك من العامل</p>
+                            <p v-else class="mt-0.5 text-xs text-amber-600">
+                                {{ canUploadForProduct(product) ? 'بانتظار صورة الفك — يمكن رفعها من هنا' : 'بانتظار صورة الفك من العامل' }}
+                            </p>
                         </div>
                     </div>
 
@@ -573,11 +653,45 @@ function submitNote() {
                                     class="aspect-[4/3] w-full object-cover transition group-hover:scale-[1.02]"
                                 >
                             </button>
+                            <button
+                                v-else-if="canUploadForProduct(product)"
+                                type="button"
+                                class="flex aspect-[4/3] w-full flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-orange-300 bg-orange-50/60 text-sm font-semibold text-orange-700 transition hover:border-orange-400 hover:bg-orange-50"
+                                @click="openPickupDialog(product)"
+                            >
+                                <Camera class="size-7" />
+                                رفع صورة الفك
+                            </button>
                             <div
                                 v-else
                                 class="flex aspect-[4/3] items-center justify-center rounded-xl border border-dashed border-slate-200 bg-white text-sm text-slate-400 dark:border-neutral-700 dark:bg-neutral-900"
                             >
                                 لا توجد صورة فك بعد
+                            </div>
+
+                            <div v-if="canUploadForProduct(product)" class="mt-3 flex flex-wrap gap-2">
+                                <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    class="gap-1.5"
+                                    @click="openPickupDialog(product)"
+                                >
+                                    <Camera class="size-3.5" />
+                                    {{ product.pickup_photo_url ? 'استبدال صورة الفك' : 'رفع صورة الفك' }}
+                                </Button>
+                                <Button
+                                    v-if="product.pickup_photo_url"
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    class="gap-1.5 border-rose-200 text-rose-700 hover:bg-rose-50"
+                                    :disabled="deletingPickupId === product.id"
+                                    @click="deletePickupPhoto(product)"
+                                >
+                                    <XCircle class="size-3.5" />
+                                    {{ deletingPickupId === product.id ? 'جاري الحذف...' : 'حذف' }}
+                                </Button>
                             </div>
                         </div>
                     </div>
@@ -786,6 +900,51 @@ function submitNote() {
                 </form>
             </DialogContent>
         </Dialog>
+
+        <Teleport to="body">
+            <div
+                v-if="pickupDialogOpen && selectedProduct"
+                class="fixed inset-0 z-[200] flex items-end justify-center p-0 sm:items-center sm:p-4"
+                role="dialog"
+                aria-modal="true"
+            >
+                <button type="button" class="absolute inset-0 bg-slate-900/50 backdrop-blur-[2px]" aria-label="إغلاق" @click="closePickupDialog" />
+                <div class="relative z-10 flex max-h-[92vh] w-full max-w-lg flex-col overflow-hidden rounded-t-3xl bg-white shadow-2xl sm:rounded-3xl" dir="rtl">
+                    <div class="flex items-start justify-between gap-3 border-b border-slate-100 px-5 py-4">
+                        <div>
+                            <h2 class="text-lg font-bold text-slate-900">رفع صورة الفك</h2>
+                            <p class="mt-1 text-sm text-slate-500">صورة من أرض الواقع بعد فك المنتج</p>
+                        </div>
+                        <button type="button" class="flex h-9 w-9 items-center justify-center rounded-full bg-slate-50 text-slate-500" @click="closePickupDialog">
+                            <X class="h-4 w-4" />
+                        </button>
+                    </div>
+                    <div class="space-y-4 overflow-y-auto px-5 py-4">
+                        <div class="rounded-2xl bg-slate-50 p-3 text-sm font-semibold text-slate-800">{{ selectedProduct.product_name }}</div>
+                        <input ref="photoInputRef" type="file" accept="image/*" class="hidden" @change="handlePickupPhotoChange" />
+                        <button
+                            type="button"
+                            class="flex min-h-32 w-full flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-orange-300/70 bg-orange-50/50 px-4 py-6 transition hover:border-orange-400"
+                            @click="photoInputRef?.click()"
+                        >
+                            <Camera class="h-8 w-8 text-orange-600" />
+                            <p class="font-semibold text-slate-800">اضغط لرفع صورة الفك</p>
+                            <p class="text-xs text-slate-400">JPG أو PNG — بحد أقصى 5 ميجابايت</p>
+                        </button>
+                        <p v-if="photoError || pickupForm.errors.pickup_photo" class="text-sm text-rose-600">
+                            {{ photoError || pickupForm.errors.pickup_photo }}
+                        </p>
+                        <img v-if="photoPreview" :src="photoPreview" alt="معاينة" class="max-h-56 w-full rounded-2xl object-cover" />
+                    </div>
+                    <div class="grid grid-cols-2 gap-2 border-t border-slate-100 px-5 py-4">
+                        <Button variant="outline" class="h-11 rounded-xl" @click="closePickupDialog">إلغاء</Button>
+                        <Button class="h-11 rounded-xl bg-orange-600 hover:bg-orange-700" :disabled="pickupForm.processing" @click="submitPickupPhoto">
+                            {{ pickupForm.processing ? 'جاري الإرسال...' : 'إرسال' }}
+                        </Button>
+                    </div>
+                </div>
+            </div>
+        </Teleport>
 
         <Teleport to="body">
             <div

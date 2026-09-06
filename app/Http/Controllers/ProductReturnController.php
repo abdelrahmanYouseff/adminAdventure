@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\SendDismantlingPhotosEmail;
 use App\Models\Order;
 use App\Models\User;
 use App\Models\WorkerOrder;
@@ -15,9 +16,11 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use App\Support\MediaStorage;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
+use Throwable;
 
 class ProductReturnController extends Controller
 {
@@ -192,7 +195,99 @@ class ProductReturnController extends Controller
             'canAssignWorkers' => $this->canAssignWorkers($user),
             'canConfirm' => $this->canConfirmReturn($user, $order),
             'canReject' => $canDecide && blank($order->warehouse_returned_at),
+            'canUploadPickupPhotos' => $this->canUploadPickupPhotos($user)
+                && blank($order->warehouse_returned_at),
         ]);
+    }
+
+    public function storePickupPhoto(Request $request, Order $order, WorkerOrder $workerOrder): RedirectResponse
+    {
+        abort_unless($this->isEligibleReturn($order), 404);
+        abort_unless(
+            $this->canUploadPickupPhotos($request->user()),
+            403,
+            'غير مصرح برفع صور الفك.',
+        );
+        abort_unless($workerOrder->order_id === $order->id, 404);
+
+        if ($order->warehouse_returned_at) {
+            return back()->with('error', 'لا يمكن رفع صور الفك بعد تعميد الاسترجاع.');
+        }
+
+        $validated = $request->validate([
+            'pickup_photo' => ['required', 'image', 'max:5120'],
+        ], [
+            'pickup_photo.required' => 'يجب إرفاق صورة للفك من أرض الواقع.',
+            'pickup_photo.image' => 'يجب أن يكون الملف صورة.',
+            'pickup_photo.max' => 'حجم الصورة يجب ألا يتجاوز 5 ميجابايت.',
+        ]);
+
+        $path = MediaStorage::store($validated['pickup_photo'], 'worker-pickups');
+        $oldPhoto = $workerOrder->pickup_photo;
+        $user = $request->user();
+
+        $workerOrder->update([
+            'pickup_photo' => $path,
+            'pickup_at' => now(),
+            'pickup_by' => $user?->id,
+            'pickup_condition' => 'returned',
+        ]);
+
+        if ($oldPhoto && $oldPhoto !== $path) {
+            MediaStorage::delete($oldPhoto);
+        }
+
+        $this->notifyDismantlingPhotosIfComplete($order, (int) ($user?->id ?? 0));
+
+        return back()->with(
+            'success',
+            $oldPhoto ? 'تم استبدال صورة الفك بنجاح.' : 'تم رفع صورة الفك بنجاح.',
+        );
+    }
+
+    public function destroyPickupPhoto(Request $request, Order $order, WorkerOrder $workerOrder): RedirectResponse
+    {
+        abort_unless($this->isEligibleReturn($order), 404);
+        abort_unless(
+            $this->canUploadPickupPhotos($request->user()),
+            403,
+            'غير مصرح بحذف صور الفك.',
+        );
+        abort_unless($workerOrder->order_id === $order->id, 404);
+
+        if ($order->warehouse_returned_at) {
+            return back()->with('error', 'لا يمكن حذف صور الفك بعد تعميد الاسترجاع.');
+        }
+
+        if (blank($workerOrder->pickup_photo)) {
+            return back()->with('error', 'لا توجد صورة فك لحذفها.');
+        }
+
+        $productName = (string) ($workerOrder->product_name ?: 'منتج');
+
+        MediaStorage::delete($workerOrder->pickup_photo);
+
+        $workerOrder->update([
+            'pickup_photo' => null,
+            'pickup_at' => null,
+            'pickup_by' => null,
+            'pickup_condition' => null,
+        ]);
+
+        $order->forceFill([
+            'dismantling_photos_notified_at' => null,
+        ])->save();
+
+        WorkerOrderNote::create([
+            'order_id' => $order->id,
+            'user_id' => $request->user()->id,
+            'body' => 'حذف صورة الفك: '.$productName,
+        ]);
+
+        return back()->with(
+            'success',
+            'تم حذف صورة الفك للمنتج «'.$productName.'». يمكن رفع صورة جديدة.',
+        );
     }
 
     public function confirm(Request $request, Order $order): RedirectResponse
@@ -420,6 +515,36 @@ class ProductReturnController extends Controller
         );
     }
 
+    private function canUploadPickupPhotos(?User $user): bool
+    {
+        return $this->canDecideReturn($user);
+    }
+
+    private function notifyDismantlingPhotosIfComplete(Order $order, int $actorUserId): void
+    {
+        $order->refresh();
+        $order->loadMissing(['workerOrders']);
+
+        if ($order->dismantling_photos_notified_at !== null) {
+            return;
+        }
+
+        $lines = $order->workerOrders;
+        if ($lines->isEmpty() || $lines->contains(fn (WorkerOrder $line) => blank($line->pickup_photo))) {
+            return;
+        }
+
+        try {
+            $job = new SendDismantlingPhotosEmail($order->id, $actorUserId);
+            app()->call([$job, 'handle']);
+        } catch (Throwable $e) {
+            Log::error('Failed to send dismantling photos email from returns admin upload', [
+                'order_id' => $order->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
     /**
      * الأدمن يقدر يعتمد الاسترجاع حتى بدون صور الفك؛ باقي الأدوار تحتاج اكتمال الصور.
      */
@@ -530,6 +655,7 @@ class ProductReturnController extends Controller
         $products = $lines->isNotEmpty()
             ? $lines->map(fn (WorkerOrder $line) => [
                 'id' => $line->id,
+                'is_worker_line' => true,
                 'product_name' => $line->product_name,
                 'product_image_url' => $line->product_image_url,
                 'status' => $line->status,
@@ -546,6 +672,7 @@ class ProductReturnController extends Controller
 
                 return [
                     'id' => $index + 1,
+                    'is_worker_line' => false,
                     'product_name' => (string) ($row['name'] ?? $row['product_name'] ?? 'صنف'),
                     'product_image_url' => null,
                     'status' => null,
