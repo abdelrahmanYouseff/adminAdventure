@@ -18,6 +18,8 @@ interface CommissionRow {
     order_date: string | null;
     order_number: string;
     customer_name: string | null;
+    product_names: string[];
+    products_label?: string;
     games_count: number;
     total_amount: number;
     currency: string;
@@ -175,18 +177,19 @@ function exportExcel() {
             </div>
 
             <div class="overflow-x-auto">
-                <table class="w-full min-w-[720px] border-collapse text-sm">
+                <table class="w-full min-w-[900px] border-collapse text-sm">
                     <thead>
                         <tr class="border-b border-slate-100 bg-slate-50/80 text-start">
                             <th class="px-4 py-3.5 text-[13px] font-semibold text-slate-600">تاريخ الطلب</th>
                             <th class="px-4 py-3.5 text-[13px] font-semibold text-slate-600">رقم الطلب</th>
+                            <th class="px-4 py-3.5 text-[13px] font-semibold text-slate-600">اسم المنتجات</th>
                             <th class="px-4 py-3.5 text-[13px] font-semibold text-slate-600">عدد الألعاب</th>
                             <th class="px-4 py-3.5 text-[13px] font-semibold text-slate-600">إجمالي سعر الطلب</th>
                         </tr>
                     </thead>
                     <tbody>
                         <tr v-if="rows.length === 0">
-                            <td colspan="4" class="px-4 py-16 text-center text-slate-500">
+                            <td colspan="5" class="px-4 py-16 text-center text-slate-500">
                                 لا توجد طلبات في هذا الشهر.
                             </td>
                         </tr>
@@ -206,6 +209,20 @@ function exportExcel() {
                                 >
                                     {{ row.order_number }}
                                 </Link>
+                            </td>
+                            <td class="max-w-[320px] px-4 py-3.5 text-slate-700">
+                                <template v-if="row.product_names?.length">
+                                    <div class="flex flex-wrap gap-1.5">
+                                        <span
+                                            v-for="(name, index) in row.product_names"
+                                            :key="`${row.id}-${index}`"
+                                            class="inline-flex max-w-full rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700"
+                                        >
+                                            <span class="truncate">{{ name }}</span>
+                                        </span>
+                                    </div>
+                                </template>
+                                <span v-else class="text-slate-400">—</span>
                             </td>
                             <td class="px-4 py-3.5 tabular-nums font-semibold text-slate-900">
                                 {{ formatInteger(row.games_count) }}

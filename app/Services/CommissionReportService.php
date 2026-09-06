@@ -46,7 +46,7 @@ class CommissionReportService
             ->whereBetween('created_at', [$start, $end])
             ->with([
                 'products',
-                'workerOrders:id,order_id',
+                'workerOrders:id,order_id,product_name',
             ])
             ->orderBy('created_at')
             ->orderBy('id')
@@ -60,15 +60,21 @@ class CommissionReportService
                 'created_at',
             ]);
 
-        return $orders->map(fn (Order $order) => [
-            'id' => $order->id,
-            'order_date' => $order->created_at?->format('Y-m-d'),
-            'order_number' => $order->order_number,
-            'customer_name' => $order->customer_name,
-            'games_count' => $this->gamesCount($order),
-            'total_amount' => round((float) $order->total_amount, 2),
-            'currency' => $order->currency ?: 'SAR',
-        ]);
+        return $orders->map(function (Order $order) {
+            $productNames = $this->productNames($order);
+
+            return [
+                'id' => $order->id,
+                'order_date' => $order->created_at?->format('Y-m-d'),
+                'order_number' => $order->order_number,
+                'customer_name' => $order->customer_name,
+                'product_names' => $productNames,
+                'products_label' => $productNames !== [] ? implode('، ', $productNames) : '—',
+                'games_count' => $this->gamesCount($order),
+                'total_amount' => round((float) $order->total_amount, 2),
+                'currency' => $order->currency ?: 'SAR',
+            ];
+        });
     }
 
     /**
@@ -111,6 +117,62 @@ class CommissionReportService
         }
 
         return 0;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function productNames(Order $order): array
+    {
+        if ($order->relationLoaded('products') && $order->products->isNotEmpty()) {
+            return $order->products
+                ->map(function ($product) {
+                    $name = trim((string) ($product->product_name ?? ''));
+                    if ($name === '') {
+                        return null;
+                    }
+
+                    $qty = max(1, (int) ($product->pivot->quantity ?? 1));
+
+                    return $qty > 1 ? $name.' ×'.$qty : $name;
+                })
+                ->filter()
+                ->values()
+                ->all();
+        }
+
+        if (is_array($order->items) && $order->items !== []) {
+            return collect($order->items)
+                ->map(function ($item) {
+                    if (! is_array($item)) {
+                        return null;
+                    }
+
+                    $name = trim((string) ($item['name'] ?? $item['product_name'] ?? ''));
+                    if ($name === '') {
+                        return null;
+                    }
+
+                    $qty = max(1, (int) ($item['quantity'] ?? 1));
+
+                    return $qty > 1 ? $name.' ×'.$qty : $name;
+                })
+                ->filter()
+                ->values()
+                ->all();
+        }
+
+        if ($order->relationLoaded('workerOrders') && $order->workerOrders->isNotEmpty()) {
+            return $order->workerOrders
+                ->pluck('product_name')
+                ->map(fn ($name) => trim((string) $name))
+                ->filter()
+                ->unique()
+                ->values()
+                ->all();
+        }
+
+        return [];
     }
 
     /**

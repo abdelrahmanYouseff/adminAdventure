@@ -27,6 +27,7 @@ class CommissionsExport implements FromCollection, WithHeadings, WithMapping, Sh
         return [
             'تاريخ الطلب',
             'رقم الطلب',
+            'اسم المنتجات',
             'عدد الألعاب',
             'إجمالي سعر الطلب',
         ];
@@ -37,9 +38,15 @@ class CommissionsExport implements FromCollection, WithHeadings, WithMapping, Sh
      */
     public function map($row): array
     {
+        $productsLabel = $row['products_label']
+            ?? (is_array($row['product_names'] ?? null) && $row['product_names'] !== []
+                ? implode('، ', $row['product_names'])
+                : '—');
+
         return [
             $row['order_date'] ?? '—',
             $row['order_number'] ?? '—',
+            $productsLabel,
             (int) ($row['games_count'] ?? 0),
             number_format((float) ($row['total_amount'] ?? 0), 2, '.', ''),
         ];
