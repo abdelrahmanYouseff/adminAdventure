@@ -165,9 +165,22 @@ Route::get('/privacy', function () {
     return Inertia::render('Privacy');
 })->name('privacy');
 
+Route::get('/webhooks/whatsapp', [\App\Http\Controllers\WhatsAppWebhookController::class, 'verify'])
+    ->name('webhooks.whatsapp.verify');
+Route::post('/webhooks/whatsapp', [\App\Http\Controllers\WhatsAppWebhookController::class, 'receive'])
+    ->name('webhooks.whatsapp.receive');
+
+Route::get('/media/{uuid}', [\App\Http\Controllers\InboxController::class, 'media'])
+    ->where('uuid', '[0-9a-fA-F-]{36}')
+    ->name('inbox.media.show');
+
 Route::get('dashboard', [DashboardController::class, 'index'])
     ->middleware(['auth', 'verified', 'role:admin,general_manager,manager'])
     ->name('dashboard');
+
+Route::get('reports/qa', [\App\Http\Controllers\QaReportController::class, 'index'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager'])
+    ->name('reports.qa');
 
 Route::get('reports', [\App\Http\Controllers\ReportController::class, 'index'])
     ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,accounts'])
@@ -181,7 +194,42 @@ Route::get('reports/commissions/export', [\App\Http\Controllers\ReportController
     ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,accounts'])
     ->name('reports.commissions.export');
 
+Route::middleware(['auth', 'verified', 'role:admin,general_manager,manager'])->prefix('inbox')->name('inbox.')->group(function () {
+    Route::get('/', [\App\Http\Controllers\InboxController::class, 'index'])->name('index');
+    Route::post('/', [\App\Http\Controllers\InboxController::class, 'store'])->name('store');
+    Route::get('templates', [\App\Http\Controllers\InboxController::class, 'templates'])->name('templates');
+    Route::get('media-uploads', [\App\Http\Controllers\InboxController::class, 'recentMedia'])->name('media.recent');
+    Route::post('media-uploads', [\App\Http\Controllers\InboxController::class, 'storeMedia'])->name('media.store');
+    Route::post('quick-replies', [\App\Http\Controllers\InboxController::class, 'storeQuickReply'])->name('quick-replies.store');
+    Route::delete('quick-replies/{quickReply}', [\App\Http\Controllers\InboxController::class, 'destroyQuickReply'])->name('quick-replies.destroy');
+    Route::get('{conversation}', [\App\Http\Controllers\InboxController::class, 'show'])->name('show');
+    Route::get('{conversation}/bookings', [\App\Http\Controllers\InboxController::class, 'bookings'])->name('bookings');
+    Route::post('{conversation}/messages', [\App\Http\Controllers\InboxController::class, 'storeMessage'])->name('messages.store');
+    Route::post('{conversation}/templates', [\App\Http\Controllers\InboxController::class, 'storeTemplate'])->name('templates.store');
+    Route::patch('{conversation}/status', [\App\Http\Controllers\InboxController::class, 'updateStatus'])->name('status');
+    Route::patch('{conversation}/handoff', [\App\Http\Controllers\InboxController::class, 'updateHandoff'])->name('handoff');
+    Route::post('{conversation}/assign', [\App\Http\Controllers\InboxController::class, 'assign'])->name('assign');
+    Route::delete('{conversation}/assign', [\App\Http\Controllers\InboxController::class, 'unassign'])->name('unassign');
+});
+
+Route::redirect('app/inbox', '/inbox');
+Route::redirect('app/settings/whatsapp-ai', '/settings/whatsapp-ai');
+Route::redirect('app/settings/qa', '/settings/qa');
+Route::redirect('app/reports/qa', '/reports/qa');
+
 Route::middleware(['auth', 'verified', 'admin'])->prefix('settings')->name('settings.')->group(function () {
+    Route::get('whatsapp-ai', [\App\Http\Controllers\Settings\WhatsappAiSettingsController::class, 'edit'])
+        ->name('whatsapp-ai.edit');
+    Route::put('whatsapp-ai', [\App\Http\Controllers\Settings\WhatsappAiSettingsController::class, 'update'])
+        ->name('whatsapp-ai.update');
+    Route::get('qa', [\App\Http\Controllers\Settings\QaSettingsController::class, 'edit'])
+        ->name('qa.edit');
+    Route::put('qa', [\App\Http\Controllers\Settings\QaSettingsController::class, 'update'])
+        ->name('qa.update');
+    Route::post('qa/test', [\App\Http\Controllers\Settings\QaSettingsController::class, 'sendTest'])
+        ->name('qa.test');
+    Route::post('qa/backfill', [\App\Http\Controllers\Settings\QaSettingsController::class, 'backfill'])
+        ->name('qa.backfill');
     Route::get('whatsapp', [\App\Http\Controllers\Settings\WhatsappNotificationSettingsController::class, 'index'])
         ->name('whatsapp.index');
     Route::post('whatsapp', [\App\Http\Controllers\Settings\WhatsappNotificationSettingsController::class, 'store'])

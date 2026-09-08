@@ -14,6 +14,7 @@ import {
     ShoppingCart,
     Tags,
     MessageCircle,
+    Headphones,
     HardHat,
     ShieldCheck,
     Receipt,
@@ -43,6 +44,7 @@ const sidebarBadges = computed(() => (page.props.sidebarBadges as {
     warehouse?: number;
     returns?: number;
     payment_receipts?: number;
+    inbox?: number;
 } | undefined) ?? {});
 const searchQuery = ref('');
 const { isSalla } = useAdminTheme();
@@ -123,6 +125,12 @@ const allNavItems: NavItemWithRoles[] = [
         ],
     },
     {
+        title: 'خدمة العملاء',
+        href: '/inbox',
+        icon: Headphones,
+        roles: ['admin', 'general_manager', 'manager'],
+    },
+    {
         title: 'العملاء',
         href: '/customers',
         icon: Users,
@@ -176,6 +184,12 @@ const allNavItems: NavItemWithRoles[] = [
                 icon: Percent,
                 roles: ['admin', 'general_manager', 'manager', 'accounts'],
             },
+            {
+                title: 'تقييم الخدمة',
+                href: '/reports/qa',
+                icon: Headphones,
+                roles: ['admin', 'general_manager', 'manager'],
+            },
         ],
     },
     {
@@ -192,9 +206,28 @@ const allNavItems: NavItemWithRoles[] = [
     },
     {
         title: 'إعدادات واتساب',
-        href: '/settings/whatsapp',
         icon: MessageCircle,
         roles: ['admin', 'manager'],
+        children: [
+            {
+                title: 'إشعارات الطلبات',
+                href: '/settings/whatsapp',
+                icon: MessageCircle,
+                roles: ['admin', 'manager'],
+            },
+            {
+                title: 'بوت واتساب',
+                href: '/settings/whatsapp-ai',
+                icon: Headphones,
+                roles: ['admin'],
+            },
+            {
+                title: 'تقييم الخدمة',
+                href: '/settings/qa',
+                icon: Headphones,
+                roles: ['admin'],
+            },
+        ],
     },
     {
         title: 'إعدادات',
@@ -205,6 +238,10 @@ const allNavItems: NavItemWithRoles[] = [
 ];
 
 function badgeForHref(href?: string): number | undefined {
+    if (!href) {
+        return undefined;
+    }
+
     const badges = sidebarBadges.value;
 
     if (href === '/worker-orders?view=warehouse') {
@@ -221,6 +258,10 @@ function badgeForHref(href?: string): number | undefined {
 
     if (href === '/payment-receipts' || href === route('payment-receipts.index')) {
         return badges.payment_receipts || undefined;
+    }
+
+    if (href === '/inbox') {
+        return badges.inbox || undefined;
     }
 
     return undefined;

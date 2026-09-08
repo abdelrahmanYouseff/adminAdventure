@@ -18,3 +18,7 @@ Schedule::command('reports:daily-operations-summary')
     ->dailyAt('23:00')
     ->timezone('Asia/Riyadh')
     ->withoutOverlapping();
+
+Schedule::command('inbox:send-qa-invites')
+    ->hourly()
+    ->withoutOverlapping();

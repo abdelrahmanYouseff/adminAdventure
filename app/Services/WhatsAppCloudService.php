@@ -665,41 +665,7 @@ class WhatsAppCloudService
      */
     public function resolveBusinessAccountId(): array
     {
-        $configured = (string) config('services.whatsapp.waba_id', '');
-        if ($configured !== '') {
-            return ['success' => true, 'waba_id' => $configured, 'error' => null];
-        }
-
-        if (! $this->isApiConfigured()) {
-            return ['success' => false, 'waba_id' => null, 'error' => 'واتساب غير مفعّل'];
-        }
-
-        $fromToken = $this->wabaIdFromAccessToken();
-        if ($fromToken) {
-            return ['success' => true, 'waba_id' => $fromToken, 'error' => null];
-        }
-
-        $phoneNumberId = (string) config('services.whatsapp.phone_number_id');
-        $version = (string) config('services.whatsapp.graph_version', 'v21.0');
-
-        $response = $this->client()->get(
-            "https://graph.facebook.com/{$version}/{$phoneNumberId}",
-            ['fields' => 'whatsapp_business_account']
-        );
-
-        if (! $response->successful()) {
-            $error = $response->json('error.message') ?? $response->body();
-
-            return ['success' => false, 'waba_id' => null, 'error' => (string) $error];
-        }
-
-        $wabaId = $response->json('whatsapp_business_account.id');
-
-        if (! is_string($wabaId) || $wabaId === '') {
-            return ['success' => false, 'waba_id' => null, 'error' => 'تعذّر جلب WhatsApp Business Account'];
-        }
-
-        return ['success' => true, 'waba_id' => $wabaId, 'error' => null];
+        return app(\App\Services\Inbox\WhatsAppGraphClient::class)->resolveWabaId();
     }
 
     private function wabaIdFromAccessToken(): ?string

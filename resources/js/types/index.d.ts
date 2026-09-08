@@ -38,6 +38,7 @@ export type AppPageProps<T extends Record<string, unknown> = Record<string, unkn
         warehouse: number;
         returns: number;
         payment_receipts: number;
+        inbox?: number;
     };
 };
 

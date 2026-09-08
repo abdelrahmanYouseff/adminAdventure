@@ -88,6 +88,15 @@ return [
         'graph_version' => env('WHATSAPP_GRAPH_VERSION', 'v21.0'),
         // إشعارات الطلب للموظفين (OrderObserver) — منفصلة عن إرسال إذن التسليم للعميل
         'order_notifications' => env('WHATSAPP_ORDER_NOTIFICATIONS', false),
+        // Inbox (خدمة العملاء) — verify_token و app_secret خاصان بهذا النظام فقط
+        'verify_token' => env('WHATSAPP_VERIFY_TOKEN'),
+        'app_secret' => env('WHATSAPP_APP_SECRET'),
+        'inbox_enabled' => env('WHATSAPP_INBOX_ENABLED', true),
+    ],
+
+    'openai' => [
+        'api_key' => env('OPENAI_API_KEY'),
+        'model' => env('OPENAI_MODEL', 'gpt-4o-mini'),
     ],
 
 ];

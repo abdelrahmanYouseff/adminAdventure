@@ -28,16 +28,18 @@ class SidebarNavBadges
                 'warehouse' => 0,
                 'returns' => 0,
                 'payment_receipts' => 0,
+                'inbox' => 0,
             ];
         }
 
-        /** @var array{work_orders: int, warehouse: int, returns: int, payment_receipts: int} */
+        /** @var array{work_orders: int, warehouse: int, returns: int, payment_receipts: int, inbox: int} */
         return Cache::remember(self::CACHE_KEY, self::CACHE_TTL_SECONDS, static function (): array {
             return [
                 'work_orders' => static::openWorkOrdersCount(),
                 'warehouse' => static::pendingWarehouseCount(),
                 'returns' => static::openReturnsCount(),
                 'payment_receipts' => static::pendingPaymentReceiptsCount(),
+                'inbox' => static::inboxNeedsHumanCount(),
             ];
         });
     }
@@ -87,6 +89,18 @@ class SidebarNavBadges
     {
         return OrderPaymentReceipt::query()
             ->where('approval_status', OrderPaymentReceipt::STATUS_PENDING)
+            ->count();
+    }
+
+    public static function inboxNeedsHumanCount(): int
+    {
+        if (! \Illuminate\Support\Facades\Schema::hasTable('inbox_conversations')) {
+            return 0;
+        }
+
+        return \App\Models\InboxConversation::query()
+            ->where('needs_human_agent', true)
+            ->where('status', '!=', \App\Models\InboxConversation::STATUS_CLOSED)
             ->count();
     }
 }
