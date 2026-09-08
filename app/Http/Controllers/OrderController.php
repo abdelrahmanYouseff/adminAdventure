@@ -9,7 +9,6 @@ use App\Models\Product;
 use App\Models\User;
 use App\Services\OrderPaymentReceiptService;
 use App\Support\OrderInsuranceCalculator;
-use App\Support\OrderJourney;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -1428,7 +1427,8 @@ class OrderController extends Controller
     }
 
     /**
-     * Fully paid and nothing still waiting on the order cycle.
+     * Paid, returned or warehouse-closed, and no receipt still waiting.
+     * Matches the orders list: مدفوع + تم الاسترجاع / مقفول.
      */
     private function isPaidAndNothingPending(Order $order, ?float $due = null): bool
     {
@@ -1436,20 +1436,12 @@ class OrderController extends Controller
             return false;
         }
 
-        if ($due === null) {
-            $grand = $this->orderChargeBreakdown($order)['grand'];
-            $due = round(max(0, $grand - (float) ($order->amount_paid ?? 0)), 2);
-        }
-
-        if ($due > 0.009) {
-            return false;
-        }
-
         if ($this->pendingReceiptAmount($order) > 0.009) {
             return false;
         }
 
-        return (bool) (OrderJourney::build($order)['is_complete'] ?? false);
+        return filled($order->warehouse_returned_at)
+            || filled($order->warehouse_keeper_approved_at);
     }
 
     private function pendingReceiptAmount(Order $order): float

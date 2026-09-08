@@ -89,6 +89,7 @@ interface Order {
     can_settle?: boolean;
     can_edit?: boolean;
     can_delete?: boolean;
+    is_locked?: boolean;
     payment_url?: string | null;
     currency: string;
     payment_method: string;
@@ -437,7 +438,16 @@ function toggleSelect(id: number) {
     selectedIds.value = [...selectedIds.value, id];
 }
 
+function isOrderLocked(order: Order): boolean {
+    if (order.is_locked === true) return true;
+    if (order.status !== 'paid') return false;
+
+    const dismantlingStatus = order.dismantling?.status;
+    return dismantlingStatus === 'returned' || dismantlingStatus === 'closed';
+}
+
 function canDeleteOrder(order: Order): boolean {
+    if (isOrderLocked(order)) return false;
     if (order.can_delete === true) return true;
     if (order.can_delete === false) return false;
     return canDeleteOrders.value;
@@ -580,6 +590,7 @@ function dueAmount(order: Order): number {
 }
 
 function canSettleOrder(order: Order): boolean {
+    if (isOrderLocked(order)) return false;
     if (order.can_settle === true) return true;
     if (order.can_settle === false) return false;
     return dueAmount(order) > 0.009;
@@ -606,7 +617,7 @@ function toTwentyFourHour(hour: string, minute: string, period: 'AM' | 'PM'): st
 }
 
 function startEditTime(order: Order) {
-    if (!order.can_edit_activity_time) return;
+    if (isOrderLocked(order) || !order.can_edit_activity_time) return;
     editingTime.value = {
         id: order.id,
         hour: '12',
@@ -934,7 +945,7 @@ function formatActivityDate(date: string | null): string {
                                         {{ formatActivityTime(order.activity_time) }}
                                     </span>
                                     <button
-                                        v-if="order.can_edit_activity_time"
+                                        v-if="order.can_edit_activity_time && !isOrderLocked(order)"
                                         type="button"
                                         class="inline-flex size-7 items-center justify-center rounded-lg border border-gray-200 text-gray-500 transition hover:bg-gray-50 dark:border-neutral-700 dark:hover:bg-neutral-800"
                                         title="تحديد وقت الفعالية"
@@ -1065,7 +1076,7 @@ function formatActivityDate(date: string | null): string {
                                                 </Link>
                                             </DropdownMenuItem>
                                             <DropdownMenuItem
-                                                v-if="order.can_edit"
+                                                v-if="order.can_edit && !isOrderLocked(order)"
                                                 as-child
                                             >
                                                 <Link :href="route('orders.edit', order.id)" class="flex items-center gap-2">
@@ -1094,7 +1105,7 @@ function formatActivityDate(date: string | null): string {
                                                 سداد
                                             </DropdownMenuItem>
                                             <DropdownMenuItem
-                                                v-if="order.can_edit_activity_time"
+                                                v-if="order.can_edit_activity_time && !isOrderLocked(order)"
                                                 class="gap-2"
                                                 @click="startEditTime(order)"
                                             >
