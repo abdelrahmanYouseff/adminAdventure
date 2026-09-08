@@ -85,10 +85,6 @@ class OrderController extends Controller
                 'activity_time',
                 $rawTime ? \Carbon\Carbon::parse($rawTime)->format('H:i') : null
             );
-            $order->setAttribute(
-                'can_edit_activity_time',
-                $canEditTime && blank($rawTime)
-            );
 
             $pending = round((float) ($order->pending_payment_sum ?? 0), 2);
             $breakdown = $this->orderChargeBreakdown($order);
@@ -98,22 +94,31 @@ class OrderController extends Controller
                 $grandTotal - (float) ($order->amount_paid ?? 0)
             ), 2);
             $available = round(max(0, $due - $pending), 2);
+            $locked = $this->isClosedAndFullyPaid($order, $due);
             $order->setAttribute('settle_available', $available);
             $order->setAttribute('due_amount', $due);
+            $order->setAttribute('is_locked', $locked);
+            $order->setAttribute(
+                'can_edit_activity_time',
+                $canEditTime && ! $locked && blank($rawTime)
+            );
             $order->setAttribute(
                 'can_settle',
                 $canSettle
+                && ! $locked
                 && $due > 0.009
                 && ! in_array($order->status, ['cancelled', 'refunded'], true)
             );
             $order->setAttribute(
                 'can_edit',
-                $canEditTime && ! in_array($order->status, ['cancelled', 'refunded'], true)
+                $canEditTime
+                && ! $locked
+                && ! in_array($order->status, ['cancelled', 'refunded'], true)
             );
-            $order->setAttribute('can_delete', $canEditTime);
+            $order->setAttribute('can_delete', $canEditTime && ! $locked);
             $order->setAttribute(
                 'payment_url',
-                $due > 0.009 && ! in_array($order->status, ['cancelled', 'refunded'], true)
+                ! $locked && $due > 0.009 && ! in_array($order->status, ['cancelled', 'refunded'], true)
                     ? url('/pay/order/'.$order->ensurePaymentToken())
                     : null
             );
@@ -182,7 +187,8 @@ class OrderController extends Controller
             'remaining_amount',
             round(max(0, $breakdown['grand'] - (float) ($order->amount_paid ?? 0)), 2)
         );
-        $order->setAttribute('payment_url', $order->noonPaymentUrl());
+        $order->setAttribute('is_locked', $this->isClosedAndFullyPaid($order));
+        $order->setAttribute('payment_url', $order->is_locked ? null : $order->noonPaymentUrl());
         $order->setAttribute('dismantling', $this->dismantlingColumnMeta($order));
         $order->setAttribute(
             'warehouse_returned_at',
@@ -191,6 +197,18 @@ class OrderController extends Controller
         $order->setAttribute(
             'warehouse_returned_by_name',
             $order->warehouseReturnedBy?->name,
+        );
+
+        $viewer = request()->user();
+        $order->setAttribute(
+            'can_edit',
+            ! $order->is_locked
+            && ! in_array($order->status, ['cancelled', 'refunded'], true)
+            && (bool) $viewer?->hasAnyRole(
+                User::ROLE_ADMIN,
+                User::ROLE_GENERAL_MANAGER,
+                User::ROLE_MANAGER,
+            )
         );
 
         return Inertia::render('Orders/Show', [
@@ -223,6 +241,12 @@ class OrderController extends Controller
             return redirect()
                 ->route('orders.show', $order)
                 ->with('error', 'لا يمكن تعديل طلب ملغي أو مسترد.');
+        }
+
+        if ($this->isClosedAndFullyPaid($order)) {
+            return redirect()
+                ->route('orders.show', $order)
+                ->with('error', 'لا يمكن تعديل طلب مقفول بالكامل وتم سداد جميع مستحقاته.');
         }
 
         $order->load(['products']);
@@ -326,6 +350,10 @@ class OrderController extends Controller
 
         if (in_array($order->status, ['cancelled', 'refunded'], true)) {
             return back()->with('error', 'لا يمكن تعديل طلب ملغي أو مسترد.');
+        }
+
+        if ($this->isClosedAndFullyPaid($order)) {
+            return back()->with('error', 'لا يمكن تعديل طلب مقفول بالكامل وتم سداد جميع مستحقاته.');
         }
 
         $validated = $request->validate([
@@ -853,6 +881,10 @@ class OrderController extends Controller
 
     public function settlePayment(Request $request, Order $order): RedirectResponse
     {
+        if ($this->isClosedAndFullyPaid($order)) {
+            return back()->with('error', 'لا يمكن تسجيل سداد على طلب مقفول بالكامل وتم سداد جميع مستحقاته.');
+        }
+
         $validated = $request->validate([
             'amount' => ['required', 'numeric', 'min:0.01'],
             'payment_method' => ['nullable', 'string', 'in:credit_card,cash,bank_transfer,paypal,noon'],
@@ -1218,6 +1250,13 @@ class OrderController extends Controller
     public function apiUpdateStatus(Order $order, Request $request)
     {
         try {
+            if ($this->isClosedAndFullyPaid($order)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'لا يمكن تعديل طلب مقفول بالكامل وتم سداد جميع مستحقاته.',
+                ], 422);
+            }
+
             $request->validate([
                 'status' => 'required|in:pending,processing,paid,cancelled,refunded',
             ]);
@@ -1267,6 +1306,13 @@ class OrderController extends Controller
     public function apiDestroy(Order $order)
     {
         try {
+            if ($this->isClosedAndFullyPaid($order)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'لا يمكن حذف طلب مقفول بالكامل وتم سداد جميع مستحقاته.',
+                ], 422);
+            }
+
             $order->products()->detach();
             $order->delete();
 
@@ -1292,6 +1338,10 @@ class OrderController extends Controller
             403
         );
 
+        if ($this->isClosedAndFullyPaid($order)) {
+            return back()->with('error', 'لا يمكن تعديل طلب مقفول بالكامل وتم سداد جميع مستحقاته.');
+        }
+
         if (! blank($order->getAttributes()['activity_time'] ?? null)) {
             return back()->with('error', 'وقت الفعالية محدد مسبقاً لهذا الطلب.');
         }
@@ -1316,6 +1366,10 @@ class OrderController extends Controller
 
     public function updateStatus(Order $order, Request $request)
     {
+        if ($this->isClosedAndFullyPaid($order)) {
+            return back()->with('error', 'لا يمكن تعديل طلب مقفول بالكامل وتم سداد جميع مستحقاته.');
+        }
+
         $request->validate([
             'status' => 'required|in:pending,processing,paid,cancelled,refunded',
         ]);
@@ -1350,6 +1404,12 @@ class OrderController extends Controller
             abort(403);
         }
 
+        if ($this->isClosedAndFullyPaid($order)) {
+            return redirect()
+                ->route('orders.show', $order)
+                ->with('error', 'لا يمكن حذف طلب مقفول بالكامل وتم سداد جميع مستحقاته.');
+        }
+
         try {
             $order->delete();
 
@@ -1359,6 +1419,27 @@ class OrderController extends Controller
         } catch (\Exception $e) {
             return redirect()->back()->with('error', 'فشل حذف الطلب: '.$e->getMessage());
         }
+    }
+
+    /**
+     * Closed by warehouse and fully paid — no further edits.
+     */
+    private function isClosedAndFullyPaid(Order $order, ?float $due = null): bool
+    {
+        if (blank($order->warehouse_keeper_approved_at)) {
+            return false;
+        }
+
+        if ($order->status === 'paid') {
+            return true;
+        }
+
+        if ($due === null) {
+            $grand = $this->orderChargeBreakdown($order)['grand'];
+            $due = round(max(0, $grand - (float) ($order->amount_paid ?? 0)), 2);
+        }
+
+        return $due <= 0.009;
     }
 
     /**

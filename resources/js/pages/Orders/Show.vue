@@ -75,6 +75,8 @@ interface Order {
     dismantling?: DismantlingMeta | null;
     warehouse_returned_at?: string | null;
     warehouse_returned_by_name?: string | null;
+    can_edit?: boolean;
+    is_locked?: boolean;
 }
 
 interface Props {
@@ -225,7 +227,7 @@ const orderItems = () => {
             </div>
             <div class="flex flex-wrap items-center gap-2">
                 <Button
-                    v-if="order.status !== 'cancelled' && order.status !== 'refunded'"
+                    v-if="order.can_edit"
                     as-child
                     variant="outline"
                     class="h-10 gap-2"
