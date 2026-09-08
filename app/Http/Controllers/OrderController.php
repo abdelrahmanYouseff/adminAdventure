@@ -9,6 +9,7 @@ use App\Models\Product;
 use App\Models\User;
 use App\Services\OrderPaymentReceiptService;
 use App\Support\OrderInsuranceCalculator;
+use App\Support\OrderJourney;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -36,6 +37,8 @@ class OrderController extends Controller
                 'workerOrders.completedByUser:id,customer_name',
                 'workerOrders.pickupByUser:id,customer_name',
                 'workerAssemblers.workerUser:id,customer_name',
+                'paymentReceipts:id,order_id,amount,approval_status,created_at,approved_at,receipt_number,recorded_by,approved_by',
+                'quotation:id,quotation_number,total_amount,created_at',
             ])
             ->withSum([
                 'paymentReceipts as pending_payment_sum' => fn ($q) => $q
@@ -94,7 +97,7 @@ class OrderController extends Controller
                 $grandTotal - (float) ($order->amount_paid ?? 0)
             ), 2);
             $available = round(max(0, $due - $pending), 2);
-            $locked = $this->isClosedAndFullyPaid($order, $due);
+            $locked = $this->isPaidAndNothingPending($order, $due);
             $order->setAttribute('settle_available', $available);
             $order->setAttribute('due_amount', $due);
             $order->setAttribute('is_locked', $locked);
@@ -177,6 +180,9 @@ class OrderController extends Controller
             'invoice',
             'products',
             'workerOrders' => fn ($q) => $q->orderBy('line_index'),
+            'workerAssemblers',
+            'paymentReceipts:id,order_id,amount,approval_status,created_at,approved_at,receipt_number,recorded_by,approved_by',
+            'quotation:id,quotation_number,total_amount,created_at',
             'warehouseReturnedBy:id,customer_name',
         ]);
 
@@ -187,7 +193,7 @@ class OrderController extends Controller
             'remaining_amount',
             round(max(0, $breakdown['grand'] - (float) ($order->amount_paid ?? 0)), 2)
         );
-        $order->setAttribute('is_locked', $this->isClosedAndFullyPaid($order));
+        $order->setAttribute('is_locked', $this->isPaidAndNothingPending($order, (float) $order->remaining_amount));
         $order->setAttribute('payment_url', $order->is_locked ? null : $order->noonPaymentUrl());
         $order->setAttribute('dismantling', $this->dismantlingColumnMeta($order));
         $order->setAttribute(
@@ -243,10 +249,10 @@ class OrderController extends Controller
                 ->with('error', 'لا يمكن تعديل طلب ملغي أو مسترد.');
         }
 
-        if ($this->isClosedAndFullyPaid($order)) {
+        if ($this->isPaidAndNothingPending($order)) {
             return redirect()
                 ->route('orders.show', $order)
-                ->with('error', 'لا يمكن تعديل طلب مقفول بالكامل وتم سداد جميع مستحقاته.');
+                ->with('error', 'لا يمكن تعديل طلب مدفوع بالكامل ولا توجد عليه إجراءات معلّقة.');
         }
 
         $order->load(['products']);
@@ -352,8 +358,8 @@ class OrderController extends Controller
             return back()->with('error', 'لا يمكن تعديل طلب ملغي أو مسترد.');
         }
 
-        if ($this->isClosedAndFullyPaid($order)) {
-            return back()->with('error', 'لا يمكن تعديل طلب مقفول بالكامل وتم سداد جميع مستحقاته.');
+        if ($this->isPaidAndNothingPending($order)) {
+            return back()->with('error', 'لا يمكن تعديل طلب مدفوع بالكامل ولا توجد عليه إجراءات معلّقة.');
         }
 
         $validated = $request->validate([
@@ -881,8 +887,8 @@ class OrderController extends Controller
 
     public function settlePayment(Request $request, Order $order): RedirectResponse
     {
-        if ($this->isClosedAndFullyPaid($order)) {
-            return back()->with('error', 'لا يمكن تسجيل سداد على طلب مقفول بالكامل وتم سداد جميع مستحقاته.');
+        if ($this->isPaidAndNothingPending($order)) {
+            return back()->with('error', 'لا يمكن تسجيل سداد على طلب مدفوع بالكامل ولا توجد عليه إجراءات معلّقة.');
         }
 
         $validated = $request->validate([
@@ -1250,10 +1256,10 @@ class OrderController extends Controller
     public function apiUpdateStatus(Order $order, Request $request)
     {
         try {
-            if ($this->isClosedAndFullyPaid($order)) {
+            if ($this->isPaidAndNothingPending($order)) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'لا يمكن تعديل طلب مقفول بالكامل وتم سداد جميع مستحقاته.',
+                    'message' => 'لا يمكن تعديل طلب مدفوع بالكامل ولا توجد عليه إجراءات معلّقة.',
                 ], 422);
             }
 
@@ -1306,10 +1312,10 @@ class OrderController extends Controller
     public function apiDestroy(Order $order)
     {
         try {
-            if ($this->isClosedAndFullyPaid($order)) {
+            if ($this->isPaidAndNothingPending($order)) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'لا يمكن حذف طلب مقفول بالكامل وتم سداد جميع مستحقاته.',
+                    'message' => 'لا يمكن حذف طلب مدفوع بالكامل ولا توجد عليه إجراءات معلّقة.',
                 ], 422);
             }
 
@@ -1338,8 +1344,8 @@ class OrderController extends Controller
             403
         );
 
-        if ($this->isClosedAndFullyPaid($order)) {
-            return back()->with('error', 'لا يمكن تعديل طلب مقفول بالكامل وتم سداد جميع مستحقاته.');
+        if ($this->isPaidAndNothingPending($order)) {
+            return back()->with('error', 'لا يمكن تعديل طلب مدفوع بالكامل ولا توجد عليه إجراءات معلّقة.');
         }
 
         if (! blank($order->getAttributes()['activity_time'] ?? null)) {
@@ -1366,8 +1372,8 @@ class OrderController extends Controller
 
     public function updateStatus(Order $order, Request $request)
     {
-        if ($this->isClosedAndFullyPaid($order)) {
-            return back()->with('error', 'لا يمكن تعديل طلب مقفول بالكامل وتم سداد جميع مستحقاته.');
+        if ($this->isPaidAndNothingPending($order)) {
+            return back()->with('error', 'لا يمكن تعديل طلب مدفوع بالكامل ولا توجد عليه إجراءات معلّقة.');
         }
 
         $request->validate([
@@ -1404,10 +1410,10 @@ class OrderController extends Controller
             abort(403);
         }
 
-        if ($this->isClosedAndFullyPaid($order)) {
+        if ($this->isPaidAndNothingPending($order)) {
             return redirect()
                 ->route('orders.show', $order)
-                ->with('error', 'لا يمكن حذف طلب مقفول بالكامل وتم سداد جميع مستحقاته.');
+                ->with('error', 'لا يمكن حذف طلب مدفوع بالكامل ولا توجد عليه إجراءات معلّقة.');
         }
 
         try {
@@ -1422,16 +1428,12 @@ class OrderController extends Controller
     }
 
     /**
-     * Closed by warehouse and fully paid — no further edits.
+     * Fully paid and nothing still waiting on the order cycle.
      */
-    private function isClosedAndFullyPaid(Order $order, ?float $due = null): bool
+    private function isPaidAndNothingPending(Order $order, ?float $due = null): bool
     {
-        if (blank($order->warehouse_keeper_approved_at)) {
+        if ($order->status !== 'paid') {
             return false;
-        }
-
-        if ($order->status === 'paid') {
-            return true;
         }
 
         if ($due === null) {
@@ -1439,7 +1441,32 @@ class OrderController extends Controller
             $due = round(max(0, $grand - (float) ($order->amount_paid ?? 0)), 2);
         }
 
-        return $due <= 0.009;
+        if ($due > 0.009) {
+            return false;
+        }
+
+        if ($this->pendingReceiptAmount($order) > 0.009) {
+            return false;
+        }
+
+        return (bool) (OrderJourney::build($order)['is_complete'] ?? false);
+    }
+
+    private function pendingReceiptAmount(Order $order): float
+    {
+        if ($order->getAttribute('pending_payment_sum') !== null) {
+            return round((float) $order->pending_payment_sum, 2);
+        }
+
+        if ($order->relationLoaded('paymentReceipts')) {
+            return round((float) $order->paymentReceipts
+                ->where('approval_status', OrderPaymentReceipt::STATUS_PENDING)
+                ->sum('amount'), 2);
+        }
+
+        return round((float) $order->paymentReceipts()
+            ->where('approval_status', OrderPaymentReceipt::STATUS_PENDING)
+            ->sum('amount'), 2);
     }
 
     /**
