@@ -152,16 +152,16 @@ function actorLabel(actor: Actor): string {
             </div>
 
             <div class="overflow-x-auto">
-                <table class="w-full min-w-[980px] border-collapse text-sm">
+                <table class="w-full min-w-[980px] border-collapse text-center text-sm">
                     <thead>
                         <tr class="border-b border-gray-100 bg-gray-50/80">
-                            <th class="px-4 py-3.5 text-start text-[13px] font-semibold text-gray-700">رقم الطلب</th>
-                            <th class="px-3 py-3.5 text-start text-[13px] font-semibold text-gray-700">العميل</th>
-                            <th class="px-3 py-3.5 text-start text-[13px] font-semibold text-gray-700">أنشأه</th>
-                            <th class="px-3 py-3.5 text-start text-[13px] font-semibold text-gray-700">تاريخ الإنشاء</th>
-                            <th class="px-3 py-3.5 text-start text-[13px] font-semibold text-gray-700">آخر تعديل بواسطة</th>
-                            <th class="px-3 py-3.5 text-start text-[13px] font-semibold text-gray-700">تاريخ التعديل</th>
-                            <th class="px-4 py-3.5 text-end text-[13px] font-semibold text-gray-700">الإجراءات</th>
+                            <th class="px-4 py-3.5 text-center text-[13px] font-semibold text-gray-700">رقم الطلب</th>
+                            <th class="px-3 py-3.5 text-center text-[13px] font-semibold text-gray-700">العميل</th>
+                            <th class="px-3 py-3.5 text-center text-[13px] font-semibold text-gray-700">أنشأه</th>
+                            <th class="px-3 py-3.5 text-center text-[13px] font-semibold text-gray-700">تاريخ الإنشاء</th>
+                            <th class="px-3 py-3.5 text-center text-[13px] font-semibold text-gray-700">آخر تعديل بواسطة</th>
+                            <th class="px-3 py-3.5 text-center text-[13px] font-semibold text-gray-700">تاريخ التعديل</th>
+                            <th class="px-4 py-3.5 text-center text-[13px] font-semibold text-gray-700">الإجراءات</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -175,21 +175,21 @@ function actorLabel(actor: Actor): string {
                             :key="order.id"
                             class="border-b border-gray-100 transition hover:bg-gray-50/70"
                         >
-                            <td class="px-4 py-3.5">
+                            <td class="px-4 py-3.5 text-center">
                                 <span class="font-semibold tabular-nums text-gray-900" dir="ltr">
                                     {{ order.order_number || '—' }}
                                 </span>
                             </td>
-                            <td class="px-3 py-3.5 font-medium text-gray-900">
+                            <td class="px-3 py-3.5 text-center font-medium text-gray-900">
                                 {{ order.customer_name || 'بدون اسم عميل' }}
                             </td>
-                            <td class="px-3 py-3.5 text-gray-700">
+                            <td class="px-3 py-3.5 text-center text-gray-700">
                                 {{ actorLabel(order.created_by) }}
                             </td>
-                            <td class="px-3 py-3.5 tabular-nums text-gray-600" dir="ltr">
+                            <td class="px-3 py-3.5 text-center tabular-nums text-gray-600" dir="ltr">
                                 {{ order.created_at ? formatDateTime(order.created_at) : '—' }}
                             </td>
-                            <td class="px-3 py-3.5 text-gray-700">
+                            <td class="px-3 py-3.5 text-center text-gray-700">
                                 <template v-if="order.updated_by">
                                     <p>{{ actorLabel(order.updated_by) }}</p>
                                     <p v-if="order.updates.length > 1" class="mt-0.5 text-xs text-amber-700">
@@ -198,13 +198,13 @@ function actorLabel(actor: Actor): string {
                                 </template>
                                 <span v-else class="text-gray-400">لا يوجد تعديل</span>
                             </td>
-                            <td class="px-3 py-3.5 tabular-nums text-gray-600" dir="ltr">
+                            <td class="px-3 py-3.5 text-center tabular-nums text-gray-600" dir="ltr">
                                 {{ order.updated_at ? formatDateTime(order.updated_at) : '—' }}
                             </td>
-                            <td class="px-4 py-3.5 text-end">
+                            <td class="px-4 py-3.5 text-center">
                                 <Link
                                     :href="`/orders/${order.id}`"
-                                    class="inline-flex h-8 items-center rounded-lg border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 transition hover:bg-gray-50"
+                                    class="inline-flex h-8 items-center justify-center rounded-lg border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 transition hover:bg-gray-50"
                                 >
                                     فتح الطلب
                                 </Link>
