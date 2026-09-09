@@ -14,6 +14,7 @@ use App\Models\Product;
 use App\Models\Quotation;
 use App\Models\User;
 use App\Models\WhatsappNotificationRecipient;
+use App\Services\NoonReceiptService;
 use App\Support\MainAppModules;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -329,38 +330,36 @@ class ModuleController extends Controller
 
     private function noonReceiptsData(string $search): array
     {
-        $query = OrderPaymentReceipt::query()
-            ->successfulNoon()
-            ->with('order:id,order_number,customer_name,currency,payment_id')
-            ->latest('id');
+        $rows = app(NoonReceiptService::class)->confirmedRows();
 
         if ($search !== '') {
-            $query->where(function ($q) use ($search) {
-                $q->where('receipt_number', 'like', "%{$search}%")
-                    ->orWhereHas('order', function ($orderQuery) use ($search) {
-                        $orderQuery->where('order_number', 'like', "%{$search}%")
-                            ->orWhere('customer_name', 'like', "%{$search}%")
-                            ->orWhere('payment_id', 'like', "%{$search}%");
-                    });
-            });
-        }
+            $needle = mb_strtolower($search);
+            $rows = $rows->filter(function (array $row) use ($needle) {
+                $haystack = mb_strtolower(implode(' ', array_filter([
+                    $row['customer_name'] ?? '',
+                    $row['order_number'] ?? '',
+                    $row['receipt_number'] ?? '',
+                    $row['noon_order_id'] ?? '',
+                ])));
 
-        $count = OrderPaymentReceipt::query()->successfulNoon()->count();
+                return str_contains($haystack, $needle);
+            })->values();
+        }
 
         return [
             'stats' => [
-                ['label' => 'إيصالات ناجحة', 'value' => $count],
+                ['label' => 'إيصالات ناجحة', 'value' => $rows->count()],
             ],
-            'empty_message' => 'لا توجد دفعات نون ناجحة حالياً.',
-            'items' => $query->limit(40)->get()->map(fn (OrderPaymentReceipt $receipt) => [
-                'id' => $receipt->id,
-                'title' => $receipt->order?->customer_name ?: '—',
-                'subtitle' => ($receipt->receipt_number ?: '').' · '.($receipt->order?->order_number ?: ''),
-                'meta' => number_format((float) $receipt->amount, 2).' '.($receipt->order?->currency ?: 'SAR'),
+            'empty_message' => 'لا توجد دفعات ناجحة على بوابة نون.',
+            'items' => $rows->take(40)->map(fn (array $row) => [
+                'id' => $row['receipt_id'] ?? $row['order_id'],
+                'title' => $row['customer_name'] ?: '—',
+                'subtitle' => ($row['receipt_number'] ?: '').' · '.($row['order_number'] ?: ''),
+                'meta' => number_format((float) $row['amount'], 2).' '.($row['currency'] ?: 'SAR'),
                 'badge' => 'ناجحة',
                 'badge_tone' => 'emerald',
-                'href' => '/noon-receipts/'.$receipt->id.'/pdf',
-            ])->all(),
+                'href' => $row['pdf_url'] ?? '/noon-receipts',
+            ])->values()->all(),
         ];
     }
 

@@ -132,7 +132,7 @@ function downloadReceipt(row: NoonReceiptRow) {
                     إيصالات نون
                 </h1>
                 <p class="mt-1 text-sm text-gray-500 dark:text-neutral-400">
-                    معاملات بوابة الدفع الناجحة فقط — اسم العميل وإيصال الدفع للعرض أو التحميل
+                    معاملات بوابة نون الناجحة فقط — الإيصالات الموجودة على نون للعرض أو التحميل
                 </p>
             </div>
         </div>
@@ -202,7 +202,7 @@ function downloadReceipt(row: NoonReceiptRow) {
                     <tbody>
                         <tr v-if="receipts.data.length === 0">
                             <td colspan="6" class="px-4 py-16 text-center text-gray-500 dark:text-neutral-400">
-                                لا توجد دفعات نون ناجحة مطابقة للبحث الحالي.
+                                لا توجد دفعات ناجحة على بوابة نون مطابقة للبحث الحالي.
                             </td>
                         </tr>
                         <tr

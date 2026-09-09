@@ -3,10 +3,11 @@
 namespace Tests\Feature;
 
 use App\Models\Order;
-use App\Models\OrderPaymentReceipt;
+use App\Models\PaymentSession;
 use App\Models\User;
 use App\Services\OrderPaymentReceiptService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Http;
 use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
 
@@ -26,21 +27,51 @@ class NoonReceiptsTest extends TestCase
             ->assertRedirect(route('login'));
     }
 
-    public function test_accounts_can_view_successful_noon_receipts_only(): void
+    public function test_manual_noon_receipts_that_are_not_on_the_gateway_are_hidden(): void
     {
         $accounts = User::factory()->staff(User::ROLE_ACCOUNTS)->create();
-        $order = $this->makeOrder($accounts, 'عميل نون', 1500);
+        $order = $this->makeOrder($accounts, 'لمي الصغير', 1950);
+        $order->update([
+            'order_number' => 'ORD-202609-0001',
+            'payment_method' => 'noon',
+        ]);
 
         $service = app(OrderPaymentReceiptService::class);
-        $noonReceipt = $service->recordPayment($order, 1500, $accounts, 'noon', 'payment', 'دفع إلكتروني عبر Noon (noon-123)');
+        $receipt = $service->recordPayment($order, 1950, $accounts, 'noon', 'payment');
+        $service->approveReceipt($receipt, $accounts);
+
+        $this->actingAs($accounts)
+            ->get(route('noon-receipts.index'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('NoonReceipts/Index')
+                ->has('receipts.data', 0)
+                ->where('stats.count', 0)
+            );
+    }
+
+    public function test_only_captured_noon_gateway_receipts_are_listed(): void
+    {
+        $accounts = User::factory()->staff(User::ROLE_ACCOUNTS)->create();
+        $this->fakeNoonApi([
+            'noon-123' => 'CAPTURED',
+            'missing-on-noon' => 404,
+        ]);
+
+        $onNoon = $this->makeOrder($accounts, 'عميل نون', 1500);
+        $this->attachNoonGateway($onNoon, $accounts, 'noon-123');
+        $service = app(OrderPaymentReceiptService::class);
+        $noonReceipt = $service->recordPayment($onNoon, 1500, $accounts, 'noon', 'payment', 'دفع إلكتروني عبر Noon (noon-123)');
         $service->approveReceipt($noonReceipt, $accounts);
+
+        $missing = $this->makeOrder($accounts, 'لمي الصغير', 1950);
+        $this->attachNoonGateway($missing, $accounts, 'missing-on-noon');
+        $missingReceipt = $service->recordPayment($missing, 1950, $accounts, 'noon', 'payment', 'دفع إلكتروني عبر Noon (missing-on-noon)');
+        $service->approveReceipt($missingReceipt, $accounts);
 
         $cashOrder = $this->makeOrder($accounts, 'عميل كاش', 800);
         $cashReceipt = $service->recordPayment($cashOrder, 800, $accounts, 'cash', 'payment');
         $service->approveReceipt($cashReceipt, $accounts);
-
-        $pendingOrder = $this->makeOrder($accounts, 'عميل معلّق', 400);
-        $service->recordPayment($pendingOrder, 400, $accounts, 'noon', 'payment');
 
         $this->actingAs($accounts)
             ->get(route('noon-receipts.index'))
@@ -49,12 +80,12 @@ class NoonReceiptsTest extends TestCase
                 ->component('NoonReceipts/Index')
                 ->has('receipts.data', 1)
                 ->where('receipts.data.0.customer_name', 'عميل نون')
-                ->where('receipts.data.0.receipt_number', $noonReceipt->receipt_number)
+                ->where('receipts.data.0.noon_order_id', 'noon-123')
                 ->where('stats.count', 1)
             );
     }
 
-    public function test_paid_noon_orders_without_a_receipt_still_appear(): void
+    public function test_paid_noon_orders_without_a_gateway_session_are_hidden(): void
     {
         $admin = User::factory()->admin()->create();
         $order = $this->makeOrder($admin, 'عميل المتجر', 990);
@@ -71,18 +102,18 @@ class NoonReceiptsTest extends TestCase
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
                 ->component('NoonReceipts/Index')
-                ->has('receipts.data', 1)
-                ->where('receipts.data.0.customer_name', 'عميل المتجر')
-                ->where('receipts.data.0.noon_order_id', 'noon-store-1')
+                ->has('receipts.data', 0)
             );
     }
 
     public function test_successful_noon_receipt_pdf_can_be_viewed_and_downloaded(): void
     {
         $admin = User::factory()->admin()->create();
+        $this->fakeNoonApi(['noon-250' => 'CAPTURED']);
         $order = $this->makeOrder($admin, 'سارة أحمد', 250);
+        $this->attachNoonGateway($order, $admin, 'noon-250');
         $service = app(OrderPaymentReceiptService::class);
-        $receipt = $service->recordPayment($order, 250, $admin, 'noon', 'payment');
+        $receipt = $service->recordPayment($order, 250, $admin, 'noon', 'payment', 'دفع إلكتروني عبر Noon (noon-250)');
         $service->approveReceipt($receipt, $admin);
 
         $this->actingAs($admin)
@@ -110,7 +141,7 @@ class NoonReceiptsTest extends TestCase
             ->assertNotFound();
     }
 
-    public function test_paid_noon_order_pdf_can_be_downloaded(): void
+    public function test_paid_noon_order_without_gateway_confirmation_cannot_download_pdf(): void
     {
         $admin = User::factory()->admin()->create();
         $order = $this->makeOrder($admin, 'عميل المتجر', 990);
@@ -124,13 +155,55 @@ class NoonReceiptsTest extends TestCase
 
         $this->actingAs($admin)
             ->get(route('noon-receipts.order-pdf', ['order' => $order, 'download' => 1]))
-            ->assertOk()
-            ->assertHeader('content-type', 'application/pdf');
+            ->assertNotFound();
+    }
 
-        $this->assertDatabaseHas('order_payment_receipts', [
-            'order_id' => $order->id,
+    /**
+     * @param  array<string, string|int>  $statuses
+     */
+    private function fakeNoonApi(array $statuses): void
+    {
+        config([
+            'services.noon.api_key' => 'test-key',
+            'services.noon.business_id' => 'biz',
+            'services.noon.app_id' => 'app',
+            'services.noon.api_url' => 'https://api.noon.test/payment/v1/',
+        ]);
+
+        Http::fake(function (\Illuminate\Http\Client\Request $request) use ($statuses) {
+            $id = basename(parse_url($request->url(), PHP_URL_PATH) ?: '');
+            $status = $statuses[$id] ?? 404;
+
+            if ($status === 404) {
+                return Http::response(['message' => 'not found'], 404);
+            }
+
+            return Http::response([
+                'result' => [
+                    'order' => [
+                        'id' => $id,
+                        'status' => $status,
+                    ],
+                ],
+            ], 200);
+        });
+    }
+
+    private function attachNoonGateway(Order $order, User $user, string $noonOrderId): void
+    {
+        $order->forceFill([
             'payment_method' => 'noon',
-            'approval_status' => OrderPaymentReceipt::STATUS_APPROVED,
+            'payment_id' => $noonOrderId,
+        ])->save();
+
+        PaymentSession::query()->create([
+            'merchant_reference' => $order->order_number,
+            'user_id' => $user->id,
+            'amount' => $order->total_amount,
+            'currency' => $order->currency ?: 'SAR',
+            'payload' => ['source' => 'quotation_pdf', 'noon_order_id' => $noonOrderId],
+            'noon_order_id' => $noonOrderId,
+            'used_at' => now(),
         ]);
     }
 
