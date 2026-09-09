@@ -5,228 +5,250 @@ namespace App\Services;
 use App\Models\Order;
 use App\Models\OrderPaymentReceipt;
 use App\Models\PaymentSession;
+use App\Models\Quotation;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\View;
+use Mpdf\Mpdf;
+use Mpdf\Output\Destination;
 
 class NoonReceiptService
 {
-    public function __construct(private NoonPaymentGateway $gateway) {}
+    public function __construct(
+        private NoonPaymentGateway $gateway,
+        private OrderPaymentReceiptService $receipts,
+    ) {}
 
     /**
-     * Receipts that Noon itself confirms as successful gateway payments.
+     * Successful Noon transactions, matched to local customers.
      *
      * @return Collection<int, array<string, mixed>>
      */
     public function confirmedRows(): Collection
     {
-        [$sessionsByReference, $sessionsByNoonId] = $this->indexedSessions();
+        $sessions = PaymentSession::query()->latest('id')->get();
+        $noonIds = $sessions->pluck('noon_order_id')->all();
+        $references = $sessions->pluck('merchant_reference')->all();
 
-        $receipts = OrderPaymentReceipt::query()
-            ->successfulNoon()
-            ->with([
-                'order:id,order_number,customer_name,customer_phone,customer_email,currency,payment_id,payment_order_reference,payment_status,payment_method,amount_paid,total_amount',
-            ])
-            ->latest('id')
-            ->get();
+        $ordersWithPaymentId = Order::query()
+            ->whereNotNull('payment_id')
+            ->where('payment_id', '!=', '')
+            ->get(['id', 'order_number', 'payment_id', 'payment_order_reference', 'customer_name', 'customer_phone', 'customer_email', 'currency', 'amount_paid', 'total_amount', 'activity_date', 'address']);
 
-        $candidates = [];
+        $noonIds = array_merge($noonIds, $ordersWithPaymentId->pluck('payment_id')->all());
+        $references = array_merge(
+            $references,
+            $ordersWithPaymentId->pluck('order_number')->all(),
+            $ordersWithPaymentId->pluck('payment_order_reference')->all(),
+        );
 
-        foreach ($receipts as $receipt) {
-            $order = $receipt->order;
-            if (! $order) {
-                continue;
-            }
+        $noonOrders = $this->gateway->fetchSuccessfulOrders($noonIds, $references);
 
-            $session = $this->sessionFor($order, $sessionsByReference, $sessionsByNoonId);
-            $noonOrderId = $this->gateway->resolveNoonOrderId($order, $receipt, $session);
-
-            if (! $this->isGatewayCandidate($order, $receipt, $session, $noonOrderId)) {
-                continue;
-            }
-
-            $candidates[] = [
-                'type' => 'receipt',
-                'receipt' => $receipt,
-                'order' => $order,
-                'noon_order_id' => $noonOrderId,
-            ];
+        if ($noonOrders === []) {
+            return collect();
         }
 
-        $orderIdsWithReceipts = $receipts->pluck('order_id')->filter()->unique()->all();
+        $referencesFromNoon = array_values(array_filter(array_column($noonOrders, 'reference')));
+        $noonIdsFromNoon = array_keys($noonOrders);
 
-        $orphanOrders = Order::query()
-            ->where('payment_method', 'noon')
-            ->where('payment_status', 'paid')
-            ->when($orderIdsWithReceipts !== [], fn ($query) => $query->whereNotIn('id', $orderIdsWithReceipts))
-            ->latest('id')
+        $ordersByNumber = Order::query()
+            ->where(function ($query) use ($referencesFromNoon, $noonIdsFromNoon) {
+                if ($noonIdsFromNoon !== []) {
+                    $query->orWhereIn('payment_id', $noonIdsFromNoon);
+                }
+                if ($referencesFromNoon !== []) {
+                    $query->orWhereIn('order_number', $referencesFromNoon)
+                        ->orWhereIn('payment_order_reference', $referencesFromNoon);
+                }
+            })
             ->get();
 
-        foreach ($orphanOrders as $order) {
-            $session = $this->sessionFor($order, $sessionsByReference, $sessionsByNoonId);
-            $noonOrderId = $this->gateway->resolveNoonOrderId($order, null, $session);
+        $ordersByPaymentId = $ordersByNumber->keyBy(fn (Order $order) => (string) $order->payment_id);
+        $ordersByNumberKeyed = $ordersByNumber->keyBy(fn (Order $order) => (string) $order->order_number);
+        $ordersByReference = $ordersByNumber->keyBy(fn (Order $order) => (string) $order->payment_order_reference);
 
-            if (! $this->isGatewayCandidate($order, null, $session, $noonOrderId)) {
-                continue;
-            }
+        $sessionsByNoonId = $sessions
+            ->filter(fn (PaymentSession $session) => filled($session->noon_order_id))
+            ->keyBy(fn (PaymentSession $session) => (string) $session->noon_order_id);
+        $sessionsByReference = $sessions->keyBy(fn (PaymentSession $session) => (string) $session->merchant_reference);
 
-            $candidates[] = [
-                'type' => 'order',
-                'receipt' => null,
-                'order' => $order,
-                'noon_order_id' => $noonOrderId,
-            ];
-        }
+        $orderIds = $ordersByNumber->pluck('id')->filter()->all();
+        $receipts = $orderIds === []
+            ? collect()
+            : OrderPaymentReceipt::query()
+                ->successfulNoon()
+                ->whereIn('order_id', $orderIds)
+                ->get()
+                ->groupBy('order_id');
 
-        $captured = $this->gateway->capturedMap(array_column($candidates, 'noon_order_id'));
+        return collect($noonOrders)
+            ->map(function (array $noonOrder) use ($ordersByPaymentId, $ordersByNumberKeyed, $ordersByReference, $sessionsByNoonId, $sessionsByReference, $receipts) {
+                $noonId = (string) $noonOrder['id'];
+                $reference = (string) ($noonOrder['reference'] ?? '');
+                $session = $sessionsByNoonId->get($noonId) ?? $sessionsByReference->get($reference);
+                $order = $ordersByPaymentId->get($noonId)
+                    ?? ($reference !== '' ? $ordersByNumberKeyed->get($reference) : null)
+                    ?? ($reference !== '' ? $ordersByReference->get($reference) : null)
+                    ?? $this->orderFromSession($session);
 
-        return collect($candidates)
-            ->filter(fn (array $candidate) => ($captured[$candidate['noon_order_id']] ?? false) === true)
-            ->map(function (array $candidate) {
-                /** @var Order $order */
-                $order = $candidate['order'];
-                /** @var OrderPaymentReceipt|null $receipt */
-                $receipt = $candidate['receipt'];
-                $noonOrderId = (string) $candidate['noon_order_id'];
+                $receipt = $order
+                    ? $receipts->get($order->id)?->first()
+                    : null;
 
-                return $receipt
-                    ? $this->serializeReceipt($receipt, $order, $noonOrderId)
-                    : $this->serializeOrder($order, $noonOrderId);
+                $customer = $this->customerFrom($order, $session, $noonOrder);
+
+                $paidAt = $noonOrder['created_at'] ?? $session?->used_at?->toIso8601String() ?? $session?->created_at?->toIso8601String();
+
+                return [
+                    'key' => 'noon-'.$noonId,
+                    'receipt_id' => $receipt?->id,
+                    'order_id' => $order?->id,
+                    'customer_name' => $customer['name'],
+                    'customer_phone' => $customer['phone'],
+                    'customer_email' => $customer['email'],
+                    'order_number' => $order?->order_number ?: ($reference !== '' ? $reference : null),
+                    'receipt_number' => $receipt?->receipt_number,
+                    'amount' => (float) ($noonOrder['amount'] ?? 0),
+                    'currency' => $noonOrder['currency'] ?? 'SAR',
+                    'noon_order_id' => $noonId,
+                    'paid_at' => is_string($paidAt) ? $paidAt : $paidAt?->toIso8601String(),
+                    'sort_at' => is_string($paidAt) ? $paidAt : ($paidAt?->toIso8601String() ?? ''),
+                    'pdf_url' => route('noon-receipts.transaction-pdf', $noonId),
+                    'download_url' => route('noon-receipts.transaction-pdf', ['noonOrder' => $noonId, 'download' => 1]),
+                ];
             })
             ->sortByDesc(fn (array $row) => $row['sort_at'] ?? '')
             ->values();
     }
 
-    public function isConfirmed(Order $order, ?OrderPaymentReceipt $receipt = null): bool
+    public function renderPdf(string $noonOrderId): ?array
     {
-        [$sessionsByReference, $sessionsByNoonId] = $this->indexedSessions();
-        $session = $this->sessionFor($order, $sessionsByReference, $sessionsByNoonId);
-        $noonOrderId = $this->gateway->resolveNoonOrderId($order, $receipt, $session);
-
-        if (! $this->isGatewayCandidate($order, $receipt, $session, $noonOrderId)) {
-            return false;
+        $noonOrder = $this->gateway->fetchSuccessfulOrder($noonOrderId);
+        if (! $noonOrder) {
+            return null;
         }
 
-        return ($this->gateway->capturedMap([$noonOrderId])[$noonOrderId] ?? false) === true;
-    }
+        $match = $this->confirmedRows()->firstWhere('noon_order_id', $noonOrderId);
+        $order = isset($match['order_id'])
+            ? Order::query()->with(['products', 'paymentReceipts'])->find($match['order_id'])
+            : null;
 
-    /**
-     * @return array{0: Collection<string, PaymentSession>, 1: Collection<string, PaymentSession>}
-     */
-    private function indexedSessions(): array
-    {
-        $sessions = $this->gatewaySessions();
+        if ($order) {
+            $receipt = $order->paymentReceipts
+                ->where('payment_method', 'noon')
+                ->where('approval_status', OrderPaymentReceipt::STATUS_APPROVED)
+                ->sortByDesc('id')
+                ->first();
+
+            if ($receipt) {
+                $pdf = $this->receipts->renderPdf($receipt);
+                $filename = ($receipt->receipt_number ?: 'noon-'.$noonOrderId).'.pdf';
+
+                return ['content' => $pdf, 'filename' => $filename];
+            }
+        }
+
+        $pdf = $this->renderTransactionPdf($noonOrder, $match ?? [
+            'customer_name' => $noonOrder['name'] ?: '—',
+            'customer_phone' => null,
+            'order_number' => $noonOrder['reference'] ?: null,
+        ]);
 
         return [
-            $sessions->keyBy(fn (PaymentSession $session) => (string) $session->merchant_reference),
-            $sessions
-                ->filter(fn (PaymentSession $session) => filled($session->noon_order_id))
-                ->keyBy(fn (PaymentSession $session) => (string) $session->noon_order_id),
+            'content' => $pdf,
+            'filename' => 'noon-'.$noonOrderId.'.pdf',
         ];
     }
 
     /**
-     * @param  Collection<string, PaymentSession>  $sessionsByReference
-     * @param  Collection<string, PaymentSession>  $sessionsByNoonId
+     * @param  array<string, mixed>  $noonOrder
+     * @param  array<string, mixed>  $row
      */
-    private function sessionFor(
-        Order $order,
-        Collection $sessionsByReference,
-        Collection $sessionsByNoonId,
-    ): ?PaymentSession {
-        return $sessionsByReference->get((string) $order->order_number)
-            ?? $sessionsByReference->get((string) $order->payment_order_reference)
-            ?? $sessionsByNoonId->get((string) $order->payment_id);
-    }
-
-    private function isGatewayCandidate(
-        Order $order,
-        ?OrderPaymentReceipt $receipt,
-        ?PaymentSession $session,
-        ?string $noonOrderId,
-    ): bool {
-        if (! $this->gateway->isRealNoonOrderId($noonOrderId, $order->order_number)) {
-            return false;
-        }
-
-        if ($session?->noon_order_id) {
-            return true;
-        }
-
-        if ($receipt !== null && $this->isGatewayReceiptNotes($receipt->notes)) {
-            return true;
-        }
-
-        return $this->gateway->isConfigured();
-    }
-
-    private function isGatewayReceiptNotes(?string $notes): bool
+    private function renderTransactionPdf(array $noonOrder, array $row): string
     {
-        $notes = (string) $notes;
+        $tempDir = storage_path('app/mpdf-tmp');
+        if (! is_dir($tempDir)) {
+            mkdir($tempDir, 0755, true);
+        }
 
-        return str_contains($notes, 'دفع إلكتروني عبر Noon')
-            || str_contains($notes, 'دفع إلكتروني عبر رابط الطلب');
+        $mpdf = new Mpdf([
+            'mode' => 'utf-8',
+            'format' => 'A4',
+            'margin_left' => 14,
+            'margin_right' => 14,
+            'margin_top' => 16,
+            'margin_bottom' => 16,
+            'default_font' => 'dejavusans',
+            'directionality' => 'rtl',
+            'tempDir' => $tempDir,
+            'autoScriptToLang' => true,
+            'autoLangToFont' => true,
+            'useSubstitutions' => true,
+        ]);
+
+        $mpdf->SetTitle('إيصال نون '.$noonOrder['id']);
+
+        $html = View::make('noon-transaction-pdf', [
+            'noon' => $noonOrder,
+            'customer_name' => $row['customer_name'] ?? '—',
+            'customer_phone' => $row['customer_phone'] ?? null,
+            'order_number' => $row['order_number'] ?? $noonOrder['reference'] ?? null,
+        ])->render();
+
+        $mpdf->WriteHTML($html);
+
+        return $mpdf->Output('', Destination::STRING_RETURN);
+    }
+
+    private function orderFromSession(?PaymentSession $session): ?Order
+    {
+        if (! $session) {
+            return null;
+        }
+
+        $reference = (string) $session->merchant_reference;
+        $order = Order::query()->where('order_number', $reference)->first();
+        if ($order) {
+            return $order;
+        }
+
+        $quotationId = $session->payload['quotation_id'] ?? null;
+        if ($quotationId) {
+            return Order::query()->where('quotation_id', $quotationId)->first();
+        }
+
+        return null;
     }
 
     /**
-     * @return Collection<int, PaymentSession>
+     * @param  array<string, mixed>  $noonOrder
+     * @return array{name: string, phone: ?string, email: ?string}
      */
-    private function gatewaySessions(): Collection
+    private function customerFrom(?Order $order, ?PaymentSession $session, array $noonOrder): array
     {
-        return PaymentSession::query()
-            ->whereNotNull('noon_order_id')
-            ->where('noon_order_id', '!=', '')
-            ->get();
-    }
+        $payload = is_array($session?->payload) ? $session->payload : [];
 
-    /**
-     * @return array<string, mixed>
-     */
-    private function serializeReceipt(OrderPaymentReceipt $receipt, Order $order, string $noonOrderId): array
-    {
-        $paidAt = $receipt->approved_at ?? $receipt->created_at;
+        $name = $order?->customer_name
+            ?: ($payload['customer_name'] ?? null)
+            ?: $this->quotationName($payload['quotation_id'] ?? null)
+            ?: null;
+
+        if (! is_string($name) || trim($name) === '' || strcasecmp(trim($name), 'Customer') === 0) {
+            $name = '—';
+        }
 
         return [
-            'key' => 'receipt-'.$receipt->id,
-            'receipt_id' => $receipt->id,
-            'order_id' => $order->id,
-            'customer_name' => $order->customer_name ?: '—',
-            'customer_phone' => $order->customer_phone,
-            'customer_email' => $order->customer_email,
-            'order_number' => $order->order_number,
-            'receipt_number' => $receipt->receipt_number,
-            'amount' => (float) $receipt->amount,
-            'currency' => $order->currency ?: 'SAR',
-            'noon_order_id' => $noonOrderId,
-            'paid_at' => $paidAt?->toIso8601String(),
-            'sort_at' => $paidAt?->toIso8601String(),
-            'pdf_url' => route('noon-receipts.pdf', $receipt),
-            'download_url' => route('noon-receipts.pdf', ['receipt' => $receipt, 'download' => 1]),
+            'name' => $name,
+            'phone' => $order?->customer_phone ?: ($payload['customer_phone'] ?? null),
+            'email' => $order?->customer_email ?: ($payload['customer_email'] ?? null),
         ];
     }
 
-    /**
-     * @return array<string, mixed>
-     */
-    private function serializeOrder(Order $order, string $noonOrderId): array
+    private function quotationName(mixed $quotationId): ?string
     {
-        $paidAt = $order->updated_at ?? $order->created_at;
-        $amount = round((float) ($order->amount_paid ?: $order->total_amount), 2);
+        if (! is_numeric($quotationId)) {
+            return null;
+        }
 
-        return [
-            'key' => 'order-'.$order->id,
-            'receipt_id' => null,
-            'order_id' => $order->id,
-            'customer_name' => $order->customer_name ?: '—',
-            'customer_phone' => $order->customer_phone,
-            'customer_email' => $order->customer_email,
-            'order_number' => $order->order_number,
-            'receipt_number' => null,
-            'amount' => $amount,
-            'currency' => $order->currency ?: 'SAR',
-            'noon_order_id' => $noonOrderId,
-            'paid_at' => $paidAt?->toIso8601String(),
-            'sort_at' => $paidAt?->toIso8601String(),
-            'pdf_url' => route('noon-receipts.order-pdf', $order),
-            'download_url' => route('noon-receipts.order-pdf', ['order' => $order, 'download' => 1]),
-        ];
+        return Quotation::query()->whereKey((int) $quotationId)->value('customer_name');
     }
 }

@@ -575,6 +575,11 @@ Route::get('noon-receipts', [\App\Http\Controllers\NoonReceiptController::class,
     ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,accounts'])
     ->name('noon-receipts.index');
 
+Route::get('noon-receipts/transactions/{noonOrder}/pdf', [\App\Http\Controllers\NoonReceiptController::class, 'transactionPdf'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,accounts'])
+    ->where('noonOrder', '[A-Za-z0-9._-]+')
+    ->name('noon-receipts.transaction-pdf');
+
 Route::get('noon-receipts/orders/{order}/pdf', [\App\Http\Controllers\NoonReceiptController::class, 'orderPdf'])
     ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,accounts'])
     ->name('noon-receipts.order-pdf');

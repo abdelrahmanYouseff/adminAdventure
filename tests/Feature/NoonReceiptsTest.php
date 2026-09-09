@@ -85,6 +85,25 @@ class NoonReceiptsTest extends TestCase
             );
     }
 
+    public function test_captured_noon_session_appears_even_without_a_local_receipt(): void
+    {
+        $admin = User::factory()->admin()->create();
+        $this->fakeNoonApi(['noon-888' => 'CAPTURED']);
+        $order = $this->makeOrder($admin, 'نورة العتيبي', 640);
+        $this->attachNoonGateway($order, $admin, 'noon-888');
+
+        $this->actingAs($admin)
+            ->get(route('noon-receipts.index'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('NoonReceipts/Index')
+                ->has('receipts.data', 1)
+                ->where('receipts.data.0.customer_name', 'نورة العتيبي')
+                ->where('receipts.data.0.noon_order_id', 'noon-888')
+                ->where('receipts.data.0.amount', 640)
+            );
+    }
+
     public function test_paid_noon_orders_without_a_gateway_session_are_hidden(): void
     {
         $admin = User::factory()->admin()->create();
@@ -117,10 +136,9 @@ class NoonReceiptsTest extends TestCase
         $service->approveReceipt($receipt, $admin);
 
         $this->actingAs($admin)
-            ->get(route('noon-receipts.pdf', $receipt))
+            ->get(route('noon-receipts.transaction-pdf', 'noon-250'))
             ->assertOk()
-            ->assertHeader('content-type', 'application/pdf')
-            ->assertHeader('content-disposition', 'inline; filename="'.$receipt->receipt_number.'.pdf"');
+            ->assertHeader('content-type', 'application/pdf');
 
         $this->actingAs($admin)
             ->get(route('noon-receipts.pdf', ['receipt' => $receipt, 'download' => 1]))
@@ -171,7 +189,12 @@ class NoonReceiptsTest extends TestCase
         ]);
 
         Http::fake(function (\Illuminate\Http\Client\Request $request) use ($statuses) {
-            $id = basename(parse_url($request->url(), PHP_URL_PATH) ?: '');
+            $path = parse_url($request->url(), PHP_URL_PATH) ?: '';
+            if (str_contains($path, '/report/')) {
+                return Http::response(['message' => 'not found'], 404);
+            }
+
+            $id = basename($path);
             $status = $statuses[$id] ?? 404;
 
             if ($status === 404) {
@@ -183,6 +206,10 @@ class NoonReceiptsTest extends TestCase
                     'order' => [
                         'id' => $id,
                         'status' => $status,
+                        'amount' => 640,
+                        'currency' => 'SAR',
+                        'reference' => $id,
+                        'creationTime' => now()->toIso8601String(),
                     ],
                 ],
             ], 200);

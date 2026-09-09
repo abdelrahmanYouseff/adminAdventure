@@ -4,8 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\Order;
 use App\Models\OrderPaymentReceipt;
+use App\Services\NoonPaymentGateway;
 use App\Services\NoonReceiptService;
-use App\Services\OrderPaymentReceiptService;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Inertia\Inertia;
@@ -67,65 +67,46 @@ class NoonReceiptController extends Controller
         ]);
     }
 
-    public function pdf(Request $request, OrderPaymentReceipt $receipt, NoonReceiptService $receipts): Response
+    public function transactionPdf(Request $request, string $noonOrder, NoonReceiptService $receipts): Response
     {
-        abort_unless(
-            $receipt->order && $receipts->isConfirmed($receipt->order, $receipt),
-            404,
-            'هذا الإيصال غير موجود على بوابة نون.',
-        );
+        $result = $receipts->renderPdf($noonOrder);
+        abort_unless($result !== null, 404, 'هذه المعاملة غير موجودة على بوابة نون.');
 
-        return $this->receiptPdfResponse($receipt, $request->boolean('download'));
+        return $this->pdfResponse($result['content'], $result['filename'], $request->boolean('download'));
     }
 
-    public function orderPdf(Request $request, Order $order, NoonReceiptService $receipts): Response
+    public function pdf(Request $request, OrderPaymentReceipt $receipt, NoonPaymentGateway $gateway, NoonReceiptService $receipts): Response
     {
-        abort_unless(
-            $receipts->isConfirmed($order),
-            404,
-            'هذا الإيصال غير موجود على بوابة نون.',
-        );
+        $order = $receipt->order;
+        abort_unless($order !== null, 404);
 
-        $receipt = $order->paymentReceipts()
-            ->successfulNoon()
-            ->latest('id')
-            ->first();
+        $noonOrderId = $gateway->resolveNoonOrderId($order, $receipt)
+            ?: $order->payment_id
+            ?: $gateway->noonIdFromNotes($receipt->notes);
 
-        if (! $receipt) {
-            $paid = round((float) ($order->amount_paid ?: $order->total_amount ?: 0), 2);
-            abort_unless($paid > 0, 404, 'لا يوجد إيصال نون ناجح لهذا الطلب.');
+        abort_unless(is_string($noonOrderId) && $noonOrderId !== '', 404, 'هذه المعاملة غير موجودة على بوابة نون.');
 
-            $total = round((float) $order->total_amount, 2);
-            $receipt = OrderPaymentReceipt::create([
-                'order_id' => $order->id,
-                'recorded_by' => $request->user()?->id,
-                'receipt_number' => OrderPaymentReceipt::generateReceiptNumber(),
-                'amount' => $paid,
-                'total_amount' => $total,
-                'amount_paid_before' => 0,
-                'amount_paid_after' => $paid,
-                'remaining_after' => round(max(0, $total - $paid), 2),
-                'payment_method' => 'noon',
-                'type' => 'payment',
-                'approval_status' => OrderPaymentReceipt::STATUS_APPROVED,
-                'approved_at' => now(),
-                'notes' => 'دفع إلكتروني عبر Noon'.($order->payment_id ? ' ('.$order->payment_id.')' : ''),
-            ]);
-        }
-
-        return $this->receiptPdfResponse($receipt, $request->boolean('download'));
+        return $this->transactionPdf($request, $noonOrderId, $receipts);
     }
 
-    private function receiptPdfResponse(OrderPaymentReceipt $receipt, bool $download): Response
+    public function orderPdf(Request $request, Order $order, NoonPaymentGateway $gateway, NoonReceiptService $receipts): Response
     {
-        $pdf = app(OrderPaymentReceiptService::class)->renderPdf($receipt);
-        $filename = ($receipt->receipt_number ?: 'noon-receipt').'.pdf';
+        $noonOrderId = $gateway->resolveNoonOrderId($order)
+            ?: $order->payment_id;
+
+        abort_unless(is_string($noonOrderId) && $noonOrderId !== '', 404, 'هذه المعاملة غير موجودة على بوابة نون.');
+
+        return $this->transactionPdf($request, $noonOrderId, $receipts);
+    }
+
+    private function pdfResponse(string $content, string $filename, bool $download): Response
+    {
         $disposition = $download ? 'attachment' : 'inline';
 
-        return response($pdf, 200, [
+        return response($content, 200, [
             'Content-Type' => 'application/pdf',
             'Content-Disposition' => $disposition.'; filename="'.$filename.'"',
-            'Content-Length' => (string) strlen($pdf),
+            'Content-Length' => (string) strlen($content),
             'Cache-Control' => 'private, max-age=0, must-revalidate',
         ]);
     }

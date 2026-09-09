@@ -132,7 +132,7 @@ function downloadReceipt(row: NoonReceiptRow) {
                     إيصالات نون
                 </h1>
                 <p class="mt-1 text-sm text-gray-500 dark:text-neutral-400">
-                    معاملات بوابة نون الناجحة فقط — الإيصالات الموجودة على نون للعرض أو التحميل
+                    معاملات نون الناجحة المسحوبة من البوابة — اسم العميل وإيصال الدفع للعرض أو التحميل
                 </p>
             </div>
         </div>
