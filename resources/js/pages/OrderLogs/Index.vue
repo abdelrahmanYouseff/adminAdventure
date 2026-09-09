@@ -2,7 +2,7 @@
 import { computed, ref, watch } from 'vue';
 import { Head, Link, router } from '@inertiajs/vue3';
 import AppLayout from '@/layouts/AppLayout.vue';
-import { ChevronLeft, ChevronRight, ClipboardList, Clock3, Pencil, Search, UserRound } from 'lucide-vue-next';
+import { ChevronLeft, ChevronRight, ClipboardList, Search } from 'lucide-vue-next';
 import { formatDateTime, formatInteger } from '@/lib/formatNumber';
 
 interface Actor {
@@ -136,100 +136,83 @@ function actorLabel(actor: Actor): string {
             </div>
         </div>
 
-        <form class="w-full max-w-md" @submit.prevent="applyFilters(1)">
-            <label class="flex h-11 items-center gap-2 rounded-full border border-slate-200 bg-white px-4 text-slate-400 shadow-sm">
-                <Search class="size-4 shrink-0" />
-                <input
-                    v-model="searchQuery"
-                    type="search"
-                    placeholder="ابحث برقم الطلب أو العميل أو اسم المستخدم..."
-                    class="w-full bg-transparent text-sm text-slate-800 outline-none placeholder:text-slate-400"
-                />
-            </label>
-        </form>
+        <div class="overflow-hidden rounded-2xl border border-gray-200 bg-white">
+            <div class="border-b border-gray-100 p-4">
+                <form class="w-full max-w-md" @submit.prevent="applyFilters(1)">
+                    <label class="flex h-10 items-center gap-2 rounded-full border border-transparent bg-gray-100 px-3.5 text-gray-400 transition focus-within:border-blue-300 focus-within:bg-white focus-within:ring-2 focus-within:ring-blue-100">
+                        <Search class="size-4 shrink-0" />
+                        <input
+                            v-model="searchQuery"
+                            type="search"
+                            placeholder="ابحث برقم الطلب أو العميل أو اسم المستخدم..."
+                            class="w-full bg-transparent text-sm text-gray-800 outline-none placeholder:text-gray-400"
+                        />
+                    </label>
+                </form>
+            </div>
 
-        <div v-if="orders.data.length === 0" class="rounded-3xl border border-dashed border-slate-200 bg-white px-6 py-16 text-center text-sm text-slate-500">
-            لا توجد طلبات.
-        </div>
-
-        <div v-else class="space-y-4">
-            <article
-                v-for="order in orders.data"
-                :key="order.id"
-                class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm"
-            >
-                <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                    <div class="min-w-0 flex-1">
-                        <div class="flex flex-wrap items-center gap-2">
-                            <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700" dir="ltr">
-                                {{ order.order_number || '—' }}
-                            </span>
-                            <span
-                                v-if="order.updates.length"
-                                class="rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700"
-                            >
-                                تم التعديل {{ order.updates.length }}
-                            </span>
-                        </div>
-
-                        <h2 class="mt-3 text-lg font-bold text-slate-900">
-                            {{ order.customer_name || 'بدون اسم عميل' }}
-                        </h2>
-
-                        <div class="mt-4 grid gap-3 sm:grid-cols-2">
-                            <div class="rounded-2xl bg-slate-50 px-4 py-3">
-                                <p class="text-xs font-semibold text-slate-400">أنشأه</p>
-                                <p class="mt-1 flex items-center gap-1.5 text-sm font-semibold text-slate-800">
-                                    <UserRound class="size-4 text-slate-400" />
-                                    {{ actorLabel(order.created_by) }}
-                                </p>
-                                <p class="mt-1 flex items-center gap-1.5 text-xs text-slate-500">
-                                    <Clock3 class="size-3.5" />
-                                    {{ order.created_at ? formatDateTime(order.created_at) : '—' }}
-                                </p>
-                            </div>
-
-                            <div class="rounded-2xl px-4 py-3" :class="order.updated_by ? 'bg-amber-50' : 'bg-slate-50'">
-                                <p class="text-xs font-semibold" :class="order.updated_by ? 'text-amber-600' : 'text-slate-400'">
-                                    آخر تعديل
-                                </p>
+            <div class="overflow-x-auto">
+                <table class="w-full min-w-[980px] border-collapse text-sm">
+                    <thead>
+                        <tr class="border-b border-gray-100 bg-gray-50/80">
+                            <th class="px-4 py-3.5 text-start text-[13px] font-semibold text-gray-700">رقم الطلب</th>
+                            <th class="px-3 py-3.5 text-start text-[13px] font-semibold text-gray-700">العميل</th>
+                            <th class="px-3 py-3.5 text-start text-[13px] font-semibold text-gray-700">أنشأه</th>
+                            <th class="px-3 py-3.5 text-start text-[13px] font-semibold text-gray-700">تاريخ الإنشاء</th>
+                            <th class="px-3 py-3.5 text-start text-[13px] font-semibold text-gray-700">آخر تعديل بواسطة</th>
+                            <th class="px-3 py-3.5 text-start text-[13px] font-semibold text-gray-700">تاريخ التعديل</th>
+                            <th class="px-4 py-3.5 text-end text-[13px] font-semibold text-gray-700">الإجراءات</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr v-if="orders.data.length === 0">
+                            <td colspan="7" class="px-4 py-16 text-center text-gray-500">
+                                لا توجد طلبات.
+                            </td>
+                        </tr>
+                        <tr
+                            v-for="order in orders.data"
+                            :key="order.id"
+                            class="border-b border-gray-100 transition hover:bg-gray-50/70"
+                        >
+                            <td class="px-4 py-3.5">
+                                <span class="font-semibold tabular-nums text-gray-900" dir="ltr">
+                                    {{ order.order_number || '—' }}
+                                </span>
+                            </td>
+                            <td class="px-3 py-3.5 font-medium text-gray-900">
+                                {{ order.customer_name || 'بدون اسم عميل' }}
+                            </td>
+                            <td class="px-3 py-3.5 text-gray-700">
+                                {{ actorLabel(order.created_by) }}
+                            </td>
+                            <td class="px-3 py-3.5 tabular-nums text-gray-600" dir="ltr">
+                                {{ order.created_at ? formatDateTime(order.created_at) : '—' }}
+                            </td>
+                            <td class="px-3 py-3.5 text-gray-700">
                                 <template v-if="order.updated_by">
-                                    <p class="mt-1 flex items-center gap-1.5 text-sm font-semibold text-slate-800">
-                                        <Pencil class="size-4 text-amber-500" />
-                                        {{ actorLabel(order.updated_by) }}
-                                    </p>
-                                    <p class="mt-1 flex items-center gap-1.5 text-xs text-slate-500">
-                                        <Clock3 class="size-3.5" />
-                                        {{ order.updated_at ? formatDateTime(order.updated_at) : '—' }}
+                                    <p>{{ actorLabel(order.updated_by) }}</p>
+                                    <p v-if="order.updates.length > 1" class="mt-0.5 text-xs text-amber-700">
+                                        {{ order.updates.length }} تعديلات
                                     </p>
                                 </template>
-                                <p v-else class="mt-1 text-sm text-slate-400">لا يوجد تعديل</p>
-                            </div>
-                        </div>
-
-                        <div v-if="order.updates.length > 1" class="mt-4 space-y-2">
-                            <p class="text-xs font-semibold text-slate-400">كل التعديلات</p>
-                            <div
-                                v-for="update in order.updates"
-                                :key="update.id"
-                                class="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-slate-100 px-4 py-2 text-sm"
-                            >
-                                <span class="font-medium text-slate-700">{{ actorLabel(update.user) }}</span>
-                                <span class="text-xs text-slate-500">{{ update.created_at ? formatDateTime(update.created_at) : '—' }}</span>
-                            </div>
-                        </div>
-
-                        <div class="mt-4">
-                            <Link
-                                :href="`/orders/${order.id}`"
-                                class="text-sm font-semibold text-sky-700 hover:underline"
-                            >
-                                فتح الطلب
-                            </Link>
-                        </div>
-                    </div>
-                </div>
-            </article>
+                                <span v-else class="text-gray-400">لا يوجد تعديل</span>
+                            </td>
+                            <td class="px-3 py-3.5 tabular-nums text-gray-600" dir="ltr">
+                                {{ order.updated_at ? formatDateTime(order.updated_at) : '—' }}
+                            </td>
+                            <td class="px-4 py-3.5 text-end">
+                                <Link
+                                    :href="`/orders/${order.id}`"
+                                    class="inline-flex h-8 items-center rounded-lg border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 transition hover:bg-gray-50"
+                                >
+                                    فتح الطلب
+                                </Link>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
         </div>
 
         <div v-if="orders.last_page > 1" class="flex items-center justify-between gap-4 rounded-3xl bg-white px-5 py-4 shadow-sm ring-1 ring-slate-200">
