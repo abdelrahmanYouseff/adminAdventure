@@ -5,6 +5,7 @@ namespace App\Observers;
 use App\Jobs\SendOrderWhatsAppNotification;
 use App\Models\Order;
 use App\Services\WorkerOrderSyncService;
+use App\Support\OrderLogRecorder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -14,6 +15,8 @@ class OrderObserver
 
     public function created(Order $order): void
     {
+        OrderLogRecorder::created($order);
+
         if ($this->shouldNotify($order)) {
             $this->dispatchNotification($order);
         }
@@ -25,6 +28,8 @@ class OrderObserver
 
     public function updated(Order $order): void
     {
+        OrderLogRecorder::updated($order);
+
         // amount_paid changes on accountant approval even when status stays
         // "processing" for partial payments — that must also release work orders.
         if (

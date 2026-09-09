@@ -2,7 +2,6 @@
 
 namespace App\Models;
 
-use App\Support\OrderInsuranceCalculator;
 use App\Support\PublicAppUrl;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Str;
@@ -186,6 +185,11 @@ class Order extends Model
     public function user()
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function orderLogs()
+    {
+        return $this->hasMany(OrderLog::class);
     }
 
     /**

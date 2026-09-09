@@ -27,6 +27,7 @@ import {
     Route,
     Settings,
     Mailbox,
+    ClipboardList,
     Percent,
 } from 'lucide-vue-next';
 import AppLogo from './AppLogo.vue';
@@ -92,6 +93,12 @@ const allNavItems: NavItemWithRoles[] = [
         title: 'الطلبات',
         href: '/orders',
         icon: ShoppingCart,
+        roles: ['admin', 'general_manager', 'manager'],
+    },
+    {
+        title: 'Order Logs',
+        href: '/order-logs',
+        icon: ClipboardList,
         roles: ['admin', 'general_manager', 'manager'],
     },
     {
