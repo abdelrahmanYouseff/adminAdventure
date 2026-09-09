@@ -609,7 +609,7 @@ Route::get('email-logs', [\App\Http\Controllers\EmailLogController::class, 'inde
     ->name('email-logs.index');
 
 Route::get('order-logs', [\App\Http\Controllers\OrderLogController::class, 'index'])
-    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager'])
+    ->middleware(['auth', 'verified', 'role:admin'])
     ->name('order-logs.index');
 
 Route::get('worker-orders', [\App\Http\Controllers\WorkerOrderController::class, 'index'])

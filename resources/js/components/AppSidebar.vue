@@ -96,12 +96,6 @@ const allNavItems: NavItemWithRoles[] = [
         roles: ['admin', 'general_manager', 'manager'],
     },
     {
-        title: 'Order Logs',
-        href: '/order-logs',
-        icon: ClipboardList,
-        roles: ['admin', 'general_manager', 'manager'],
-    },
-    {
         title: 'رحلة الطلب',
         href: '/order-journey',
         icon: Route,
@@ -213,10 +207,23 @@ const allNavItems: NavItemWithRoles[] = [
         roles: ['admin', 'general_manager', 'manager', 'accounts'],
     },
     {
-        title: 'Email Log',
-        href: '/email-logs',
+        title: 'Email Logs',
         icon: Mailbox,
         roles: ['admin', 'general_manager', 'manager', 'workers_manager', 'accounts'],
+        children: [
+            {
+                title: 'Email Log',
+                href: '/email-logs',
+                icon: Mailbox,
+                roles: ['admin', 'general_manager', 'manager', 'workers_manager', 'accounts'],
+            },
+            {
+                title: 'Order Logs',
+                href: '/order-logs',
+                icon: ClipboardList,
+                roles: ['admin'],
+            },
+        ],
     },
     {
         title: 'إعدادات واتساب',

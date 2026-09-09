@@ -34,6 +34,56 @@ class OrderLogsTest extends TestCase
             ->assertRedirect(route('quotations.index'));
     }
 
+    public function test_manager_cannot_open_order_logs(): void
+    {
+        $manager = User::factory()->staff(User::ROLE_MANAGER)->create();
+
+        $this->actingAs($manager)
+            ->get(route('order-logs.index'))
+            ->assertRedirect(route('dashboard'));
+    }
+
+    public function test_existing_orders_appear_even_without_historical_logs(): void
+    {
+        $admin = User::factory()->admin()->create();
+        $order = Order::withoutEvents(fn () => $this->makeOrder('لمي الصغير', 1950));
+
+        $this->actingAs($admin)
+            ->get(route('order-logs.index'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('OrderLogs/Index')
+                ->has('orders.data', 1)
+                ->where('orders.data.0.order_number', $order->order_number)
+                ->where('orders.data.0.customer_name', 'لمي الصغير')
+                ->where('orders.data.0.created_by.name', 'غير مسجّل')
+                ->where('orders.data.0.updated_by', null)
+                ->where('stats.all', 1)
+                ->where('stats.edited', 0)
+            );
+    }
+
+    public function test_editing_an_existing_order_records_the_admin_as_editor(): void
+    {
+        $admin = User::factory()->admin()->create([
+            'customer_name' => 'أحمد المعدّل',
+        ]);
+        $order = Order::withoutEvents(fn () => $this->makeOrder('لمي الصغير', 1950));
+
+        $this->actingAs($admin);
+        $order->update(['address' => 'الرياض']);
+
+        $this->actingAs($admin)
+            ->get(route('order-logs.index'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('OrderLogs/Index')
+                ->where('orders.data.0.created_by.name', 'غير مسجّل')
+                ->where('orders.data.0.updated_by.name', 'أحمد المعدّل')
+                ->where('stats.edited', 1)
+            );
+    }
+
     public function test_creating_an_order_records_the_authenticated_user(): void
     {
         $admin = User::factory()->admin()->create([

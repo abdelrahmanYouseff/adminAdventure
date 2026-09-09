@@ -114,7 +114,7 @@ function actorLabel(actor: Actor): string {
                         Order Logs
                     </h1>
                     <p class="mt-2 max-w-2xl text-sm leading-relaxed text-slate-300">
-                        من أنشأ الطلب، ولو تم التعديل: متى ومين اللي عمل التعديل.
+                        كل الطلبات الحالية. المنشئ والمعدّل يظهران للاستخدام من بعد تفعيل السجل، والطلبات الأقدم تظهر بدون اسم المستخدم لأنه لم يكن يُسجَّل سابقاً.
                     </p>
                 </div>
                 <p class="text-sm text-slate-400">{{ formatInteger(orders.total) }} طلب</p>
@@ -123,7 +123,7 @@ function actorLabel(actor: Actor): string {
 
         <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             <button type="button" class="rounded-3xl bg-white p-5 text-right shadow-sm ring-1 ring-slate-200" @click="setFilter('all')">
-                <p class="text-xs font-semibold text-slate-400">كل الطلبات المسجّلة</p>
+                <p class="text-xs font-semibold text-slate-400">كل الطلبات</p>
                 <p class="mt-3 text-2xl font-black text-slate-900">{{ stats.all }}</p>
             </button>
             <button type="button" class="rounded-3xl bg-white p-5 text-right shadow-sm ring-1 ring-amber-200" @click="setFilter('edited')">
@@ -149,7 +149,7 @@ function actorLabel(actor: Actor): string {
         </form>
 
         <div v-if="orders.data.length === 0" class="rounded-3xl border border-dashed border-slate-200 bg-white px-6 py-16 text-center text-sm text-slate-500">
-            لا توجد سجلات بعد. ستظهر هنا بعد إنشاء أو تعديل أي طلب.
+            لا توجد طلبات.
         </div>
 
         <div v-else class="space-y-4">

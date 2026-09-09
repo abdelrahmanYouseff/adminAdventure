@@ -20,7 +20,6 @@ class OrderLogController extends Controller
         }
 
         $query = Order::query()
-            ->whereHas('orderLogs')
             ->with(['orderLogs' => fn ($builder) => $builder->orderBy('id')])
             ->latest('id');
 
@@ -51,7 +50,7 @@ class OrderLogController extends Controller
                 'filter' => $filter,
             ],
             'stats' => [
-                'all' => Order::query()->whereHas('orderLogs')->count(),
+                'all' => Order::query()->count(),
                 'edited' => Order::query()
                     ->whereHas('orderLogs', fn ($builder) => $builder->where('action', OrderLog::ACTION_UPDATED))
                     ->count(),
@@ -65,8 +64,7 @@ class OrderLogController extends Controller
      */
     private function presentOrder(Order $order): array
     {
-        $created = $order->orderLogs->firstWhere('action', OrderLog::ACTION_CREATED)
-            ?? $order->orderLogs->first();
+        $created = $order->orderLogs->firstWhere('action', OrderLog::ACTION_CREATED);
         $updates = $order->orderLogs
             ->where('action', OrderLog::ACTION_UPDATED)
             ->values();
