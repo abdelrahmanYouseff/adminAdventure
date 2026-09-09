@@ -18,6 +18,7 @@ import {
     HardHat,
     ShieldCheck,
     Receipt,
+    CreditCard,
     Building2,
     Search,
     Undo2,
@@ -157,6 +158,12 @@ const allNavItems: NavItemWithRoles[] = [
                 title: 'سندات القبض',
                 href: '/payment-receipts',
                 icon: Receipt,
+                roles: ['admin', 'general_manager', 'manager', 'accounts'],
+            },
+            {
+                title: 'إيصالات نون',
+                href: '/noon-receipts',
+                icon: CreditCard,
                 roles: ['admin', 'general_manager', 'manager', 'accounts'],
             },
             {

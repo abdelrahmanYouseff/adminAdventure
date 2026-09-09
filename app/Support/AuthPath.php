@@ -29,6 +29,7 @@ class AuthPath
         'worker-app',
         'main-app',
         'payment-receipts',
+        'noon-receipts',
         'reports',
         'returns',
         'password',

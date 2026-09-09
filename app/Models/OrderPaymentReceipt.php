@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -84,6 +85,19 @@ class OrderPaymentReceipt extends Model
     public function isRejected(): bool
     {
         return $this->approval_status === self::STATUS_REJECTED;
+    }
+
+    /**
+     * Successful Noon gateway payments only.
+     *
+     * @param  Builder<OrderPaymentReceipt>  $query
+     * @return Builder<OrderPaymentReceipt>
+     */
+    public function scopeSuccessfulNoon(Builder $query): Builder
+    {
+        return $query
+            ->where('payment_method', 'noon')
+            ->where('approval_status', self::STATUS_APPROVED);
     }
 
     public function order(): BelongsTo

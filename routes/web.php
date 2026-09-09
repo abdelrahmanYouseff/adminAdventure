@@ -571,6 +571,18 @@ Route::get('payment-receipts', [\App\Http\Controllers\OrderPaymentReceiptControl
     ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,accounts'])
     ->name('payment-receipts.index');
 
+Route::get('noon-receipts', [\App\Http\Controllers\NoonReceiptController::class, 'index'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,accounts'])
+    ->name('noon-receipts.index');
+
+Route::get('noon-receipts/orders/{order}/pdf', [\App\Http\Controllers\NoonReceiptController::class, 'orderPdf'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,accounts'])
+    ->name('noon-receipts.order-pdf');
+
+Route::get('noon-receipts/{receipt}/pdf', [\App\Http\Controllers\NoonReceiptController::class, 'pdf'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,accounts'])
+    ->name('noon-receipts.pdf');
+
 Route::post('payment-receipts/{receipt}/approve', [\App\Http\Controllers\OrderPaymentReceiptController::class, 'approve'])
     ->middleware(['auth', 'verified', 'role:admin,manager,accounts'])
     ->name('payment-receipts.approve');

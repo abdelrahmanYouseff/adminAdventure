@@ -1,6 +1,7 @@
 import {
     BarChart3,
     Building2,
+    CreditCard,
     FileSpreadsheet,
     FileText,
     HardHat,
@@ -53,6 +54,7 @@ const iconMap: Record<string, LucideIcon> = {
     package: Package,
     'shopping-cart': ShoppingCart,
     receipt: Receipt,
+    'credit-card': CreditCard,
     'hard-hat': HardHat,
     users: Users,
     'user-cog': UserCog,

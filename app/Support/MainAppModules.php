@@ -93,6 +93,15 @@ class MainAppModules
                 'roles' => [User::ROLE_ADMIN, User::ROLE_GENERAL_MANAGER, User::ROLE_MANAGER, User::ROLE_ACCOUNTS],
             ],
             [
+                'key' => 'noon-receipts',
+                'title' => 'إيصالات نون',
+                'description' => 'دفعات بوابة نون الناجحة وتحميل الإيصال',
+                'icon' => 'credit-card',
+                'tone' => 'sky',
+                'desktop_path' => '/noon-receipts',
+                'roles' => [User::ROLE_ADMIN, User::ROLE_GENERAL_MANAGER, User::ROLE_MANAGER, User::ROLE_ACCOUNTS],
+            ],
+            [
                 'key' => 'worker-orders',
                 'title' => 'أوامر العمل',
                 'description' => 'توزيع ومتابعة أوامر التركيب',

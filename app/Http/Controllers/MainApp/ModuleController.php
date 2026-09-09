@@ -84,6 +84,7 @@ class ModuleController extends Controller
             'packages' => $this->packagesData($search),
             'orders' => $this->ordersData($search),
             'payment-receipts' => $this->paymentReceiptsData($search),
+            'noon-receipts' => $this->noonReceiptsData($search),
             'worker-orders' => $this->workerOrdersData($search),
             'customers' => $this->customersData($search),
             'users' => $this->usersData($search),
@@ -322,6 +323,43 @@ class ModuleController extends Controller
                     default => 'amber',
                 },
                 'href' => '/payment-receipts',
+            ])->all(),
+        ];
+    }
+
+    private function noonReceiptsData(string $search): array
+    {
+        $query = OrderPaymentReceipt::query()
+            ->successfulNoon()
+            ->with('order:id,order_number,customer_name,currency,payment_id')
+            ->latest('id');
+
+        if ($search !== '') {
+            $query->where(function ($q) use ($search) {
+                $q->where('receipt_number', 'like', "%{$search}%")
+                    ->orWhereHas('order', function ($orderQuery) use ($search) {
+                        $orderQuery->where('order_number', 'like', "%{$search}%")
+                            ->orWhere('customer_name', 'like', "%{$search}%")
+                            ->orWhere('payment_id', 'like', "%{$search}%");
+                    });
+            });
+        }
+
+        $count = OrderPaymentReceipt::query()->successfulNoon()->count();
+
+        return [
+            'stats' => [
+                ['label' => 'إيصالات ناجحة', 'value' => $count],
+            ],
+            'empty_message' => 'لا توجد دفعات نون ناجحة حالياً.',
+            'items' => $query->limit(40)->get()->map(fn (OrderPaymentReceipt $receipt) => [
+                'id' => $receipt->id,
+                'title' => $receipt->order?->customer_name ?: '—',
+                'subtitle' => ($receipt->receipt_number ?: '').' · '.($receipt->order?->order_number ?: ''),
+                'meta' => number_format((float) $receipt->amount, 2).' '.($receipt->order?->currency ?: 'SAR'),
+                'badge' => 'ناجحة',
+                'badge_tone' => 'emerald',
+                'href' => '/noon-receipts/'.$receipt->id.'/pdf',
             ])->all(),
         ];
     }
