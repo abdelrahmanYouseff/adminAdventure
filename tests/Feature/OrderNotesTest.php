@@ -59,10 +59,66 @@ class OrderNotesTest extends TestCase
         ]);
     }
 
-    public function test_admin_can_delete_the_order_notes_field(): void
+    public function test_deleting_an_activity_note_removes_it_from_the_whole_order(): void
     {
         $admin = User::factory()->admin()->create();
+        $this->actingAs($admin);
+        $order = $this->makeOrder('ملاحظة للحذف');
+        $note = WorkerOrderNote::query()->create([
+            'order_id' => $order->id,
+            'user_id' => $admin->id,
+            'body' => 'ملاحظة للحذف',
+        ]);
+
+        $receipt = $order->paymentReceipts()->create([
+            'receipt_number' => 'RCP-TEST-0001',
+            'amount' => 100,
+            'total_amount' => 500,
+            'amount_paid_before' => 0,
+            'amount_paid_after' => 100,
+            'remaining_after' => 400,
+            'payment_method' => 'cash',
+            'type' => 'payment',
+            'approval_status' => 'pending',
+            'notes' => "سند قبض عند إنشاء الطلب\nملاحظة للحذف",
+        ]);
+
+        $this->actingAs($admin)
+            ->from(route('orders.show', $order))
+            ->delete(route('orders.notes.destroy', [$order, $note]))
+            ->assertRedirect(route('orders.show', $order));
+
+        $this->assertDatabaseMissing('worker_order_notes', [
+            'id' => $note->id,
+        ]);
+        $this->assertDatabaseHas('orders', [
+            'id' => $order->id,
+            'notes' => null,
+        ]);
+        $this->assertSame('سند قبض عند إنشاء الطلب', $receipt->fresh()->notes);
+        $this->assertFalse(
+            \App\Models\OrderLog::query()
+                ->where('order_id', $order->id)
+                ->get()
+                ->contains(fn ($log) => str_contains(json_encode($log->changes) ?: '', 'ملاحظة للحذف')),
+        );
+    }
+
+    public function test_deleting_the_order_notes_field_also_deletes_matching_activity_notes(): void
+    {
+        $admin = User::factory()->admin()->create();
+        $this->actingAs($admin);
         $order = $this->makeOrder('ملاحظة الطلب الأصلية');
+        WorkerOrderNote::query()->create([
+            'order_id' => $order->id,
+            'user_id' => $admin->id,
+            'body' => 'ملاحظة الطلب الأصلية',
+        ]);
+        WorkerOrderNote::query()->create([
+            'order_id' => $order->id,
+            'user_id' => $admin->id,
+            'body' => 'ملاحظة مختلفة تبقى',
+        ]);
 
         $this->actingAs($admin)
             ->from(route('orders.show', $order))
@@ -72,6 +128,14 @@ class OrderNotesTest extends TestCase
         $this->assertDatabaseHas('orders', [
             'id' => $order->id,
             'notes' => null,
+        ]);
+        $this->assertDatabaseMissing('worker_order_notes', [
+            'order_id' => $order->id,
+            'body' => 'ملاحظة الطلب الأصلية',
+        ]);
+        $this->assertDatabaseHas('worker_order_notes', [
+            'order_id' => $order->id,
+            'body' => 'ملاحظة مختلفة تبقى',
         ]);
     }
 

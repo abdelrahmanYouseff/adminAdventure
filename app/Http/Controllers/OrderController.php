@@ -11,6 +11,7 @@ use App\Models\WorkerOrderNote;
 use App\Services\OrderPaymentReceiptService;
 use App\Support\MediaStorage;
 use App\Support\OrderInsuranceCalculator;
+use App\Support\OrderNotePurger;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -268,7 +269,7 @@ class OrderController extends Controller
         abort_unless($order->isReleasedToOperations(), 404);
         abort_unless($note->order_id === $order->id, 404);
 
-        $note->delete();
+        OrderNotePurger::deleteActivityNote($order, $note);
 
         return back()->with('success', 'تم حذف الملاحظة.');
     }
@@ -277,7 +278,7 @@ class OrderController extends Controller
     {
         abort_unless($order->isReleasedToOperations(), 404);
 
-        $order->update(['notes' => null]);
+        OrderNotePurger::deleteOrderFieldNote($order);
 
         return back()->with('success', 'تم حذف الملاحظة.');
     }

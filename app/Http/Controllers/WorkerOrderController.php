@@ -14,12 +14,13 @@ use App\Services\DeliveryNotePdfService;
 use App\Services\DeliveryNoteWhatsAppService;
 use App\Services\WorkerOrderSyncService;
 use App\Support\DeliveryNotePdfData;
+use App\Support\MediaStorage;
 use App\Support\OrderInsuranceCalculator;
+use App\Support\OrderNotePurger;
 use App\Support\WorkOrderPresenter;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
-use App\Support\MediaStorage;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Symfony\Component\HttpFoundation\Response;
@@ -469,7 +470,7 @@ class WorkerOrderController extends Controller
 
         abort_unless($note->order_id === $order->id, 404);
 
-        $note->delete();
+        OrderNotePurger::deleteActivityNote($order, $note);
 
         $order->loadMissing('invoice:id,invoice_number');
         $reference = $order->invoice?->invoice_number ?? $order->order_number;
@@ -486,8 +487,7 @@ class WorkerOrderController extends Controller
         string $search = '',
         string $dateRange = 'all',
         bool $warehouseView = false,
-    ): array
-    {
+    ): array {
         $query = Order::query()
             ->releasedToOperations()
             ->when(! $warehouseView, fn ($q) => $q->whereHas('workerOrders'))
