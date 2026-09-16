@@ -9,6 +9,16 @@ use App\Models\WorkerOrderNote;
 
 class OrderNotePurger
 {
+    /**
+     * @var list<string>
+     */
+    private const SYSTEM_RECEIPT_NOTES = [
+        'سند قبض عند إنشاء الطلب — بانتظار اعتماد المحاسب',
+        'سداد من تعديل الطلب — بانتظار اعتماد المحاسب',
+        'سداد من قائمة الطلبات — بانتظار اعتماد المحاسب',
+        'سند قبض عند إنشاء الطلب',
+    ];
+
     public static function deleteActivityNote(Order $order, WorkerOrderNote $note): void
     {
         $body = trim((string) $note->body);
@@ -24,6 +34,7 @@ class OrderNotePurger
         $body = trim((string) ($order->notes ?? ''));
         self::purgeText($order, $body);
         self::clearOrderNotes($order);
+        self::syncPaymentReceiptNotes($order->fresh() ?? $order, $body);
     }
 
     public static function purgeText(Order $order, string $body): void
@@ -48,24 +59,7 @@ class OrderNotePurger
             }
         }
 
-        OrderPaymentReceipt::query()
-            ->where('order_id', $order->id)
-            ->whereNotNull('notes')
-            ->get()
-            ->each(function (OrderPaymentReceipt $receipt) use ($body): void {
-                $current = trim((string) $receipt->notes);
-                if ($current === '') {
-                    return;
-                }
-
-                $next = self::stripBody($current, $body);
-                if ($next === $current) {
-                    return;
-                }
-
-                $receipt->notes = $next === '' ? null : $next;
-                $receipt->save();
-            });
+        self::syncPaymentReceiptNotes($order, $body);
 
         OrderLog::query()
             ->where('order_id', $order->id)
@@ -85,6 +79,77 @@ class OrderNotePurger
                 $log->changes = $updated === [] ? null : $updated;
                 $log->save();
             });
+    }
+
+    private static function syncPaymentReceiptNotes(Order $order, string $deletedBody): void
+    {
+        $remainingOrderNotes = trim((string) ($order->fresh()?->notes ?? $order->notes ?? ''));
+        $deletedBody = trim($deletedBody);
+
+        OrderPaymentReceipt::query()
+            ->where('order_id', $order->id)
+            ->get()
+            ->each(function (OrderPaymentReceipt $receipt) use ($deletedBody, $remainingOrderNotes): void {
+                $current = trim((string) $receipt->notes);
+                $next = $current;
+
+                if ($deletedBody !== '') {
+                    $next = self::stripBody($next, $deletedBody);
+                }
+
+                if ($remainingOrderNotes === '') {
+                    $next = self::keepProtectedLines($next);
+                }
+
+                $next = $next === '' ? null : $next;
+
+                if ($next === ($current === '' ? null : $current)) {
+                    return;
+                }
+
+                $receipt->forceFill(['notes' => $next])->saveQuietly();
+            });
+    }
+
+    private static function keepProtectedLines(string $text): string
+    {
+        if ($text === '') {
+            return '';
+        }
+
+        if (self::isProtectedNote($text)) {
+            return $text;
+        }
+
+        $lines = preg_split("/\r\n|\n|\r/", $text) ?: [];
+        $kept = array_values(array_filter(
+            $lines,
+            fn (string $line): bool => self::isProtectedNote(trim($line)),
+        ));
+
+        return trim(implode("\n", $kept));
+    }
+
+    private static function isProtectedNote(string $text): bool
+    {
+        $text = trim($text);
+        if ($text === '') {
+            return false;
+        }
+
+        if (in_array($text, self::SYSTEM_RECEIPT_NOTES, true)) {
+            return true;
+        }
+
+        if (str_starts_with($text, 'استحقاق تأمين')) {
+            return true;
+        }
+
+        if (str_contains($text, 'دفع إلكتروني عبر Noon')) {
+            return true;
+        }
+
+        return false;
     }
 
     private static function clearOrderNotes(Order $order): void

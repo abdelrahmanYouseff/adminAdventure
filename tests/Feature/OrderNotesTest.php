@@ -104,6 +104,67 @@ class OrderNotesTest extends TestCase
         );
     }
 
+    public function test_deleted_notes_are_removed_from_approved_and_rejected_receipts(): void
+    {
+        $admin = User::factory()->admin()->create();
+        $this->actingAs($admin);
+        $order = $this->makeOrder('ملاحظة للحذف');
+
+        $approved = $order->paymentReceipts()->create([
+            'receipt_number' => 'RCP-TEST-APPROVED',
+            'amount' => 100,
+            'total_amount' => 500,
+            'amount_paid_before' => 0,
+            'amount_paid_after' => 100,
+            'remaining_after' => 400,
+            'payment_method' => 'cash',
+            'type' => 'payment',
+            'approval_status' => 'approved',
+            'approved_at' => now(),
+            'notes' => 'ملاحظة للحذف',
+        ]);
+        $rejected = $order->paymentReceipts()->create([
+            'receipt_number' => 'RCP-TEST-REJECTED',
+            'amount' => 50,
+            'total_amount' => 500,
+            'amount_paid_before' => 100,
+            'amount_paid_after' => 100,
+            'remaining_after' => 400,
+            'payment_method' => 'cash',
+            'type' => 'payment',
+            'approval_status' => 'rejected',
+            'rejected_at' => now(),
+            'rejection_reason' => 'مرفوض للتجربة',
+            'notes' => 'ملاحظة للحذف',
+        ]);
+        $noon = $order->paymentReceipts()->create([
+            'receipt_number' => 'RCP-TEST-NOON',
+            'amount' => 80,
+            'total_amount' => 500,
+            'amount_paid_before' => 100,
+            'amount_paid_after' => 180,
+            'remaining_after' => 320,
+            'payment_method' => 'noon',
+            'type' => 'payment',
+            'approval_status' => 'approved',
+            'approved_at' => now(),
+            'notes' => "دفع إلكتروني عبر Noon (noon-123)\nملاحظة للحذف",
+        ]);
+
+        $this->actingAs($admin)
+            ->from(route('orders.show', $order))
+            ->delete(route('orders.notes.destroy-field', $order))
+            ->assertRedirect(route('orders.show', $order));
+
+        $this->assertDatabaseHas('orders', [
+            'id' => $order->id,
+            'notes' => null,
+        ]);
+        $this->assertNull($approved->fresh()->notes);
+        $this->assertNull($rejected->fresh()->notes);
+        $this->assertSame('دفع إلكتروني عبر Noon (noon-123)', $noon->fresh()->notes);
+    }
+
     public function test_deleting_the_order_notes_field_also_deletes_matching_activity_notes(): void
     {
         $admin = User::factory()->admin()->create();
