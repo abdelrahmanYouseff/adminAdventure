@@ -547,6 +547,18 @@ Route::get('orders/{order}', [OrderController::class, 'show'])
     ->middleware(['auth', 'verified', 'role:admin,general_manager,manager'])
     ->name('orders.show');
 
+Route::post('orders/{order}/notes', [OrderController::class, 'storeNote'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager'])
+    ->name('orders.notes.store');
+
+Route::delete('orders/{order}/notes/order-field', [OrderController::class, 'destroyOrderNotes'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager'])
+    ->name('orders.notes.destroy-field');
+
+Route::delete('orders/{order}/notes/{note}', [OrderController::class, 'destroyNote'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager'])
+    ->name('orders.notes.destroy');
+
 Route::get('order-journey', [\App\Http\Controllers\OrderJourneyController::class, 'index'])
     ->middleware(['auth', 'verified', 'role:admin'])
     ->name('order-journey.index');

@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-import { Head, Link, usePage } from '@inertiajs/vue3';
+import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { ArrowRight, User, Mail, Phone, CreditCard, FileText, Calendar, Package, HardHat, Pencil, Copy, Check } from 'lucide-vue-next';
+import { ArrowRight, User, Mail, Phone, CreditCard, Calendar, Package, HardHat, Pencil, Copy, Check, Trash2, MessageSquareText } from 'lucide-vue-next';
 import { formatCurrency, formatDate, formatDateTime, formatInteger } from '@/lib/formatNumber';
 
 interface OrderItem {
@@ -46,6 +46,14 @@ interface DismantlingMeta {
     progress_total: number;
 }
 
+interface ActivityNote {
+    id: number;
+    body: string;
+    user_name: string;
+    user_role: string;
+    created_at: string | null;
+}
+
 interface Order {
     id: number;
     order_number: string;
@@ -76,6 +84,8 @@ interface Order {
     warehouse_returned_at?: string | null;
     warehouse_returned_by_name?: string | null;
     can_edit?: boolean;
+    can_delete_notes?: boolean;
+    activity_notes?: ActivityNote[];
     is_locked?: boolean;
 }
 
@@ -91,6 +101,53 @@ const page = usePage();
 const successMessage = computed(() => (page.props.flash as { success?: string } | undefined)?.success);
 const isPaid = computed(() => props.order.status === 'paid' || props.order.payment_status === 'paid');
 const paymentLinkCopied = ref(false);
+const deletingNoteId = ref<number | 'order-field' | null>(null);
+const noteForm = useForm({
+    body: '',
+});
+const activityNotes = computed(() => props.order.activity_notes ?? []);
+const canDeleteNotes = computed(() => Boolean(props.order.can_delete_notes));
+
+function submitNote() {
+    const body = noteForm.body.trim();
+    if (!body) {
+        noteForm.setError('body', 'يجب كتابة الملاحظة.');
+        return;
+    }
+
+    noteForm.body = body;
+    noteForm.post(`/orders/${props.order.id}/notes`, {
+        preserveScroll: true,
+        onSuccess: () => {
+            noteForm.reset('body');
+            noteForm.clearErrors();
+        },
+    });
+}
+
+function deleteActivityNote(note: ActivityNote) {
+    if (!confirm('حذف هذه الملاحظة؟')) return;
+
+    deletingNoteId.value = note.id;
+    router.delete(`/orders/${props.order.id}/notes/${note.id}`, {
+        preserveScroll: true,
+        onFinish: () => {
+            deletingNoteId.value = null;
+        },
+    });
+}
+
+function deleteOrderFieldNote() {
+    if (!confirm('حذف هذه الملاحظة؟')) return;
+
+    deletingNoteId.value = 'order-field';
+    router.delete(`/orders/${props.order.id}/notes/order-field`, {
+        preserveScroll: true,
+        onFinish: () => {
+            deletingNoteId.value = null;
+        },
+    });
+}
 
 async function copyPaymentLink() {
     if (!props.order.payment_url) return;
@@ -418,15 +475,93 @@ const orderItems = () => {
         </Card>
 
         <!-- ملاحظات -->
-        <Card v-if="order.notes">
+        <Card>
             <CardHeader>
                 <CardTitle class="flex items-center gap-2">
-                    <FileText class="h-5 w-5" />
+                    <MessageSquareText class="h-5 w-5" />
                     ملاحظات
                 </CardTitle>
             </CardHeader>
-            <CardContent>
-                <p class="text-sm text-muted-foreground whitespace-pre-wrap">{{ order.notes }}</p>
+            <CardContent class="space-y-4">
+                <div v-if="order.notes" class="rounded-xl border border-slate-100 bg-slate-50 px-4 py-3">
+                    <div class="mb-1.5 flex flex-wrap items-center justify-between gap-2">
+                        <span class="text-sm font-semibold text-slate-900">ملاحظة الطلب</span>
+                        <Button
+                            v-if="canDeleteNotes"
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            class="h-8 gap-1 text-rose-600 hover:bg-rose-50 hover:text-rose-700"
+                            :disabled="deletingNoteId === 'order-field'"
+                            @click="deleteOrderFieldNote"
+                        >
+                            <Trash2 class="h-3.5 w-3.5" />
+                            حذف
+                        </Button>
+                    </div>
+                    <p class="whitespace-pre-wrap text-sm leading-relaxed text-muted-foreground">{{ order.notes }}</p>
+                </div>
+
+                <div v-if="activityNotes.length" class="space-y-3">
+                    <article
+                        v-for="note in activityNotes"
+                        :key="note.id"
+                        class="rounded-xl border border-slate-100 bg-slate-50 px-4 py-3"
+                    >
+                        <div class="mb-1.5 flex flex-wrap items-center justify-between gap-2">
+                            <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
+                                <span class="text-sm font-semibold text-slate-900">{{ note.user_name }}</span>
+                                <span class="rounded-full bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-500 ring-1 ring-slate-200">
+                                    {{ note.user_role }}
+                                </span>
+                                <span v-if="note.created_at" class="text-[11px] text-slate-400" dir="ltr">
+                                    {{ formatDateTime(note.created_at) }}
+                                </span>
+                            </div>
+                            <Button
+                                v-if="canDeleteNotes"
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                class="h-8 gap-1 text-rose-600 hover:bg-rose-50 hover:text-rose-700"
+                                :disabled="deletingNoteId === note.id"
+                                @click="deleteActivityNote(note)"
+                            >
+                                <Trash2 class="h-3.5 w-3.5" />
+                                حذف
+                            </Button>
+                        </div>
+                        <p class="whitespace-pre-wrap text-sm leading-relaxed text-slate-700">{{ note.body }}</p>
+                    </article>
+                </div>
+
+                <p v-if="!order.notes && activityNotes.length === 0" class="py-2 text-center text-sm text-slate-400">
+                    لا توجد ملاحظات على هذا الطلب بعد.
+                </p>
+
+                <div class="space-y-2 border-t border-slate-100 pt-3">
+                    <label class="block text-xs font-semibold text-slate-600">إضافة ملاحظة</label>
+                    <textarea
+                        v-model="noteForm.body"
+                        rows="3"
+                        maxlength="2000"
+                        placeholder="اكتب ملاحظة..."
+                        class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none transition focus:border-blue-300 focus:ring-2 focus:ring-blue-100"
+                    />
+                    <p v-if="noteForm.errors.body" class="text-sm text-rose-600">{{ noteForm.errors.body }}</p>
+                    <div class="flex justify-end">
+                        <Button
+                            type="button"
+                            size="sm"
+                            class="gap-1.5"
+                            :disabled="noteForm.processing"
+                            @click="submitNote"
+                        >
+                            <MessageSquareText class="size-3.5" />
+                            {{ noteForm.processing ? 'جاري الحفظ...' : 'حفظ الملاحظة' }}
+                        </Button>
+                    </div>
+                </div>
             </CardContent>
         </Card>
     </div>

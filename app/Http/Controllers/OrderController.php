@@ -7,12 +7,13 @@ use App\Models\Order;
 use App\Models\OrderPaymentReceipt;
 use App\Models\Product;
 use App\Models\User;
+use App\Models\WorkerOrderNote;
 use App\Services\OrderPaymentReceiptService;
+use App\Support\MediaStorage;
 use App\Support\OrderInsuranceCalculator;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use App\Support\MediaStorage;
 use Inertia\Inertia;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -183,6 +184,8 @@ class OrderController extends Controller
             'paymentReceipts:id,order_id,amount,approval_status,created_at,approved_at,receipt_number,recorded_by,approved_by',
             'quotation:id,quotation_number,total_amount,created_at',
             'warehouseReturnedBy:id,customer_name',
+            'workerNotes' => fn ($q) => $q->latest(),
+            'workerNotes.user:id,customer_name,role',
         ]);
 
         $breakdown = $this->orderChargeBreakdown($order);
@@ -215,10 +218,68 @@ class OrderController extends Controller
                 User::ROLE_MANAGER,
             )
         );
+        $order->setAttribute('can_delete_notes', (bool) $viewer?->hasAnyRole(
+            User::ROLE_ADMIN,
+            User::ROLE_GENERAL_MANAGER,
+            User::ROLE_MANAGER,
+        ));
+        $order->setAttribute(
+            'activity_notes',
+            $order->workerNotes
+                ->map(fn (WorkerOrderNote $note) => [
+                    'id' => $note->id,
+                    'body' => $note->body,
+                    'user_name' => $note->user?->name ?: 'مستخدم',
+                    'user_role' => $note->user?->roleLabel() ?? 'مستخدم',
+                    'created_at' => $note->created_at?->toIso8601String(),
+                ])
+                ->values()
+                ->all(),
+        );
+        $order->unsetRelation('workerNotes');
 
         return Inertia::render('Orders/Show', [
             'order' => $order,
         ]);
+    }
+
+    public function storeNote(Request $request, Order $order): RedirectResponse
+    {
+        abort_unless($order->isReleasedToOperations(), 404);
+
+        $validated = $request->validate([
+            'body' => ['required', 'string', 'max:2000'],
+        ], [
+            'body.required' => 'يجب كتابة الملاحظة.',
+            'body.max' => 'الملاحظة يجب ألا تتجاوز 2000 حرف.',
+        ]);
+
+        WorkerOrderNote::query()->create([
+            'order_id' => $order->id,
+            'user_id' => $request->user()->id,
+            'body' => trim($validated['body']),
+        ]);
+
+        return back()->with('success', 'تم إضافة الملاحظة.');
+    }
+
+    public function destroyNote(Order $order, WorkerOrderNote $note): RedirectResponse
+    {
+        abort_unless($order->isReleasedToOperations(), 404);
+        abort_unless($note->order_id === $order->id, 404);
+
+        $note->delete();
+
+        return back()->with('success', 'تم حذف الملاحظة.');
+    }
+
+    public function destroyOrderNotes(Order $order): RedirectResponse
+    {
+        abort_unless($order->isReleasedToOperations(), 404);
+
+        $order->update(['notes' => null]);
+
+        return back()->with('success', 'تم حذف الملاحظة.');
     }
 
     public function create()
