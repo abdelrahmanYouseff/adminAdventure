@@ -30,6 +30,7 @@ class CommissionReportService
                 'orders_count' => $rows->count(),
                 'games_count' => (int) $rows->sum('games_count'),
                 'total_amount' => round((float) $rows->sum('total_amount'), 2),
+                'commission_total' => round((float) $rows->sum('commission'), 2),
             ],
             'rows' => $rows->values()->all(),
         ];
@@ -43,12 +44,16 @@ class CommissionReportService
         $orders = Order::query()
             ->releasedToOperations()
             ->whereNotIn('status', ['cancelled', 'refunded'])
-            ->whereBetween('created_at', [$start, $end])
+            ->whereNotNull('warehouse_keeper_approved_at')
+            ->whereNotNull('invoice_id')
+            ->whereHas('invoice')
+            ->whereBetween('warehouse_keeper_approved_at', [$start, $end])
             ->with([
                 'products',
                 'workerOrders:id,order_id,product_name',
+                'invoice:id,invoice_number',
             ])
-            ->orderBy('created_at')
+            ->orderBy('warehouse_keeper_approved_at')
             ->orderBy('id')
             ->get([
                 'id',
@@ -57,24 +62,69 @@ class CommissionReportService
                 'total_amount',
                 'currency',
                 'items',
+                'invoice_id',
                 'created_at',
+                'warehouse_keeper_approved_at',
             ]);
 
         return $orders->map(function (Order $order) {
             $productNames = $this->productNames($order);
+            $totalAmount = round((float) $order->total_amount, 2);
 
             return [
                 'id' => $order->id,
-                'order_date' => $order->created_at?->format('Y-m-d'),
+                'order_date' => $order->warehouse_keeper_approved_at?->format('Y-m-d')
+                    ?: $order->created_at?->format('Y-m-d'),
                 'order_number' => $order->order_number,
                 'customer_name' => $order->customer_name,
+                'invoice_number' => $order->invoice?->invoice_number,
                 'product_names' => $productNames,
                 'products_label' => $productNames !== [] ? implode('، ', $productNames) : '—',
                 'games_count' => $this->gamesCount($order),
-                'total_amount' => round((float) $order->total_amount, 2),
+                'total_amount' => $totalAmount,
+                'commission' => self::commissionForAmount($totalAmount),
                 'currency' => $order->currency ?: 'SAR',
             ];
         });
+    }
+
+    /**
+     * مبلغ العمولة حسب شريحة إجمالي الطلب.
+     */
+    public static function commissionForAmount(float $amount): float
+    {
+        $amount = round($amount, 2);
+
+        foreach (self::commissionTiers() as [$from, $to, $commission]) {
+            if ($amount >= $from && $amount <= $to) {
+                return (float) $commission;
+            }
+        }
+
+        if ($amount > 100000) {
+            return 150.0;
+        }
+
+        return 0.0;
+    }
+
+    /**
+     * @return list<array{0: float, 1: float, 2: float}>
+     */
+    private static function commissionTiers(): array
+    {
+        return [
+            [499, 999, 15],
+            [1000, 1499, 20],
+            [1500, 1999, 25],
+            [2000, 2499, 30],
+            [2500, 10000, 35],
+            [10001, 15000, 50],
+            [15001, 25000, 75],
+            [25001, 50000, 100],
+            [50001, 75000, 125],
+            [75001, 100000, 150],
+        ];
     }
 
     /**

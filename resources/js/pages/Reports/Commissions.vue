@@ -18,10 +18,12 @@ interface CommissionRow {
     order_date: string | null;
     order_number: string;
     customer_name: string | null;
+    invoice_number?: string | null;
     product_names: string[];
     products_label?: string;
     games_count: number;
     total_amount: number;
+    commission: number;
     currency: string;
 }
 
@@ -39,6 +41,7 @@ interface Props {
         orders_count: number;
         games_count: number;
         total_amount: number;
+        commission_total: number;
     };
     rows: CommissionRow[];
 }
@@ -74,6 +77,12 @@ const summaryCards = computed(() => [
         icon: Wallet,
         tone: 'bg-emerald-50 text-emerald-700',
     },
+    {
+        label: 'إجمالي العمولات',
+        value: formatCurrency(props.summary.commission_total),
+        icon: Percent,
+        tone: 'bg-amber-50 text-amber-700',
+    },
 ]);
 
 function applyMonth() {
@@ -106,7 +115,7 @@ function exportExcel() {
                     </p>
                     <h1 class="mt-3 text-2xl font-extrabold tracking-tight sm:text-4xl">{{ period.label }}</h1>
                     <p class="mt-2 text-sm text-slate-300">
-                        من {{ period.start }} إلى {{ period.end }}
+                        الطلبات المقفلة خلال الشهر والتي لها فاتورة — من {{ period.start }} إلى {{ period.end }}
                     </p>
                 </div>
 
@@ -152,7 +161,7 @@ function exportExcel() {
             </span>
         </div>
 
-        <div class="grid gap-3 sm:grid-cols-3">
+        <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             <article
                 v-for="card in summaryCards"
                 :key="card.label"
@@ -172,25 +181,27 @@ function exportExcel() {
 
         <section class="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm">
             <div class="flex items-center justify-between border-b border-slate-100 px-5 py-4">
-                <h2 class="text-base font-bold text-slate-900">طلبات الشهر</h2>
+                <h2 class="text-base font-bold text-slate-900">الطلبات المقفلة</h2>
                 <p class="text-sm text-slate-400">{{ formatInteger(rows.length) }} طلب</p>
             </div>
 
             <div class="overflow-x-auto">
-                <table class="w-full min-w-[900px] border-collapse text-sm">
+                <table class="w-full min-w-[1040px] border-collapse text-sm">
                     <thead>
                         <tr class="border-b border-slate-100 bg-slate-50/80 text-start">
-                            <th class="px-4 py-3.5 text-[13px] font-semibold text-slate-600">تاريخ الطلب</th>
+                            <th class="px-4 py-3.5 text-[13px] font-semibold text-slate-600">تاريخ الإقفال</th>
                             <th class="px-4 py-3.5 text-[13px] font-semibold text-slate-600">رقم الطلب</th>
+                            <th class="px-4 py-3.5 text-[13px] font-semibold text-slate-600">رقم الفاتورة</th>
                             <th class="px-4 py-3.5 text-[13px] font-semibold text-slate-600">اسم المنتجات</th>
                             <th class="px-4 py-3.5 text-[13px] font-semibold text-slate-600">عدد الألعاب</th>
                             <th class="px-4 py-3.5 text-[13px] font-semibold text-slate-600">إجمالي سعر الطلب</th>
+                            <th class="px-4 py-3.5 text-[13px] font-semibold text-slate-600">العمولة</th>
                         </tr>
                     </thead>
                     <tbody>
                         <tr v-if="rows.length === 0">
-                            <td colspan="5" class="px-4 py-16 text-center text-slate-500">
-                                لا توجد طلبات في هذا الشهر.
+                            <td colspan="7" class="px-4 py-16 text-center text-slate-500">
+                                لا توجد طلبات مقفلة لها فاتورة في هذا الشهر.
                             </td>
                         </tr>
                         <tr
@@ -209,6 +220,9 @@ function exportExcel() {
                                 >
                                     {{ row.order_number }}
                                 </Link>
+                            </td>
+                            <td class="px-4 py-3.5 font-medium tabular-nums text-slate-700" dir="ltr">
+                                {{ row.invoice_number || '—' }}
                             </td>
                             <td class="max-w-[320px] px-4 py-3.5 text-slate-700">
                                 <template v-if="row.product_names?.length">
@@ -229,6 +243,9 @@ function exportExcel() {
                             </td>
                             <td class="px-4 py-3.5 tabular-nums font-bold text-slate-900">
                                 {{ formatCurrency(row.total_amount, row.currency) }}
+                            </td>
+                            <td class="px-4 py-3.5 tabular-nums font-bold text-amber-700">
+                                {{ formatCurrency(row.commission, row.currency) }}
                             </td>
                         </tr>
                     </tbody>

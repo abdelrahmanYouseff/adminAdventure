@@ -8,7 +8,7 @@ use Maatwebsite\Excel\Concerns\ShouldAutoSize;
 use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithMapping;
 
-class CommissionsExport implements FromCollection, WithHeadings, WithMapping, ShouldAutoSize
+class CommissionsExport implements FromCollection, ShouldAutoSize, WithHeadings, WithMapping
 {
     /**
      * @param  Collection<int, array<string, mixed>>  $rows
@@ -25,11 +25,13 @@ class CommissionsExport implements FromCollection, WithHeadings, WithMapping, Sh
     public function headings(): array
     {
         return [
-            'تاريخ الطلب',
+            'تاريخ الإقفال',
             'رقم الطلب',
+            'رقم الفاتورة',
             'اسم المنتجات',
             'عدد الألعاب',
             'إجمالي سعر الطلب',
+            'العمولة',
         ];
     }
 
@@ -46,9 +48,11 @@ class CommissionsExport implements FromCollection, WithHeadings, WithMapping, Sh
         return [
             $row['order_date'] ?? '—',
             $row['order_number'] ?? '—',
+            $row['invoice_number'] ?? '—',
             $productsLabel,
             (int) ($row['games_count'] ?? 0),
             number_format((float) ($row['total_amount'] ?? 0), 2, '.', ''),
+            number_format((float) ($row['commission'] ?? 0), 2, '.', ''),
         ];
     }
 }
