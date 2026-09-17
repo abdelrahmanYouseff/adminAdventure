@@ -26,7 +26,6 @@ class CommissionsExport implements FromCollection, ShouldAutoSize, WithHeadings,
     {
         return [
             'تاريخ الإقفال',
-            'رقم الطلب',
             'رقم الفاتورة',
             'اسم المنتجات',
             'عدد الألعاب',
@@ -47,7 +46,6 @@ class CommissionsExport implements FromCollection, ShouldAutoSize, WithHeadings,
 
         return [
             $row['order_date'] ?? '—',
-            $row['order_number'] ?? '—',
             $row['invoice_number'] ?? '—',
             $productsLabel,
             (int) ($row['games_count'] ?? 0),

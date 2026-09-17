@@ -36,8 +36,8 @@ class CommissionReportTest extends TestCase
             ->assertInertia(fn (Assert $page) => $page
                 ->component('Reports/Commissions')
                 ->has('rows', 1)
-                ->where('rows.0.order_number', $included->order_number)
                 ->where('rows.0.invoice_number', $included->invoice->invoice_number)
+                ->where('rows.0.invoice_id', $included->invoice_id)
                 ->where('rows.0.commission', 15)
                 ->where('summary.orders_count', 1)
                 ->where('summary.commission_total', 15)
@@ -58,7 +58,8 @@ class CommissionReportTest extends TestCase
             ->assertInertia(fn (Assert $page) => $page
                 ->component('Reports/Commissions')
                 ->has('rows', 1)
-                ->where('rows.0.order_number', $previous->order_number)
+                ->where('rows.0.invoice_number', $previous->invoice->invoice_number)
+                ->where('rows.0.invoice_id', $previous->invoice_id)
             );
     }
 

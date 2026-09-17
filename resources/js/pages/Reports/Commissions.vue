@@ -19,6 +19,7 @@ interface CommissionRow {
     order_number: string;
     customer_name: string | null;
     invoice_number?: string | null;
+    invoice_id?: number | null;
     product_names: string[];
     products_label?: string;
     games_count: number;
@@ -60,7 +61,7 @@ watch(
 
 const summaryCards = computed(() => [
     {
-        label: 'عدد الطلبات',
+        label: 'عدد الفواتير',
         value: formatInteger(props.summary.orders_count),
         icon: ShoppingCart,
         tone: 'bg-sky-50 text-sky-700',
@@ -181,8 +182,8 @@ function exportExcel() {
 
         <section class="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm">
             <div class="flex items-center justify-between border-b border-slate-100 px-5 py-4">
-                <h2 class="text-base font-bold text-slate-900">الطلبات المقفلة</h2>
-                <p class="text-sm text-slate-400">{{ formatInteger(rows.length) }} طلب</p>
+                <h2 class="text-base font-bold text-slate-900">الفواتير المقفلة</h2>
+                <p class="text-sm text-slate-400">{{ formatInteger(rows.length) }} فاتورة</p>
             </div>
 
             <div class="overflow-x-auto">
@@ -190,7 +191,6 @@ function exportExcel() {
                     <thead>
                         <tr class="border-b border-slate-100 bg-slate-50/80 text-start">
                             <th class="px-4 py-3.5 text-[13px] font-semibold text-slate-600">تاريخ الإقفال</th>
-                            <th class="px-4 py-3.5 text-[13px] font-semibold text-slate-600">رقم الطلب</th>
                             <th class="px-4 py-3.5 text-[13px] font-semibold text-slate-600">رقم الفاتورة</th>
                             <th class="px-4 py-3.5 text-[13px] font-semibold text-slate-600">اسم المنتجات</th>
                             <th class="px-4 py-3.5 text-[13px] font-semibold text-slate-600">عدد الألعاب</th>
@@ -200,7 +200,7 @@ function exportExcel() {
                     </thead>
                     <tbody>
                         <tr v-if="rows.length === 0">
-                            <td colspan="7" class="px-4 py-16 text-center text-slate-500">
+                            <td colspan="6" class="px-4 py-16 text-center text-slate-500">
                                 لا توجد طلبات مقفلة لها فاتورة في هذا الشهر.
                             </td>
                         </tr>
@@ -214,15 +214,16 @@ function exportExcel() {
                             </td>
                             <td class="px-4 py-3.5">
                                 <Link
-                                    :href="`/orders/${row.id}`"
+                                    v-if="row.invoice_id"
+                                    :href="`/invoices/${row.invoice_id}`"
                                     class="font-semibold tabular-nums text-sky-700 hover:underline"
                                     dir="ltr"
                                 >
-                                    {{ row.order_number }}
+                                    {{ row.invoice_number || '—' }}
                                 </Link>
-                            </td>
-                            <td class="px-4 py-3.5 font-medium tabular-nums text-slate-700" dir="ltr">
-                                {{ row.invoice_number || '—' }}
+                                <span v-else class="font-semibold tabular-nums text-slate-700" dir="ltr">
+                                    {{ row.invoice_number || '—' }}
+                                </span>
                             </td>
                             <td class="max-w-[320px] px-4 py-3.5 text-slate-700">
                                 <template v-if="row.product_names?.length">

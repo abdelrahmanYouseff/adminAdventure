@@ -78,6 +78,7 @@ class CommissionReportService
                 'order_number' => $order->order_number,
                 'customer_name' => $order->customer_name,
                 'invoice_number' => $order->invoice?->invoice_number,
+                'invoice_id' => $order->invoice_id,
                 'product_names' => $productNames,
                 'products_label' => $productNames !== [] ? implode('، ', $productNames) : '—',
                 'games_count' => $this->gamesCount($order),
