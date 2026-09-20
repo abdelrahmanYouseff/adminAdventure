@@ -55,7 +55,8 @@ class WorkerOrderAssembler extends Model
     {
         return $query->where(function (Builder $inner) {
             $inner->where('task_type', self::TYPE_INSTALLATION)
-                ->orWhereNull('task_type');
+                ->orWhereNull('task_type')
+                ->orWhere('task_type', '');
         });
     }
 

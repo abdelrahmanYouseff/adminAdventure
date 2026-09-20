@@ -471,10 +471,7 @@ class Order extends Model
             if ($taskType === WorkerOrderAssembler::TYPE_DISMANTLING) {
                 $q->where('task_type', WorkerOrderAssembler::TYPE_DISMANTLING);
             } elseif ($taskType === WorkerOrderAssembler::TYPE_INSTALLATION) {
-                $q->where(function ($inner) {
-                    $inner->where('task_type', WorkerOrderAssembler::TYPE_INSTALLATION)
-                        ->orWhereNull('task_type');
-                });
+                $q->installation();
             }
         });
     }
@@ -495,10 +492,7 @@ class Order extends Model
             )
             ->when(
                 $taskType === WorkerOrderAssembler::TYPE_INSTALLATION,
-                fn ($query) => $query->where(function ($inner) {
-                    $inner->where('task_type', WorkerOrderAssembler::TYPE_INSTALLATION)
-                        ->orWhereNull('task_type');
-                }),
+                fn ($query) => $query->installation(),
             )
             ->exists();
     }

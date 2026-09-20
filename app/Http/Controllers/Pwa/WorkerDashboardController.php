@@ -17,37 +17,7 @@ class WorkerDashboardController extends Controller
     {
         $user = auth()->user();
 
-        $orders = Order::query()
-            ->assignedToWorker($user)
-            ->whereHas('workerOrders')
-            ->where(function ($query) {
-                // Keep lists light on mobile: active work + recent completed only.
-                $query->whereHas('workerOrders', fn ($q) => $q->where('status', 'pending'))
-                    ->orWhereNull('work_order_approved_at')
-                    ->orWhereNull('warehouse_returned_at')
-                    ->orWhere('updated_at', '>=', now()->subDays(45));
-            })
-            ->with([
-                'workerOrders' => fn ($q) => $q->orderBy('line_index'),
-                'workerAssemblers' => fn ($q) => $q->where(function ($inner) use ($user) {
-                    $inner->where('user_id', $user->id);
-                    if ($user->name !== '') {
-                        $inner->orWhere('worker_name', $user->name);
-                    }
-                }),
-            ])
-            ->withCount([
-                'workerOrders as total_lines',
-                'workerOrders as pending_lines' => fn ($q) => $q->where('status', 'pending'),
-                'workerOrders as completed_lines' => fn ($q) => $q->where('status', 'completed'),
-                'workerOrders as pending_pickup_lines' => fn ($q) => $q->whereNull('pickup_photo'),
-                'workerOrders as completed_pickup_lines' => fn ($q) => $q->whereNotNull('pickup_photo'),
-            ])
-            ->orderByRaw('activity_date IS NULL')
-            ->orderBy('activity_date')
-            ->orderByDesc('created_at')
-            ->limit(60)
-            ->get();
+        $orders = $this->dashboardOrdersFor($user);
 
         $installations = $orders
             ->flatMap(fn (Order $order) => $this->formatTaskCards($order, $user))
@@ -71,6 +41,63 @@ class WorkerDashboardController extends Controller
                 'all' => count($installations),
             ],
             'installations' => $installations,
+        ]);
+    }
+
+    /**
+     * Current assigned work for the logged-in worker is never capped. Only
+     * recently updated completed jobs are limited, so a new assignment cannot
+     * be pushed off the list by older orders.
+     *
+     * @return \Illuminate\Support\Collection<int, Order>
+     */
+    private function dashboardOrdersFor(User $user)
+    {
+        $base = Order::query()
+            ->assignedToWorker($user)
+            ->whereHas('workerOrders');
+
+        $current = (clone $base)
+            ->where(function ($query) {
+                $query->whereHas('workerOrders', fn ($q) => $q->where('status', 'pending'))
+                    ->orWhereNull('work_order_approved_at');
+            })
+            ->tap(fn ($query) => $this->eagerLoadDashboardRelations($query, $user))
+            ->orderByRaw('activity_date IS NULL')
+            ->orderByDesc('activity_date')
+            ->orderByDesc('created_at')
+            ->get();
+
+        $recent = (clone $base)
+            ->when($current->isNotEmpty(), fn ($query) => $query->whereNotIn('id', $current->modelKeys()))
+            ->where('updated_at', '>=', now()->subDays(45))
+            ->tap(fn ($query) => $this->eagerLoadDashboardRelations($query, $user))
+            ->orderByDesc('updated_at')
+            ->limit(20)
+            ->get();
+
+        return $current->concat($recent);
+    }
+
+    /**
+     * @param  \Illuminate\Database\Eloquent\Builder<Order>  $query
+     */
+    private function eagerLoadDashboardRelations($query, User $user): void
+    {
+        $query->with([
+            'workerOrders' => fn ($q) => $q->orderBy('line_index'),
+            'workerAssemblers' => fn ($q) => $q->where(function ($inner) use ($user) {
+                $inner->where('user_id', $user->id);
+                if ($user->name !== '') {
+                    $inner->orWhere('worker_name', $user->name);
+                }
+            }),
+        ])->withCount([
+            'workerOrders as total_lines',
+            'workerOrders as pending_lines' => fn ($q) => $q->where('status', 'pending'),
+            'workerOrders as completed_lines' => fn ($q) => $q->where('status', 'completed'),
+            'workerOrders as pending_pickup_lines' => fn ($q) => $q->whereNull('pickup_photo'),
+            'workerOrders as completed_pickup_lines' => fn ($q) => $q->whereNotNull('pickup_photo'),
         ]);
     }
 
