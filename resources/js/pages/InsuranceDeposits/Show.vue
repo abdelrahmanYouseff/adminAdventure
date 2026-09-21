@@ -4,7 +4,7 @@ import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { Button } from '@/components/ui/button';
 import { formatCurrency, formatDate, formatDateTime } from '@/lib/formatNumber';
-import { ArrowRight, Camera, ImageIcon, MessageSquareText, ShieldCheck, X } from 'lucide-vue-next';
+import { ArrowRight, Camera, ImageIcon, MessageSquareText, Plus, ShieldCheck, X } from 'lucide-vue-next';
 import Swal from 'sweetalert2';
 
 interface ApprovalStep {
@@ -368,7 +368,30 @@ function submitNote() {
                     الملاحظات ({{ deposit.notes_count || deposit.notes?.length || 0 }})
                 </h2>
 
-                <div v-if="deposit.notes?.length" class="mb-4 max-h-80 space-y-3 overflow-y-auto">
+                <div class="mb-4 space-y-2 rounded-xl border border-violet-100 bg-violet-50/60 p-3">
+                    <label class="block text-xs font-semibold text-violet-800">إضافة ملاحظة</label>
+                    <textarea
+                        v-model="noteForm.body"
+                        rows="3"
+                        maxlength="2000"
+                        placeholder="اكتب الملاحظة هنا..."
+                        class="w-full rounded-xl border border-violet-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none transition focus:border-violet-400 focus:ring-2 focus:ring-violet-100"
+                    />
+                    <p v-if="noteForm.errors.body" class="text-sm text-rose-600">{{ noteForm.errors.body }}</p>
+                    <div class="flex justify-end">
+                        <Button
+                            size="sm"
+                            class="h-9 rounded-xl bg-violet-600 hover:bg-violet-700"
+                            :disabled="noteForm.processing"
+                            @click="submitNote"
+                        >
+                            <Plus class="ml-1 h-4 w-4" />
+                            {{ noteForm.processing ? 'جاري الحفظ...' : 'إضافة الملاحظة' }}
+                        </Button>
+                    </div>
+                </div>
+
+                <div v-if="deposit.notes?.length" class="max-h-80 space-y-3 overflow-y-auto">
                     <article
                         v-for="note in deposit.notes"
                         :key="note.id"
@@ -386,32 +409,9 @@ function submitNote() {
                         <p class="whitespace-pre-wrap text-sm leading-relaxed text-slate-700">{{ note.body }}</p>
                     </article>
                 </div>
-                <p v-else class="mb-4 py-4 text-center text-sm text-slate-400">
-                    لا توجد ملاحظات على طلب التأمين هذا بعد.
+                <p v-else class="py-2 text-center text-sm text-slate-400">
+                    لا توجد ملاحظات بعد. استخدم الزر فوق لإضافة أول ملاحظة.
                 </p>
-
-                <div class="space-y-2 border-t border-slate-100 pt-3">
-                    <label class="block text-xs font-semibold text-slate-600">إضافة ملاحظة</label>
-                    <textarea
-                        v-model="noteForm.body"
-                        rows="3"
-                        maxlength="2000"
-                        placeholder="اكتب ملاحظة يشوفها كل من في سلسلة الاعتماد..."
-                        class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none transition focus:border-sky-300 focus:ring-2 focus:ring-sky-100"
-                    />
-                    <p v-if="noteForm.errors.body" class="text-sm text-rose-600">{{ noteForm.errors.body }}</p>
-                    <div class="flex justify-end">
-                        <Button
-                            size="sm"
-                            class="h-9 rounded-xl"
-                            :disabled="noteForm.processing"
-                            @click="submitNote"
-                        >
-                            <MessageSquareText class="ml-1 h-4 w-4" />
-                            {{ noteForm.processing ? 'جاري الحفظ...' : 'حفظ الملاحظة' }}
-                        </Button>
-                    </div>
-                </div>
             </section>
 
             <div class="mb-3 flex items-center gap-2">

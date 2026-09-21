@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from 'vue';
+import { computed, nextTick, reactive, ref, watch } from 'vue';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { Button } from '@/components/ui/button';
@@ -96,9 +96,12 @@ function toggleNotes(deposit: Deposit, event?: Event) {
     expandedNotesId.value = expandedNotesId.value === deposit.id ? null : deposit.id;
 }
 
-function openNotes(deposit: Deposit, event: Event) {
-    event.stopPropagation();
+function openNotes(deposit: Deposit, event?: Event) {
+    event?.stopPropagation();
     expandedNotesId.value = deposit.id;
+    nextTick(() => {
+        document.getElementById(`insurance-note-draft-${deposit.id}`)?.focus();
+    });
 }
 
 function submitNote(deposit: Deposit) {
@@ -561,12 +564,11 @@ async function markWithheld(deposit: Deposit) {
                                         <div class="flex flex-wrap justify-end gap-2">
                                             <Button
                                                 size="sm"
-                                                variant="outline"
-                                                class="h-9 rounded-xl"
+                                                class="h-9 rounded-xl bg-violet-600 hover:bg-violet-700"
                                                 @click="openNotes(deposit, $event)"
                                             >
-                                                <MessageSquareText class="ml-1 h-4 w-4" />
-                                                ملاحظات
+                                                <Plus class="ml-1 h-4 w-4" />
+                                                إضافة ملاحظة
                                             </Button>
                                             <template v-if="deposit.insurance_status === 'pending'">
                                                 <Button
@@ -615,6 +617,29 @@ async function markWithheld(deposit: Deposit) {
                                                 </button>
                                             </div>
 
+                                            <div class="mb-4 space-y-2 rounded-xl border border-violet-100 bg-violet-50/60 p-3">
+                                                <label class="block text-xs font-semibold text-violet-800">إضافة ملاحظة</label>
+                                                <textarea
+                                                    :id="`insurance-note-draft-${deposit.id}`"
+                                                    v-model="noteDrafts[deposit.id]"
+                                                    rows="3"
+                                                    maxlength="2000"
+                                                    placeholder="اكتب الملاحظة هنا..."
+                                                    class="w-full rounded-xl border border-violet-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none transition focus:border-violet-400 focus:ring-2 focus:ring-violet-100"
+                                                />
+                                                <div class="flex justify-end">
+                                                    <Button
+                                                        size="sm"
+                                                        class="h-9 rounded-xl bg-violet-600 hover:bg-violet-700"
+                                                        :disabled="noteSavingId === deposit.id"
+                                                        @click="submitNote(deposit)"
+                                                    >
+                                                        <Plus class="ml-1 h-4 w-4" />
+                                                        {{ noteSavingId === deposit.id ? 'جاري الحفظ...' : 'إضافة الملاحظة' }}
+                                                    </Button>
+                                                </div>
+                                            </div>
+
                                             <div v-if="deposit.notes?.length" class="max-h-72 space-y-3 overflow-y-auto">
                                                 <article
                                                     v-for="note in deposit.notes"
@@ -633,31 +658,9 @@ async function markWithheld(deposit: Deposit) {
                                                     <p class="whitespace-pre-wrap text-sm leading-relaxed text-slate-700">{{ note.body }}</p>
                                                 </article>
                                             </div>
-                                            <p v-else class="py-6 text-center text-sm text-slate-400">
-                                                لا توجد ملاحظات على طلب التأمين هذا بعد.
+                                            <p v-else class="py-2 text-center text-sm text-slate-400">
+                                                لا توجد ملاحظات بعد. استخدم الزر فوق لإضافة أول ملاحظة.
                                             </p>
-
-                                            <div class="mt-4 space-y-2 border-t border-slate-100 pt-3">
-                                                <label class="block text-xs font-semibold text-slate-600">إضافة ملاحظة</label>
-                                                <textarea
-                                                    v-model="noteDrafts[deposit.id]"
-                                                    rows="3"
-                                                    maxlength="2000"
-                                                    placeholder="اكتب ملاحظة يشوفها كل من في سلسلة الاعتماد..."
-                                                    class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none transition focus:border-sky-300 focus:ring-2 focus:ring-sky-100"
-                                                />
-                                                <div class="flex justify-end">
-                                                    <Button
-                                                        size="sm"
-                                                        class="h-9 rounded-xl"
-                                                        :disabled="noteSavingId === deposit.id"
-                                                        @click="submitNote(deposit)"
-                                                    >
-                                                        <MessageSquareText class="ml-1 h-4 w-4" />
-                                                        {{ noteSavingId === deposit.id ? 'جاري الحفظ...' : 'حفظ الملاحظة' }}
-                                                    </Button>
-                                                </div>
-                                            </div>
                                         </div>
                                     </td>
                                 </tr>
