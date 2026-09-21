@@ -119,6 +119,11 @@ class Quotation extends Model
         return $this->hasMany(QuotationItem::class);
     }
 
+    public function quotationLogs(): HasMany
+    {
+        return $this->hasMany(QuotationLog::class);
+    }
+
     public function order(): \Illuminate\Database\Eloquent\Relations\HasOne
     {
         return $this->hasOne(Order::class);

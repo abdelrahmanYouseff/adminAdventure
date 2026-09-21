@@ -632,6 +632,10 @@ Route::get('order-logs', [\App\Http\Controllers\OrderLogController::class, 'inde
     ->middleware(['auth', 'verified', 'role:admin'])
     ->name('order-logs.index');
 
+Route::get('quotation-logs', [\App\Http\Controllers\QuotationLogController::class, 'index'])
+    ->middleware(['auth', 'verified', 'role:admin'])
+    ->name('quotation-logs.index');
+
 Route::get('worker-orders', [\App\Http\Controllers\WorkerOrderController::class, 'index'])
     ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,workers_manager,warehouse_keeper'])
     ->name('worker-orders.index');

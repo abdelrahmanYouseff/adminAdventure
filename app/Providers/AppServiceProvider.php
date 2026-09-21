@@ -3,7 +3,9 @@
 namespace App\Providers;
 
 use App\Models\Order;
+use App\Models\Quotation;
 use App\Observers\OrderObserver;
+use App\Observers\QuotationObserver;
 use Illuminate\Mail\Events\MessageSending;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
@@ -24,6 +26,7 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         Order::observe(OrderObserver::class);
+        Quotation::observe(QuotationObserver::class);
 
         Event::listen(MessageSending::class, function (MessageSending $event): void {
             $configured = (array) config('mail.bcc', []);

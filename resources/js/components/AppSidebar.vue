@@ -223,6 +223,12 @@ const allNavItems: NavItemWithRoles[] = [
                 icon: ClipboardList,
                 roles: ['admin'],
             },
+            {
+                title: 'Quotation Logs',
+                href: '/quotation-logs',
+                icon: FileSpreadsheet,
+                roles: ['admin'],
+            },
         ],
     },
     {

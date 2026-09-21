@@ -19,6 +19,7 @@ class AuthPath
         'packages',
         'orders',
         'order-logs',
+        'quotation-logs',
         'order-journey',
         'invoices',
         'quotations',
