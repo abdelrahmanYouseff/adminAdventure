@@ -26,7 +26,7 @@ class InsuranceDepositController extends Controller
                 'workerNotes' => fn ($q) => $q->latest(),
                 'workerNotes.user:id,customer_name,role',
             ]))
-            ->orderByDesc('warehouse_returned_at');
+            ->orderByDesc('insurance_refund_requested_at');
 
         if (in_array($status, ['pending', 'refunded', 'withheld'], true)) {
             $query->where('insurance_status', $status);
@@ -117,28 +117,39 @@ class InsuranceDepositController extends Controller
         if (! $order) {
             return back()
                 ->withInput()
-                ->with('error', 'لا يمكن تسجيل استحقاق تأمين على هذا الطلب.');
+                ->with('error', 'لا يمكن تسجيل طلب استرداد تأمين على هذا الطلب.');
         }
 
         $amount = round((float) $validated['insurance_amount'], 2);
 
-        try {
-            $receipt = app(\App\Services\OrderPaymentReceiptService::class)->recordInsuranceDue(
-                $order,
-                $amount,
-                $request->user(),
-            );
-        } catch (\RuntimeException $e) {
+        if (filled($order->insurance_refund_requested_at) && $order->insurance_status === 'pending') {
             return back()
                 ->withInput()
-                ->with('error', $e->getMessage());
+                ->with('error', 'هذا الطلب موجود بالفعل في استرداد التأمين وبانتظار الاعتماد.');
         }
 
+        $order->update([
+            'insurance_amount' => $amount,
+            'insurance_original_amount' => $order->insurance_original_amount ?: $amount,
+            'insurance_status' => 'pending',
+            'insurance_refunded_at' => null,
+            'insurance_refund_requested_at' => now(),
+            'insurance_refund_requested_by' => $request->user()?->id,
+            'insurance_workers_manager_approved_at' => null,
+            'insurance_workers_manager_approved_by' => null,
+            'insurance_accounts_received_at' => null,
+            'insurance_accounts_received_by' => null,
+            'insurance_admin_approved_at' => null,
+            'insurance_admin_approved_by' => null,
+            'insurance_accounts_approved_at' => null,
+            'insurance_accounts_approved_by' => null,
+        ]);
+
         return redirect()
-            ->route('payment-receipts.index', ['status' => 'pending'])
+            ->route('insurance-deposits.index', ['status' => 'pending'])
             ->with(
                 'success',
-                'تم إنشاء طلب استحقاق تأمين '.$receipt->receipt_number.' للطلب '.$order->order_number.' وبانتظار اعتماد المحاسب.'
+                'تم رفع طلب استرداد التأمين للطلب '.$order->order_number.' وهو بانتظار اعتماد مدير العمال.',
             );
     }
 
@@ -273,13 +284,11 @@ class InsuranceDepositController extends Controller
     }
 
     /**
-     * تظهر في قائمة الاسترداد فقط بعد إنشاء طلب استرداد يدوياً أو بعد إغلاق المستودع.
+     * تظهر الطلبات التي رُفع لها استرداد تأمين من هذه الصفحة.
      */
     private function eligibleDepositsQuery(): Builder
     {
         return Order::query()
-            ->whereNotNull('work_order_approved_at')
-            ->whereNotNull('warehouse_returned_at')
             ->whereNotNull('insurance_refund_requested_at')
             ->where(function ($query) {
                 $query->where('insurance_amount', '>', 0)
@@ -289,9 +298,7 @@ class InsuranceDepositController extends Controller
 
     private function isEligibleDeposit(Order $order): bool
     {
-        return filled($order->work_order_approved_at)
-            && filled($order->warehouse_returned_at)
-            && filled($order->insurance_refund_requested_at)
+        return filled($order->insurance_refund_requested_at)
             && ((float) $order->insurance_amount > 0 || (float) $order->insurance_original_amount > 0);
     }
 

@@ -117,7 +117,7 @@ function submit() {
         Swal.fire({
             icon: 'info',
             title: 'مبلغ التأمين',
-            text: 'أدخل مبلغ استحقاق التأمين.',
+            text: 'أدخل مبلغ استرداد التأمين.',
             confirmButtonText: 'حسناً',
             confirmButtonColor: '#2563EB',
         });
@@ -131,7 +131,7 @@ function submit() {
 </script>
 
 <template>
-    <Head title="استحقاق تأمين" />
+    <Head title="رفع طلب استرداد التأمين" />
 
     <div class="py-8 sm:py-12" dir="rtl">
         <div class="mx-auto max-w-2xl px-4 sm:px-6 lg:px-8">
@@ -143,10 +143,9 @@ function submit() {
                     <ArrowRight class="h-4 w-4" />
                     العودة لقائمة الاسترداد
                 </Link>
-                <h1 class="text-2xl font-bold text-slate-900">استحقاق تأمين</h1>
+                <h1 class="text-2xl font-bold text-slate-900">رفع طلب استرداد التأمين</h1>
                 <p class="mt-1 text-sm text-slate-500">
-                    اختر العميل ثم أدخل مبلغ التأمين. عند الإرسال يُنشأ طلب في سندات القبض تحت بند
-                    «استحقاق تأمين» على نفس رقم الطلب بانتظار اعتماد المحاسب.
+                    اختر العميل ثم أدخل المبلغ. الطلب يفضل في نفس صفحة استرداد التأمين ويبدأ بانتظار اعتماد مدير العمال.
                 </p>
             </div>
 
@@ -154,7 +153,7 @@ function submit() {
                 <div class="mb-5 flex items-center gap-3 rounded-xl bg-emerald-50 px-4 py-3 text-emerald-800 ring-1 ring-emerald-100">
                     <ShieldPlus class="h-5 w-5 shrink-0" />
                     <p class="text-sm">
-                        بعد الإرسال ستنتقل إلى صفحة سندات القبض لمراجعة المحاسب.
+                        بعد الإرسال يبقى الطلب هنا بانتظار اعتماد مدير العمال، ثم المحاسب، ثم الادمن، ثم المحاسب لاعتماد التحويل.
                     </p>
                 </div>
 
@@ -208,7 +207,7 @@ function submit() {
                     </div>
 
                     <div class="space-y-2">
-                        <Label for="insurance_amount" class="text-sm font-medium">مبلغ استحقاق التأمين</Label>
+                        <Label for="insurance_amount" class="text-sm font-medium">مبلغ استرداد التأمين</Label>
                         <Input
                             id="insurance_amount"
                             v-model.number="form.insurance_amount"
@@ -220,7 +219,7 @@ function submit() {
                             placeholder="0.00"
                         />
                         <p class="text-xs text-slate-500">
-                            سيُرسل هذا المبلغ كسند قبض بانتظار اعتماد المحاسب تحت بند استحقاق تأمين.
+                            الطلب يظهر مباشرة في قائمة استرداد التأمين بانتظار اعتماد مدير العمال. لا يُرسل لسندات القبض.
                         </p>
                         <p v-if="form.errors.insurance_amount" class="text-xs text-rose-600">
                             {{ form.errors.insurance_amount }}
@@ -234,7 +233,7 @@ function submit() {
                             :disabled="form.processing"
                             @click="submit"
                         >
-                            {{ form.processing ? 'جاري الإرسال...' : 'إرسال لسندات القبض' }}
+                            {{ form.processing ? 'جاري الإرسال...' : 'رفع الطلب' }}
                         </Button>
                         <Button as-child type="button" variant="outline" class="h-11 rounded-xl">
                             <Link href="/insurance-deposits">إلغاء</Link>

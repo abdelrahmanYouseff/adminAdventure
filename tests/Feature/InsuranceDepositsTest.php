@@ -116,6 +116,47 @@ class InsuranceDepositsTest extends TestCase
         $this->assertSame('refunded', $order->fresh()->insurance_status);
     }
 
+    public function test_raising_a_request_stays_on_the_page_and_does_not_create_a_receipt(): void
+    {
+        $staff = User::factory()->staff(User::ROLE_MANAGER)->create();
+        $order = Order::query()->create([
+            'user_id' => $staff->id,
+            'customer_name' => 'عميل جديد',
+            'customer_phone' => '0501111111',
+            'order_number' => Order::generateOrderNumber(),
+            'total_amount' => 800,
+            'amount_paid' => 800,
+            'currency' => 'SAR',
+            'status' => 'paid',
+            'payment_status' => 'paid',
+            'payment_method' => 'bank_transfer',
+        ]);
+
+        $this->actingAs($staff)
+            ->post(route('insurance-deposits.store'), [
+                'order_id' => $order->id,
+                'insurance_amount' => 150,
+            ])
+            ->assertRedirect(route('insurance-deposits.index', ['status' => 'pending']));
+
+        $order->refresh();
+        $this->assertSame(150.0, (float) $order->insurance_amount);
+        $this->assertSame('pending', $order->insurance_status);
+        $this->assertNotNull($order->insurance_refund_requested_at);
+        $this->assertNull($order->insurance_workers_manager_approved_at);
+        $this->assertSame(0, \App\Models\OrderPaymentReceipt::query()->count());
+
+        $this->actingAs($staff)
+            ->get(route('insurance-deposits.index'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('InsuranceDeposits/Index')
+                ->has('deposits.data', 1)
+                ->where('deposits.data.0.id', $order->id)
+                ->where('deposits.data.0.waiting_on_label', 'مدير العمال')
+            );
+    }
+
     private function makeEligibleOrder(): Order
     {
         $owner = User::factory()->admin()->create();

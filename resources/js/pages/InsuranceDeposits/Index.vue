@@ -292,14 +292,14 @@ async function markWithheld(deposit: Deposit) {
                 <div>
                     <h1 class="text-2xl font-bold text-slate-900">استرداد التأمين</h1>
                     <p class="mt-1 text-sm text-slate-500">
-                        تظهر لكل الموظفين ما عدا العمال. بعد رفع الطلب: مدير العمال ← المحاسب (استلام المبلغ) ← الادمن ← المحاسب (اعتماد التحويل). الصفحة تبين الاعتماد واقف عند مين.
+                        يظهر العملاء بعد رفع الطلب من هنا. سلسلة التعميدات: مدير العمال ← المحاسب (استلام المبلغ) ← الادمن ← المحاسب (اعتماد التحويل). الصفحة تبين الاعتماد واقف عند مين.
                     </p>
                 </div>
                 <div class="flex flex-wrap items-center gap-3">
                     <Link href="/insurance-deposits/create">
                         <Button class="rounded-xl bg-emerald-600 hover:bg-emerald-700">
                             <Plus class="ml-1 h-4 w-4" />
-                            استحقاق تأمين
+                            رفع طلب استرداد
                         </Button>
                     </Link>
                     <div class="inline-flex items-center gap-2 rounded-2xl bg-emerald-50 px-4 py-3 text-emerald-800 ring-1 ring-emerald-100">
