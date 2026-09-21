@@ -144,7 +144,7 @@ class MainAppModules
                 'icon' => 'shield-check',
                 'tone' => 'rose',
                 'desktop_path' => '/insurance-deposits',
-                'roles' => [User::ROLE_ADMIN, User::ROLE_GENERAL_MANAGER, User::ROLE_MANAGER, User::ROLE_ACCOUNTS],
+                'roles' => [User::ROLE_ADMIN, User::ROLE_GENERAL_MANAGER, User::ROLE_MANAGER, User::ROLE_ACCOUNTS, User::ROLE_WORKERS_MANAGER, User::ROLE_WAREHOUSE_KEEPER],
             ],
             [
                 'key' => 'quotations',

@@ -10,6 +10,7 @@ import Swal from 'sweetalert2';
 interface ApprovalStep {
     key: string;
     label: string;
+    description?: string;
     completed: boolean;
     approved_at: string | null;
     approved_by_name: string | null;
@@ -41,6 +42,8 @@ interface Deposit {
     approval_progress: ApprovalStep[];
     next_approval_step: string | null;
     next_approval_label: string | null;
+    waiting_on_label: string | null;
+    approval_chain_summary: string;
     can_approve_next: boolean;
     is_fully_approved: boolean;
     can_refund_or_withhold: boolean;
@@ -191,7 +194,7 @@ function saveEditAmount(deposit: Deposit) {
 async function approveNext(deposit: Deposit) {
     if (!deposit.can_approve_next) {
         const waiting = deposit.next_approval_label
-            ? `بانتظار تعميد ${deposit.next_approval_label}. يجب أن تتم التعميدات بالترتيب: مدير العمال ← المسئول ← المدير العام ← المحاسب.`
+            ? `الاعتماد واقف عند ${deposit.next_approval_label}. السلسلة: ${deposit.approval_chain_summary || 'مدير العمال ← المحاسب (استلام المبلغ) ← الادمن ← المحاسب (اعتماد التحويل)'}.`
             : 'اكتملت سلسلة التعميدات مسبقاً.';
 
         await Swal.fire({
@@ -226,7 +229,7 @@ async function markRefunded(deposit: Deposit) {
         await Swal.fire({
             icon: 'info',
             title: 'لا يمكن الاسترداد الآن',
-            text: 'يجب اكتمال سلسلة التعميدات أولاً: مدير العمال ← المسئول ← المدير العام ← المحاسب.',
+            text: 'يجب اكتمال سلسلة التعميدات أولاً: مدير العمال ← المحاسب (استلام المبلغ) ← الادمن ← المحاسب (اعتماد التحويل).',
             confirmButtonText: 'حسناً',
             confirmButtonColor: '#2563EB',
         });
@@ -255,7 +258,7 @@ async function markWithheld(deposit: Deposit) {
         await Swal.fire({
             icon: 'info',
             title: 'لا يمكن الحجز الآن',
-            text: 'يجب اكتمال سلسلة التعميدات أولاً: مدير العمال ← المسئول ← المدير العام ← المحاسب.',
+            text: 'يجب اكتمال سلسلة التعميدات أولاً: مدير العمال ← المحاسب (استلام المبلغ) ← الادمن ← المحاسب (اعتماد التحويل).',
             confirmButtonText: 'حسناً',
             confirmButtonColor: '#2563EB',
         });
@@ -289,7 +292,7 @@ async function markWithheld(deposit: Deposit) {
                 <div>
                     <h1 class="text-2xl font-bold text-slate-900">استرداد التأمين</h1>
                     <p class="mt-1 text-sm text-slate-500">
-                        يظهر العملاء بعد إغلاق المستودع عند وجود تأمين. سلسلة التعميدات: مدير العمال ← المسئول ← المدير العام ← المحاسب. زر «استحقاق تأمين» لإنشاء سند قبض بانتظار المحاسب.
+                        تظهر لكل الموظفين ما عدا العمال. بعد رفع الطلب: مدير العمال ← المحاسب (استلام المبلغ) ← الادمن ← المحاسب (اعتماد التحويل). الصفحة تبين الاعتماد واقف عند مين.
                     </p>
                 </div>
                 <div class="flex flex-wrap items-center gap-3">
@@ -348,6 +351,7 @@ async function markWithheld(deposit: Deposit) {
                                 <th class="px-4 py-3 text-right font-semibold">العميل</th>
                                 <th class="px-4 py-3 text-right font-semibold">مبلغ الاسترداد</th>
                                 <th class="px-4 py-3 text-right font-semibold">سلسلة التعميدات</th>
+                                <th class="px-4 py-3 text-right font-semibold">واقف عند</th>
                                 <th class="px-4 py-3 text-right font-semibold">الحالة</th>
                                 <th class="px-4 py-3 text-right font-semibold">
                                     {{ filters.status === 'refunded' ? 'تاريخ الاسترداد' : 'إجراء' }}
@@ -356,8 +360,8 @@ async function markWithheld(deposit: Deposit) {
                         </thead>
                         <tbody>
                             <tr v-if="!deposits.data.length">
-                                <td colspan="6" class="px-4 py-12 text-center text-slate-500">
-                                    لا توجد مبالغ تأمين بعد تعميد مدير العمال في هذا القسم حالياً.
+                                <td colspan="7" class="px-4 py-12 text-center text-slate-500">
+                                    لا توجد مبالغ تأمين في هذا القسم حالياً.
                                 </td>
                             </tr>
                             <template v-for="deposit in deposits.data" :key="deposit.id">
@@ -490,6 +494,15 @@ async function markWithheld(deposit: Deposit) {
                                     </td>
                                     <td class="px-4 py-3">
                                         <span
+                                            v-if="deposit.waiting_on_label || deposit.next_approval_label"
+                                            class="inline-flex rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-semibold text-amber-800 ring-1 ring-amber-200"
+                                        >
+                                            {{ deposit.waiting_on_label || deposit.next_approval_label }}
+                                        </span>
+                                        <span v-else class="text-xs font-semibold text-emerald-700">اكتملت</span>
+                                    </td>
+                                    <td class="px-4 py-3">
+                                        <span
                                             class="inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold ring-1"
                                             :class="statusMeta[deposit.insurance_status]?.class"
                                         >
@@ -528,7 +541,7 @@ async function markWithheld(deposit: Deposit) {
                                     </td>
                                 </tr>
                                 <tr v-if="expandedNotesId === deposit.id" class="border-t border-slate-100 bg-slate-50/60">
-                                    <td colspan="6" class="px-4 py-4">
+                                    <td colspan="7" class="px-4 py-4">
                                         <div class="rounded-2xl border border-slate-200 bg-white p-4 text-right shadow-sm">
                                             <div class="mb-3 flex items-center justify-between gap-2">
                                                 <p class="flex items-center gap-2 text-sm font-semibold text-slate-800">

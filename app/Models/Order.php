@@ -62,6 +62,12 @@ class Order extends Model
         'insurance_manager_approved_by',
         'insurance_gm_approved_at',
         'insurance_gm_approved_by',
+        'insurance_workers_manager_approved_at',
+        'insurance_workers_manager_approved_by',
+        'insurance_accounts_received_at',
+        'insurance_accounts_received_by',
+        'insurance_admin_approved_at',
+        'insurance_admin_approved_by',
         'insurance_accounts_approved_at',
         'insurance_accounts_approved_by',
     ];
@@ -92,6 +98,9 @@ class Order extends Model
         'warehouse_rejected_at' => 'datetime',
         'insurance_manager_approved_at' => 'datetime',
         'insurance_gm_approved_at' => 'datetime',
+        'insurance_workers_manager_approved_at' => 'datetime',
+        'insurance_accounts_received_at' => 'datetime',
+        'insurance_admin_approved_at' => 'datetime',
         'insurance_accounts_approved_at' => 'datetime',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
@@ -418,6 +427,21 @@ class Order extends Model
     public function insuranceGmApprovedBy()
     {
         return $this->belongsTo(User::class, 'insurance_gm_approved_by');
+    }
+
+    public function insuranceWorkersManagerApprovedBy()
+    {
+        return $this->belongsTo(User::class, 'insurance_workers_manager_approved_by');
+    }
+
+    public function insuranceAccountsReceivedBy()
+    {
+        return $this->belongsTo(User::class, 'insurance_accounts_received_by');
+    }
+
+    public function insuranceAdminApprovedBy()
+    {
+        return $this->belongsTo(User::class, 'insurance_admin_approved_by');
     }
 
     public function insuranceAccountsApprovedBy()

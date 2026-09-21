@@ -432,15 +432,15 @@ Route::patch('invoices/{invoice}/status', [InvoiceController::class, 'updateStat
     ->name('invoices.update-status');
 
 Route::get('insurance-deposits', [\App\Http\Controllers\InsuranceDepositController::class, 'index'])
-    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,accounts'])
+    ->middleware(['auth', 'verified', 'staff'])
     ->name('insurance-deposits.index');
 
 Route::get('insurance-deposits/create', [\App\Http\Controllers\InsuranceDepositController::class, 'create'])
-    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,accounts'])
+    ->middleware(['auth', 'verified', 'staff'])
     ->name('insurance-deposits.create');
 
 Route::post('insurance-deposits', [\App\Http\Controllers\InsuranceDepositController::class, 'store'])
-    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,accounts'])
+    ->middleware(['auth', 'verified', 'staff'])
     ->name('insurance-deposits.store');
 
 Route::get('returns', [\App\Http\Controllers\ProductReturnController::class, 'index'])
@@ -480,11 +480,11 @@ Route::delete('returns/{order}/lines/{workerOrder}/pickup-photo', [\App\Http\Con
     ->name('returns.pickup-photo.destroy');
 
 Route::get('insurance-deposits/{order}', [\App\Http\Controllers\InsuranceDepositController::class, 'show'])
-    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,accounts'])
+    ->middleware(['auth', 'verified', 'staff'])
     ->name('insurance-deposits.show');
 
 Route::post('insurance-deposits/{order}/approve', [\App\Http\Controllers\InsuranceDepositController::class, 'approve'])
-    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,accounts'])
+    ->middleware(['auth', 'verified', 'staff'])
     ->name('insurance-deposits.approve');
 
 Route::patch('insurance-deposits/{order}/amount', [\App\Http\Controllers\InsuranceDepositController::class, 'updateAmount'])
@@ -492,11 +492,11 @@ Route::patch('insurance-deposits/{order}/amount', [\App\Http\Controllers\Insuran
     ->name('insurance-deposits.update-amount');
 
 Route::post('insurance-deposits/{order}/refund', [\App\Http\Controllers\InsuranceDepositController::class, 'markRefunded'])
-    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,accounts'])
+    ->middleware(['auth', 'verified', 'staff'])
     ->name('insurance-deposits.refund');
 
 Route::post('insurance-deposits/{order}/withhold', [\App\Http\Controllers\InsuranceDepositController::class, 'markWithheld'])
-    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,accounts'])
+    ->middleware(['auth', 'verified', 'staff'])
     ->name('insurance-deposits.withhold');
 
 // Quotations Routes

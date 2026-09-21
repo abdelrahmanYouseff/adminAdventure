@@ -9,43 +9,56 @@ class InsuranceApprovalChain
 {
     public const STEP_WORKERS_MANAGER = 'workers_manager';
 
-    public const STEP_MANAGER = 'manager';
+    public const STEP_ACCOUNTS_RECEIVED = 'accounts_received';
 
-    public const STEP_GENERAL_MANAGER = 'general_manager';
+    public const STEP_ADMIN = 'admin';
 
-    public const STEP_ACCOUNTS = 'accounts';
+    public const STEP_ACCOUNTS_TRANSFER = 'accounts_transfer';
 
     /**
-     * @return array<string, array{label: string, at: string, by: string, roles: list<string>}>
+     * @return array<string, array{label: string, description: string, at: string, by: string, relation: string, roles: list<string>}>
      */
     public static function steps(): array
     {
         return [
             self::STEP_WORKERS_MANAGER => [
                 'label' => 'مدير العمال',
-                'at' => 'work_order_approved_at',
-                'by' => 'work_order_approved_by',
+                'description' => 'أول اعتماد بعد رفع طلب استرداد التأمين',
+                'at' => 'insurance_workers_manager_approved_at',
+                'by' => 'insurance_workers_manager_approved_by',
+                'relation' => 'insuranceWorkersManagerApprovedBy',
                 'roles' => [User::ROLE_WORKERS_MANAGER],
             ],
-            self::STEP_MANAGER => [
-                'label' => 'المسئول',
-                'at' => 'insurance_manager_approved_at',
-                'by' => 'insurance_manager_approved_by',
-                'roles' => [User::ROLE_MANAGER],
+            self::STEP_ACCOUNTS_RECEIVED => [
+                'label' => 'المحاسب — استلام المبلغ',
+                'description' => 'يتأكد أن مبلغ التأمين دخل',
+                'at' => 'insurance_accounts_received_at',
+                'by' => 'insurance_accounts_received_by',
+                'relation' => 'insuranceAccountsReceivedBy',
+                'roles' => [User::ROLE_ACCOUNTS],
             ],
-            self::STEP_GENERAL_MANAGER => [
-                'label' => 'المدير العام',
-                'at' => 'insurance_gm_approved_at',
-                'by' => 'insurance_gm_approved_by',
-                'roles' => [User::ROLE_GENERAL_MANAGER],
+            self::STEP_ADMIN => [
+                'label' => 'الادمن',
+                'description' => 'اعتماد الادمن فقط',
+                'at' => 'insurance_admin_approved_at',
+                'by' => 'insurance_admin_approved_by',
+                'relation' => 'insuranceAdminApprovedBy',
+                'roles' => [User::ROLE_ADMIN],
             ],
-            self::STEP_ACCOUNTS => [
-                'label' => 'المحاسب',
+            self::STEP_ACCOUNTS_TRANSFER => [
+                'label' => 'المحاسب — اعتماد التحويل',
+                'description' => 'اعتماد تحويل مبلغ الاسترداد',
                 'at' => 'insurance_accounts_approved_at',
                 'by' => 'insurance_accounts_approved_by',
+                'relation' => 'insuranceAccountsApprovedBy',
                 'roles' => [User::ROLE_ACCOUNTS],
             ],
         ];
+    }
+
+    public static function summary(): string
+    {
+        return 'مدير العمال ← المحاسب (استلام المبلغ) ← الادمن ← المحاسب (اعتماد التحويل)';
     }
 
     public static function nextPendingStep(Order $order): ?string
@@ -64,14 +77,19 @@ class InsuranceApprovalChain
         return self::nextPendingStep($order) === null;
     }
 
-    public static function canUserApproveStep(?User $user, string $stepKey): bool
+    public static function canApproveWorkOrder(?User $user): bool
     {
         if (! $user) {
             return false;
         }
 
-        if ($user->hasAdminAccess()) {
-            return true;
+        return $user->hasAdminAccess() || $user->isWorkersManager();
+    }
+
+    public static function canUserApproveStep(?User $user, string $stepKey): bool
+    {
+        if (! $user) {
+            return false;
         }
 
         $step = self::steps()[$stepKey] ?? null;
@@ -82,9 +100,6 @@ class InsuranceApprovalChain
         return in_array($user->role, $step['roles'], true);
     }
 
-    /**
-     * رسالة عندما يحاول مستخدم التعميد قبل اكتمال الخطوة السابقة.
-     */
     public static function blockedMessage(Order $order, ?User $user = null): string
     {
         $next = self::nextPendingStep($order);
@@ -93,50 +108,32 @@ class InsuranceApprovalChain
             return 'اكتملت سلسلة التعميدات مسبقاً.';
         }
 
-        $steps = self::steps();
-        $nextLabel = $steps[$next]['label'];
+        $nextLabel = self::steps()[$next]['label'];
 
         if ($user && ! self::canUserApproveStep($user, $next)) {
-            return "التعميد الحالي مطلوب من {$nextLabel} أولاً. لا يمكنك التعميد قبل اكتمال التسلسل.";
+            return "الاعتماد واقف عند {$nextLabel}. لا يمكنك التعميد قبل دورك.";
         }
 
-        $previousKeys = array_keys($steps);
-        $index = array_search($next, $previousKeys, true);
-
-        if ($index === 0) {
-            return "بانتظار تعميد {$nextLabel}.";
-        }
-
-        $previousLabel = $steps[$previousKeys[$index - 1]]['label'];
-
-        return "لا يمكن التعميد الآن. يجب أن يعتمد {$previousLabel} أولاً، ثم {$nextLabel}.";
+        return "الاعتماد واقف عند {$nextLabel}.";
     }
 
     /**
-     * @return list<array{key: string, label: string, completed: bool, approved_at: string|null, approved_by_name: string|null, is_next: bool}>
+     * @return list<array{key: string, label: string, description: string, completed: bool, approved_at: string|null, approved_by_name: string|null, is_next: bool}>
      */
     public static function progress(Order $order): array
     {
         $next = self::nextPendingStep($order);
-        $steps = self::steps();
-
-        $byRelations = [
-            self::STEP_WORKERS_MANAGER => 'workOrderApprovedBy',
-            self::STEP_MANAGER => 'insuranceManagerApprovedBy',
-            self::STEP_GENERAL_MANAGER => 'insuranceGmApprovedBy',
-            self::STEP_ACCOUNTS => 'insuranceAccountsApprovedBy',
-        ];
-
         $progress = [];
 
-        foreach ($steps as $key => $step) {
+        foreach (self::steps() as $key => $step) {
             $at = $order->{$step['at']};
-            $relation = $byRelations[$key];
+            $relation = $step['relation'];
             $approver = $order->relationLoaded($relation) ? $order->{$relation} : null;
 
             $progress[] = [
                 'key' => $key,
                 'label' => $step['label'],
+                'description' => $step['description'],
                 'completed' => (bool) $at,
                 'approved_at' => $at?->toIso8601String(),
                 'approved_by_name' => $approver?->name,

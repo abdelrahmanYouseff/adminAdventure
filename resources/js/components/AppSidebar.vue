@@ -167,13 +167,13 @@ const allNavItems: NavItemWithRoles[] = [
                 icon: CreditCard,
                 roles: ['admin', 'general_manager', 'manager', 'accounts'],
             },
-            {
-                title: 'استرداد التأمين',
-                href: '/insurance-deposits',
-                icon: ShieldCheck,
-                roles: ['admin', 'general_manager', 'manager', 'accounts'],
-            },
         ],
+    },
+    {
+        title: 'استرداد التأمين',
+        href: '/insurance-deposits',
+        icon: ShieldCheck,
+        roles: ['admin', 'general_manager', 'manager', 'accounts', 'workers_manager', 'warehouse_keeper'],
     },
     {
         title: 'التقارير',

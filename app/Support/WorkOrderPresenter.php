@@ -22,10 +22,7 @@ class WorkOrderPresenter
         $totalLines = (int) ($order->total_lines ?? $order->workerOrders->count());
         $photosReady = $order->hasAllWorkerPhotos();
         $isApproved = (bool) $order->work_order_approved_at;
-        $roleCanApprove = InsuranceApprovalChain::canUserApproveStep(
-            $user,
-            InsuranceApprovalChain::STEP_WORKERS_MANAGER,
-        );
+        $roleCanApprove = InsuranceApprovalChain::canApproveWorkOrder($user);
         $canApprove = $roleCanApprove && ! $isApproved && $photosReady;
 
         $isAssigned = self::hasAssignedInstallationWorkers($order);

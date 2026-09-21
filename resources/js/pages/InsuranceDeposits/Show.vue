@@ -10,6 +10,7 @@ import Swal from 'sweetalert2';
 interface ApprovalStep {
     key: string;
     label: string;
+    description?: string;
     completed: boolean;
     approved_at: string | null;
     approved_by_name: string | null;
@@ -41,6 +42,8 @@ interface Deposit {
     approval_progress: ApprovalStep[];
     next_approval_step: string | null;
     next_approval_label: string | null;
+    waiting_on_label?: string | null;
+    approval_chain_summary?: string;
     can_approve_next: boolean;
     is_fully_approved: boolean;
     can_refund_or_withhold: boolean;
@@ -110,7 +113,7 @@ async function approveNext() {
 
     if (!deposit.can_approve_next) {
         const waiting = deposit.next_approval_label
-            ? `بانتظار تعميد ${deposit.next_approval_label}. يجب أن تتم التعميدات بالترتيب: مدير العمال ← المسئول ← المدير العام ← المحاسب.`
+            ? `الاعتماد واقف عند ${deposit.next_approval_label}. السلسلة: ${deposit.approval_chain_summary || 'مدير العمال ← المحاسب (استلام المبلغ) ← الادمن ← المحاسب (اعتماد التحويل)'}.`
             : 'اكتملت سلسلة التعميدات مسبقاً.';
 
         await Swal.fire({
@@ -219,7 +222,7 @@ async function markWithheld() {
                     </Link>
                     <h1 class="text-2xl font-bold text-slate-900">مراجعة التركيب</h1>
                     <p class="mt-1 text-sm text-slate-500">
-                        راجع صور التركيب قبل التعميد
+                        سلسلة الاعتماد: مدير العمال ← المحاسب (استلام المبلغ) ← الادمن ← المحاسب (اعتماد التحويل)
                     </p>
                 </div>
                 <span
@@ -272,6 +275,12 @@ async function markWithheld() {
                             <span v-if="step.completed"> ✓</span>
                         </span>
                     </div>
+                    <p v-if="!deposit.is_fully_approved && (deposit.waiting_on_label || deposit.next_approval_label)" class="mt-2 text-sm font-semibold text-amber-700">
+                        الاعتماد واقف عند: {{ deposit.waiting_on_label || deposit.next_approval_label }}
+                    </p>
+                    <p v-else-if="deposit.is_fully_approved" class="mt-2 text-sm font-semibold text-emerald-700">
+                        اكتملت سلسلة التعميدات
+                    </p>
                 </div>
 
                 <div v-if="deposit.insurance_status === 'pending'" class="mt-5 flex flex-wrap gap-2 border-t border-slate-100 pt-4">

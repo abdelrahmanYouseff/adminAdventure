@@ -19,16 +19,13 @@ class InsuranceDepositController extends Controller
         $user = $request->user();
 
         $query = $this->eligibleDepositsQuery()
-            ->with([
+            ->with(array_merge($this->approvalRelations(), [
                 'invoice:id,invoice_number',
                 'workOrderApprovedBy:id,customer_name',
                 'warehouseReturnedBy:id,customer_name',
-                'insuranceManagerApprovedBy:id,customer_name',
-                'insuranceGmApprovedBy:id,customer_name',
-                'insuranceAccountsApprovedBy:id,customer_name',
                 'workerNotes' => fn ($q) => $q->latest(),
                 'workerNotes.user:id,customer_name,role',
-            ])
+            ]))
             ->orderByDesc('warehouse_returned_at');
 
         if (in_array($status, ['pending', 'refunded', 'withheld'], true)) {
@@ -149,16 +146,13 @@ class InsuranceDepositController extends Controller
     {
         abort_unless($this->isEligibleDeposit($order), 404);
 
-        $order->load([
+        $order->load(array_merge($this->approvalRelations(), [
             'invoice:id,invoice_number',
             'workOrderApprovedBy:id,customer_name',
             'warehouseReturnedBy:id,customer_name',
-            'insuranceManagerApprovedBy:id,customer_name',
-            'insuranceGmApprovedBy:id,customer_name',
-            'insuranceAccountsApprovedBy:id,customer_name',
             'workerOrders' => fn ($query) => $query->orderBy('line_index'),
             'workerOrders.completedByUser:id,customer_name',
-        ]);
+        ]));
 
         $deposit = $this->formatDeposit($order, $request->user());
         $deposit['address'] = $order->address;
@@ -186,10 +180,6 @@ class InsuranceDepositController extends Controller
 
         if ($next === null) {
             return back()->with('error', 'اكتملت سلسلة التعميدات مسبقاً.');
-        }
-
-        if ($next === InsuranceApprovalChain::STEP_WORKERS_MANAGER) {
-            return back()->with('error', 'يجب تعميد أمر العمل من مدير العمال أولاً من صفحة أوامر العمل.');
         }
 
         if (! InsuranceApprovalChain::canUserApproveStep($user, $next)) {
@@ -247,7 +237,11 @@ class InsuranceDepositController extends Controller
         abort_unless($this->isEligibleDeposit($order), 404);
 
         if (! InsuranceApprovalChain::isFullyApproved($order)) {
-            return back()->with('error', 'لا يمكن استرداد التأمين قبل اكتمال سلسلة التعميدات (مدير العمال ← المسئول ← المدير العام ← المحاسب).');
+            return back()->with('error', 'لا يمكن استرداد التأمين قبل اكتمال سلسلة التعميدات ('.InsuranceApprovalChain::summary().').');
+        }
+
+        if (! $request->user()?->hasAnyRole(User::ROLE_ADMIN, User::ROLE_ACCOUNTS)) {
+            return back()->with('error', 'استرداد التأمين متاح للمحاسب والادمن بعد اكتمال السلسلة.');
         }
 
         $order->update([
@@ -263,7 +257,11 @@ class InsuranceDepositController extends Controller
         abort_unless($this->isEligibleDeposit($order), 404);
 
         if (! InsuranceApprovalChain::isFullyApproved($order)) {
-            return back()->with('error', 'لا يمكن حجز التأمين قبل اكتمال سلسلة التعميدات (مدير العمال ← المسئول ← المدير العام ← المحاسب).');
+            return back()->with('error', 'لا يمكن حجز التأمين قبل اكتمال سلسلة التعميدات ('.InsuranceApprovalChain::summary().').');
+        }
+
+        if (! $request->user()?->hasAnyRole(User::ROLE_ADMIN, User::ROLE_ACCOUNTS)) {
+            return back()->with('error', 'حجز التأمين متاح للمحاسب والادمن بعد اكتمال السلسلة.');
         }
 
         $order->update([
@@ -318,9 +316,7 @@ class InsuranceDepositController extends Controller
     {
         $next = InsuranceApprovalChain::nextPendingStep($order);
         $fullyApproved = $next === null;
-        $canApproveNext = $next
-            && $next !== InsuranceApprovalChain::STEP_WORKERS_MANAGER
-            && InsuranceApprovalChain::canUserApproveStep($user, $next);
+        $canApproveNext = (bool) ($next && InsuranceApprovalChain::canUserApproveStep($user, $next));
 
         $original = (float) ($order->insurance_original_amount ?: $order->insurance_amount);
 
@@ -345,9 +341,13 @@ class InsuranceDepositController extends Controller
             'approval_progress' => InsuranceApprovalChain::progress($order),
             'next_approval_step' => $next,
             'next_approval_label' => $next ? InsuranceApprovalChain::steps()[$next]['label'] : null,
+            'waiting_on_label' => $next ? InsuranceApprovalChain::steps()[$next]['label'] : null,
+            'approval_chain_summary' => InsuranceApprovalChain::summary(),
             'can_approve_next' => $canApproveNext,
             'is_fully_approved' => $fullyApproved,
-            'can_refund_or_withhold' => $fullyApproved && $order->insurance_status === 'pending',
+            'can_refund_or_withhold' => $fullyApproved
+                && $order->insurance_status === 'pending'
+                && (bool) $user?->hasAnyRole(User::ROLE_ADMIN, User::ROLE_ACCOUNTS),
             'can_edit_amount' => $this->canEditRefundAmount($user, $order),
             'notes' => $order->relationLoaded('workerNotes')
                 ? $order->workerNotes->map(fn ($note) => [
@@ -361,6 +361,19 @@ class InsuranceDepositController extends Controller
             'notes_count' => $order->relationLoaded('workerNotes')
                 ? $order->workerNotes->count()
                 : 0,
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function approvalRelations(): array
+    {
+        return [
+            'insuranceWorkersManagerApprovedBy:id,customer_name',
+            'insuranceAccountsReceivedBy:id,customer_name',
+            'insuranceAdminApprovedBy:id,customer_name',
+            'insuranceAccountsApprovedBy:id,customer_name',
         ];
     }
 }
