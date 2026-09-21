@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Order;
 use App\Models\User;
 use App\Support\InsuranceApprovalChain;
+use App\Support\MediaStorage;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -100,12 +101,21 @@ class InsuranceDepositController extends Controller
         $validated = $request->validate([
             'order_id' => ['required', 'integer', 'exists:orders,id'],
             'insurance_amount' => ['required', 'numeric', 'min:0.01'],
+            'payment_proof' => ['required', 'array', 'min:1', 'max:10'],
+            'payment_proof.*' => ['required', 'file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:5120'],
         ], [
             'order_id.required' => 'اختر العميل / الطلب.',
             'order_id.exists' => 'الطلب المحدد غير موجود.',
             'insurance_amount.required' => 'مبلغ التأمين مطلوب.',
             'insurance_amount.numeric' => 'مبلغ التأمين غير صالح.',
             'insurance_amount.min' => 'مبلغ التأمين يجب أن يكون أكبر من صفر.',
+            'payment_proof.required' => 'يجب إرفاق إيصال الدفع.',
+            'payment_proof.min' => 'يجب إرفاق إيصال الدفع.',
+            'payment_proof.max' => 'يمكن رفع 10 ملفات كحد أقصى.',
+            'payment_proof.*.required' => 'يجب إرفاق إيصال الدفع.',
+            'payment_proof.*.file' => 'مرفق الإيصال غير صالح.',
+            'payment_proof.*.mimes' => 'الصيغ المسموحة: jpg, jpeg, png, webp, pdf.',
+            'payment_proof.*.max' => 'حجم المرفق يجب ألا يتجاوز 5 ميجابايت.',
         ]);
 
         $order = Order::query()
@@ -128,6 +138,24 @@ class InsuranceDepositController extends Controller
                 ->with('error', 'هذا الطلب موجود بالفعل في استرداد التأمين وبانتظار الاعتماد.');
         }
 
+        $proofPaths = [];
+        $files = $request->file('payment_proof');
+        if (! is_array($files)) {
+            $files = $files ? [$files] : [];
+        }
+
+        foreach ($files as $file) {
+            if ($file) {
+                $proofPaths[] = MediaStorage::store($file, 'insurance-payment-proofs');
+            }
+        }
+
+        if ($proofPaths === []) {
+            return back()
+                ->withInput()
+                ->withErrors(['payment_proof' => 'يجب إرفاق إيصال الدفع.']);
+        }
+
         $order->update([
             'insurance_amount' => $amount,
             'insurance_original_amount' => $order->insurance_original_amount ?: $amount,
@@ -135,6 +163,7 @@ class InsuranceDepositController extends Controller
             'insurance_refunded_at' => null,
             'insurance_refund_requested_at' => now(),
             'insurance_refund_requested_by' => $request->user()?->id,
+            'insurance_payment_proof' => $proofPaths,
             'insurance_workers_manager_approved_at' => null,
             'insurance_workers_manager_approved_by' => null,
             'insurance_accounts_received_at' => null,
@@ -356,6 +385,7 @@ class InsuranceDepositController extends Controller
                 && $order->insurance_status === 'pending'
                 && (bool) $user?->hasAnyRole(User::ROLE_ADMIN, User::ROLE_ACCOUNTS),
             'can_edit_amount' => $this->canEditRefundAmount($user, $order),
+            'payment_proof_urls' => $order->insurance_payment_proof_urls,
             'notes' => $order->relationLoaded('workerNotes')
                 ? $order->workerNotes->map(fn ($note) => [
                     'id' => $note->id,

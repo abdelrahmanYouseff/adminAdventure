@@ -47,6 +47,7 @@ interface Deposit {
     can_approve_next: boolean;
     is_fully_approved: boolean;
     can_refund_or_withhold: boolean;
+    payment_proof_urls?: string[];
     worker_lines: WorkerLine[];
 }
 
@@ -255,6 +256,30 @@ async function markWithheld() {
                             {{ deposit.activity_date ? formatDate(deposit.activity_date) : '—' }}
                         </p>
                         <p v-if="deposit.address" class="mt-1 text-xs text-slate-500">{{ deposit.address }}</p>
+                    </div>
+                </div>
+
+                <div v-if="deposit.payment_proof_urls?.length" class="mt-5 border-t border-slate-100 pt-4">
+                    <p class="mb-2 text-xs font-semibold text-slate-500">إيصال الدفع</p>
+                    <div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                        <a
+                            v-for="(url, index) in deposit.payment_proof_urls"
+                            :key="url"
+                            :href="url"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            class="overflow-hidden rounded-xl border border-slate-200 bg-slate-50"
+                        >
+                            <img
+                                v-if="!url.toLowerCase().includes('.pdf')"
+                                :src="url"
+                                :alt="`إيصال ${index + 1}`"
+                                class="aspect-square w-full object-cover"
+                            />
+                            <span v-else class="flex aspect-square items-center justify-center text-xs font-semibold text-rose-700">
+                                PDF {{ index + 1 }}
+                            </span>
+                        </a>
                     </div>
                 </div>
 

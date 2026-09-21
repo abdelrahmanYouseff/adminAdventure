@@ -48,6 +48,7 @@ interface Deposit {
     is_fully_approved: boolean;
     can_refund_or_withhold: boolean;
     can_edit_amount: boolean;
+    payment_proof_urls?: string[];
     notes: DepositNote[];
     notes_count: number;
 }
@@ -395,6 +396,16 @@ async function markWithheld(deposit: Deposit) {
                                             <p class="w-full text-xs text-slate-400">
                                                 تعميد العمال: {{ deposit.approved_at ? formatDateTime(deposit.approved_at) : '—' }}
                                             </p>
+                                            <a
+                                                v-if="deposit.payment_proof_urls?.length"
+                                                :href="deposit.payment_proof_urls[0]"
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                class="w-full text-xs font-medium text-emerald-700 hover:underline"
+                                                @click.stop
+                                            >
+                                                عرض إيصال الدفع ({{ deposit.payment_proof_urls.length }})
+                                            </a>
                                             <Link
                                                 :href="`/insurance-deposits/${deposit.id}`"
                                                 class="w-full text-xs font-medium text-sky-600 hover:underline"

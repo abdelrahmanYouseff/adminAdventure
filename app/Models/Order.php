@@ -36,6 +36,7 @@ class Order extends Model
         'insurance_refunded_at',
         'insurance_refund_requested_at',
         'insurance_refund_requested_by',
+        'insurance_payment_proof',
         'currency',
         'status',
         'payment_method',
@@ -86,6 +87,7 @@ class Order extends Model
         'whatsapp_notified_at' => 'datetime',
         'insurance_refunded_at' => 'datetime',
         'insurance_refund_requested_at' => 'datetime',
+        'insurance_payment_proof' => 'array',
         'operations_released_at' => 'datetime',
         'skip_work_order' => 'boolean',
         'work_order_approved_at' => 'datetime',
@@ -108,6 +110,7 @@ class Order extends Model
 
     protected $appends = [
         'remaining_amount',
+        'insurance_payment_proof_urls',
     ];
 
     /**
@@ -146,6 +149,23 @@ class Order extends Model
         $paid = (float) ($this->attributes['amount_paid'] ?? 0);
 
         return round(max(0, $total - $paid), 2);
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function getInsurancePaymentProofUrlsAttribute(): array
+    {
+        $paths = $this->insurance_payment_proof;
+
+        if (! is_array($paths)) {
+            $paths = [];
+        }
+
+        return array_values(array_filter(array_map(
+            fn ($path) => is_string($path) ? \App\Support\MediaStorage::url($path) : null,
+            $paths,
+        )));
     }
 
     public function ensurePaymentToken(): string

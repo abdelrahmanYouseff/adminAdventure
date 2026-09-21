@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { Head, Link, useForm, usePage } from '@inertiajs/vue3';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { formatCurrency } from '@/lib/formatNumber';
-import { ArrowRight, ShieldPlus } from 'lucide-vue-next';
+import { ArrowRight, FileText, ShieldPlus, UploadCloud } from 'lucide-vue-next';
 import Swal from 'sweetalert2';
 
 interface CustomerOption {
@@ -34,9 +34,13 @@ const flash = computed(() => (page.props.flash as { success?: string; error?: st
 
 const customerFilter = ref('');
 
+const PAYMENT_PROOF_ACCEPT = 'image/jpeg,image/png,image/webp,application/pdf,.jpg,.jpeg,.png,.webp,.pdf';
+const paymentProofPreviews = ref<string[]>([]);
+
 const form = useForm({
     order_id: '' as number | '',
     insurance_amount: 0 as number,
+    payment_proof: [] as File[],
 });
 
 const filteredCustomers = computed(() => {
@@ -101,6 +105,53 @@ watch(selected, (row) => {
     }
 });
 
+function isPdfFile(file: File | undefined): boolean {
+    if (!file) {
+        return false;
+    }
+
+    return file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+}
+
+function paymentProofSelectedLabel(count: number): string {
+    if (count <= 0) {
+        return 'اضغط لاختيار إيصال الدفع';
+    }
+
+    return count === 1 ? 'تم اختيار ملف واحد' : `تم اختيار ${count} ملفات`;
+}
+
+function clearPaymentProofPreview() {
+    paymentProofPreviews.value.forEach((url) => URL.revokeObjectURL(url));
+    paymentProofPreviews.value = [];
+}
+
+function handlePaymentProofChange(event: Event) {
+    const input = event.target as HTMLInputElement;
+    const files = Array.from(input.files ?? []);
+    if (!files.length) {
+        return;
+    }
+
+    const nextFiles = [...form.payment_proof, ...files].slice(0, 10);
+    clearPaymentProofPreview();
+    form.payment_proof = nextFiles;
+    paymentProofPreviews.value = nextFiles.map((file) => URL.createObjectURL(file));
+    form.clearErrors('payment_proof');
+    input.value = '';
+}
+
+function removePaymentProof(index: number) {
+    const nextFiles = form.payment_proof.filter((_, i) => i !== index);
+    clearPaymentProofPreview();
+    form.payment_proof = nextFiles;
+    paymentProofPreviews.value = nextFiles.map((file) => URL.createObjectURL(file));
+}
+
+onBeforeUnmount(() => {
+    clearPaymentProofPreview();
+});
+
 function submit() {
     if (!form.order_id) {
         Swal.fire({
@@ -124,8 +175,20 @@ function submit() {
         return;
     }
 
+    if (form.payment_proof.length === 0) {
+        Swal.fire({
+            icon: 'info',
+            title: 'إيصال الدفع',
+            text: 'لازم ترفق إيصال الدفع قبل رفع الطلب.',
+            confirmButtonText: 'حسناً',
+            confirmButtonColor: '#2563EB',
+        });
+        return;
+    }
+
     form.post('/insurance-deposits', {
         preserveScroll: true,
+        forceFormData: true,
     });
 }
 </script>
@@ -144,8 +207,8 @@ function submit() {
                     العودة لقائمة الاسترداد
                 </Link>
                 <h1 class="text-2xl font-bold text-slate-900">رفع طلب استرداد التأمين</h1>
-                <p class="mt-1 text-sm text-slate-500">
-                    اختر العميل ثم أدخل المبلغ. الطلب يفضل في نفس صفحة استرداد التأمين ويبدأ بانتظار اعتماد مدير العمال.
+                    <p class="mt-1 text-sm text-slate-500">
+                    اختر العميل، أدخل المبلغ، وأرفق إيصال الدفع. بدون الإيصال الطلب مش هيترفع. يفضل في نفس الصفحة بانتظار مدير العمال.
                 </p>
             </div>
 
@@ -223,6 +286,63 @@ function submit() {
                         </p>
                         <p v-if="form.errors.insurance_amount" class="text-xs text-rose-600">
                             {{ form.errors.insurance_amount }}
+                        </p>
+                    </div>
+
+                    <div class="space-y-2">
+                        <Label for="payment_proof" class="text-sm font-medium">إيصال الدفع</Label>
+                        <p class="text-xs text-slate-500">
+                            إرفاق الإيصال إلزامي. صورة أو PDF، حتى 5 ميجابايت، بحد أقصى 10 ملفات.
+                        </p>
+                        <label
+                            for="payment_proof"
+                            class="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-center transition hover:border-emerald-400 hover:bg-emerald-50/40"
+                        >
+                            <UploadCloud class="h-6 w-6 text-slate-500" />
+                            <span class="text-sm font-medium text-slate-800">
+                                {{ paymentProofSelectedLabel(form.payment_proof.length) }}
+                            </span>
+                        </label>
+                        <input
+                            id="payment_proof"
+                            type="file"
+                            class="sr-only"
+                            :accept="PAYMENT_PROOF_ACCEPT"
+                            multiple
+                            @change="handlePaymentProofChange"
+                        />
+                        <div v-if="paymentProofPreviews.length" class="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                            <div
+                                v-for="(preview, index) in paymentProofPreviews"
+                                :key="`${preview}-${index}`"
+                                class="relative overflow-hidden rounded-xl border border-slate-200"
+                            >
+                                <span
+                                    v-if="isPdfFile(form.payment_proof[index])"
+                                    class="flex aspect-square w-full flex-col items-center justify-center gap-1 bg-slate-50 px-2 text-center"
+                                >
+                                    <FileText class="h-7 w-7 text-rose-600" />
+                                    <span class="line-clamp-2 px-1 text-[11px] font-medium">
+                                        {{ form.payment_proof[index]?.name || 'ملف PDF' }}
+                                    </span>
+                                </span>
+                                <img
+                                    v-else
+                                    :src="preview"
+                                    :alt="`معاينة إيصال ${index + 1}`"
+                                    class="aspect-square w-full object-cover"
+                                />
+                                <button
+                                    type="button"
+                                    class="absolute left-1.5 top-1.5 rounded-lg bg-white/90 px-2 py-1 text-[11px] font-semibold text-slate-700 shadow"
+                                    @click="removePaymentProof(index)"
+                                >
+                                    إزالة
+                                </button>
+                            </div>
+                        </div>
+                        <p v-if="form.errors.payment_proof" class="text-xs text-rose-600">
+                            {{ form.errors.payment_proof }}
                         </p>
                     </div>
 
