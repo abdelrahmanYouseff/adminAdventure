@@ -439,6 +439,10 @@ Route::get('insurance-deposits/create', [\App\Http\Controllers\InsuranceDepositC
     ->middleware(['auth', 'verified', 'staff'])
     ->name('insurance-deposits.create');
 
+Route::get('insurance-deposits/invoices', [\App\Http\Controllers\InsuranceDepositController::class, 'searchInvoices'])
+    ->middleware(['auth', 'verified', 'staff'])
+    ->name('insurance-deposits.invoices.search');
+
 Route::post('insurance-deposits', [\App\Http\Controllers\InsuranceDepositController::class, 'store'])
     ->middleware(['auth', 'verified', 'staff'])
     ->name('insurance-deposits.store');

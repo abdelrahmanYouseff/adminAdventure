@@ -9,6 +9,7 @@ use App\Models\WorkerOrderNote;
 use App\Support\InsuranceApprovalChain;
 use App\Support\MediaStorage;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -56,62 +57,19 @@ class InsuranceDepositController extends Controller
         ]);
     }
 
-    public function create(Request $request): Response
+    public function create(): Response
+    {
+        return Inertia::render('InsuranceDeposits/Create', [
+            'invoices' => $this->invoiceOptions(''),
+        ]);
+    }
+
+    public function searchInvoices(Request $request): JsonResponse
     {
         $search = trim($request->string('search')->toString());
 
-        $query = Invoice::query()
-            ->where('status', 'paid')
-            ->whereHas('order', fn (Builder $order) => $order
-                ->whereNotIn('status', ['cancelled', 'refunded']))
-            ->with([
-                'order:id,invoice_id,customer_name,customer_phone,insurance_amount',
-                'user:id,customer_name,phone',
-            ])
-            ->orderByDesc('id');
-
-        if ($search !== '') {
-            $query->where(function (Builder $inner) use ($search) {
-                $inner->where('invoice_number', 'like', "%{$search}%")
-                    ->orWhereHas('user', function (Builder $user) use ($search) {
-                        $user->where('customer_name', 'like', "%{$search}%")
-                            ->orWhere('phone', 'like', "%{$search}%");
-                    })
-                    ->orWhereHas('order', function (Builder $order) use ($search) {
-                        $order->where('customer_name', 'like', "%{$search}%")
-                            ->orWhere('customer_phone', 'like', "%{$search}%");
-                    });
-            });
-        }
-
-        $invoices = $query
-            ->limit($search === '' ? 80 : 150)
-            ->get()
-            ->map(function (Invoice $invoice) {
-                $order = $invoice->order;
-                $customerName = $order?->customer_name ?: ($invoice->user?->name ?: 'عميل');
-                $amount = round((float) $invoice->amount, 2);
-                $formattedAmount = number_format($amount, 2);
-
-                return [
-                    'id' => $invoice->id,
-                    'order_id' => $order?->id,
-                    'invoice_number' => $invoice->invoice_number,
-                    'customer_name' => $customerName,
-                    'customer_phone' => $order?->customer_phone ?: $invoice->user?->phone,
-                    'invoice_amount' => $amount,
-                    'insurance_amount' => round((float) ($order?->insurance_amount ?? 0), 2),
-                    'label' => $customerName.' — '.$invoice->invoice_number.' — '.$formattedAmount,
-                ];
-            })
-            ->values()
-            ->all();
-
-        return Inertia::render('InsuranceDeposits/Create', [
-            'invoices' => $invoices,
-            'filters' => [
-                'search' => $search,
-            ],
+        return response()->json([
+            'invoices' => $this->invoiceOptions($search),
         ]);
     }
 
@@ -444,6 +402,57 @@ class InsuranceDepositController extends Controller
                 ? $order->workerNotes->count()
                 : 0,
         ];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function invoiceOptions(string $search): array
+    {
+        $query = Invoice::query()
+            ->where('status', 'paid')
+            ->whereHas('order', fn (Builder $order) => $order
+                ->whereNotIn('status', ['cancelled', 'refunded']))
+            ->with([
+                'order:id,invoice_id,customer_name,customer_phone,insurance_amount',
+                'user:id,customer_name,phone',
+            ])
+            ->orderByDesc('id');
+
+        if ($search !== '') {
+            $query->where(function (Builder $inner) use ($search) {
+                $inner->where('invoice_number', 'like', "%{$search}%")
+                    ->orWhereHas('user', function (Builder $user) use ($search) {
+                        $user->where('customer_name', 'like', "%{$search}%")
+                            ->orWhere('phone', 'like', "%{$search}%");
+                    })
+                    ->orWhereHas('order', function (Builder $order) use ($search) {
+                        $order->where('customer_name', 'like', "%{$search}%")
+                            ->orWhere('customer_phone', 'like', "%{$search}%");
+                    });
+            });
+        }
+
+        return $query
+            ->limit($search === '' ? 20 : 40)
+            ->get()
+            ->map(function (Invoice $invoice) {
+                $order = $invoice->order;
+                $customerName = $order?->customer_name ?: ($invoice->user?->name ?: 'عميل');
+                $amount = round((float) $invoice->amount, 2);
+
+                return [
+                    'id' => $invoice->id,
+                    'order_id' => $order?->id,
+                    'invoice_number' => $invoice->invoice_number,
+                    'customer_name' => $customerName,
+                    'customer_phone' => $order?->customer_phone ?: $invoice->user?->phone,
+                    'invoice_amount' => $amount,
+                    'insurance_amount' => round((float) ($order?->insurance_amount ?? 0), 2),
+                ];
+            })
+            ->values()
+            ->all();
     }
 
     /**

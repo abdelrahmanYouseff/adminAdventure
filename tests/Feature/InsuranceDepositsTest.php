@@ -250,18 +250,18 @@ class InsuranceDepositsTest extends TestCase
             );
 
         $this->actingAs($staff)
-            ->get(route('insurance-deposits.create', ['search' => 'خالد علي']))
+            ->getJson(route('insurance-deposits.invoices.search', ['search' => 'خالد علي']))
             ->assertOk()
-            ->assertInertia(fn (Assert $page) => $page
-                ->component('InsuranceDeposits/Create')
-                ->has('invoices', 2)
-                ->where('invoices.0.customer_name', 'خالد علي')
-                ->where('invoices.1.customer_name', 'خالد علي')
-                ->has('invoices.0.invoice_number')
-                ->has('invoices.0.invoice_amount')
-                ->has('invoices.1.invoice_number')
-                ->has('invoices.1.invoice_amount')
-            );
+            ->assertJsonCount(2, 'invoices')
+            ->assertJsonPath('invoices.0.customer_name', 'خالد علي')
+            ->assertJsonPath('invoices.1.customer_name', 'خالد علي');
+
+        $this->actingAs($staff)
+            ->getJson(route('insurance-deposits.invoices.search', ['search' => 'S-TEST-'.$other->id]))
+            ->assertOk()
+            ->assertJsonCount(1, 'invoices')
+            ->assertJsonPath('invoices.0.invoice_number', $other->invoice->invoice_number)
+            ->assertJsonPath('invoices.0.customer_name', 'سارة محمد');
     }
 
     private function makeOpenOrder(User $staff, string $customerName = 'عميل جديد', float $invoiceAmount = 800): Order
