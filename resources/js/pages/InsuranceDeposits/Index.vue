@@ -84,6 +84,8 @@ const editingId = reactive<{ id: number | null; value: string; saving: boolean }
 });
 
 const expandedNotesId = ref<number | null>(null);
+const noteDrafts = reactive<Record<number, string>>({});
+const noteSavingId = ref<number | null>(null);
 
 function toggleNotes(deposit: Deposit, event?: Event) {
     const target = event?.target as HTMLElement | undefined;
@@ -92,6 +94,41 @@ function toggleNotes(deposit: Deposit, event?: Event) {
     }
 
     expandedNotesId.value = expandedNotesId.value === deposit.id ? null : deposit.id;
+}
+
+function openNotes(deposit: Deposit, event: Event) {
+    event.stopPropagation();
+    expandedNotesId.value = deposit.id;
+}
+
+function submitNote(deposit: Deposit) {
+    const body = (noteDrafts[deposit.id] || '').trim();
+    if (!body) {
+        Swal.fire({
+            icon: 'info',
+            title: 'الملاحظة',
+            text: 'اكتب الملاحظة أولاً.',
+            confirmButtonText: 'حسناً',
+            confirmButtonColor: '#2563EB',
+        });
+        return;
+    }
+
+    noteSavingId.value = deposit.id;
+    router.post(
+        `/insurance-deposits/${deposit.id}/notes`,
+        { body },
+        {
+            preserveScroll: true,
+            onSuccess: () => {
+                noteDrafts[deposit.id] = '';
+                expandedNotesId.value = deposit.id;
+            },
+            onFinish: () => {
+                noteSavingId.value = null;
+            },
+        },
+    );
 }
 
 watch(
@@ -521,34 +558,44 @@ async function markWithheld(deposit: Deposit) {
                                         </span>
                                     </td>
                                     <td class="px-4 py-3 text-right" @click.stop>
-                                        <div v-if="deposit.insurance_status === 'pending'" class="flex flex-wrap gap-2">
+                                        <div class="flex flex-wrap justify-end gap-2">
                                             <Button
-                                                v-if="!deposit.is_fully_approved"
                                                 size="sm"
+                                                variant="outline"
                                                 class="h-9 rounded-xl"
-                                                :class="deposit.can_approve_next
-                                                    ? 'bg-sky-600 hover:bg-sky-700'
-                                                    : 'bg-slate-300 text-slate-600 hover:bg-slate-300'"
-                                                @click="approveNext(deposit)"
+                                                @click="openNotes(deposit, $event)"
                                             >
-                                                {{ deposit.can_approve_next ? `تعميد ${deposit.next_approval_label}` : 'تعميد' }}
+                                                <MessageSquareText class="ml-1 h-4 w-4" />
+                                                ملاحظات
                                             </Button>
-                                            <template v-if="deposit.is_fully_approved">
-                                                <Button size="sm" class="h-9 rounded-xl bg-emerald-600 hover:bg-emerald-700" @click="markRefunded(deposit)">
-                                                    استرداد
+                                            <template v-if="deposit.insurance_status === 'pending'">
+                                                <Button
+                                                    v-if="!deposit.is_fully_approved"
+                                                    size="sm"
+                                                    class="h-9 rounded-xl"
+                                                    :class="deposit.can_approve_next
+                                                        ? 'bg-sky-600 hover:bg-sky-700'
+                                                        : 'bg-slate-300 text-slate-600 hover:bg-slate-300'"
+                                                    @click="approveNext(deposit)"
+                                                >
+                                                    {{ deposit.can_approve_next ? `تعميد ${deposit.next_approval_label}` : 'تعميد' }}
                                                 </Button>
-                                                <Button size="sm" variant="outline" class="h-9 rounded-xl" @click="markWithheld(deposit)">
-                                                    حجز
-                                                </Button>
+                                                <template v-if="deposit.is_fully_approved">
+                                                    <Button size="sm" class="h-9 rounded-xl bg-emerald-600 hover:bg-emerald-700" @click="markRefunded(deposit)">
+                                                        استرداد
+                                                    </Button>
+                                                    <Button size="sm" variant="outline" class="h-9 rounded-xl" @click="markWithheld(deposit)">
+                                                        حجز
+                                                    </Button>
+                                                </template>
                                             </template>
+                                            <p
+                                                v-else-if="deposit.insurance_status === 'refunded'"
+                                                class="self-center text-sm font-medium text-slate-700"
+                                            >
+                                                {{ deposit.insurance_refunded_at ? formatDateTime(deposit.insurance_refunded_at) : '—' }}
+                                            </p>
                                         </div>
-                                        <p
-                                            v-else-if="deposit.insurance_status === 'refunded'"
-                                            class="text-sm font-medium text-slate-700"
-                                        >
-                                            {{ deposit.insurance_refunded_at ? formatDateTime(deposit.insurance_refunded_at) : '—' }}
-                                        </p>
-                                        <span v-else class="text-xs text-slate-400">—</span>
                                     </td>
                                 </tr>
                                 <tr v-if="expandedNotesId === deposit.id" class="border-t border-slate-100 bg-slate-50/60">
@@ -587,8 +634,30 @@ async function markWithheld(deposit: Deposit) {
                                                 </article>
                                             </div>
                                             <p v-else class="py-6 text-center text-sm text-slate-400">
-                                                لا توجد ملاحظات على أمر العمل هذا.
+                                                لا توجد ملاحظات على طلب التأمين هذا بعد.
                                             </p>
+
+                                            <div class="mt-4 space-y-2 border-t border-slate-100 pt-3">
+                                                <label class="block text-xs font-semibold text-slate-600">إضافة ملاحظة</label>
+                                                <textarea
+                                                    v-model="noteDrafts[deposit.id]"
+                                                    rows="3"
+                                                    maxlength="2000"
+                                                    placeholder="اكتب ملاحظة يشوفها كل من في سلسلة الاعتماد..."
+                                                    class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none transition focus:border-sky-300 focus:ring-2 focus:ring-sky-100"
+                                                />
+                                                <div class="flex justify-end">
+                                                    <Button
+                                                        size="sm"
+                                                        class="h-9 rounded-xl"
+                                                        :disabled="noteSavingId === deposit.id"
+                                                        @click="submitNote(deposit)"
+                                                    >
+                                                        <MessageSquareText class="ml-1 h-4 w-4" />
+                                                        {{ noteSavingId === deposit.id ? 'جاري الحفظ...' : 'حفظ الملاحظة' }}
+                                                    </Button>
+                                                </div>
+                                            </div>
                                         </div>
                                     </td>
                                 </tr>

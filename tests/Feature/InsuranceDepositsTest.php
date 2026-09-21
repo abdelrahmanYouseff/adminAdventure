@@ -169,6 +169,68 @@ class InsuranceDepositsTest extends TestCase
             );
     }
 
+    public function test_staff_can_add_a_note_visible_to_the_approval_chain(): void
+    {
+        $order = $this->makeEligibleOrder();
+        $workersManager = User::factory()->staff(User::ROLE_WORKERS_MANAGER)->create([
+            'customer_name' => 'مدير العمال',
+        ]);
+        $accounts = User::factory()->staff(User::ROLE_ACCOUNTS)->create([
+            'customer_name' => 'المحاسب',
+        ]);
+
+        $this->actingAs($workersManager)
+            ->post(route('insurance-deposits.notes.store', $order), [
+                'body' => 'الصور مكتملة والتركيب سليم',
+            ])
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('worker_order_notes', [
+            'order_id' => $order->id,
+            'user_id' => $workersManager->id,
+            'body' => 'الصور مكتملة والتركيب سليم',
+        ]);
+
+        $this->actingAs($accounts)
+            ->get(route('insurance-deposits.index'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('InsuranceDeposits/Index')
+                ->where('deposits.data.0.notes_count', 1)
+                ->where('deposits.data.0.notes.0.body', 'الصور مكتملة والتركيب سليم')
+                ->where('deposits.data.0.notes.0.user_name', 'مدير العمال')
+                ->where('deposits.data.0.notes.0.user_role', 'مدير العمال')
+            );
+
+        $this->actingAs($accounts)
+            ->get(route('insurance-deposits.show', $order))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('InsuranceDeposits/Show')
+                ->where('deposit.notes_count', 1)
+                ->where('deposit.notes.0.body', 'الصور مكتملة والتركيب سليم')
+                ->where('deposit.notes.0.user_name', 'مدير العمال')
+                ->where('deposit.notes.0.user_role', 'مدير العمال')
+            );
+    }
+
+    public function test_workers_cannot_add_insurance_notes(): void
+    {
+        $order = $this->makeEligibleOrder();
+        $worker = User::factory()->staff(User::ROLE_WORKER)->create();
+
+        $this->actingAs($worker)
+            ->post(route('insurance-deposits.notes.store', $order), [
+                'body' => 'ملاحظة من عامل',
+            ])
+            ->assertRedirect(route('pwa.dashboard'));
+
+        $this->assertDatabaseMissing('worker_order_notes', [
+            'order_id' => $order->id,
+            'body' => 'ملاحظة من عامل',
+        ]);
+    }
+
     private function makeOpenOrder(User $staff): Order
     {
         return Order::query()->create([

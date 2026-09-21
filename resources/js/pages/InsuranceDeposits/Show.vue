@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
-import { Head, Link, router, usePage } from '@inertiajs/vue3';
+import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { Button } from '@/components/ui/button';
 import { formatCurrency, formatDate, formatDateTime } from '@/lib/formatNumber';
-import { ArrowRight, Camera, ImageIcon, ShieldCheck, X } from 'lucide-vue-next';
+import { ArrowRight, Camera, ImageIcon, MessageSquareText, ShieldCheck, X } from 'lucide-vue-next';
 import Swal from 'sweetalert2';
 
 interface ApprovalStep {
@@ -48,7 +48,17 @@ interface Deposit {
     is_fully_approved: boolean;
     can_refund_or_withhold: boolean;
     payment_proof_urls?: string[];
+    notes?: DepositNote[];
+    notes_count?: number;
     worker_lines: WorkerLine[];
+}
+
+interface DepositNote {
+    id: number;
+    body: string;
+    user_name: string;
+    user_role: string;
+    created_at: string | null;
 }
 
 interface Props {
@@ -62,6 +72,9 @@ const page = usePage();
 const flash = computed(() => (page.props.flash as { success?: string; error?: string } | undefined) ?? {});
 const lightboxUrl = ref<string | null>(null);
 const lightboxLabel = ref('');
+const noteForm = useForm({
+    body: '',
+});
 
 watch(
     () => [flash.value.success, flash.value.error] as const,
@@ -205,6 +218,26 @@ async function markWithheld() {
         router.post(`/insurance-deposits/${deposit.id}/withhold`, {}, { preserveScroll: true });
     }
 }
+
+function submitNote() {
+    const body = noteForm.body.trim();
+    if (!body) {
+        Swal.fire({
+            icon: 'info',
+            title: 'الملاحظة',
+            text: 'اكتب الملاحظة أولاً.',
+            confirmButtonText: 'حسناً',
+            confirmButtonColor: '#2563EB',
+        });
+        return;
+    }
+
+    noteForm.body = body;
+    noteForm.post(`/insurance-deposits/${props.deposit.id}/notes`, {
+        preserveScroll: true,
+        onSuccess: () => noteForm.reset(),
+    });
+}
 </script>
 
 <template>
@@ -328,6 +361,58 @@ async function markWithheld() {
                     </template>
                 </div>
             </div>
+
+            <section class="mb-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+                <h2 class="mb-4 flex items-center gap-2 text-lg font-bold text-slate-900">
+                    <MessageSquareText class="h-5 w-5 text-slate-500" />
+                    الملاحظات ({{ deposit.notes_count || deposit.notes?.length || 0 }})
+                </h2>
+
+                <div v-if="deposit.notes?.length" class="mb-4 max-h-80 space-y-3 overflow-y-auto">
+                    <article
+                        v-for="note in deposit.notes"
+                        :key="note.id"
+                        class="rounded-xl border border-slate-100 bg-slate-50 px-4 py-3"
+                    >
+                        <div class="mb-1.5 flex flex-wrap items-center gap-x-2 gap-y-1">
+                            <span class="text-sm font-semibold text-slate-900">{{ note.user_name }}</span>
+                            <span class="rounded-full bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-500 ring-1 ring-slate-200">
+                                {{ note.user_role }}
+                            </span>
+                            <span v-if="note.created_at" class="text-[11px] text-slate-400" dir="ltr">
+                                {{ formatDateTime(note.created_at) }}
+                            </span>
+                        </div>
+                        <p class="whitespace-pre-wrap text-sm leading-relaxed text-slate-700">{{ note.body }}</p>
+                    </article>
+                </div>
+                <p v-else class="mb-4 py-4 text-center text-sm text-slate-400">
+                    لا توجد ملاحظات على طلب التأمين هذا بعد.
+                </p>
+
+                <div class="space-y-2 border-t border-slate-100 pt-3">
+                    <label class="block text-xs font-semibold text-slate-600">إضافة ملاحظة</label>
+                    <textarea
+                        v-model="noteForm.body"
+                        rows="3"
+                        maxlength="2000"
+                        placeholder="اكتب ملاحظة يشوفها كل من في سلسلة الاعتماد..."
+                        class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none transition focus:border-sky-300 focus:ring-2 focus:ring-sky-100"
+                    />
+                    <p v-if="noteForm.errors.body" class="text-sm text-rose-600">{{ noteForm.errors.body }}</p>
+                    <div class="flex justify-end">
+                        <Button
+                            size="sm"
+                            class="h-9 rounded-xl"
+                            :disabled="noteForm.processing"
+                            @click="submitNote"
+                        >
+                            <MessageSquareText class="ml-1 h-4 w-4" />
+                            {{ noteForm.processing ? 'جاري الحفظ...' : 'حفظ الملاحظة' }}
+                        </Button>
+                    </div>
+                </div>
+            </section>
 
             <div class="mb-3 flex items-center gap-2">
                 <Camera class="h-5 w-5 text-slate-500" />

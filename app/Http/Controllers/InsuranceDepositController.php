@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Order;
 use App\Models\User;
+use App\Models\WorkerOrderNote;
 use App\Support\InsuranceApprovalChain;
 use App\Support\MediaStorage;
 use Illuminate\Database\Eloquent\Builder;
@@ -190,6 +191,8 @@ class InsuranceDepositController extends Controller
             'invoice:id,invoice_number',
             'workOrderApprovedBy:id,customer_name',
             'warehouseReturnedBy:id,customer_name',
+            'workerNotes' => fn ($q) => $q->latest(),
+            'workerNotes.user:id,customer_name,role',
             'workerOrders' => fn ($query) => $query->orderBy('line_index'),
             'workerOrders.completedByUser:id,customer_name',
         ]));
@@ -209,6 +212,26 @@ class InsuranceDepositController extends Controller
         return Inertia::render('InsuranceDeposits/Show', [
             'deposit' => $deposit,
         ]);
+    }
+
+    public function storeNote(Request $request, Order $order): RedirectResponse
+    {
+        abort_unless($this->isEligibleDeposit($order), 404);
+
+        $validated = $request->validate([
+            'body' => ['required', 'string', 'max:2000'],
+        ], [
+            'body.required' => 'يجب كتابة الملاحظة.',
+            'body.max' => 'الملاحظة يجب ألا تتجاوز 2000 حرف.',
+        ]);
+
+        WorkerOrderNote::create([
+            'order_id' => $order->id,
+            'user_id' => $request->user()->id,
+            'body' => trim($validated['body']),
+        ]);
+
+        return back()->with('success', 'تم حفظ الملاحظة.');
     }
 
     public function approve(Request $request, Order $order): RedirectResponse

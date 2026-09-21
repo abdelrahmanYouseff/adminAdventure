@@ -483,6 +483,10 @@ Route::get('insurance-deposits/{order}', [\App\Http\Controllers\InsuranceDeposit
     ->middleware(['auth', 'verified', 'staff'])
     ->name('insurance-deposits.show');
 
+Route::post('insurance-deposits/{order}/notes', [\App\Http\Controllers\InsuranceDepositController::class, 'storeNote'])
+    ->middleware(['auth', 'verified', 'staff'])
+    ->name('insurance-deposits.notes.store');
+
 Route::post('insurance-deposits/{order}/approve', [\App\Http\Controllers\InsuranceDepositController::class, 'approve'])
     ->middleware(['auth', 'verified', 'staff'])
     ->name('insurance-deposits.approve');
