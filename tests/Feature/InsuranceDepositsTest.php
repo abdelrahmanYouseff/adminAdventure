@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Invoice;
 use App\Models\Order;
 use App\Models\User;
 use App\Support\InsuranceApprovalChain;
@@ -126,7 +127,7 @@ class InsuranceDepositsTest extends TestCase
 
         $this->actingAs($staff)
             ->post(route('insurance-deposits.store'), [
-                'order_id' => $order->id,
+                'invoice_id' => $order->invoice_id,
                 'insurance_amount' => 150,
             ])
             ->assertSessionHasErrors('payment_proof');
@@ -143,7 +144,7 @@ class InsuranceDepositsTest extends TestCase
 
         $this->actingAs($staff)
             ->post(route('insurance-deposits.store'), [
-                'order_id' => $order->id,
+                'invoice_id' => $order->invoice_id,
                 'insurance_amount' => 150,
                 'payment_proof' => [UploadedFile::fake()->image('receipt.jpg')],
             ])
@@ -231,20 +232,64 @@ class InsuranceDepositsTest extends TestCase
         ]);
     }
 
-    private function makeOpenOrder(User $staff): Order
+    public function test_create_page_lists_invoices_with_number_and_amount(): void
     {
-        return Order::query()->create([
+        $staff = User::factory()->staff(User::ROLE_MANAGER)->create();
+        $this->makeOpenOrder($staff, 'خالد علي', 800);
+        $this->makeOpenOrder($staff, 'خالد علي', 350);
+        $other = $this->makeOpenOrder($staff, 'سارة محمد', 1200);
+
+        $this->actingAs($staff)
+            ->get(route('insurance-deposits.create'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('InsuranceDeposits/Create')
+                ->has('invoices', 3)
+                ->where('invoices.0.invoice_number', $other->invoice->invoice_number)
+                ->where('invoices.0.customer_name', 'سارة محمد')
+            );
+
+        $this->actingAs($staff)
+            ->get(route('insurance-deposits.create', ['search' => 'خالد علي']))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('InsuranceDeposits/Create')
+                ->has('invoices', 2)
+                ->where('invoices.0.customer_name', 'خالد علي')
+                ->where('invoices.1.customer_name', 'خالد علي')
+                ->has('invoices.0.invoice_number')
+                ->has('invoices.0.invoice_amount')
+                ->has('invoices.1.invoice_number')
+                ->has('invoices.1.invoice_amount')
+            );
+    }
+
+    private function makeOpenOrder(User $staff, string $customerName = 'عميل جديد', float $invoiceAmount = 800): Order
+    {
+        $order = Order::query()->create([
             'user_id' => $staff->id,
-            'customer_name' => 'عميل جديد',
+            'customer_name' => $customerName,
             'customer_phone' => '0501111111',
             'order_number' => Order::generateOrderNumber(),
-            'total_amount' => 800,
-            'amount_paid' => 800,
+            'total_amount' => $invoiceAmount,
+            'amount_paid' => $invoiceAmount,
             'currency' => 'SAR',
             'status' => 'paid',
             'payment_status' => 'paid',
             'payment_method' => 'bank_transfer',
         ]);
+
+        $invoice = Invoice::query()->create([
+            'user_id' => $staff->id,
+            'invoice_number' => 'S-TEST-'.$order->id,
+            'amount' => $invoiceAmount,
+            'status' => 'paid',
+            'issued_at' => now(),
+        ]);
+
+        $order->update(['invoice_id' => $invoice->id]);
+
+        return $order->fresh(['invoice']);
     }
 
     private function makeEligibleOrder(): Order

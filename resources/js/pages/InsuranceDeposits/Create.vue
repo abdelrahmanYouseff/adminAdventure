@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
-import { Head, Link, useForm, usePage } from '@inertiajs/vue3';
+import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,18 +9,19 @@ import { formatCurrency } from '@/lib/formatNumber';
 import { ArrowRight, FileText, ShieldPlus, UploadCloud } from 'lucide-vue-next';
 import Swal from 'sweetalert2';
 
-interface CustomerOption {
+interface InvoiceOption {
     id: number;
-    order_number: string;
+    order_id: number | null;
+    invoice_number: string;
     customer_name: string;
     customer_phone: string | null;
+    invoice_amount: number;
     insurance_amount: number;
-    remaining_amount: number;
     label: string;
 }
 
 interface Props {
-    customers: CustomerOption[];
+    invoices: InvoiceOption[];
     filters: {
         search: string;
     };
@@ -32,38 +33,40 @@ defineOptions({ layout: AppLayout });
 const page = usePage();
 const flash = computed(() => (page.props.flash as { success?: string; error?: string } | undefined) ?? {});
 
-const customerFilter = ref('');
+const invoiceFilter = ref(props.filters.search || '');
+let searchTimer: ReturnType<typeof setTimeout> | null = null;
 
 const PAYMENT_PROOF_ACCEPT = 'image/jpeg,image/png,image/webp,application/pdf,.jpg,.jpeg,.png,.webp,.pdf';
 const paymentProofPreviews = ref<string[]>([]);
 
 const form = useForm({
-    order_id: '' as number | '',
+    invoice_id: '' as number | '',
     insurance_amount: 0 as number,
     payment_proof: [] as File[],
 });
 
-const filteredCustomers = computed(() => {
-    const q = customerFilter.value.trim().toLowerCase();
+const filteredInvoices = computed(() => {
+    const q = invoiceFilter.value.trim().toLowerCase();
     if (!q) {
-        return props.customers;
+        return props.invoices;
     }
 
-    return props.customers.filter((row) => {
+    return props.invoices.filter((row) => {
         return (
             row.customer_name.toLowerCase().includes(q)
-            || row.order_number.toLowerCase().includes(q)
+            || row.invoice_number.toLowerCase().includes(q)
             || (row.customer_phone || '').includes(q)
+            || String(row.invoice_amount).includes(q)
         );
     });
 });
 
 const selected = computed(() => {
-    if (form.order_id === '' || form.order_id == null) {
+    if (form.invoice_id === '' || form.invoice_id == null) {
         return null;
     }
 
-    return props.customers.find((row) => row.id === Number(form.order_id)) ?? null;
+    return props.invoices.find((row) => row.id === Number(form.invoice_id)) ?? null;
 });
 
 watch(
@@ -103,6 +106,26 @@ watch(selected, (row) => {
     if (!form.insurance_amount || form.insurance_amount <= 0) {
         form.insurance_amount = row.insurance_amount > 0 ? row.insurance_amount : 0;
     }
+});
+
+watch(invoiceFilter, (value) => {
+    if (searchTimer) {
+        clearTimeout(searchTimer);
+    }
+
+    searchTimer = setTimeout(() => {
+        const next = value.trim();
+        if (next === (props.filters.search || '').trim()) {
+            return;
+        }
+
+        router.get('/insurance-deposits/create', next ? { search: next } : {}, {
+            preserveState: true,
+            preserveScroll: true,
+            replace: true,
+            only: ['invoices', 'filters'],
+        });
+    }, 350);
 });
 
 function isPdfFile(file: File | undefined): boolean {
@@ -149,15 +172,18 @@ function removePaymentProof(index: number) {
 }
 
 onBeforeUnmount(() => {
+    if (searchTimer) {
+        clearTimeout(searchTimer);
+    }
     clearPaymentProofPreview();
 });
 
 function submit() {
-    if (!form.order_id) {
+    if (!form.invoice_id) {
         Swal.fire({
             icon: 'info',
-            title: 'اختر العميل',
-            text: 'اختر العميل / رقم الطلب من القائمة أولاً.',
+            title: 'اختر الفاتورة',
+            text: 'اختر فاتورة العميل من القائمة أولاً.',
             confirmButtonText: 'حسناً',
             confirmButtonColor: '#2563EB',
         });
@@ -208,7 +234,7 @@ function submit() {
                 </Link>
                 <h1 class="text-2xl font-bold text-slate-900">رفع طلب استرداد التأمين</h1>
                     <p class="mt-1 text-sm text-slate-500">
-                    اختر العميل، أدخل المبلغ، وأرفق إيصال الدفع. بدون الإيصال الطلب مش هيترفع. يفضل في نفس الصفحة بانتظار مدير العمال.
+                    اختر فاتورة العميل، أدخل المبلغ، وأرفق إيصال الدفع. بدون الإيصال الطلب مش هيترفع. يفضل في نفس الصفحة بانتظار مدير العمال.
                 </p>
             </div>
 
@@ -222,35 +248,35 @@ function submit() {
 
                 <div class="space-y-5">
                     <div class="space-y-2">
-                        <Label for="customer_filter" class="text-sm font-medium">بحث سريع</Label>
+                        <Label for="invoice_filter" class="text-sm font-medium">بحث سريع</Label>
                         <Input
-                            id="customer_filter"
-                            v-model="customerFilter"
+                            id="invoice_filter"
+                            v-model="invoiceFilter"
                             type="search"
                             class="h-11 rounded-xl"
-                            placeholder="ابحث بالاسم أو رقم الطلب أو الجوال..."
+                            placeholder="ابحث باسم العميل أو رقم الفاتورة أو الجوال..."
                         />
                     </div>
 
                     <div class="space-y-2">
-                        <Label for="order_id" class="text-sm font-medium">العميل / الطلب</Label>
+                        <Label for="invoice_id" class="text-sm font-medium">الفاتورة</Label>
                         <select
-                            id="order_id"
-                            v-model="form.order_id"
+                            id="invoice_id"
+                            v-model="form.invoice_id"
                             class="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none ring-slate-200 focus:ring-2"
                         >
-                            <option value="">اختر العميل...</option>
+                            <option value="">اختر الفاتورة...</option>
                             <option
-                                v-for="row in filteredCustomers"
+                                v-for="row in filteredInvoices"
                                 :key="row.id"
                                 :value="row.id"
                             >
-                                {{ row.label }}
+                                {{ row.customer_name }} — {{ row.invoice_number }} — {{ formatCurrency(row.invoice_amount) }}
                             </option>
                         </select>
-                        <p v-if="form.errors.order_id" class="text-xs text-rose-600">{{ form.errors.order_id }}</p>
-                        <p v-if="filteredCustomers.length === 0" class="text-xs text-amber-700">
-                            لا توجد نتائج مطابقة للبحث.
+                        <p v-if="form.errors.invoice_id" class="text-xs text-rose-600">{{ form.errors.invoice_id }}</p>
+                        <p v-if="filteredInvoices.length === 0" class="text-xs text-amber-700">
+                            لا توجد فواتير مطابقة للبحث.
                         </p>
                     </div>
 
@@ -260,12 +286,12 @@ function submit() {
                     >
                         <div class="flex flex-wrap items-center justify-between gap-2">
                             <span class="font-semibold text-slate-900">{{ selected.customer_name }}</span>
-                            <span class="font-semibold tabular-nums text-slate-900" dir="ltr">{{ selected.order_number }}</span>
+                            <span class="font-semibold tabular-nums text-slate-900" dir="ltr">{{ selected.invoice_number }}</span>
                         </div>
                         <div class="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
                             <span v-if="selected.customer_phone" dir="ltr">{{ selected.customer_phone }}</span>
+                            <span>مبلغ الفاتورة: {{ formatCurrency(selected.invoice_amount) }}</span>
                             <span>تأمين مسجّل: {{ formatCurrency(selected.insurance_amount) }}</span>
-                            <span>متبقي على الطلب: {{ formatCurrency(selected.remaining_amount) }}</span>
                         </div>
                     </div>
 

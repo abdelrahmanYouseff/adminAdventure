@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Invoice;
 use App\Models\Order;
 use App\Models\User;
 use App\Models\WorkerOrderNote;
@@ -59,38 +60,55 @@ class InsuranceDepositController extends Controller
     {
         $search = trim($request->string('search')->toString());
 
-        $query = Order::query()
-            ->releasedToOperations()
-            ->where('status', '!=', 'cancelled')
+        $query = Invoice::query()
+            ->where('status', 'paid')
+            ->whereHas('order', fn (Builder $order) => $order
+                ->whereNotIn('status', ['cancelled', 'refunded']))
+            ->with([
+                'order:id,invoice_id,customer_name,customer_phone,insurance_amount',
+                'user:id,customer_name,phone',
+            ])
             ->orderByDesc('id');
 
         if ($search !== '') {
-            $query->where(function (Builder $q) use ($search) {
-                $q->where('order_number', 'like', "%{$search}%")
-                    ->orWhere('customer_name', 'like', "%{$search}%")
-                    ->orWhere('customer_phone', 'like', "%{$search}%");
+            $query->where(function (Builder $inner) use ($search) {
+                $inner->where('invoice_number', 'like', "%{$search}%")
+                    ->orWhereHas('user', function (Builder $user) use ($search) {
+                        $user->where('customer_name', 'like', "%{$search}%")
+                            ->orWhere('phone', 'like', "%{$search}%");
+                    })
+                    ->orWhereHas('order', function (Builder $order) use ($search) {
+                        $order->where('customer_name', 'like', "%{$search}%")
+                            ->orWhere('customer_phone', 'like', "%{$search}%");
+                    });
             });
         }
 
-        $customers = $query
-            ->get(['id', 'order_number', 'customer_name', 'customer_phone', 'insurance_amount', 'total_amount', 'amount_paid'])
-            ->map(fn (Order $order) => [
-                'id' => $order->id,
-                'order_number' => $order->order_number,
-                'customer_name' => $order->customer_name,
-                'customer_phone' => $order->customer_phone,
-                'insurance_amount' => round((float) ($order->insurance_amount ?? 0), 2),
-                'remaining_amount' => round(max(
-                    0,
-                    (float) $order->total_amount - (float) ($order->amount_paid ?? 0)
-                ), 2),
-                'label' => trim($order->customer_name.' — '.$order->order_number),
-            ])
+        $invoices = $query
+            ->limit($search === '' ? 80 : 150)
+            ->get()
+            ->map(function (Invoice $invoice) {
+                $order = $invoice->order;
+                $customerName = $order?->customer_name ?: ($invoice->user?->name ?: 'عميل');
+                $amount = round((float) $invoice->amount, 2);
+                $formattedAmount = number_format($amount, 2);
+
+                return [
+                    'id' => $invoice->id,
+                    'order_id' => $order?->id,
+                    'invoice_number' => $invoice->invoice_number,
+                    'customer_name' => $customerName,
+                    'customer_phone' => $order?->customer_phone ?: $invoice->user?->phone,
+                    'invoice_amount' => $amount,
+                    'insurance_amount' => round((float) ($order?->insurance_amount ?? 0), 2),
+                    'label' => $customerName.' — '.$invoice->invoice_number.' — '.$formattedAmount,
+                ];
+            })
             ->values()
             ->all();
 
         return Inertia::render('InsuranceDeposits/Create', [
-            'customers' => $customers,
+            'invoices' => $invoices,
             'filters' => [
                 'search' => $search,
             ],
@@ -100,13 +118,13 @@ class InsuranceDepositController extends Controller
     public function store(Request $request): RedirectResponse
     {
         $validated = $request->validate([
-            'order_id' => ['required', 'integer', 'exists:orders,id'],
+            'invoice_id' => ['required', 'integer', 'exists:invoices,id'],
             'insurance_amount' => ['required', 'numeric', 'min:0.01'],
             'payment_proof' => ['required', 'array', 'min:1', 'max:10'],
             'payment_proof.*' => ['required', 'file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:5120'],
         ], [
-            'order_id.required' => 'اختر العميل / الطلب.',
-            'order_id.exists' => 'الطلب المحدد غير موجود.',
+            'invoice_id.required' => 'اختر الفاتورة.',
+            'invoice_id.exists' => 'الفاتورة المحددة غير موجودة.',
             'insurance_amount.required' => 'مبلغ التأمين مطلوب.',
             'insurance_amount.numeric' => 'مبلغ التأمين غير صالح.',
             'insurance_amount.min' => 'مبلغ التأمين يجب أن يكون أكبر من صفر.',
@@ -119,16 +137,20 @@ class InsuranceDepositController extends Controller
             'payment_proof.*.max' => 'حجم المرفق يجب ألا يتجاوز 5 ميجابايت.',
         ]);
 
-        $order = Order::query()
-            ->releasedToOperations()
-            ->where('status', '!=', 'cancelled')
-            ->whereKey((int) $validated['order_id'])
+        $invoice = Invoice::query()
+            ->with('order')
+            ->whereKey((int) $validated['invoice_id'])
             ->first();
 
-        if (! $order) {
+        $order = $invoice?->order;
+
+        if (
+            ! $order
+            || in_array($order->status, ['cancelled', 'refunded'], true)
+        ) {
             return back()
                 ->withInput()
-                ->with('error', 'لا يمكن تسجيل طلب استرداد تأمين على هذا الطلب.');
+                ->with('error', 'لا يمكن تسجيل طلب استرداد تأمين على هذه الفاتورة.');
         }
 
         $amount = round((float) $validated['insurance_amount'], 2);
@@ -179,7 +201,7 @@ class InsuranceDepositController extends Controller
             ->route('insurance-deposits.index', ['status' => 'pending'])
             ->with(
                 'success',
-                'تم رفع طلب استرداد التأمين للطلب '.$order->order_number.' وهو بانتظار اعتماد مدير العمال.',
+                'تم رفع طلب استرداد التأمين للفاتورة '.$invoice->invoice_number.' وهو بانتظار اعتماد مدير العمال.',
             );
     }
 
