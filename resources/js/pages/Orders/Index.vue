@@ -31,6 +31,7 @@ import {
     FileText,
     Hourglass,
     Layers,
+    MessageSquareText,
     MoreVertical,
     Pencil,
     Plus,
@@ -162,6 +163,11 @@ const paymentProofInput = ref<HTMLInputElement | null>(null);
 const photosDialogOpen = ref(false);
 const photosDialogOrder = ref<Order | null>(null);
 const photosLightbox = ref<string | null>(null);
+const noteDialogOpen = ref(false);
+const noteOrder = ref<Order | null>(null);
+const noteForm = useForm({
+    body: '',
+});
 
 const settleForm = useForm({
     amount: '' as number | string,
@@ -199,6 +205,38 @@ function closeSettleDialog() {
     if (paymentProofInput.value) {
         paymentProofInput.value.value = '';
     }
+}
+
+function openNoteDialog(order: Order) {
+    noteOrder.value = order;
+    noteForm.reset();
+    noteForm.clearErrors();
+    noteDialogOpen.value = true;
+}
+
+function closeNoteDialog() {
+    noteDialogOpen.value = false;
+    noteOrder.value = null;
+    noteForm.reset();
+    noteForm.clearErrors();
+}
+
+function submitNote() {
+    if (!noteOrder.value) {
+        return;
+    }
+
+    const body = noteForm.body.trim();
+    if (!body) {
+        noteForm.setError('body', 'يجب كتابة الملاحظة.');
+        return;
+    }
+
+    noteForm.body = body;
+    noteForm.post(route('orders.notes.store', noteOrder.value.id), {
+        preserveScroll: true,
+        onSuccess: () => closeNoteDialog(),
+    });
 }
 
 function handleSettleProofChange(event: Event) {
@@ -1076,6 +1114,13 @@ function formatActivityDate(date: string | null): string {
                                                 </Link>
                                             </DropdownMenuItem>
                                             <DropdownMenuItem
+                                                class="gap-2"
+                                                @click="openNoteDialog(order)"
+                                            >
+                                                <MessageSquareText class="size-4" />
+                                                إضافة ملاحظة
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem
                                                 v-if="order.can_edit && !isOrderLocked(order)"
                                                 as-child
                                             >
@@ -1173,6 +1218,45 @@ function formatActivityDate(date: string | null): string {
                 </div>
             </div>
         </div>
+
+        <Dialog :open="noteDialogOpen" @update:open="(open) => !open && closeNoteDialog()">
+            <DialogContent class="max-w-md sm:max-w-lg">
+                <DialogHeader>
+                    <DialogTitle>إضافة ملاحظة</DialogTitle>
+                    <DialogDescription v-if="noteOrder">
+                        الطلب
+                        <span class="font-semibold tabular-nums" dir="ltr">{{ noteOrder.order_number }}</span>
+                        —
+                        {{ noteOrder.customer_name }}
+                    </DialogDescription>
+                </DialogHeader>
+
+                <form class="space-y-4" @submit.prevent="submitNote">
+                    <div class="space-y-2">
+                        <Label for="order-note-body">الملاحظة</Label>
+                        <textarea
+                            id="order-note-body"
+                            v-model="noteForm.body"
+                            rows="4"
+                            maxlength="2000"
+                            class="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring"
+                            placeholder="اكتب الملاحظة هنا..."
+                        />
+                        <p v-if="noteForm.errors.body" class="text-xs text-red-600">{{ noteForm.errors.body }}</p>
+                    </div>
+
+                    <DialogFooter class="gap-2 sm:justify-start">
+                        <Button type="submit" class="h-10 gap-2 rounded-xl" :disabled="noteForm.processing">
+                            <MessageSquareText class="size-4" />
+                            {{ noteForm.processing ? 'جاري الحفظ...' : 'حفظ الملاحظة' }}
+                        </Button>
+                        <Button type="button" variant="outline" class="h-10 rounded-xl" @click="closeNoteDialog">
+                            إلغاء
+                        </Button>
+                    </DialogFooter>
+                </form>
+            </DialogContent>
+        </Dialog>
 
         <Dialog :open="settleDialogOpen" @update:open="(open) => !open && closeSettleDialog()">
             <DialogContent class="max-w-md sm:max-w-lg">

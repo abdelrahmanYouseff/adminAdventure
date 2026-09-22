@@ -6,6 +6,7 @@ use App\Models\Order;
 use App\Models\User;
 use App\Models\WorkerOrderNote;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
 
 class OrderNotesTest extends TestCase
@@ -37,6 +38,41 @@ class OrderNotesTest extends TestCase
             'user_id' => $admin->id,
             'body' => 'ملاحظة جديدة على الطلب',
         ]);
+    }
+
+    public function test_staff_can_add_a_note_from_the_orders_list_on_any_order(): void
+    {
+        $admin = User::factory()->admin()->create([
+            'customer_name' => 'مدير النظام',
+        ]);
+        $order = $this->makeOrder();
+        $order->update([
+            'status' => 'paid',
+            'payment_status' => 'paid',
+            'amount_paid' => 500,
+        ]);
+
+        $this->actingAs($admin)
+            ->from(route('orders.index'))
+            ->post(route('orders.notes.store', $order), [
+                'body' => 'ملاحظة من قائمة الطلبات',
+            ])
+            ->assertRedirect(route('orders.index'));
+
+        $this->assertDatabaseHas('worker_order_notes', [
+            'order_id' => $order->id,
+            'user_id' => $admin->id,
+            'body' => 'ملاحظة من قائمة الطلبات',
+        ]);
+
+        $this->actingAs($admin)
+            ->get(route('orders.show', $order))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Orders/Show')
+                ->where('order.activity_notes.0.body', 'ملاحظة من قائمة الطلبات')
+                ->where('order.activity_notes.0.user_name', 'مدير النظام')
+            );
     }
 
     public function test_admin_can_delete_an_added_note(): void
