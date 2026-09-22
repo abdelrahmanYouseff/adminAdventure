@@ -222,7 +222,8 @@ function closeNoteDialog() {
 }
 
 function submitNote() {
-    if (!noteOrder.value) {
+    const order = noteOrder.value;
+    if (!order) {
         return;
     }
 
@@ -233,9 +234,16 @@ function submitNote() {
     }
 
     noteForm.body = body;
-    noteForm.post(route('orders.notes.store', noteOrder.value.id), {
+    noteForm.post(`/orders/${order.id}/notes`, {
         preserveScroll: true,
+        preserveState: true,
         onSuccess: () => closeNoteDialog(),
+        onError: (errors) => {
+            noteDialogOpen.value = true;
+            if (!errors.body) {
+                noteForm.setError('body', 'تعذر حفظ الملاحظة. حاول مرة أخرى.');
+            }
+        },
     });
 }
 
@@ -1246,7 +1254,12 @@ function formatActivityDate(date: string | null): string {
                     </div>
 
                     <DialogFooter class="gap-2 sm:justify-start">
-                        <Button type="submit" class="h-10 gap-2 rounded-xl" :disabled="noteForm.processing">
+                        <Button
+                            type="button"
+                            class="h-10 gap-2 rounded-xl"
+                            :disabled="noteForm.processing"
+                            @click="submitNote"
+                        >
                             <MessageSquareText class="size-4" />
                             {{ noteForm.processing ? 'جاري الحفظ...' : 'حفظ الملاحظة' }}
                         </Button>
