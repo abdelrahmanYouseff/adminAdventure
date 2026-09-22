@@ -95,6 +95,33 @@ class PaymentReceiptAccumulationTest extends TestCase
             );
     }
 
+    public function test_order_activity_notes_appear_on_payment_receipts(): void
+    {
+        $admin = User::factory()->admin()->create([
+            'customer_name' => 'مدير النظام',
+        ]);
+        $order = $this->makeOrder($admin, 'تسيباس', 2415);
+        $order->update(['notes' => 'محوّل من عرض السعر QA-202609206']);
+
+        app(OrderPaymentReceiptService::class)->recordPayment($order, 2415, $admin, 'bank_transfer', 'initial');
+
+        $this->actingAs($admin)
+            ->post(route('orders.notes.store', $order), [
+                'body' => 'يتم دفع المبلغ بعد اصدار الفاتورة',
+            ]);
+
+        $this->actingAs($admin)
+            ->get(route('payment-receipts.index', ['search' => 'تسيباس']))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('PaymentReceipts/Index')
+                ->where('groups.data.0.has_notes', true)
+                ->where('groups.data.0.orders.0.notes', 'محوّل من عرض السعر QA-202609206')
+                ->where('groups.data.0.orders.0.activity_notes.0.body', 'يتم دفع المبلغ بعد اصدار الفاتورة')
+                ->where('groups.data.0.orders.0.activity_notes.0.user_name', 'مدير النظام')
+            );
+    }
+
     private function makeOrder(User $user, string $customerName, float $total, string $phone = '0500000000'): Order
     {
         return Order::query()->create([

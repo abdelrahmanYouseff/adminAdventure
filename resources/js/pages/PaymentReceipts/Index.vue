@@ -30,7 +30,7 @@ import {
     UserRound,
     XCircle,
 } from 'lucide-vue-next';
-import { formatCurrency, formatDate, formatInteger } from '@/lib/formatNumber';
+import { formatCurrency, formatDate, formatDateTime, formatInteger } from '@/lib/formatNumber';
 import { isPdfUrl } from '@/lib/paymentProof';
 
 interface CustomerProfile {
@@ -79,12 +79,21 @@ interface ReceiptRow {
     account_number?: string | null;
 }
 
+interface ActivityNote {
+    id: number;
+    body: string;
+    user_name: string;
+    user_role?: string;
+    created_at: string | null;
+}
+
 interface OrderGroup {
     id: number | null;
     order_number: string | null;
     customer_name: string | null;
     currency: string;
     notes: string | null;
+    activity_notes?: ActivityNote[];
     total_amount: number;
     amount_paid: number;
     remaining_amount: number;
@@ -356,20 +365,45 @@ function displayReceiptNotes(row: ReceiptRow, orderNotes: string | null): string
     return notes;
 }
 
-function groupNotes(group: CustomerGroup): string[] {
-    const notes: string[] = [];
+function groupNotes(group: CustomerGroup): { key: string; body: string; meta?: string }[] {
+    const notes: { key: string; body: string; meta?: string }[] = [];
+
     for (const order of group.orders) {
         const orderNote = order.notes?.trim();
-        if (orderNote && !notes.includes(orderNote)) {
-            notes.push(orderNote);
+        if (orderNote && !notes.some((item) => item.body === orderNote)) {
+            notes.push({
+                key: `order-${order.id}-field`,
+                body: orderNote,
+            });
         }
+
+        for (const activity of order.activity_notes ?? []) {
+            const body = activity.body?.trim();
+            if (!body || notes.some((item) => item.body === body)) {
+                continue;
+            }
+
+            const metaParts = [activity.user_name, activity.created_at ? formatDateTime(activity.created_at) : '']
+                .filter((part) => part && part.trim() !== '');
+
+            notes.push({
+                key: `activity-${activity.id}`,
+                body,
+                meta: metaParts.join(' · ') || undefined,
+            });
+        }
+
         for (const receipt of order.receipts) {
             const extra = displayReceiptNotes(receipt, order.notes);
-            if (extra && !notes.includes(extra)) {
-                notes.push(extra);
+            if (extra && !notes.some((item) => item.body === extra)) {
+                notes.push({
+                    key: `receipt-${receipt.id}`,
+                    body: extra,
+                });
             }
         }
     }
+
     return notes;
 }
 
@@ -705,10 +739,13 @@ function statusBadgeClass(row: ReceiptRow): string {
                                                     >
                                                         <p
                                                             v-for="note in groupNotes(group)"
-                                                            :key="note"
+                                                            :key="note.key"
                                                             class="whitespace-pre-wrap text-sm font-medium leading-relaxed text-gray-900 dark:text-white"
                                                         >
-                                                            {{ note }}
+                                                            {{ note.body }}
+                                                            <span v-if="note.meta" class="mt-0.5 block text-[11px] font-normal text-gray-500 dark:text-neutral-400">
+                                                                {{ note.meta }}
+                                                            </span>
                                                         </p>
                                                     </div>
                                                     <p v-else class="mt-0.5 text-sm text-gray-400">لا توجد ملاحظات على الطلب</p>

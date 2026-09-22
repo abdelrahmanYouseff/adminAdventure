@@ -6,6 +6,7 @@ use App\Models\CompanyClient;
 use App\Models\Order;
 use App\Models\OrderPaymentReceipt;
 use App\Models\User;
+use App\Models\WorkerOrderNote;
 use App\Services\OrderPaymentReceiptService;
 use App\Services\WorkerOrderSyncService;
 use Illuminate\Http\RedirectResponse;
@@ -31,6 +32,8 @@ class OrderPaymentReceiptController extends Controller
             ->with([
                 'order:id,user_id,order_number,customer_name,customer_phone,customer_email,address,total_amount,amount_paid,currency,notes',
                 'order.user:id,customer_name,phone,phone_secondary,email,iban,iban_image',
+                'order.workerNotes' => fn ($q) => $q->latest(),
+                'order.workerNotes.user:id,customer_name,role',
                 'recordedBy:id,customer_name',
                 'approvedBy:id,customer_name',
                 'rejectedBy:id,customer_name',
@@ -64,6 +67,10 @@ class OrderPaymentReceiptController extends Controller
                     ...collect($group['orders'])->pluck('customer_name')->all(),
                     ...collect($group['orders'])->flatMap(
                         fn (array $order) => collect($order['receipts'])->pluck('receipt_number')
+                    )->all(),
+                    ...collect($group['orders'])->pluck('notes')->all(),
+                    ...collect($group['orders'])->flatMap(
+                        fn (array $order) => collect($order['activity_notes'] ?? [])->pluck('body')
                     )->all(),
                 ])));
 
@@ -237,12 +244,23 @@ class OrderPaymentReceiptController extends Controller
                 $order = $first->order;
                 $sorted = $orderReceipts->sortBy('id')->values();
 
+                $activityNotes = $order?->relationLoaded('workerNotes')
+                    ? $order->workerNotes->map(fn (WorkerOrderNote $note) => [
+                        'id' => $note->id,
+                        'body' => $note->body,
+                        'user_name' => $note->user?->name ?: 'مستخدم',
+                        'user_role' => $note->user?->roleLabel() ?? 'مستخدم',
+                        'created_at' => $note->created_at?->toIso8601String(),
+                    ])->values()->all()
+                    : [];
+
                 return [
                     'id' => $order?->id,
                     'order_number' => $order?->order_number,
                     'customer_name' => $order?->customer_name,
                     'currency' => $order?->currency ?: 'SAR',
                     'notes' => $order?->notes,
+                    'activity_notes' => $activityNotes,
                     'total_amount' => round((float) ($order?->total_amount ?? $first->total_amount ?? 0), 2),
                     'amount_paid' => round((float) ($order?->amount_paid ?? 0), 2),
                     'remaining_amount' => round((float) ($order?->remaining_amount ?? 0), 2),
@@ -295,7 +313,13 @@ class OrderPaymentReceiptController extends Controller
             'currency' => $currency,
             'latest_receipt_id' => (int) $receipts->max('id'),
             'latest_at' => optional($receipts->sortByDesc('id')->first()?->created_at)?->toIso8601String(),
-            'has_notes' => $orders->contains(fn (array $order) => filled(trim((string) ($order['notes'] ?? '')))),
+            'has_notes' => $orders->contains(function (array $order) {
+                if (filled(trim((string) ($order['notes'] ?? '')))) {
+                    return true;
+                }
+
+                return collect($order['activity_notes'] ?? [])->isNotEmpty();
+            }),
             'orders' => $orders->all(),
         ];
     }
@@ -360,16 +384,16 @@ class OrderPaymentReceiptController extends Controller
             ?? $profiles->firstWhere('source', 'user')
             ?? $profiles->first()
             ?? [
-        'name' => null,
-        'phone' => null,
-        'phone_secondary' => null,
-        'email' => null,
-        'address' => null,
-        'iban' => null,
-        'iban_image_url' => null,
-        'tax_number' => null,
-        'source' => 'order',
-        'type' => null,
+                'name' => null,
+                'phone' => null,
+                'phone_secondary' => null,
+                'email' => null,
+                'address' => null,
+                'iban' => null,
+                'iban_image_url' => null,
+                'tax_number' => null,
+                'source' => 'order',
+                'type' => null,
             ];
 
         foreach ($profiles as $profile) {
