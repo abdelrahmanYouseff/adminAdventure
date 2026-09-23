@@ -448,11 +448,11 @@ Route::post('insurance-deposits', [\App\Http\Controllers\InsuranceDepositControl
     ->name('insurance-deposits.store');
 
 Route::get('returns', [\App\Http\Controllers\ProductReturnController::class, 'index'])
-    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,workers_manager,warehouse_keeper'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,workers_manager'])
     ->name('returns.index');
 
 Route::get('returns/{order}', [\App\Http\Controllers\ProductReturnController::class, 'show'])
-    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,workers_manager,warehouse_keeper'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,workers_manager'])
     ->name('returns.show');
 
 Route::post('returns/{order}/confirm', [\App\Http\Controllers\ProductReturnController::class, 'confirm'])
@@ -464,15 +464,15 @@ Route::post('returns/{order}/reject', [\App\Http\Controllers\ProductReturnContro
     ->name('returns.reject');
 
 Route::post('returns/{order}/notes', [\App\Http\Controllers\ProductReturnController::class, 'storeNote'])
-    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,workers_manager,warehouse_keeper'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,workers_manager'])
     ->name('returns.notes.store');
 
 Route::post('returns/{order}/assemblers', [\App\Http\Controllers\ProductReturnController::class, 'storeAssembler'])
-    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,workers_manager,warehouse_keeper'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,workers_manager'])
     ->name('returns.assemblers.store');
 
 Route::delete('returns/{order}/assemblers/{assembler}', [\App\Http\Controllers\ProductReturnController::class, 'destroyAssembler'])
-    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,workers_manager,warehouse_keeper'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,workers_manager'])
     ->name('returns.assemblers.destroy');
 
 Route::post('returns/{order}/lines/{workerOrder}/pickup-photo', [\App\Http\Controllers\ProductReturnController::class, 'storePickupPhoto'])
