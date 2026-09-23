@@ -33,8 +33,12 @@ class WorkerOrderController extends Controller
         $user = $request->user();
         $view = $request->string('view')->toString();
 
-        if ($user?->isWarehouseKeeper() && $view !== 'warehouse') {
-            return redirect()->route('worker-orders.index', ['view' => 'warehouse']);
+        if ($user?->isWarehouseKeeper() && ! $request->routeIs('warehouse.index')) {
+            return redirect()->route('warehouse.index');
+        }
+
+        if ($user?->isWarehouseKeeper()) {
+            $view = 'warehouse';
         }
 
         $isWarehouseView = $view === 'warehouse';
@@ -52,6 +56,13 @@ class WorkerOrderController extends Controller
                 'view' => $isWarehouseView ? 'warehouse' : null,
             ],
         ]);
+    }
+
+    public function warehouseIndex(Request $request)
+    {
+        $request->merge(['view' => 'warehouse']);
+
+        return $this->index($request);
     }
 
     public function show(Request $request, string $workOrderKey, WorkerOrderSyncService $syncService)

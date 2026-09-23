@@ -104,7 +104,7 @@ const allNavItems: NavItemWithRoles[] = [
     {
         title: 'أوامر العمل',
         icon: HardHat,
-        roles: ['admin', 'general_manager', 'manager', 'workers_manager', 'warehouse_keeper'],
+        roles: ['admin', 'general_manager', 'manager', 'workers_manager'],
         children: [
             {
                 title: 'أوامر العمل',
@@ -116,15 +116,21 @@ const allNavItems: NavItemWithRoles[] = [
                 title: 'المستودع',
                 href: '/worker-orders?view=warehouse',
                 icon: Package,
-                roles: ['admin', 'general_manager', 'manager', 'workers_manager', 'warehouse_keeper'],
+                roles: ['admin', 'general_manager', 'manager', 'workers_manager'],
             },
             {
                 title: 'الاسترجاع',
                 href: '/returns',
                 icon: Undo2,
-                roles: ['admin', 'general_manager', 'manager', 'warehouse_keeper', 'workers_manager'],
+                roles: ['admin', 'general_manager', 'manager', 'workers_manager'],
             },
         ],
+    },
+    {
+        title: 'المستودع',
+        href: '/warehouse',
+        icon: Package,
+        roles: ['warehouse_keeper'],
     },
     {
         title: 'خدمة العملاء',
@@ -173,7 +179,7 @@ const allNavItems: NavItemWithRoles[] = [
         title: 'استرداد التأمين',
         href: '/insurance-deposits',
         icon: ShieldCheck,
-        roles: ['admin', 'general_manager', 'manager', 'accounts', 'workers_manager', 'warehouse_keeper'],
+        roles: ['admin', 'general_manager', 'manager', 'accounts', 'workers_manager'],
     },
     {
         title: 'التقارير',
@@ -271,7 +277,7 @@ function badgeForHref(href?: string): number | undefined {
 
     const badges = sidebarBadges.value;
 
-    if (href === '/worker-orders?view=warehouse') {
+    if (href === '/warehouse' || href === '/worker-orders?view=warehouse') {
         return badges.warehouse || undefined;
     }
 
@@ -371,7 +377,7 @@ const homeHref = computed(() => {
         case 'accounts':
             return route('quotations.index');
         case 'warehouse_keeper':
-            return '/returns';
+            return '/warehouse';
         default:
             return route('dashboard');
     }

@@ -8,14 +8,14 @@ use App\Models\User;
 use App\Models\WorkerOrder;
 use App\Models\WorkerOrderAssembler;
 use App\Models\WorkerOrderNote;
-use App\Support\WorkOrderPresenter;
-use App\Support\WorkerPresenceBoard;
 use App\Services\WorkerOrderSyncService;
+use App\Support\MediaStorage;
+use App\Support\WorkerPresenceBoard;
+use App\Support\WorkOrderPresenter;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use App\Support\MediaStorage;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
@@ -501,7 +501,6 @@ class ProductReturnController extends Controller
             User::ROLE_GENERAL_MANAGER,
             User::ROLE_MANAGER,
             User::ROLE_WORKERS_MANAGER,
-            User::ROLE_WAREHOUSE_KEEPER,
         );
     }
 

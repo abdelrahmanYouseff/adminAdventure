@@ -20,6 +20,7 @@ class AuthPath
         'orders',
         'order-logs',
         'quotation-logs',
+        'warehouse',
         'order-journey',
         'invoices',
         'quotations',

@@ -45,7 +45,7 @@ class MainAppModules
                 'icon' => 'undo-2',
                 'tone' => 'amber',
                 'desktop_path' => '/returns',
-                'roles' => [User::ROLE_ADMIN, User::ROLE_GENERAL_MANAGER, User::ROLE_MANAGER, User::ROLE_WAREHOUSE_KEEPER, User::ROLE_WORKERS_MANAGER],
+                'roles' => [User::ROLE_ADMIN, User::ROLE_GENERAL_MANAGER, User::ROLE_MANAGER, User::ROLE_WORKERS_MANAGER],
             ],
             [
                 'key' => 'categories',
@@ -102,6 +102,15 @@ class MainAppModules
                 'roles' => [User::ROLE_ADMIN, User::ROLE_GENERAL_MANAGER, User::ROLE_MANAGER, User::ROLE_ACCOUNTS],
             ],
             [
+                'key' => 'warehouse',
+                'title' => 'المستودع',
+                'description' => 'تعميد استلام المرتجعات في المستودع',
+                'icon' => 'package',
+                'tone' => 'orange',
+                'desktop_path' => '/warehouse',
+                'roles' => [User::ROLE_ADMIN, User::ROLE_GENERAL_MANAGER, User::ROLE_MANAGER, User::ROLE_WORKERS_MANAGER, User::ROLE_WAREHOUSE_KEEPER],
+            ],
+            [
                 'key' => 'worker-orders',
                 'title' => 'أوامر العمل',
                 'description' => 'توزيع ومتابعة أوامر التركيب',
@@ -144,7 +153,7 @@ class MainAppModules
                 'icon' => 'shield-check',
                 'tone' => 'rose',
                 'desktop_path' => '/insurance-deposits',
-                'roles' => [User::ROLE_ADMIN, User::ROLE_GENERAL_MANAGER, User::ROLE_MANAGER, User::ROLE_ACCOUNTS, User::ROLE_WORKERS_MANAGER, User::ROLE_WAREHOUSE_KEEPER],
+                'roles' => [User::ROLE_ADMIN, User::ROLE_GENERAL_MANAGER, User::ROLE_MANAGER, User::ROLE_ACCOUNTS, User::ROLE_WORKERS_MANAGER],
             ],
             [
                 'key' => 'quotations',

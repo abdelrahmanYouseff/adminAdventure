@@ -432,27 +432,27 @@ Route::patch('invoices/{invoice}/status', [InvoiceController::class, 'updateStat
     ->name('invoices.update-status');
 
 Route::get('insurance-deposits', [\App\Http\Controllers\InsuranceDepositController::class, 'index'])
-    ->middleware(['auth', 'verified', 'staff'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,accounts,workers_manager'])
     ->name('insurance-deposits.index');
 
 Route::get('insurance-deposits/create', [\App\Http\Controllers\InsuranceDepositController::class, 'create'])
-    ->middleware(['auth', 'verified', 'staff'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,accounts,workers_manager'])
     ->name('insurance-deposits.create');
 
 Route::get('insurance-deposits/invoices', [\App\Http\Controllers\InsuranceDepositController::class, 'searchInvoices'])
-    ->middleware(['auth', 'verified', 'staff'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,accounts,workers_manager'])
     ->name('insurance-deposits.invoices.search');
 
 Route::post('insurance-deposits', [\App\Http\Controllers\InsuranceDepositController::class, 'store'])
-    ->middleware(['auth', 'verified', 'staff'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,accounts,workers_manager'])
     ->name('insurance-deposits.store');
 
 Route::get('returns', [\App\Http\Controllers\ProductReturnController::class, 'index'])
-    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,warehouse_keeper,workers_manager'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,workers_manager'])
     ->name('returns.index');
 
 Route::get('returns/{order}', [\App\Http\Controllers\ProductReturnController::class, 'show'])
-    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,warehouse_keeper,workers_manager'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,workers_manager'])
     ->name('returns.show');
 
 Route::post('returns/{order}/confirm', [\App\Http\Controllers\ProductReturnController::class, 'confirm'])
@@ -464,15 +464,15 @@ Route::post('returns/{order}/reject', [\App\Http\Controllers\ProductReturnContro
     ->name('returns.reject');
 
 Route::post('returns/{order}/notes', [\App\Http\Controllers\ProductReturnController::class, 'storeNote'])
-    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,warehouse_keeper,workers_manager'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,workers_manager'])
     ->name('returns.notes.store');
 
 Route::post('returns/{order}/assemblers', [\App\Http\Controllers\ProductReturnController::class, 'storeAssembler'])
-    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,warehouse_keeper,workers_manager'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,workers_manager'])
     ->name('returns.assemblers.store');
 
 Route::delete('returns/{order}/assemblers/{assembler}', [\App\Http\Controllers\ProductReturnController::class, 'destroyAssembler'])
-    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,warehouse_keeper,workers_manager'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,workers_manager'])
     ->name('returns.assemblers.destroy');
 
 Route::post('returns/{order}/lines/{workerOrder}/pickup-photo', [\App\Http\Controllers\ProductReturnController::class, 'storePickupPhoto'])
@@ -484,15 +484,15 @@ Route::delete('returns/{order}/lines/{workerOrder}/pickup-photo', [\App\Http\Con
     ->name('returns.pickup-photo.destroy');
 
 Route::get('insurance-deposits/{order}', [\App\Http\Controllers\InsuranceDepositController::class, 'show'])
-    ->middleware(['auth', 'verified', 'staff'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,accounts,workers_manager'])
     ->name('insurance-deposits.show');
 
 Route::post('insurance-deposits/{order}/notes', [\App\Http\Controllers\InsuranceDepositController::class, 'storeNote'])
-    ->middleware(['auth', 'verified', 'staff'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,accounts,workers_manager'])
     ->name('insurance-deposits.notes.store');
 
 Route::post('insurance-deposits/{order}/approve', [\App\Http\Controllers\InsuranceDepositController::class, 'approve'])
-    ->middleware(['auth', 'verified', 'staff'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,accounts,workers_manager'])
     ->name('insurance-deposits.approve');
 
 Route::patch('insurance-deposits/{order}/amount', [\App\Http\Controllers\InsuranceDepositController::class, 'updateAmount'])
@@ -500,11 +500,11 @@ Route::patch('insurance-deposits/{order}/amount', [\App\Http\Controllers\Insuran
     ->name('insurance-deposits.update-amount');
 
 Route::post('insurance-deposits/{order}/refund', [\App\Http\Controllers\InsuranceDepositController::class, 'markRefunded'])
-    ->middleware(['auth', 'verified', 'staff'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,accounts,workers_manager'])
     ->name('insurance-deposits.refund');
 
 Route::post('insurance-deposits/{order}/withhold', [\App\Http\Controllers\InsuranceDepositController::class, 'markWithheld'])
-    ->middleware(['auth', 'verified', 'staff'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,accounts,workers_manager'])
     ->name('insurance-deposits.withhold');
 
 // Quotations Routes
@@ -635,6 +635,10 @@ Route::get('order-logs', [\App\Http\Controllers\OrderLogController::class, 'inde
 Route::get('quotation-logs', [\App\Http\Controllers\QuotationLogController::class, 'index'])
     ->middleware(['auth', 'verified', 'role:admin'])
     ->name('quotation-logs.index');
+
+Route::get('warehouse', [\App\Http\Controllers\WorkerOrderController::class, 'warehouseIndex'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,workers_manager,warehouse_keeper'])
+    ->name('warehouse.index');
 
 Route::get('worker-orders', [\App\Http\Controllers\WorkerOrderController::class, 'index'])
     ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,workers_manager,warehouse_keeper'])

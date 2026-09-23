@@ -33,7 +33,6 @@ class InsuranceDepositsTest extends TestCase
             User::ROLE_MANAGER,
             User::ROLE_ACCOUNTS,
             User::ROLE_WORKERS_MANAGER,
-            User::ROLE_WAREHOUSE_KEEPER,
         ] as $role) {
             $staff = User::factory()->staff($role)->create();
 
@@ -47,6 +46,16 @@ class InsuranceDepositsTest extends TestCase
                     ->where('deposits.data.0.waiting_on_label', 'مدير العمال')
                 );
         }
+    }
+
+    public function test_warehouse_keepers_cannot_open_insurance_deposits(): void
+    {
+        $this->makeEligibleOrder();
+        $keeper = User::factory()->staff(User::ROLE_WAREHOUSE_KEEPER)->create();
+
+        $this->actingAs($keeper)
+            ->get(route('insurance-deposits.index'))
+            ->assertRedirect(route('warehouse.index'));
     }
 
     public function test_workers_cannot_open_insurance_deposits(): void
