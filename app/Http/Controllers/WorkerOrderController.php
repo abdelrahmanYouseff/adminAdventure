@@ -33,8 +33,8 @@ class WorkerOrderController extends Controller
         $user = $request->user();
         $view = $request->string('view')->toString();
 
-        if ($user?->isWarehouseKeeper() && ! $request->routeIs('warehouse.index')) {
-            return redirect()->route('warehouse.index');
+        if ($user?->isWarehouseKeeper()) {
+            return redirect()->route('returns.index');
         }
 
         if ($user?->isWarehouseKeeper()) {
@@ -71,11 +71,9 @@ class WorkerOrderController extends Controller
         WorkOrderPresenter::loadDetailRelations($order);
 
         $isWarehouseView = $request->string('view')->toString() === 'warehouse';
-        $user = $request->user();
 
-        if ($user?->isWarehouseKeeper()) {
-            $isWarehouseView = true;
-            abort_unless($this->isWarehouseQueueOrder($order), 404);
+        if ($request->user()?->isWarehouseKeeper()) {
+            return redirect()->route('returns.index');
         }
 
         return Inertia::render('WorkerOrders/Show', [

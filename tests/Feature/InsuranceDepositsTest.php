@@ -55,7 +55,7 @@ class InsuranceDepositsTest extends TestCase
 
         $this->actingAs($keeper)
             ->get(route('insurance-deposits.index'))
-            ->assertRedirect(route('warehouse.index'));
+            ->assertRedirect(route('returns.index'));
     }
 
     public function test_workers_cannot_open_insurance_deposits(): void

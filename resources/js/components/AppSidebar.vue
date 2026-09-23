@@ -127,9 +127,9 @@ const allNavItems: NavItemWithRoles[] = [
         ],
     },
     {
-        title: 'المستودع',
-        href: '/warehouse',
-        icon: Package,
+        title: 'الاسترجاع',
+        href: '/returns',
+        icon: Undo2,
         roles: ['warehouse_keeper'],
     },
     {
@@ -377,7 +377,7 @@ const homeHref = computed(() => {
         case 'accounts':
             return route('quotations.index');
         case 'warehouse_keeper':
-            return '/warehouse';
+            return '/returns';
         default:
             return route('dashboard');
     }

@@ -57,7 +57,7 @@ class AuthenticationTest extends TestCase
         $this->assertGuest();
     }
 
-    public function test_warehouse_keeper_login_goes_to_warehouse_only(): void
+    public function test_warehouse_keeper_login_goes_to_returns_only(): void
     {
         $this->withoutVite();
         $keeper = User::factory()->staff(User::ROLE_WAREHOUSE_KEEPER)->create();
@@ -65,23 +65,23 @@ class AuthenticationTest extends TestCase
         $this->post('/login', [
             'email' => $keeper->email,
             'password' => 'password',
-        ])->assertRedirect(route('warehouse.index', absolute: false));
+        ])->assertRedirect(route('returns.index', absolute: false));
 
         $this->actingAs($keeper)
             ->get(route('dashboard'))
-            ->assertRedirect(route('warehouse.index'));
+            ->assertRedirect(route('returns.index'));
 
         $this->actingAs($keeper)
             ->get(route('returns.index'))
-            ->assertRedirect(route('warehouse.index'));
+            ->assertOk();
 
         $this->actingAs($keeper)
             ->get(route('worker-orders.index'))
-            ->assertRedirect(route('warehouse.index'));
+            ->assertRedirect(route('returns.index'));
 
         $this->actingAs($keeper)
             ->get(route('warehouse.index'))
-            ->assertOk();
+            ->assertRedirect(route('returns.index'));
     }
 
     public function test_users_can_logout()
