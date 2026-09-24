@@ -79,7 +79,8 @@ class OrderController extends Controller
         );
         $canSettle = (bool) $canEditTime;
 
-        $orders = $query->orderBy('created_at', 'desc')
+        $orders = $query->orderByDesc('activity_date')
+            ->orderByDesc('created_at')
             ->paginate($perPage)
             ->withQueryString();
 

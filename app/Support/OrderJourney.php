@@ -120,10 +120,6 @@ class OrderJourney
         $allPhotosDone = $photosTotal > 0 && $photosDone === $photosTotal;
 
         $pickupsDone = $lines->filter(fn (WorkerOrder $line) => filled($line->pickup_photo))->count();
-        $hasReturnTrack = $order->canEnterReturnsFlow()
-            || filled($order->warehouse_returned_at)
-            || $pickupsDone > 0
-            || $dismantlingWorkers->isNotEmpty();
 
         $hasInsurance = filled($order->warehouse_keeper_approved_at)
             || filled($order->insurance_refund_requested_at)
@@ -251,7 +247,7 @@ class OrderJourney
         $steps[] = self::step(
             key: 'workers_manager_approved',
             icon: 'shield-check',
-            title: 'تعميد مدير العمال',
+            title: 'تعميد التركيب',
             description: $order->work_order_approved_at
                 ? 'تم تعميد أمر العمل من مدير العمال.'
                 : 'بانتظار تعميد مدير العمال بعد اكتمال صور التركيب.',
@@ -262,86 +258,89 @@ class OrderJourney
             href: $lines->isNotEmpty() ? '/worker-orders/'.rawurlencode($order->order_number) : null,
         );
 
-        if ($hasReturnTrack) {
-            $dismantleDone = $photosTotal > 0 && $pickupsDone === $photosTotal;
-            $dismantlingWorkerNames = $dismantlingWorkers->pluck('worker_name')->unique()->filter()->values();
+        // مسار الاسترجاع يظهر دائماً في الرحلة (حتى قبل دخوله فعلياً).
+        $dismantleDone = ($photosTotal > 0 && $pickupsDone === $photosTotal)
+            || filled($order->warehouse_returned_at);
+        $dismantlingWorkerNames = $dismantlingWorkers->pluck('worker_name')->unique()->filter()->values();
+        $returnsHref = $order->canEnterReturnsFlow() ? '/returns/'.$order->id : '/returns';
 
-            $steps[] = self::step(
-                key: 'returns_opened',
-                icon: 'undo-2',
-                title: 'فتح الاسترجاع',
-                description: $order->canEnterReturnsFlow()
-                    ? 'ظهر الطلب في صفحة الاسترجاع بعد تعميد التركيب.'
-                    : 'لن يظهر الطلب في الاسترجاع قبل تعميد التركيب.',
-                completed: $order->canEnterReturnsFlow(),
-                at: $order->work_order_approved_at?->toIso8601String(),
-                actor: $order->workOrderApprovedBy?->name,
-                waiting: 'بانتظار تعميد التركيب لفتح مرحلة الاسترجاع',
-                href: '/returns',
-            );
+        $steps[] = self::step(
+            key: 'returns_opened',
+            icon: 'undo-2',
+            title: 'الاسترجاع',
+            description: $order->canEnterReturnsFlow()
+                ? 'ظهر الطلب في صفحة الاسترجاع بعد تعميد التركيب.'
+                : 'يبدأ مسار الاسترجاع بعد تعميد التركيب.',
+            completed: $order->canEnterReturnsFlow(),
+            at: $order->work_order_approved_at?->toIso8601String(),
+            actor: $order->workOrderApprovedBy?->name,
+            waiting: 'بانتظار تعميد التركيب لفتح مرحلة الاسترجاع',
+            href: $returnsHref,
+        );
 
-            $steps[] = self::step(
-                key: 'dismantling_workers_assigned',
-                icon: 'users',
-                title: 'تعيين عمال الفك',
-                description: $dismantlingWorkerNames->isNotEmpty()
-                    ? 'تم تعيين: '.$dismantlingWorkerNames->implode('، ').'.'
-                    : 'لم يتم تعيين عمال الفك بعد.',
-                completed: $dismantlingWorkerNames->isNotEmpty(),
-                at: $dismantlingWorkers->first()?->created_at?->toIso8601String(),
-                actor: $dismantlingWorkerNames->first(),
-                waiting: 'بانتظار تعيين عمال الفك من صفحة الاسترجاع',
-                href: $order->canEnterReturnsFlow() ? '/returns/'.$order->id : '/returns',
-            );
+        $steps[] = self::step(
+            key: 'dismantling_workers_assigned',
+            icon: 'users',
+            title: 'تعيين عمال الفك',
+            description: $dismantlingWorkerNames->isNotEmpty()
+                ? 'تم تعيين: '.$dismantlingWorkerNames->implode('، ').'.'
+                : 'لم يتم تعيين عمال الفك بعد.',
+            completed: $dismantlingWorkerNames->isNotEmpty(),
+            at: $dismantlingWorkers->first()?->created_at?->toIso8601String(),
+            actor: $dismantlingWorkerNames->first(),
+            waiting: 'بانتظار تعيين عمال الفك من صفحة الاسترجاع',
+            href: $returnsHref,
+        );
 
-            $steps[] = self::step(
-                key: 'dismantling',
-                icon: 'undo-2',
-                title: 'رفع صور الفك',
-                description: $dismantleDone
-                    ? 'تم فك المنتجات واستلام صور الفك ('.$pickupsDone.'/'.$photosTotal.').'
-                    : ($pickupsDone > 0
-                        ? 'تم استلام صور فك '.$pickupsDone.' من '.$photosTotal.' منتجات.'
-                        : 'بانتظار فك المنتجات من الموقع.'),
-                completed: $dismantleDone,
-                at: $dismantleDone
-                    ? $lines->sortByDesc('pickup_at')->first()?->pickup_at?->toIso8601String()
-                    : ($order->dismantling_at?->toIso8601String()),
-                actor: null,
-                waiting: 'بانتظار رفع صور الفك من العمال',
-                href: $order->canEnterReturnsFlow() ? '/returns/'.$order->id : '/returns',
-            );
+        $steps[] = self::step(
+            key: 'dismantling',
+            icon: 'camera',
+            title: 'رفع صور الفك',
+            description: $dismantleDone
+                ? 'تم فك المنتجات واستلام صور الفك ('.$pickupsDone.'/'.$photosTotal.').'
+                : ($pickupsDone > 0
+                    ? 'تم استلام صور فك '.$pickupsDone.' من '.$photosTotal.' منتجات.'
+                    : 'بانتظار فك المنتجات من الموقع.'),
+            completed: $dismantleDone,
+            at: $dismantleDone
+                ? $lines->sortByDesc('pickup_at')->first()?->pickup_at?->toIso8601String()
+                : ($order->dismantling_at?->toIso8601String()),
+            actor: null,
+            waiting: 'بانتظار رفع صور الفك من العمال',
+            href: $returnsHref,
+        );
 
-            $steps[] = self::step(
-                key: 'return_confirmed',
-                icon: 'undo-2',
-                title: 'تعميد الاسترجاع',
-                description: $order->warehouse_returned_at
-                    ? 'تم تعميد الاسترجاع من صفحة الاسترجاع.'
-                    : 'بانتظار تعميد الاسترجاع.',
-                completed: (bool) $order->warehouse_returned_at,
-                at: $order->warehouse_returned_at?->toIso8601String(),
-                actor: $order->warehouseReturnedBy?->name,
-                waiting: 'بانتظار تعميد الاسترجاع',
-                href: $order->canEnterReturnsFlow() ? '/returns/'.$order->id : '/returns',
-            );
+        $steps[] = self::step(
+            key: 'return_confirmed',
+            icon: 'shield-check',
+            title: 'تعميد مدير العمال',
+            description: $order->warehouse_returned_at
+                ? 'تم تعميد الاسترجاع من مدير العمال وإرساله للمستودع.'
+                : 'بانتظار تعميد مدير العمال بعد اكتمال صور الفك.',
+            completed: (bool) $order->warehouse_returned_at,
+            at: $order->warehouse_returned_at?->toIso8601String(),
+            actor: $order->warehouseReturnedBy?->name,
+            waiting: 'بانتظار تعميد مدير العمال للاسترجاع',
+            href: $returnsHref,
+        );
 
-            $steps[] = self::step(
-                key: 'warehouse_confirmed',
-                icon: 'package-check',
-                title: 'تعميد المستودع',
-                description: $order->warehouse_keeper_approved_at
-                    ? 'تم تعميد المستودع وإغلاق الطلب.'
-                    : ($order->warehouse_returned_at
-                        ? 'بانتظار تعميد أمين المستودع من أوامر العمل.'
-                        : 'بانتظار تعميد الاسترجاع أولاً.'),
-                completed: (bool) $order->warehouse_keeper_approved_at,
-                at: $order->warehouse_keeper_approved_at?->toIso8601String(),
-                actor: $order->warehouseKeeperApprovedBy?->name,
-                waiting: 'بانتظار تعميد أمين المستودع',
-                href: '/worker-orders/'.rawurlencode($order->order_number).'?view=warehouse',
-            );
-        }
+        $steps[] = self::step(
+            key: 'warehouse_confirmed',
+            icon: 'package-check',
+            title: 'تعميد المستودع',
+            description: $order->warehouse_keeper_approved_at
+                ? 'تم تعميد المستودع وإغلاق الطلب.'
+                : ($order->warehouse_returned_at
+                    ? 'بانتظار تعميد أمين المستودع من أوامر العمل.'
+                    : 'بانتظار تعميد مدير العمال أولاً.'),
+            completed: (bool) $order->warehouse_keeper_approved_at,
+            at: $order->warehouse_keeper_approved_at?->toIso8601String(),
+            actor: $order->warehouseKeeperApprovedBy?->name,
+            waiting: 'بانتظار تعميد أمين المستودع',
+            href: $lines->isNotEmpty()
+                ? '/worker-orders/'.rawurlencode($order->order_number).'?view=warehouse'
+                : '/worker-orders',
+        );
 
         if ($hasInsurance) {
             $insuranceDone = in_array($order->insurance_status, ['refunded', 'withheld'], true);

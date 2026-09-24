@@ -124,6 +124,12 @@ const allNavItems: NavItemWithRoles[] = [
                 icon: Undo2,
                 roles: ['admin', 'general_manager', 'manager', 'workers_manager'],
             },
+            {
+                title: 'استرداد التأمين',
+                href: '/insurance-deposits',
+                icon: ShieldCheck,
+                roles: ['workers_manager'],
+            },
         ],
     },
     {
@@ -179,7 +185,7 @@ const allNavItems: NavItemWithRoles[] = [
         title: 'استرداد التأمين',
         href: '/insurance-deposits',
         icon: ShieldCheck,
-        roles: ['admin', 'general_manager', 'manager', 'accounts', 'workers_manager'],
+        roles: ['admin', 'general_manager', 'manager', 'accounts'],
     },
     {
         title: 'التقارير',
