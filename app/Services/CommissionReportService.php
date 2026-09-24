@@ -1,22 +1,15 @@
 <?php
-
 namespace App\Services;
-
 use App\Models\Invoice;
 use App\Models\Order;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
-
 class CommissionReportService
 {
-    /**
-     * @return array<string, mixed>
-     */
     public function build(?string $month): array
     {
         [$start, $end, $monthKey] = $this->resolveMonth($month);
         $rows = $this->rowsForMonth($start, $end);
-
         return [
             'filters' => [
                 'month' => $monthKey,
@@ -36,10 +29,6 @@ class CommissionReportService
             'rows' => $rows->values()->all(),
         ];
     }
-
-    /**
-     * @return Collection<int, array<string, mixed>>
-     */
     public function rowsForMonth(Carbon $start, Carbon $end): Collection
     {
         $invoices = Invoice::query()
@@ -55,17 +44,15 @@ class CommissionReportService
             ->orderBy('created_at')
             ->orderBy('id')
             ->get();
-
         return $invoices->map(function (Invoice $invoice) {
             $order = $invoice->order;
             $productNames = $order ? $this->productNames($order) : [];
             $totalAmount = round((float) $invoice->amount, 2);
-
             return [
                 'id' => $invoice->id,
                 'order_date' => $invoice->created_at?->format('Y-m-d'),
                 'order_number' => $order?->order_number,
-                'customer_name' => $order?->customer_name ?: $invoice->user?->customer_name,
+                'customer_name' => $this->displayCustomerName($order?->customer_name ?: $invoice->user?->customer_name),
                 'invoice_number' => $invoice->invoice_number,
                 'invoice_id' => $invoice->id,
                 'product_names' => $productNames,
@@ -77,35 +64,23 @@ class CommissionReportService
             ];
         });
     }
-
-    /**
-     * مبلغ العمولة حسب شريحة إجمالي الطلب.
-     */
     public static function commissionForAmount(float $amount): float
     {
         $amount = round($amount, 2);
-
         foreach (self::commissionTiers() as [$from, $to, $commission]) {
             if ($amount >= $from && $amount <= $to) {
                 return (float) $commission;
             }
         }
-
         if ($amount > 100000) {
             return 150.0;
         }
-
         return self::minimumCommission();
     }
-
     public static function minimumCommission(): float
     {
         return (float) (self::commissionTiers()[0][2] ?? 15);
     }
-
-    /**
-     * @return list<array{0: float, 1: float, 2: float}>
-     */
     private static function commissionTiers(): array
     {
         return [
@@ -121,28 +96,19 @@ class CommissionReportService
             [75001, 100000, 150],
         ];
     }
-
-    /**
-     * @return array{0: Carbon, 1: Carbon, 2: string}
-     */
     public function resolveMonth(?string $month): array
     {
         $now = now();
-
         if (is_string($month) && preg_match('/^\d{4}-\d{2}$/', $month)) {
             $start = Carbon::createFromFormat('Y-m-d', $month.'-01')?->startOfMonth()
                 ?? $now->copy()->startOfMonth();
             $end = $start->copy()->endOfMonth();
-
             return [$start, $end, $start->format('Y-m')];
         }
-
         $start = $now->copy()->startOfMonth();
         $end = $now->copy()->endOfMonth();
-
         return [$start, $end, $start->format('Y-m')];
     }
-
     private function gamesCount(Order $order): int
     {
         if ($order->relationLoaded('products') && $order->products->isNotEmpty()) {
@@ -150,23 +116,16 @@ class CommissionReportService
                 fn ($product) => max(1, (int) ($product->pivot->quantity ?? 1)),
             );
         }
-
         if (is_array($order->items) && $order->items !== []) {
             return (int) collect($order->items)->sum(
                 fn ($item) => max(1, (int) (is_array($item) ? ($item['quantity'] ?? 1) : 1)),
             );
         }
-
         if ($order->relationLoaded('workerOrders') && $order->workerOrders->isNotEmpty()) {
             return $order->workerOrders->count();
         }
-
         return 0;
     }
-
-    /**
-     * @return list<string>
-     */
     private function productNames(Order $order): array
     {
         if ($order->relationLoaded('products') && $order->products->isNotEmpty()) {
@@ -176,37 +135,30 @@ class CommissionReportService
                     if ($name === '') {
                         return null;
                     }
-
                     $qty = max(1, (int) ($product->pivot->quantity ?? 1));
-
                     return $qty > 1 ? $name.' ×'.$qty : $name;
                 })
                 ->filter()
                 ->values()
                 ->all();
         }
-
         if (is_array($order->items) && $order->items !== []) {
             return collect($order->items)
                 ->map(function ($item) {
                     if (! is_array($item)) {
                         return null;
                     }
-
                     $name = trim((string) ($item['name'] ?? $item['product_name'] ?? ''));
                     if ($name === '') {
                         return null;
                     }
-
                     $qty = max(1, (int) ($item['quantity'] ?? 1));
-
                     return $qty > 1 ? $name.' ×'.$qty : $name;
                 })
                 ->filter()
                 ->values()
                 ->all();
         }
-
         if ($order->relationLoaded('workerOrders') && $order->workerOrders->isNotEmpty()) {
             return $order->workerOrders
                 ->pluck('product_name')
@@ -216,18 +168,12 @@ class CommissionReportService
                 ->values()
                 ->all();
         }
-
         return [];
     }
-
-    /**
-     * @return list<array{value: string, label: string}>
-     */
     private function availableMonths(): array
     {
         $months = [];
         $cursor = now()->startOfMonth();
-
         for ($i = 0; $i < 24; $i++) {
             $months[] = [
                 'value' => $cursor->format('Y-m'),
@@ -235,10 +181,8 @@ class CommissionReportService
             ];
             $cursor = $cursor->copy()->subMonthNoOverflow();
         }
-
         return $months;
     }
-
     private function monthLabel(Carbon $date): string
     {
         $labels = [
@@ -255,7 +199,56 @@ class CommissionReportService
             11 => 'نوفمبر',
             12 => 'ديسمبر',
         ];
-
         return ($labels[(int) $date->format('n')] ?? $date->format('F')).' '.$date->format('Y');
     }
+    private function displayCustomerName(?string $n): ?string
+    {
+        if ($n === null) { return null; }
+        $x = preg_replace('/\s*\x{0627}\x{0644}\x{0631}\x{0642}\x{0645}\s*\x{0627}\x{0644}\x{0636}\x{0631}\x{064A}\x{0628}\x{064A}\s*[:\x{FF1A}]?\s*\S+/u', ' ', $n);
+        $x = trim(preg_replace('/\s+/u', ' ', preg_replace('/\b\d{10,15}\b/u', ' ', (string) $x) ?? "") ?? "");
+        return $x !== "" ? $x : trim($n);
+    }
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
