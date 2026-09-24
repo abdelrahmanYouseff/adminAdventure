@@ -4,22 +4,40 @@ namespace App\Exports;
 
 use Illuminate\Support\Collection;
 use Maatwebsite\Excel\Concerns\FromCollection;
-use Maatwebsite\Excel\Concerns\ShouldAutoSize;
+use Maatwebsite\Excel\Concerns\WithColumnWidths;
+use Maatwebsite\Excel\Concerns\WithEvents;
 use Maatwebsite\Excel\Concerns\WithHeadings;
-use Maatwebsite\Excel\Concerns\WithMapping;
+use Maatwebsite\Excel\Concerns\WithStyles;
+use Maatwebsite\Excel\Events\AfterSheet;
+use PhpOffice\PhpSpreadsheet\Style\Alignment;
+use PhpOffice\PhpSpreadsheet\Style\Border;
+use PhpOffice\PhpSpreadsheet\Style\Fill;
+use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
-class CommissionsExport implements FromCollection, ShouldAutoSize, WithHeadings, WithMapping
+class CommissionsExport implements FromCollection, WithHeadings, WithColumnWidths, WithStyles, WithEvents
 {
     /**
      * @param  Collection<int, array<string, mixed>>  $rows
      */
     public function __construct(
         private readonly Collection $rows,
+        private readonly string $monthLabel = '',
     ) {}
 
     public function collection(): Collection
     {
-        return $this->rows;
+        $mapped = $this->rows->map(fn (array $row) => $this->mapRow($row))->values();
+
+        $mapped->push([
+            $this->totalsLabel(),
+            '',
+            '',
+            (int) $this->rows->sum('games_count'),
+            round((float) $this->rows->sum('total_amount'), 2),
+            round((float) $this->rows->sum('commission'), 2),
+        ]);
+
+        return $mapped;
     }
 
     public function headings(): array
@@ -34,23 +52,120 @@ class CommissionsExport implements FromCollection, ShouldAutoSize, WithHeadings,
         ];
     }
 
+    public function columnWidths(): array
+    {
+        return [
+            'A' => 16,
+            'B' => 18,
+            'C' => 28,
+            'D' => 14,
+            'E' => 18,
+            'F' => 14,
+        ];
+    }
+
+    public function styles(Worksheet $sheet): array
+    {
+        return [
+            1 => [
+                'font' => ['bold' => true],
+                'alignment' => [
+                    'horizontal' => Alignment::HORIZONTAL_RIGHT,
+                    'vertical' => Alignment::VERTICAL_CENTER,
+                ],
+            ],
+        ];
+    }
+
+    public function registerEvents(): array
+    {
+        return [
+            AfterSheet::class => function (AfterSheet $event): void {
+                $sheet = $event->sheet->getDelegate();
+                $highestRow = max(1, $sheet->getHighestRow());
+
+                $sheet->setRightToLeft(true);
+                $sheet->getStyle('A1:F'.$highestRow)->getAlignment()
+                    ->setHorizontal(Alignment::HORIZONTAL_RIGHT)
+                    ->setVertical(Alignment::VERTICAL_CENTER)
+                    ->setWrapText(true);
+
+                $sheet->getStyle('C2:C'.$highestRow)->getAlignment()->setWrapText(true);
+
+                for ($row = 2; $row <= $highestRow; $row++) {
+                    $sheet->getRowDimension($row)->setRowHeight(22);
+                }
+
+                $sheet->getStyle('A1:F1')->getFill()
+                    ->setFillType(Fill::FILL_SOLID)
+                    ->getStartColor()
+                    ->setRGB('EEF2FF');
+
+                $sheet->getStyle('A'.$highestRow.':F'.$highestRow)->applyFromArray([
+                    'font' => ['bold' => true],
+                    'fill' => [
+                        'fillType' => Fill::FILL_SOLID,
+                        'startColor' => ['rgb' => 'FEF3C7'],
+                    ],
+                ]);
+
+                $sheet->getStyle('A1:F'.$highestRow)->getBorders()->getAllBorders()
+                    ->setBorderStyle(Border::BORDER_THIN);
+            },
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $row
+     * @return array{0: string, 1: string, 2: string, 3: int, 4: float, 5: float}
+     */
+    private function mapRow(array $row): array
+    {
+        return [
+            (string) ($row['order_date'] ?? '—'),
+            (string) ($row['invoice_number'] ?? '—'),
+            $this->compactProducts($row),
+            (int) ($row['games_count'] ?? 0),
+            round((float) ($row['total_amount'] ?? 0), 2),
+            round((float) ($row['commission'] ?? 0), 2),
+        ];
+    }
+
     /**
      * @param  array<string, mixed>  $row
      */
-    public function map($row): array
+    private function compactProducts(array $row): string
     {
-        $productsLabel = $row['products_label']
-            ?? (is_array($row['product_names'] ?? null) && $row['product_names'] !== []
-                ? implode('، ', $row['product_names'])
-                : '—');
+        $names = $row['product_names'] ?? [];
+        if (! is_array($names) || $names === []) {
+            $label = trim((string) ($row['products_label'] ?? ''));
 
-        return [
-            $row['order_date'] ?? '—',
-            $row['invoice_number'] ?? '—',
-            $productsLabel,
-            (int) ($row['games_count'] ?? 0),
-            number_format((float) ($row['total_amount'] ?? 0), 2, '.', ''),
-            number_format((float) ($row['commission'] ?? 0), 2, '.', ''),
-        ];
+            return $label !== '' && $label !== '—' ? $label : '—';
+        }
+
+        $names = array_values(array_filter(array_map(
+            fn ($name) => trim((string) $name),
+            $names,
+        )));
+
+        if ($names === []) {
+            return '—';
+        }
+
+        $visible = array_slice($names, 0, 2);
+        $remaining = count($names) - count($visible);
+
+        if ($remaining > 0) {
+            $visible[] = '+'.$remaining;
+        }
+
+        return implode('، ', $visible);
+    }
+
+    private function totalsLabel(): string
+    {
+        $label = trim($this->monthLabel);
+
+        return $label !== '' ? 'توتل '.$label : 'توتل الشهر';
     }
 }

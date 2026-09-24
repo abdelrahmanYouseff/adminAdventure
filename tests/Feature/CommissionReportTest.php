@@ -108,6 +108,38 @@ class CommissionReportTest extends TestCase
         }
     }
 
+    public function test_commissions_excel_compacts_products_and_appends_totals(): void
+    {
+        $export = new \App\Exports\CommissionsExport(collect([
+            [
+                'order_date' => '2026-08-10',
+                'invoice_number' => 'INV-1',
+                'product_names' => ['قطار 4 عربات', 'نطيطه النخله', 'جهاز الرغوة'],
+                'games_count' => 3,
+                'total_amount' => 500,
+                'commission' => 15,
+            ],
+            [
+                'order_date' => '2026-08-11',
+                'invoice_number' => 'INV-2',
+                'product_names' => ['فشار'],
+                'games_count' => 1,
+                'total_amount' => 1000,
+                'commission' => 20,
+            ],
+        ]), 'أغسطس 2026');
+
+        $rows = $export->collection()->values()->all();
+
+        $this->assertSame('قطار 4 عربات، نطيطه النخله، +1', $rows[0][2]);
+        $this->assertSame('فشار', $rows[1][2]);
+        $this->assertSame('توتل أغسطس 2026', $rows[2][0]);
+        $this->assertSame(4, $rows[2][3]);
+        $this->assertSame(1500.0, $rows[2][4]);
+        $this->assertSame(35.0, $rows[2][5]);
+        $this->assertSame(28, $export->columnWidths()['C']);
+    }
+
     private function makePaidInvoice(
         User $user,
         $createdAt,

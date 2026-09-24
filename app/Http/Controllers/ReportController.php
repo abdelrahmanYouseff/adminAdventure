@@ -35,11 +35,11 @@ class ReportController extends Controller
         $month = $request->query('month');
         $month = is_string($month) ? $month : null;
 
-        [$start, $end, $monthKey] = $reports->resolveMonth($month);
-        $rows = $reports->rowsForMonth($start, $end);
+        $payload = $reports->build($month);
+        $monthKey = (string) ($payload['filters']['month'] ?? now()->format('Y-m'));
 
         return Excel::download(
-            new CommissionsExport($rows),
+            new CommissionsExport(collect($payload['rows']), (string) ($payload['period']['label'] ?? $monthKey)),
             'commissions-'.$monthKey.'.xlsx',
         );
     }
