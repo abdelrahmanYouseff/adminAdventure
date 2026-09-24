@@ -60,6 +60,9 @@ class CommissionReportTest extends TestCase
                 ->has('rows', 1)
                 ->where('rows.0.invoice_number', $previous->invoice->invoice_number)
                 ->where('rows.0.invoice_id', $previous->invoice_id)
+                ->where('summary.orders_count', 1)
+                ->where('summary.total_amount', 500)
+                ->where('summary.commission_total', 15)
             );
     }
 

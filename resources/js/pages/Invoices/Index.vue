@@ -18,6 +18,7 @@ import {
     FileText,
     MoreVertical,
     Search,
+    CalendarDays,
 } from 'lucide-vue-next';
 import { formatCurrency, formatDate, formatInteger } from '@/lib/formatNumber';
 
@@ -76,18 +77,30 @@ interface Props {
     invoices: PaginatedInvoices;
     brands: BrandOption[];
     selectedBrandId?: number | null;
+    summary?: {
+        count: number;
+        total_amount: number;
+    };
+    availableMonths?: Array<{ value: string; label: string }>;
     filters?: {
         search?: string;
         per_page?: number;
+        month?: string | null;
     };
 }
 
 const props = withDefaults(defineProps<Props>(), {
     selectedBrandId: null,
     brands: () => [],
+    summary: () => ({
+        count: 0,
+        total_amount: 0,
+    }),
+    availableMonths: () => [],
     filters: () => ({
         search: '',
         per_page: 15,
+        month: null,
     }),
 });
 
@@ -95,11 +108,26 @@ defineOptions({ layout: AppLayout });
 
 const searchQuery = ref(props.filters?.search || '');
 const perPage = ref(props.filters?.per_page || 15);
+const selectedMonth = ref(props.filters?.month || '');
 const selectedIds = ref<number[]>([]);
 
 const selectedBrand = computed(
     () => props.brands.find((brand) => brand.id === props.selectedBrandId) ?? null,
 );
+
+const selectedMonthLabel = computed(
+    () => props.availableMonths.find((month) => month.value === selectedMonth.value)?.label ?? '',
+);
+
+function filterQuery(extra: Record<string, string | number | undefined> = {}) {
+    return {
+        brand: props.selectedBrandId || undefined,
+        search: searchQuery.value.trim() || undefined,
+        per_page: perPage.value !== 15 ? perPage.value : undefined,
+        month: selectedMonth.value || undefined,
+        ...extra,
+    };
+}
 
 const pageNumbers = computed(() => {
     const total = props.invoices.last_page;
@@ -130,6 +158,7 @@ watch(
     (filters) => {
         searchQuery.value = filters?.search || '';
         perPage.value = filters?.per_page || 15;
+        selectedMonth.value = filters?.month || '';
         selectedIds.value = [];
     },
 );
@@ -164,12 +193,7 @@ function statusBadgeClass(status: string): string {
 function applyFilters(page = 1) {
     router.get(
         route('invoices.index'),
-        {
-            page: page > 1 ? page : undefined,
-            brand: props.selectedBrandId || undefined,
-            search: searchQuery.value.trim() || undefined,
-            per_page: perPage.value !== 15 ? perPage.value : undefined,
-        },
+        filterQuery({ page: page > 1 ? page : undefined }),
         { preserveState: true, preserveScroll: true, replace: true },
     );
 }
@@ -181,13 +205,14 @@ function submitSearch() {
 function applyBrandFilter(brandId: string) {
     router.get(
         route('invoices.index'),
-        {
-            brand: brandId || undefined,
-            search: searchQuery.value.trim() || undefined,
-            per_page: perPage.value !== 15 ? perPage.value : undefined,
-        },
+        filterQuery({ brand: brandId || undefined, page: undefined }),
         { preserveState: true, preserveScroll: true, replace: true },
     );
+}
+
+function applyMonthFilter(month: string) {
+    selectedMonth.value = month;
+    applyFilters(1);
 }
 
 function goToPage(page: number) {
@@ -229,6 +254,8 @@ function exportQuery(): string {
     if (props.selectedBrandId) params.set('brand', String(props.selectedBrandId));
     const search = (props.filters?.search || searchQuery.value || '').trim();
     if (search) params.set('search', search);
+    const month = selectedMonth.value || props.filters?.month || '';
+    if (month) params.set('month', month);
     const query = params.toString();
     return query ? `?${query}` : '';
 }
@@ -254,9 +281,11 @@ function exportInvoicesXlsx() {
                     {{ selectedBrand ? `فواتير ${selectedBrand.name}` : 'الفواتير' }}
                 </h1>
                 <p class="mt-1 text-sm text-gray-500 dark:text-neutral-400">
-                    {{ selectedBrand
-                        ? `عرض الفواتير النهائية لبراند ${selectedBrand.name}`
-                        : 'الفواتير النهائية للطلبات المسددة بالكامل' }}
+                    {{ selectedMonthLabel
+                        ? `فواتير ${selectedMonthLabel}${selectedBrand ? ` — ${selectedBrand.name}` : ''}`
+                        : selectedBrand
+                            ? `عرض الفواتير النهائية لبراند ${selectedBrand.name}`
+                            : 'الفواتير النهائية للطلبات المسددة بالكامل' }}
                 </p>
             </div>
             <div class="flex flex-wrap items-center gap-2">
@@ -296,10 +325,32 @@ function exportInvoicesXlsx() {
                             {{ brand.name }} ({{ formatInteger(brand.invoices_count) }})
                         </option>
                     </select>
+
+                    <label class="flex h-10 items-center gap-2 rounded-full border border-gray-200 bg-white px-3 text-sm font-medium text-gray-600 dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-300">
+                        <CalendarDays class="size-4 shrink-0 text-gray-400" />
+                        <select
+                            class="bg-transparent outline-none"
+                            :value="selectedMonth"
+                            @change="applyMonthFilter(($event.target as HTMLSelectElement).value)"
+                        >
+                            <option value="">كل الشهور</option>
+                            <option v-for="month in availableMonths" :key="month.value" :value="month.value">
+                                {{ month.label }}
+                            </option>
+                        </select>
+                    </label>
                 </div>
 
-                <div class="flex items-center gap-2 text-sm text-gray-500 dark:text-neutral-400">
-                    <span>عرض</span>
+                <div class="flex flex-wrap items-center gap-2 text-sm">
+                    <span class="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1.5 font-semibold text-slate-700 dark:bg-neutral-800 dark:text-neutral-200">
+                        العدد
+                        <span class="tabular-nums">{{ formatInteger(summary.count) }}</span>
+                    </span>
+                    <span class="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1.5 font-semibold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
+                        التوتل
+                        <span class="tabular-nums" dir="ltr">{{ formatCurrency(summary.total_amount) }}</span>
+                    </span>
+                    <span class="text-gray-500 dark:text-neutral-400">عرض</span>
                     <select
                         v-model.number="perPage"
                         class="h-8 rounded-md border border-gray-200 bg-white px-2 text-sm font-semibold text-gray-800 outline-none dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100"

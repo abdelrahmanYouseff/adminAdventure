@@ -72,18 +72,18 @@ const summaryCards = computed(() => [
         icon: Gamepad2,
         tone: 'bg-violet-50 text-violet-700',
     },
-    {
-        label: 'إجمالي المبالغ',
-        value: formatCurrency(props.summary.total_amount),
-        icon: Wallet,
-        tone: 'bg-emerald-50 text-emerald-700',
-    },
-    {
-        label: 'إجمالي العمولات',
-        value: formatCurrency(props.summary.commission_total),
-        icon: Percent,
-        tone: 'bg-amber-50 text-amber-700',
-    },
+        {
+            label: 'توتل المبالغ',
+            value: formatCurrency(props.summary.total_amount),
+            icon: Wallet,
+            tone: 'bg-emerald-50 text-emerald-700',
+        },
+        {
+            label: 'توتل العمولات',
+            value: formatCurrency(props.summary.commission_total),
+            icon: Percent,
+            tone: 'bg-amber-50 text-amber-700',
+        },
 ]);
 
 function applyMonth() {
@@ -121,6 +121,18 @@ function exportExcel() {
                 </div>
 
                 <div class="flex flex-wrap items-center gap-2">
+                    <span class="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-2 text-sm font-semibold text-white ring-1 ring-white/10">
+                        العدد
+                        <span class="tabular-nums">{{ formatInteger(summary.orders_count) }}</span>
+                    </span>
+                    <span class="inline-flex items-center gap-1.5 rounded-full bg-emerald-400/15 px-3 py-2 text-sm font-semibold text-emerald-100 ring-1 ring-emerald-300/20">
+                        توتل المبالغ
+                        <span class="tabular-nums" dir="ltr">{{ formatCurrency(summary.total_amount) }}</span>
+                    </span>
+                    <span class="inline-flex items-center gap-1.5 rounded-full bg-amber-400/15 px-3 py-2 text-sm font-semibold text-amber-100 ring-1 ring-amber-300/20">
+                        توتل العمولات
+                        <span class="tabular-nums" dir="ltr">{{ formatCurrency(summary.commission_total) }}</span>
+                    </span>
                     <label class="flex h-11 min-w-[200px] items-center gap-2 rounded-full bg-white/10 px-4 text-sm ring-1 ring-white/10">
                         <CalendarRange class="size-4 text-violet-200" />
                         <select
@@ -181,9 +193,15 @@ function exportExcel() {
         </div>
 
         <section class="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm">
-            <div class="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+            <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
                 <h2 class="text-base font-bold text-slate-900">الفواتير المقفلة</h2>
-                <p class="text-sm text-slate-400">{{ formatInteger(rows.length) }} فاتورة</p>
+                <p class="text-sm font-semibold text-slate-600">
+                    {{ formatInteger(summary.orders_count) }} فاتورة
+                    · توتل
+                    <span class="tabular-nums text-emerald-700" dir="ltr">{{ formatCurrency(summary.total_amount) }}</span>
+                    · عمولات
+                    <span class="tabular-nums text-amber-700" dir="ltr">{{ formatCurrency(summary.commission_total) }}</span>
+                </p>
             </div>
 
             <div class="overflow-x-auto">
@@ -250,6 +268,20 @@ function exportExcel() {
                             </td>
                         </tr>
                     </tbody>
+                    <tfoot v-if="rows.length > 0">
+                        <tr class="border-t-2 border-slate-200 bg-slate-50">
+                            <td class="px-4 py-4 text-sm font-bold text-slate-900" colspan="3">توتل الشهر</td>
+                            <td class="px-4 py-4 tabular-nums font-black text-slate-900">
+                                {{ formatInteger(summary.games_count) }}
+                            </td>
+                            <td class="px-4 py-4 tabular-nums font-black text-emerald-700">
+                                {{ formatCurrency(summary.total_amount) }}
+                            </td>
+                            <td class="px-4 py-4 tabular-nums font-black text-amber-700">
+                                {{ formatCurrency(summary.commission_total) }}
+                            </td>
+                        </tr>
+                    </tfoot>
                 </table>
             </div>
         </section>

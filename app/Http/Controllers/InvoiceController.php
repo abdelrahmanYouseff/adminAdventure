@@ -7,6 +7,7 @@ use App\Models\Brand;
 use App\Models\Invoice;
 use App\Services\InvoicePdfService;
 use App\Support\InvoicePdfData;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Maatwebsite\Excel\Facades\Excel;
@@ -22,10 +23,18 @@ class InvoiceController extends Controller
     {
         $brandId = $request->query('brand');
         $search = trim((string) $request->query('search', ''));
+        $month = $this->resolvedMonth($request);
         $perPage = (int) $request->query('per_page', 15);
         $perPage = in_array($perPage, [10, 15, 25, 50], true) ? $perPage : 15;
 
-        $invoices = $this->finalInvoicesQuery($request)
+        $query = $this->finalInvoicesQuery($request);
+
+        $summary = [
+            'count' => (clone $query)->count(),
+            'total_amount' => round((float) (clone $query)->sum('amount'), 2),
+        ];
+
+        $invoices = $query
             ->with([
                 'user:id,customer_name,email,phone',
                 'brand:id,name,slug',
@@ -46,9 +55,12 @@ class InvoiceController extends Controller
             'invoices' => $invoices,
             'brands' => $brands,
             'selectedBrandId' => $brandId ? (int) $brandId : null,
+            'summary' => $summary,
+            'availableMonths' => $this->availableMonths(),
             'filters' => [
                 'search' => $search,
                 'per_page' => $perPage,
+                'month' => $month,
             ],
         ]);
     }
@@ -182,6 +194,7 @@ class InvoiceController extends Controller
         }
 
         $search = trim((string) $request->query('search', ''));
+        $monthRange = $this->monthRange($this->resolvedMonth($request));
 
         return Invoice::query()
             ->where('status', 'paid')
@@ -191,8 +204,11 @@ class InvoiceController extends Controller
                         ->whereNotIn('status', ['cancelled', 'refunded']));
             })
             ->when($brandId, fn ($query) => $query->where('brand_id', $brandId))
-            ->when($request->filled('date_from'), fn ($query) => $query->whereDate('created_at', '>=', $request->date_from))
-            ->when($request->filled('date_to'), fn ($query) => $query->whereDate('created_at', '<=', $request->date_to))
+            ->when($monthRange, function ($query) use ($monthRange) {
+                $query->whereBetween('created_at', $monthRange);
+            })
+            ->when(! $monthRange && $request->filled('date_from'), fn ($query) => $query->whereDate('created_at', '>=', $request->date_from))
+            ->when(! $monthRange && $request->filled('date_to'), fn ($query) => $query->whereDate('created_at', '<=', $request->date_to))
             ->when($search !== '', function ($query) use ($search) {
                 $query->where(function ($inner) use ($search) {
                     $inner->where('invoice_number', 'like', "%{$search}%")
@@ -224,5 +240,77 @@ class InvoiceController extends Controller
 
         // الطلب مدفوع بالكامل أو الفاتورة اتولدت بعد اكتمال السداد
         return ! in_array($invoice->order->status, ['cancelled', 'refunded'], true);
+    }
+
+    private function resolvedMonth(Request $request): ?string
+    {
+        $month = trim((string) $request->query('month', ''));
+
+        if ($month === '' || ! preg_match('/^\d{4}-\d{2}$/', $month)) {
+            return null;
+        }
+
+        try {
+            Carbon::createFromFormat('Y-m', $month)->startOfMonth();
+        } catch (\Throwable) {
+            return null;
+        }
+
+        return $month;
+    }
+
+    /**
+     * @return array{0: Carbon, 1: Carbon}|null
+     */
+    private function monthRange(?string $month): ?array
+    {
+        if ($month === null) {
+            return null;
+        }
+
+        $start = Carbon::createFromFormat('Y-m', $month)->startOfMonth();
+
+        return [$start, $start->copy()->endOfMonth()];
+    }
+
+    /**
+     * @return list<array{value: string, label: string}>
+     */
+    private function availableMonths(): array
+    {
+        $first = Invoice::query()->where('status', 'paid')->min('created_at');
+        $cursor = now()->startOfMonth();
+        $start = $first ? Carbon::parse($first)->startOfMonth() : $cursor->copy();
+        $months = [];
+
+        while ($cursor->gte($start) && count($months) < 36) {
+            $months[] = [
+                'value' => $cursor->format('Y-m'),
+                'label' => $this->arabicMonthLabel($cursor),
+            ];
+            $cursor->subMonthNoOverflow();
+        }
+
+        return $months;
+    }
+
+    private function arabicMonthLabel(Carbon $date): string
+    {
+        $months = [
+            1 => 'يناير',
+            2 => 'فبراير',
+            3 => 'مارس',
+            4 => 'أبريل',
+            5 => 'مايو',
+            6 => 'يونيو',
+            7 => 'يوليو',
+            8 => 'أغسطس',
+            9 => 'سبتمبر',
+            10 => 'أكتوبر',
+            11 => 'نوفمبر',
+            12 => 'ديسمبر',
+        ];
+
+        return ($months[$date->month] ?? $date->format('F')).' '.$date->year;
     }
 }
