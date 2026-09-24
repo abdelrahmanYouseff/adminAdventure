@@ -44,6 +44,7 @@ class CommissionReportService
     {
         $invoices = Invoice::query()
             ->finalPaid()
+            ->where('excluded_from_commissions', false)
             ->whereBetween('created_at', [$start, $end])
             ->with([
                 'user:id,customer_name',
@@ -94,7 +95,12 @@ class CommissionReportService
             return 150.0;
         }
 
-        return 0.0;
+        return self::minimumCommission();
+    }
+
+    public static function minimumCommission(): float
+    {
+        return (float) (self::commissionTiers()[0][2] ?? 15);
     }
 
     /**

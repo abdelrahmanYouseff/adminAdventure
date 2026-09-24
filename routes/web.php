@@ -194,6 +194,10 @@ Route::get('reports/commissions/export', [\App\Http\Controllers\ReportController
     ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,accounts'])
     ->name('reports.commissions.export');
 
+Route::delete('reports/commissions/{invoice}', [\App\Http\Controllers\ReportController::class, 'destroyCommissionInvoice'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,accounts'])
+    ->name('reports.commissions.destroy');
+
 Route::middleware(['auth', 'verified', 'role:admin,general_manager,manager'])->prefix('inbox')->name('inbox.')->group(function () {
     Route::get('/', [\App\Http\Controllers\InboxController::class, 'index'])->name('index');
     Route::post('/', [\App\Http\Controllers\InboxController::class, 'store'])->name('store');

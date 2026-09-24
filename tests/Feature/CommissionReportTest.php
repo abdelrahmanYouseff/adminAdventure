@@ -78,10 +78,36 @@ class CommissionReportTest extends TestCase
         $this->assertSame([], $report['rows']);
     }
 
+    public function test_staff_can_remove_an_invoice_from_the_commissions_report(): void
+    {
+        $admin = User::factory()->admin()->create();
+        $month = now()->format('Y-m');
+        $keep = $this->makePaidInvoice($admin, now()->startOfMonth()->addDays(2), 'INV-KEEP', 500);
+        $remove = $this->makePaidInvoice($admin, now()->startOfMonth()->addDays(3), 'INV-REMOVE', 1000);
+
+        $this->actingAs($admin)
+            ->delete(route('reports.commissions.destroy', $remove), ['month' => $month])
+            ->assertRedirect(route('reports.commissions', ['month' => $month]));
+
+        $this->assertTrue($remove->fresh()->excluded_from_commissions);
+
+        $this->actingAs($admin)
+            ->get(route('reports.commissions', ['month' => $month]))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Reports/Commissions')
+                ->has('rows', 1)
+                ->where('rows.0.invoice_id', $keep->id)
+                ->where('summary.orders_count', 1)
+                ->where('summary.total_amount', 500)
+            );
+    }
+
     public function test_commission_is_calculated_from_amount_brackets(): void
     {
         $cases = [
-            [498, 0],
+            [0, 15],
+            [498, 15],
             [499, 15],
             [999, 15],
             [1000, 20],
@@ -114,6 +140,7 @@ class CommissionReportTest extends TestCase
             [
                 'order_date' => '2026-08-10',
                 'invoice_number' => 'INV-1',
+                'customer_name' => 'شركة خطى المبدعين',
                 'product_names' => ['قطار 4 عربات', 'نطيطه النخله', 'جهاز الرغوة'],
                 'games_count' => 3,
                 'total_amount' => 500,
@@ -133,13 +160,14 @@ class CommissionReportTest extends TestCase
 
         $this->assertSame(1, $rows[0][0]);
         $this->assertSame(2, $rows[1][0]);
-        $this->assertSame('قطار 4 عربات، نطيطه النخله، +1', $rows[0][3]);
-        $this->assertSame('فشار', $rows[1][3]);
+        $this->assertSame('شركة خطى المبدعين', $rows[0][3]);
+        $this->assertSame('قطار 4 عربات، نطيطه النخله، +1', $rows[0][4]);
+        $this->assertSame('فشار', $rows[1][4]);
         $this->assertSame('توتل أغسطس 2026', $rows[2][1]);
-        $this->assertSame(4, $rows[2][4]);
-        $this->assertSame(1500.0, $rows[2][5]);
-        $this->assertSame(35.0, $rows[2][6]);
-        $this->assertSame(28, $export->columnWidths()['D']);
+        $this->assertSame(4, $rows[2][5]);
+        $this->assertSame(1500.0, $rows[2][6]);
+        $this->assertSame(35.0, $rows[2][7]);
+        $this->assertSame(28, $export->columnWidths()['E']);
     }
 
     private function makePaidInvoice(

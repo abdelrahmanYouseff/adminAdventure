@@ -13,6 +13,7 @@ class Invoice extends Model
         'invoice_number',
         'amount',
         'status',
+        'excluded_from_commissions',
         'payment_method',
         'issued_at',
         'due_date',
@@ -20,6 +21,7 @@ class Invoice extends Model
 
     protected $casts = [
         'amount' => 'decimal:2',
+        'excluded_from_commissions' => 'boolean',
         'issued_at' => 'datetime',
         'due_date' => 'datetime',
         'created_at' => 'datetime',

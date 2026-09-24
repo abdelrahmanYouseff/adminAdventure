@@ -35,6 +35,7 @@ class CommissionsExport implements FromCollection, WithHeadings, WithColumnWidth
             $this->totalsLabel(),
             '',
             '',
+            '',
             (int) $this->rows->sum('games_count'),
             round((float) $this->rows->sum('total_amount'), 2),
             round((float) $this->rows->sum('commission'), 2),
@@ -49,6 +50,7 @@ class CommissionsExport implements FromCollection, WithHeadings, WithColumnWidth
             'م',
             'تاريخ الفاتورة',
             'رقم الفاتورة',
+            'اسم العميل',
             'اسم المنتجات',
             'عدد الألعاب',
             'إجمالي الفاتورة',
@@ -62,10 +64,11 @@ class CommissionsExport implements FromCollection, WithHeadings, WithColumnWidth
             'A' => 6,
             'B' => 16,
             'C' => 18,
-            'D' => 28,
-            'E' => 14,
-            'F' => 18,
-            'G' => 14,
+            'D' => 24,
+            'E' => 28,
+            'F' => 14,
+            'G' => 18,
+            'H' => 14,
         ];
     }
 
@@ -90,23 +93,23 @@ class CommissionsExport implements FromCollection, WithHeadings, WithColumnWidth
                 $highestRow = max(1, $sheet->getHighestRow());
 
                 $sheet->setRightToLeft(true);
-                $sheet->getStyle('A1:G'.$highestRow)->getAlignment()
+                $sheet->getStyle('A1:H'.$highestRow)->getAlignment()
                     ->setHorizontal(Alignment::HORIZONTAL_RIGHT)
                     ->setVertical(Alignment::VERTICAL_CENTER)
                     ->setWrapText(true);
 
-                $sheet->getStyle('D2:D'.$highestRow)->getAlignment()->setWrapText(true);
+                $sheet->getStyle('E2:E'.$highestRow)->getAlignment()->setWrapText(true);
 
                 for ($row = 2; $row <= $highestRow; $row++) {
                     $sheet->getRowDimension($row)->setRowHeight(22);
                 }
 
-                $sheet->getStyle('A1:G1')->getFill()
+                $sheet->getStyle('A1:H1')->getFill()
                     ->setFillType(Fill::FILL_SOLID)
                     ->getStartColor()
                     ->setRGB('EEF2FF');
 
-                $sheet->getStyle('A'.$highestRow.':G'.$highestRow)->applyFromArray([
+                $sheet->getStyle('A'.$highestRow.':H'.$highestRow)->applyFromArray([
                     'font' => ['bold' => true],
                     'fill' => [
                         'fillType' => Fill::FILL_SOLID,
@@ -114,7 +117,7 @@ class CommissionsExport implements FromCollection, WithHeadings, WithColumnWidth
                     ],
                 ]);
 
-                $sheet->getStyle('A1:G'.$highestRow)->getBorders()->getAllBorders()
+                $sheet->getStyle('A1:H'.$highestRow)->getBorders()->getAllBorders()
                     ->setBorderStyle(Border::BORDER_THIN);
             },
         ];
@@ -122,14 +125,17 @@ class CommissionsExport implements FromCollection, WithHeadings, WithColumnWidth
 
     /**
      * @param  array<string, mixed>  $row
-     * @return array{0: int, 1: string, 2: string, 3: string, 4: int, 5: float, 6: float}
+     * @return array{0: int, 1: string, 2: string, 3: string, 4: string, 5: int, 6: float, 7: float}
      */
     private function mapRow(array $row, int $index): array
     {
+        $customer = trim((string) ($row['customer_name'] ?? ''));
+
         return [
             $index,
             (string) ($row['order_date'] ?? '—'),
             (string) ($row['invoice_number'] ?? '—'),
+            $customer !== '' ? $customer : '—',
             $this->compactProducts($row),
             (int) ($row['games_count'] ?? 0),
             round((float) ($row['total_amount'] ?? 0), 2),

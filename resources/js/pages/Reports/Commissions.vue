@@ -9,6 +9,7 @@ import {
     Gamepad2,
     Percent,
     ShoppingCart,
+    Trash2,
     Wallet,
 } from 'lucide-vue-next';
 import { formatCurrency, formatDate, formatInteger } from '@/lib/formatNumber';
@@ -51,6 +52,7 @@ const props = defineProps<Props>();
 defineOptions({ layout: AppLayout });
 
 const selectedMonth = ref(props.filters.month);
+const deletingId = ref<number | null>(null);
 
 watch(
     () => props.filters.month,
@@ -97,6 +99,24 @@ function applyMonth() {
 function exportExcel() {
     const query = selectedMonth.value ? `?month=${encodeURIComponent(selectedMonth.value)}` : '';
     window.open(route('reports.commissions.export') + query, '_blank');
+}
+
+function deleteRow(row: CommissionRow) {
+    if (!row.invoice_id || deletingId.value) return;
+
+    const confirmed = window.confirm(
+        'هيتشال من تقرير العمولات والتوتل. الفاتورة هتفضل موجودة في صفحة الفواتير.',
+    );
+    if (!confirmed) return;
+
+    deletingId.value = row.invoice_id;
+    router.delete(`/reports/commissions/${row.invoice_id}`, {
+        data: { month: selectedMonth.value || undefined },
+        preserveScroll: true,
+        onFinish: () => {
+            deletingId.value = null;
+        },
+    });
 }
 </script>
 
@@ -205,20 +225,22 @@ function exportExcel() {
             </div>
 
             <div class="overflow-x-auto">
-                <table class="w-full min-w-[1040px] border-collapse text-sm">
+                <table class="w-full min-w-[1180px] border-collapse text-sm">
                     <thead>
                         <tr class="border-b border-slate-100 bg-slate-50/80 text-start">
                             <th class="px-4 py-3.5 text-[13px] font-semibold text-slate-600">تاريخ الفاتورة</th>
                             <th class="px-4 py-3.5 text-[13px] font-semibold text-slate-600">رقم الفاتورة</th>
+                            <th class="px-4 py-3.5 text-[13px] font-semibold text-slate-600">اسم العميل</th>
                             <th class="px-4 py-3.5 text-[13px] font-semibold text-slate-600">اسم المنتجات</th>
                             <th class="px-4 py-3.5 text-[13px] font-semibold text-slate-600">عدد الألعاب</th>
                             <th class="px-4 py-3.5 text-[13px] font-semibold text-slate-600">إجمالي الفاتورة</th>
                             <th class="px-4 py-3.5 text-[13px] font-semibold text-slate-600">العمولة</th>
+                            <th class="px-4 py-3.5 text-end text-[13px] font-semibold text-slate-600">إجراء</th>
                         </tr>
                     </thead>
                     <tbody>
                         <tr v-if="rows.length === 0">
-                            <td colspan="6" class="px-4 py-16 text-center text-slate-500">
+                            <td colspan="8" class="px-4 py-16 text-center text-slate-500">
                                 لا توجد فواتير في هذا الشهر.
                             </td>
                         </tr>
@@ -243,6 +265,9 @@ function exportExcel() {
                                     {{ row.invoice_number || '—' }}
                                 </span>
                             </td>
+                            <td class="px-4 py-3.5 font-semibold text-slate-900">
+                                {{ row.customer_name || '—' }}
+                            </td>
                             <td class="max-w-[320px] px-4 py-3.5 text-slate-700">
                                 <template v-if="row.product_names?.length">
                                     <div class="flex flex-wrap gap-1.5">
@@ -266,11 +291,24 @@ function exportExcel() {
                             <td class="px-4 py-3.5 tabular-nums font-bold text-amber-700">
                                 {{ formatCurrency(row.commission, row.currency) }}
                             </td>
+                            <td class="px-4 py-3.5">
+                                <div class="flex justify-end">
+                                    <button
+                                        type="button"
+                                        class="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold text-rose-700 ring-1 ring-rose-200 transition hover:bg-rose-50 disabled:opacity-50"
+                                        :disabled="deletingId === row.invoice_id"
+                                        @click="deleteRow(row)"
+                                    >
+                                        <Trash2 class="size-3.5" />
+                                        {{ deletingId === row.invoice_id ? 'جاري الحذف...' : 'حذف' }}
+                                    </button>
+                                </div>
+                            </td>
                         </tr>
                     </tbody>
                     <tfoot v-if="rows.length > 0">
                         <tr class="border-t-2 border-slate-200 bg-slate-50">
-                            <td class="px-4 py-4 text-sm font-bold text-slate-900" colspan="3">توتل الشهر</td>
+                            <td class="px-4 py-4 text-sm font-bold text-slate-900" colspan="4">توتل الشهر</td>
                             <td class="px-4 py-4 tabular-nums font-black text-slate-900">
                                 {{ formatInteger(summary.games_count) }}
                             </td>
@@ -280,6 +318,7 @@ function exportExcel() {
                             <td class="px-4 py-4 tabular-nums font-black text-amber-700">
                                 {{ formatCurrency(summary.commission_total) }}
                             </td>
+                            <td />
                         </tr>
                     </tfoot>
                 </table>
