@@ -131,13 +131,15 @@ class CommissionReportTest extends TestCase
 
         $rows = $export->collection()->values()->all();
 
-        $this->assertSame('قطار 4 عربات، نطيطه النخله، +1', $rows[0][2]);
-        $this->assertSame('فشار', $rows[1][2]);
-        $this->assertSame('توتل أغسطس 2026', $rows[2][0]);
-        $this->assertSame(4, $rows[2][3]);
-        $this->assertSame(1500.0, $rows[2][4]);
-        $this->assertSame(35.0, $rows[2][5]);
-        $this->assertSame(28, $export->columnWidths()['C']);
+        $this->assertSame(1, $rows[0][0]);
+        $this->assertSame(2, $rows[1][0]);
+        $this->assertSame('قطار 4 عربات، نطيطه النخله، +1', $rows[0][3]);
+        $this->assertSame('فشار', $rows[1][3]);
+        $this->assertSame('توتل أغسطس 2026', $rows[2][1]);
+        $this->assertSame(4, $rows[2][4]);
+        $this->assertSame(1500.0, $rows[2][5]);
+        $this->assertSame(35.0, $rows[2][6]);
+        $this->assertSame(28, $export->columnWidths()['D']);
     }
 
     private function makePaidInvoice(

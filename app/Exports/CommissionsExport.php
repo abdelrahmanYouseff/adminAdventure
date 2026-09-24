@@ -26,9 +26,12 @@ class CommissionsExport implements FromCollection, WithHeadings, WithColumnWidth
 
     public function collection(): Collection
     {
-        $mapped = $this->rows->map(fn (array $row) => $this->mapRow($row))->values();
+        $mapped = $this->rows
+            ->values()
+            ->map(fn (array $row, int $index) => $this->mapRow($row, $index + 1));
 
         $mapped->push([
+            '',
             $this->totalsLabel(),
             '',
             '',
@@ -43,6 +46,7 @@ class CommissionsExport implements FromCollection, WithHeadings, WithColumnWidth
     public function headings(): array
     {
         return [
+            'م',
             'تاريخ الفاتورة',
             'رقم الفاتورة',
             'اسم المنتجات',
@@ -55,12 +59,13 @@ class CommissionsExport implements FromCollection, WithHeadings, WithColumnWidth
     public function columnWidths(): array
     {
         return [
-            'A' => 16,
-            'B' => 18,
-            'C' => 28,
-            'D' => 14,
-            'E' => 18,
-            'F' => 14,
+            'A' => 6,
+            'B' => 16,
+            'C' => 18,
+            'D' => 28,
+            'E' => 14,
+            'F' => 18,
+            'G' => 14,
         ];
     }
 
@@ -85,23 +90,23 @@ class CommissionsExport implements FromCollection, WithHeadings, WithColumnWidth
                 $highestRow = max(1, $sheet->getHighestRow());
 
                 $sheet->setRightToLeft(true);
-                $sheet->getStyle('A1:F'.$highestRow)->getAlignment()
+                $sheet->getStyle('A1:G'.$highestRow)->getAlignment()
                     ->setHorizontal(Alignment::HORIZONTAL_RIGHT)
                     ->setVertical(Alignment::VERTICAL_CENTER)
                     ->setWrapText(true);
 
-                $sheet->getStyle('C2:C'.$highestRow)->getAlignment()->setWrapText(true);
+                $sheet->getStyle('D2:D'.$highestRow)->getAlignment()->setWrapText(true);
 
                 for ($row = 2; $row <= $highestRow; $row++) {
                     $sheet->getRowDimension($row)->setRowHeight(22);
                 }
 
-                $sheet->getStyle('A1:F1')->getFill()
+                $sheet->getStyle('A1:G1')->getFill()
                     ->setFillType(Fill::FILL_SOLID)
                     ->getStartColor()
                     ->setRGB('EEF2FF');
 
-                $sheet->getStyle('A'.$highestRow.':F'.$highestRow)->applyFromArray([
+                $sheet->getStyle('A'.$highestRow.':G'.$highestRow)->applyFromArray([
                     'font' => ['bold' => true],
                     'fill' => [
                         'fillType' => Fill::FILL_SOLID,
@@ -109,7 +114,7 @@ class CommissionsExport implements FromCollection, WithHeadings, WithColumnWidth
                     ],
                 ]);
 
-                $sheet->getStyle('A1:F'.$highestRow)->getBorders()->getAllBorders()
+                $sheet->getStyle('A1:G'.$highestRow)->getBorders()->getAllBorders()
                     ->setBorderStyle(Border::BORDER_THIN);
             },
         ];
@@ -117,11 +122,12 @@ class CommissionsExport implements FromCollection, WithHeadings, WithColumnWidth
 
     /**
      * @param  array<string, mixed>  $row
-     * @return array{0: string, 1: string, 2: string, 3: int, 4: float, 5: float}
+     * @return array{0: int, 1: string, 2: string, 3: string, 4: int, 5: float, 6: float}
      */
-    private function mapRow(array $row): array
+    private function mapRow(array $row, int $index): array
     {
         return [
+            $index,
             (string) ($row['order_date'] ?? '—'),
             (string) ($row['invoice_number'] ?? '—'),
             $this->compactProducts($row),
