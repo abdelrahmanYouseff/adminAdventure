@@ -25,11 +25,11 @@ class CommissionsExport implements FromCollection, ShouldAutoSize, WithHeadings,
     public function headings(): array
     {
         return [
-            'تاريخ الإقفال',
+            'تاريخ الفاتورة',
             'رقم الفاتورة',
             'اسم المنتجات',
             'عدد الألعاب',
-            'إجمالي سعر الطلب',
+            'إجمالي الفاتورة',
             'العمولة',
         ];
     }

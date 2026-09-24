@@ -197,12 +197,7 @@ class InvoiceController extends Controller
         $monthRange = $this->monthRange($this->resolvedMonth($request));
 
         return Invoice::query()
-            ->where('status', 'paid')
-            ->where(function ($query) {
-                $query->whereDoesntHave('order')
-                    ->orWhereHas('order', fn ($order) => $order
-                        ->whereNotIn('status', ['cancelled', 'refunded']));
-            })
+            ->finalPaid()
             ->when($brandId, fn ($query) => $query->where('brand_id', $brandId))
             ->when($monthRange, function ($query) use ($monthRange) {
                 $query->whereBetween('created_at', $monthRange);

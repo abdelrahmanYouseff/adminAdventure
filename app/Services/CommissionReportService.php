@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Invoice;
 use App\Models\Order;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
@@ -41,50 +42,37 @@ class CommissionReportService
      */
     public function rowsForMonth(Carbon $start, Carbon $end): Collection
     {
-        $orders = Order::query()
-            ->releasedToOperations()
-            ->whereNotIn('status', ['cancelled', 'refunded'])
-            ->whereNotNull('warehouse_keeper_approved_at')
-            ->whereNotNull('invoice_id')
-            ->whereHas('invoice')
-            ->whereBetween('warehouse_keeper_approved_at', [$start, $end])
+        $invoices = Invoice::query()
+            ->finalPaid()
+            ->whereBetween('created_at', [$start, $end])
             ->with([
-                'products',
-                'workerOrders:id,order_id,product_name',
-                'invoice:id,invoice_number',
+                'user:id,customer_name',
+                'order:id,invoice_id,order_number,customer_name,total_amount,currency,status,items',
+                'order.products',
+                'order.workerOrders:id,order_id,product_name',
             ])
-            ->orderBy('warehouse_keeper_approved_at')
+            ->orderBy('created_at')
             ->orderBy('id')
-            ->get([
-                'id',
-                'order_number',
-                'customer_name',
-                'total_amount',
-                'currency',
-                'items',
-                'invoice_id',
-                'created_at',
-                'warehouse_keeper_approved_at',
-            ]);
+            ->get();
 
-        return $orders->map(function (Order $order) {
-            $productNames = $this->productNames($order);
-            $totalAmount = round((float) $order->total_amount, 2);
+        return $invoices->map(function (Invoice $invoice) {
+            $order = $invoice->order;
+            $productNames = $order ? $this->productNames($order) : [];
+            $totalAmount = round((float) $invoice->amount, 2);
 
             return [
-                'id' => $order->id,
-                'order_date' => $order->warehouse_keeper_approved_at?->format('Y-m-d')
-                    ?: $order->created_at?->format('Y-m-d'),
-                'order_number' => $order->order_number,
-                'customer_name' => $order->customer_name,
-                'invoice_number' => $order->invoice?->invoice_number,
-                'invoice_id' => $order->invoice_id,
+                'id' => $invoice->id,
+                'order_date' => $invoice->created_at?->format('Y-m-d'),
+                'order_number' => $order?->order_number,
+                'customer_name' => $order?->customer_name ?: $invoice->user?->customer_name,
+                'invoice_number' => $invoice->invoice_number,
+                'invoice_id' => $invoice->id,
                 'product_names' => $productNames,
                 'products_label' => $productNames !== [] ? implode('، ', $productNames) : '—',
-                'games_count' => $this->gamesCount($order),
+                'games_count' => $order ? $this->gamesCount($order) : 0,
                 'total_amount' => $totalAmount,
                 'commission' => self::commissionForAmount($totalAmount),
-                'currency' => $order->currency ?: 'SAR',
+                'currency' => $order?->currency ?: 'SAR',
             ];
         });
     }

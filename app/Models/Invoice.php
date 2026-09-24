@@ -80,6 +80,20 @@ class Invoice extends Model
     }
 
     /**
+     * Paid invoices shown on /invoices (exclude cancelled / refunded orders).
+     */
+    public function scopeFinalPaid($query)
+    {
+        return $query
+            ->where('status', 'paid')
+            ->where(function ($inner) {
+                $inner->whereDoesntHave('order')
+                    ->orWhereHas('order', fn ($order) => $order
+                        ->whereNotIn('status', ['cancelled', 'refunded']));
+            });
+    }
+
+    /**
      * Generate a unique invoice number: S-YYYYMM{counter from 100}.
      * Example: S-202607100
      */

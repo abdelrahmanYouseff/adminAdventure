@@ -116,7 +116,7 @@ function exportExcel() {
                     </p>
                     <h1 class="mt-3 text-2xl font-extrabold tracking-tight sm:text-4xl">{{ period.label }}</h1>
                     <p class="mt-2 text-sm text-slate-300">
-                        الطلبات المقفلة خلال الشهر والتي لها فاتورة — من {{ period.start }} إلى {{ period.end }}
+                        الفواتير النهائية خلال الشهر — من {{ period.start }} إلى {{ period.end }}
                     </p>
                 </div>
 
@@ -194,7 +194,7 @@ function exportExcel() {
 
         <section class="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm">
             <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
-                <h2 class="text-base font-bold text-slate-900">الفواتير المقفلة</h2>
+                <h2 class="text-base font-bold text-slate-900">فواتير الشهر</h2>
                 <p class="text-sm font-semibold text-slate-600">
                     {{ formatInteger(summary.orders_count) }} فاتورة
                     · توتل
@@ -208,18 +208,18 @@ function exportExcel() {
                 <table class="w-full min-w-[1040px] border-collapse text-sm">
                     <thead>
                         <tr class="border-b border-slate-100 bg-slate-50/80 text-start">
-                            <th class="px-4 py-3.5 text-[13px] font-semibold text-slate-600">تاريخ الإقفال</th>
+                            <th class="px-4 py-3.5 text-[13px] font-semibold text-slate-600">تاريخ الفاتورة</th>
                             <th class="px-4 py-3.5 text-[13px] font-semibold text-slate-600">رقم الفاتورة</th>
                             <th class="px-4 py-3.5 text-[13px] font-semibold text-slate-600">اسم المنتجات</th>
                             <th class="px-4 py-3.5 text-[13px] font-semibold text-slate-600">عدد الألعاب</th>
-                            <th class="px-4 py-3.5 text-[13px] font-semibold text-slate-600">إجمالي سعر الطلب</th>
+                            <th class="px-4 py-3.5 text-[13px] font-semibold text-slate-600">إجمالي الفاتورة</th>
                             <th class="px-4 py-3.5 text-[13px] font-semibold text-slate-600">العمولة</th>
                         </tr>
                     </thead>
                     <tbody>
                         <tr v-if="rows.length === 0">
                             <td colspan="6" class="px-4 py-16 text-center text-slate-500">
-                                لا توجد طلبات مقفلة لها فاتورة في هذا الشهر.
+                                لا توجد فواتير في هذا الشهر.
                             </td>
                         </tr>
                         <tr

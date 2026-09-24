@@ -20,37 +20,38 @@ class CommissionReportTest extends TestCase
         $this->withoutVite();
     }
 
-    public function test_commissions_page_lists_only_closed_orders_with_invoices_in_the_selected_month(): void
+    public function test_commissions_page_lists_paid_invoices_created_in_the_selected_month(): void
     {
         $admin = User::factory()->admin()->create();
         $month = now()->format('Y-m');
 
-        $included = $this->makeClosedInvoicedOrder($admin, now()->startOfMonth()->addDays(2), 'ORD-IN');
-        $this->makeOpenInvoicedOrder($admin, now()->startOfMonth()->addDays(3), 'ORD-OPEN');
-        $this->makeClosedOrderWithoutInvoice($admin, now()->startOfMonth()->addDays(4), 'ORD-NOINV');
-        $this->makeClosedInvoicedOrder($admin, now()->subMonthNoOverflow()->startOfMonth()->addDays(5), 'ORD-OLD');
+        $included = $this->makePaidInvoice($admin, now()->startOfMonth()->addDays(2), 'INV-IN', 500);
+        $this->makePaidInvoice($admin, now()->startOfMonth()->addDays(3), 'INV-OPEN', 500, orderStatus: 'paid', warehouseClosed: false);
+        $this->makeUnpaidInvoice($admin, now()->startOfMonth()->addDays(4), 'INV-UNPAID', 300);
+        $this->makePaidInvoice($admin, now()->subMonthNoOverflow()->startOfMonth()->addDays(5), 'INV-OLD', 500);
 
         $this->actingAs($admin)
             ->get(route('reports.commissions', ['month' => $month]))
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
                 ->component('Reports/Commissions')
-                ->has('rows', 1)
-                ->where('rows.0.invoice_number', $included->invoice->invoice_number)
-                ->where('rows.0.invoice_id', $included->invoice_id)
+                ->has('rows', 2)
+                ->where('rows.0.invoice_number', $included->invoice_number)
+                ->where('rows.0.invoice_id', $included->id)
                 ->where('rows.0.commission', 15)
-                ->where('summary.orders_count', 1)
-                ->where('summary.commission_total', 15)
+                ->where('summary.orders_count', 2)
+                ->where('summary.total_amount', 1000)
+                ->where('summary.commission_total', 30)
             );
     }
 
-    public function test_changing_the_month_filter_returns_that_month_only(): void
+    public function test_changing_the_month_filter_returns_that_months_invoices_only(): void
     {
         $admin = User::factory()->admin()->create();
         $lastMonth = now()->subMonthNoOverflow();
 
-        $this->makeClosedInvoicedOrder($admin, now()->startOfMonth()->addDays(2), 'ORD-NOW');
-        $previous = $this->makeClosedInvoicedOrder($admin, $lastMonth->copy()->startOfMonth()->addDays(5), 'ORD-PREV');
+        $this->makePaidInvoice($admin, now()->startOfMonth()->addDays(2), 'INV-NOW', 500);
+        $previous = $this->makePaidInvoice($admin, $lastMonth->copy()->startOfMonth()->addDays(5), 'INV-PREV', 500);
 
         $this->actingAs($admin)
             ->get(route('reports.commissions', ['month' => $lastMonth->format('Y-m')]))
@@ -58,12 +59,23 @@ class CommissionReportTest extends TestCase
             ->assertInertia(fn (Assert $page) => $page
                 ->component('Reports/Commissions')
                 ->has('rows', 1)
-                ->where('rows.0.invoice_number', $previous->invoice->invoice_number)
-                ->where('rows.0.invoice_id', $previous->invoice_id)
+                ->where('rows.0.invoice_number', $previous->invoice_number)
+                ->where('rows.0.invoice_id', $previous->id)
                 ->where('summary.orders_count', 1)
                 ->where('summary.total_amount', 500)
                 ->where('summary.commission_total', 15)
             );
+    }
+
+    public function test_cancelled_order_invoices_are_excluded(): void
+    {
+        $admin = User::factory()->admin()->create();
+        $this->makePaidInvoice($admin, now(), 'INV-CANCELLED', 800, orderStatus: 'cancelled');
+
+        $report = app(CommissionReportService::class)->build(now()->format('Y-m'));
+
+        $this->assertSame(0, $report['summary']['orders_count']);
+        $this->assertSame([], $report['rows']);
     }
 
     public function test_commission_is_calculated_from_amount_brackets(): void
@@ -96,80 +108,55 @@ class CommissionReportTest extends TestCase
         }
     }
 
-    public function test_commission_service_excludes_open_orders(): void
-    {
-        $admin = User::factory()->admin()->create();
-        $this->makeOpenInvoicedOrder($admin, now(), 'ORD-OPEN');
+    private function makePaidInvoice(
+        User $user,
+        $createdAt,
+        string $suffix,
+        float $amount,
+        string $orderStatus = 'paid',
+        bool $warehouseClosed = true,
+    ): Invoice {
+        $invoice = Invoice::query()->create([
+            'user_id' => $user->id,
+            'invoice_number' => $suffix,
+            'amount' => $amount,
+            'status' => 'paid',
+        ]);
+        $invoice->forceFill([
+            'created_at' => $createdAt,
+            'updated_at' => $createdAt,
+        ])->saveQuietly();
 
-        $report = app(CommissionReportService::class)->build(now()->format('Y-m'));
+        Order::query()->create([
+            'user_id' => $user->id,
+            'customer_name' => 'عميل '.$suffix,
+            'order_number' => 'ORD-'.$suffix,
+            'total_amount' => $amount,
+            'amount_paid' => $amount,
+            'currency' => 'SAR',
+            'status' => $orderStatus,
+            'payment_status' => $orderStatus === 'paid' ? 'paid' : 'pending',
+            'payment_method' => 'cash',
+            'invoice_id' => $invoice->id,
+            'warehouse_keeper_approved_at' => $warehouseClosed ? $createdAt : null,
+        ]);
 
-        $this->assertSame(0, $report['summary']['orders_count']);
-        $this->assertSame([], $report['rows']);
+        return $invoice->fresh();
     }
 
-    private function makeClosedInvoicedOrder(User $user, $closedAt, string $suffix): Order
+    private function makeUnpaidInvoice(User $user, $createdAt, string $suffix, float $amount): Invoice
     {
         $invoice = Invoice::query()->create([
             'user_id' => $user->id,
-            'invoice_number' => 'INV-'.$suffix,
-            'amount' => 500,
-            'status' => 'paid',
+            'invoice_number' => $suffix,
+            'amount' => $amount,
+            'status' => 'pending',
         ]);
+        $invoice->forceFill([
+            'created_at' => $createdAt,
+            'updated_at' => $createdAt,
+        ])->saveQuietly();
 
-        return Order::query()->create([
-            'user_id' => $user->id,
-            'customer_name' => 'عميل '.$suffix,
-            'order_number' => $suffix,
-            'total_amount' => 500,
-            'amount_paid' => 500,
-            'currency' => 'SAR',
-            'status' => 'paid',
-            'payment_status' => 'paid',
-            'payment_method' => 'cash',
-            'invoice_id' => $invoice->id,
-            'warehouse_keeper_approved_at' => $closedAt,
-        ]);
-    }
-
-    private function makeOpenInvoicedOrder(User $user, $createdAt, string $suffix): Order
-    {
-        $invoice = Invoice::query()->create([
-            'user_id' => $user->id,
-            'invoice_number' => 'INV-'.$suffix,
-            'amount' => 400,
-            'status' => 'paid',
-        ]);
-
-        $order = Order::query()->create([
-            'user_id' => $user->id,
-            'customer_name' => 'عميل '.$suffix,
-            'order_number' => $suffix,
-            'total_amount' => 400,
-            'amount_paid' => 400,
-            'currency' => 'SAR',
-            'status' => 'paid',
-            'payment_status' => 'paid',
-            'payment_method' => 'cash',
-            'invoice_id' => $invoice->id,
-        ]);
-        $order->forceFill(['created_at' => $createdAt])->saveQuietly();
-
-        return $order;
-    }
-
-    private function makeClosedOrderWithoutInvoice(User $user, $closedAt, string $suffix): Order
-    {
-        return Order::query()->create([
-            'user_id' => $user->id,
-            'customer_name' => 'عميل '.$suffix,
-            'order_number' => $suffix,
-            'total_amount' => 300,
-            'amount_paid' => 300,
-            'currency' => 'SAR',
-            'status' => 'paid',
-            'payment_status' => 'paid',
-            'payment_method' => 'cash',
-            'warehouse_keeper_approved_at' => $closedAt,
-        ]);
+        return $invoice->fresh();
     }
 }
