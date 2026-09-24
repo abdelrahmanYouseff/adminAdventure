@@ -163,7 +163,7 @@ class CommissionReportTest extends TestCase
         $this->assertSame('شركة خطى المبدعين', $rows[0][3]);
         $this->assertSame('قطار 4 عربات، نطيطه النخله، +1', $rows[0][4]);
         $this->assertSame('فشار', $rows[1][4]);
-        $this->assertSame('توتل أغسطس 2026', $rows[2][1]);
+        $this->assertSame('إجمالي شهر أغسطس', $rows[2][0]);
         $this->assertSame(4, $rows[2][5]);
         $this->assertSame(1500.0, $rows[2][6]);
         $this->assertSame(35.0, $rows[2][7]);

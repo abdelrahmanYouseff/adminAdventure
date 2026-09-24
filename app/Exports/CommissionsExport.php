@@ -31,8 +31,8 @@ class CommissionsExport implements FromCollection, WithHeadings, WithColumnWidth
             ->map(fn (array $row, int $index) => $this->mapRow($row, $index + 1));
 
         $mapped->push([
-            '',
             $this->totalsLabel(),
+            '',
             '',
             '',
             '',
@@ -109,6 +109,8 @@ class CommissionsExport implements FromCollection, WithHeadings, WithColumnWidth
                     ->getStartColor()
                     ->setRGB('EEF2FF');
 
+                $sheet->mergeCells('A'.$highestRow.':E'.$highestRow);
+                $sheet->getRowDimension($highestRow)->setRowHeight(28);
                 $sheet->getStyle('A'.$highestRow.':H'.$highestRow)->applyFromArray([
                     'font' => ['bold' => true],
                     'fill' => [
@@ -178,6 +180,14 @@ class CommissionsExport implements FromCollection, WithHeadings, WithColumnWidth
     {
         $label = trim($this->monthLabel);
 
-        return $label !== '' ? 'توتل '.$label : 'توتل الشهر';
+        if ($label === '') {
+            return 'إجمالي الشهر';
+        }
+
+        if (preg_match('/^(يناير|فبراير|مارس|أبريل|مايو|يونيو|يوليو|أغسطس|سبتمبر|أكتوبر|نوفمبر|ديسمبر)/u', $label, $matches) === 1) {
+            return 'إجمالي شهر '.$matches[1];
+        }
+
+        return 'إجمالي شهر '.$label;
     }
 }
