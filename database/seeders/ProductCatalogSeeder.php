@@ -59,8 +59,8 @@ class ProductCatalogSeeder extends Seeder
         }
 
         DB::transaction(function () use ($catalog, $brandId, $imageKeys) {
-            Product::query()->delete();
-            Category::query()->delete();
+            Product::query()->where('brand_id', $brandId)->delete();
+            Category::query()->where('brand_id', $brandId)->delete();
 
             $categories = [];
             foreach ($catalog['categories'] as $name) {
