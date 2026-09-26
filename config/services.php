@@ -86,8 +86,8 @@ return [
         'waba_id' => env('WHATSAPP_WABA_ID'),
         'dispatch_sync' => env('WHATSAPP_DISPATCH_SYNC', true),
         'graph_version' => env('WHATSAPP_GRAPH_VERSION', 'v21.0'),
-        // إشعارات الطلب للموظفين (OrderObserver) — منفصلة عن إرسال إذن التسليم للعميل
-        'order_notifications' => env('WHATSAPP_ORDER_NOTIFICATIONS', false),
+        // إشعارات الطلب للموظفين عند إنشاء أي طلب جديد — منفصلة عن إذن التسليم للعميل
+        'order_notifications' => env('WHATSAPP_ORDER_NOTIFICATIONS', true),
         // Inbox (خدمة العملاء) — verify_token و app_secret خاصان بهذا النظام فقط
         'verify_token' => env('WHATSAPP_VERIFY_TOKEN'),
         'app_secret' => env('WHATSAPP_APP_SECRET'),

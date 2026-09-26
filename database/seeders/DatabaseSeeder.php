@@ -2,9 +2,7 @@
 
 namespace Database\Seeders;
 
-use App\Models\Product;
 use App\Models\User;
-use App\Models\Category;
 use App\Models\Package;
 use App\Models\Order;
 // use Illuminate\Database\Console\Seeds\WithoutModelEvents;
@@ -32,45 +30,7 @@ class DatabaseSeeder extends Seeder
             ]
         );
 
-        // Create sample categories
-        $camping = Category::firstOrCreate(['category_name' => 'Camping']);
-        $hiking = Category::firstOrCreate(['category_name' => 'Hiking']);
-        $bags = Category::firstOrCreate(['category_name' => 'Bags']);
-
-        // Create sample products only if they don't exist
-        if (Product::count() === 0) {
-            Product::create([
-                'product_name' => 'Adventure Backpack',
-                'description' => 'High-quality backpack for outdoor adventures with multiple compartments.',
-                'price' => 89.99,
-                'status' => 'active',
-                'category_id' => $bags->id,
-            ]);
-
-            Product::create([
-                'product_name' => 'Camping Tent',
-                'description' => '4-person camping tent with weather protection and easy setup.',
-                'price' => 149.99,
-                'status' => 'active',
-                'category_id' => $camping->id,
-            ]);
-
-            Product::create([
-                'product_name' => 'Hiking Boots',
-                'description' => 'Comfortable and durable hiking boots for all terrain types.',
-                'price' => 129.99,
-                'status' => 'active',
-                'category_id' => $hiking->id,
-            ]);
-
-            Product::create([
-                'product_name' => 'Sleeping Bag',
-                'description' => 'Warm and lightweight sleeping bag for camping trips.',
-                'price' => 79.99,
-                'status' => 'inactive',
-                'category_id' => $camping->id,
-            ]);
-        }
+        $this->call(ProductCatalogSeeder::class);
 
         // Create sample packages only if they don't exist
         if (Package::count() === 0) {

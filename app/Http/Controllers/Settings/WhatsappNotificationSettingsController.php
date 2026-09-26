@@ -29,6 +29,8 @@ class WhatsappNotificationSettingsController extends Controller
         return Inertia::render('settings/WhatsAppNotifications', [
             'recipients' => $recipients,
             'whatsapp_configured' => app(WhatsAppCloudService::class)->isConfigured(),
+            'order_notifications_enabled' => (bool) config('services.whatsapp.enabled', false)
+                && (bool) config('services.whatsapp.order_notifications', false),
             'sender_phone' => WhatsAppCloudService::senderDisplayPhone(),
         ]);
     }

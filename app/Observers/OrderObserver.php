@@ -88,7 +88,7 @@ class OrderObserver
 
     private function shouldNotify(Order $order): bool
     {
-        // Staff order alerts (not delivery-note-to-customer).
+        // Staff order alerts (not delivery-note-to-customer) — fire on create.
         if (! config('services.whatsapp.enabled', false)) {
             return false;
         }
@@ -101,12 +101,16 @@ class OrderObserver
             return false;
         }
 
-        return $this->shouldCreateWorkOrders($order);
+        if (in_array($order->status, ['cancelled', 'refunded'], true)) {
+            return false;
+        }
+
+        return true;
     }
 
     /**
-     * Both work-order sync and the customer notification wait for the order to
-     * be live and for the accountant to approve at least one payment receipt.
+     * Work-order sync waits for the order to be live and for the accountant
+     * to approve at least one payment receipt.
      */
     private function shouldCreateWorkOrders(Order $order): bool
     {

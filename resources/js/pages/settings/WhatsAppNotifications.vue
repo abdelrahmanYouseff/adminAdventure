@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed } from 'vue';
 import { Head, router, useForm, usePage } from '@inertiajs/vue3';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { Button } from '@/components/ui/button';
@@ -20,6 +20,7 @@ interface Recipient {
 const props = defineProps<{
     recipients: Recipient[];
     whatsapp_configured: boolean;
+    order_notifications_enabled: boolean;
     sender_phone: string;
 }>();
 
@@ -78,18 +79,32 @@ const activeCount = computed(() => props.recipients.filter((r) => r.is_active).l
                 <div>
                     <h1 class="text-2xl font-bold text-gray-900 dark:text-white">إعدادات واتساب الطلبات</h1>
                     <p class="text-sm text-gray-500 dark:text-gray-400">
-                        الأرقام التي تستقبل إشعار تفاصيل الطلب — من أي رقم تضيفه هنا فقط
+                        عند إنشاء أي طلب جديد في النظام تُرسل رسالة واتساب تلقائياً للأرقام النشطة هنا
                     </p>
                 </div>
             </div>
-            <Badge :variant="whatsapp_configured ? 'default' : 'destructive'">
-                {{ whatsapp_configured ? 'واتساب متصل' : 'واتساب غير مفعّل' }}
-            </Badge>
+            <div class="flex flex-wrap items-center gap-2">
+                <Badge :variant="whatsapp_configured ? 'default' : 'destructive'">
+                    {{ whatsapp_configured ? 'واتساب متصل' : 'واتساب غير مفعّل' }}
+                </Badge>
+                <Badge :variant="order_notifications_enabled ? 'default' : 'destructive'">
+                    {{ order_notifications_enabled ? 'إشعار الطلبات مفعّل' : 'إشعار الطلبات متوقف' }}
+                </Badge>
+            </div>
         </div>
 
         <p v-if="successMessage" class="rounded-xl bg-green-50 px-4 py-3 text-sm font-medium text-green-700 dark:bg-green-900/20 dark:text-green-300">
             {{ successMessage }}
         </p>
+
+        <div
+            v-if="!order_notifications_enabled"
+            class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900/40 dark:bg-amber-900/20 dark:text-amber-200"
+        >
+            إشعارات الطلبات متوقفة حالياً. فعّل
+            <span class="font-mono">WHATSAPP_ORDER_NOTIFICATIONS=true</span>
+            في ملف البيئة مع اتصال واتساب.
+        </div>
 
         <div class="rounded-xl border border-blue-100 bg-blue-50/80 px-4 py-3 text-sm text-blue-900 dark:border-blue-900/40 dark:bg-blue-900/20 dark:text-blue-200">
             <span class="font-semibold">رقم الإرسال:</span>
@@ -146,7 +161,7 @@ const activeCount = computed(() => props.recipients.filter((r) => r.is_active).l
                 </div>
 
                 <div v-if="recipients.length === 0" class="rounded-xl border border-dashed border-gray-200 px-4 py-10 text-center text-sm text-gray-500 dark:border-gray-600">
-                    لا توجد أرقام. أضف رقماً لاستقبال إشعارات الطلبات.
+                    لا توجد أرقام. أضف رقماً لاستقبال إشعار كل طلب جديد.
                 </div>
 
                 <ul v-else class="divide-y divide-gray-100 dark:divide-gray-700">

@@ -42,11 +42,10 @@ class SendOrderWhatsAppNotification implements ShouldQueue
             return;
         }
 
-        if ($order->payment_status !== 'paid' && $order->status !== 'paid') {
-            Log::info('WhatsApp order notification skipped: not paid', [
+        if (in_array($order->status, ['cancelled', 'refunded'], true)) {
+            Log::info('WhatsApp order notification skipped: cancelled/refunded', [
                 'order_id' => $order->id,
                 'order_number' => $order->order_number,
-                'payment_status' => $order->payment_status,
                 'status' => $order->status,
             ]);
 
