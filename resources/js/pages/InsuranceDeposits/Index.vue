@@ -334,7 +334,7 @@ async function markWithheld(deposit: Deposit) {
                 <div>
                     <h1 class="text-2xl font-bold text-slate-900">استرداد التأمين</h1>
                     <p class="mt-1 text-sm text-slate-500">
-                        يظهر العملاء بعد رفع الطلب من هنا. سلسلة التعميدات: مدير العمال ← المحاسب (استلام المبلغ) ← الادمن ← المحاسب (اعتماد التحويل). الصفحة تبين الاعتماد واقف عند مين.
+                        يظهر كل طلب واقف عند مين في الاعتماد.
                     </p>
                 </div>
                 <div class="flex flex-wrap items-center gap-3">
@@ -392,7 +392,6 @@ async function markWithheld(deposit: Deposit) {
                                 <th class="px-4 py-3 text-right font-semibold">رقم الفاتورة</th>
                                 <th class="px-4 py-3 text-right font-semibold">العميل</th>
                                 <th class="px-4 py-3 text-right font-semibold">مبلغ الاسترداد</th>
-                                <th class="px-4 py-3 text-right font-semibold">سلسلة التعميدات</th>
                                 <th class="px-4 py-3 text-right font-semibold">واقف عند</th>
                                 <th class="px-4 py-3 text-right font-semibold">الحالة</th>
                                 <th class="px-4 py-3 text-right font-semibold">
@@ -402,7 +401,7 @@ async function markWithheld(deposit: Deposit) {
                         </thead>
                         <tbody>
                             <tr v-if="!deposits.data.length">
-                                <td colspan="7" class="px-4 py-12 text-center text-slate-500">
+                                <td colspan="6" class="px-4 py-12 text-center text-slate-500">
                                     لا توجد مبالغ تأمين في هذا القسم حالياً.
                                 </td>
                             </tr>
@@ -526,30 +525,6 @@ async function markWithheld(deposit: Deposit) {
                                         </div>
                                     </td>
                                     <td class="px-4 py-3">
-                                        <div class="flex flex-wrap gap-1.5">
-                                            <span
-                                                v-for="step in deposit.approval_progress"
-                                                :key="step.key"
-                                                class="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1"
-                                                :class="step.completed
-                                                    ? 'bg-emerald-50 text-emerald-700 ring-emerald-200'
-                                                    : step.is_next
-                                                        ? 'bg-amber-50 text-amber-700 ring-amber-200'
-                                                        : 'bg-slate-50 text-slate-500 ring-slate-200'"
-                                                :title="step.approved_by_name || undefined"
-                                            >
-                                                {{ step.label }}
-                                                <span v-if="step.completed"> ✓</span>
-                                            </span>
-                                        </div>
-                                        <p v-if="!deposit.is_fully_approved && deposit.next_approval_label" class="mt-1.5 text-xs text-amber-600">
-                                            التالي: {{ deposit.next_approval_label }}
-                                        </p>
-                                        <p v-else-if="deposit.is_fully_approved" class="mt-1.5 text-xs text-emerald-600">
-                                            اكتملت سلسلة التعميدات
-                                        </p>
-                                    </td>
-                                    <td class="px-4 py-3">
                                         <span
                                             v-if="deposit.waiting_on_label || deposit.next_approval_label"
                                             class="inline-flex rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-semibold text-amber-800 ring-1 ring-amber-200"
@@ -607,7 +582,7 @@ async function markWithheld(deposit: Deposit) {
                                     </td>
                                 </tr>
                                 <tr v-if="expandedNotesId === deposit.id" class="border-t border-slate-100 bg-slate-50/60">
-                                    <td colspan="7" class="px-4 py-4">
+                                    <td colspan="6" class="px-4 py-4">
                                         <div class="rounded-2xl border border-slate-200 bg-white p-4 text-right shadow-sm">
                                             <div class="mb-3 flex items-center justify-between gap-2">
                                                 <p class="flex items-center gap-2 text-sm font-semibold text-slate-800">
