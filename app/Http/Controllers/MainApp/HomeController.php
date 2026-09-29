@@ -57,6 +57,7 @@ class HomeController extends Controller
             $stats[] = [
                 'label' => 'سندات معلّقة',
                 'value' => OrderPaymentReceipt::query()
+                    ->excludingInsurance()
                     ->where('approval_status', OrderPaymentReceipt::STATUS_PENDING)
                     ->count(),
                 'hint' => 'بانتظار الاعتماد',

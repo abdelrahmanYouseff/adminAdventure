@@ -87,6 +87,24 @@ class OrderPaymentReceipt extends Model
         return $this->approval_status === self::STATUS_REJECTED;
     }
 
+    public function isInsurance(): bool
+    {
+        return $this->type === 'insurance';
+    }
+
+    /**
+     * Customer payment vouchers only. Insurance approvals stay on the insurance page.
+     *
+     * @param  Builder<OrderPaymentReceipt>  $query
+     * @return Builder<OrderPaymentReceipt>
+     */
+    public function scopeExcludingInsurance(Builder $query): Builder
+    {
+        return $query->where(function (Builder $inner) {
+            $inner->whereNull('type')->orWhere('type', '!=', 'insurance');
+        });
+    }
+
     /**
      * Successful Noon gateway payments only.
      *

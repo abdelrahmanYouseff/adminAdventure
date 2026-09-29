@@ -232,7 +232,7 @@ onBeforeUnmount(() => stopResendTimer());
                     </div>
                     <p class="text-xs font-semibold tracking-[0.22em] text-teal-200/90 uppercase">Workers Manager</p>
                     <h1 class="mt-2 text-3xl font-bold tracking-tight">عالم المغامرة</h1>
-                    <p class="mt-2 text-sm text-teal-50/75">تطبيق أوامر العمل — لمدير العمال فقط</p>
+                    <p class="mt-2 text-sm text-teal-50/75">تطبيق الإدارة — لمدير العمال وأمين المستودع</p>
                 </div>
 
                 <div class="relative rounded-[1.75rem] border border-white/15 bg-white/95 p-5 text-slate-900 shadow-2xl shadow-black/30 backdrop-blur">

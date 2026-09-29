@@ -85,13 +85,13 @@ class AuthController extends Controller
             ]);
         }
 
-        $this->assertWorkersManagerCanLogin($user, $throttleKey, 'login');
+        $this->assertMainAppCanLogin($user, $throttleKey, 'login');
 
         RateLimiter::clear($throttleKey);
         Auth::login($user, false);
         $request->session()->regenerate();
 
-        return Inertia::location('/main-app');
+        return $this->redirectAfterLogin($user);
     }
 
     public function sendOtp(Request $request): RedirectResponse
@@ -123,7 +123,7 @@ class AuthController extends Controller
             ]);
         }
 
-        $this->assertWorkersManagerCanLogin($user, $throttleKey, 'phone');
+        $this->assertMainAppCanLogin($user, $throttleKey, 'phone');
 
         $e164 = AuthenticaOtpService::formatPhoneE164($data['phone']);
 
@@ -134,7 +134,7 @@ class AuthController extends Controller
             $request->session()->regenerate();
             Cache::forget($this->cacheKey($data['phone']));
 
-            return redirect('/main-app');
+            return $this->redirectAfterLogin($user);
         }
 
         if ($this->shouldForceFixedOtpForAll() || $this->isFixedOtpPhone($data['phone'])) {
@@ -238,7 +238,7 @@ class AuthController extends Controller
             ]);
         }
 
-        $this->assertWorkersManagerCanLogin($user, $throttleKey, 'phone');
+        $this->assertMainAppCanLogin($user, $throttleKey, 'phone');
 
         Cache::forget($this->cacheKey($data['phone']));
         RateLimiter::clear($throttleKey);
@@ -246,7 +246,7 @@ class AuthController extends Controller
         Auth::login($user, false);
         $request->session()->regenerate();
 
-        return Inertia::location('/main-app');
+        return $this->redirectAfterLogin($user);
     }
 
     public function destroy(Request $request): RedirectResponse|HttpResponse
@@ -263,7 +263,7 @@ class AuthController extends Controller
         return redirect()->route('main.login');
     }
 
-    private function assertWorkersManagerCanLogin(User $user, string $throttleKey, string $errorField): void
+    private function assertMainAppCanLogin(User $user, string $throttleKey, string $errorField): void
     {
         if ($user->isWorker()) {
             RateLimiter::hit($throttleKey);
@@ -273,13 +273,22 @@ class AuthController extends Controller
             ]);
         }
 
-        if (! $user->isWorkersManager()) {
+        if (! $user->isWorkersManager() && ! $user->isWarehouseKeeper()) {
             RateLimiter::hit($throttleKey);
 
             throw ValidationException::withMessages([
-                $errorField => 'تطبيق الإدارة مخصص لمدير العمال فقط.',
+                $errorField => 'تطبيق الإدارة مخصص لمدير العمال وأمين المستودع.',
             ]);
         }
+    }
+
+    private function redirectAfterLogin(User $user): RedirectResponse|HttpResponse
+    {
+        if ($user->isWarehouseKeeper()) {
+            return redirect()->route('warehouse.index');
+        }
+
+        return Inertia::location('/main-app');
     }
 
     private function resolveUserFromLogin(string $login): ?User

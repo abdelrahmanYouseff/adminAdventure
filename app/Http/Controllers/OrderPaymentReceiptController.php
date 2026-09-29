@@ -29,6 +29,7 @@ class OrderPaymentReceiptController extends Controller
         $canApprove = $this->canApprove($user);
 
         $receipts = OrderPaymentReceipt::query()
+            ->excludingInsurance()
             ->with([
                 'order:id,user_id,order_number,customer_name,customer_phone,customer_email,address,total_amount,amount_paid,currency,notes',
                 'order.user:id,customer_name,phone,phone_secondary,email,iban,iban_image',
@@ -112,11 +113,12 @@ class OrderPaymentReceiptController extends Controller
             ],
         );
 
+        $voucherCounts = OrderPaymentReceipt::query()->excludingInsurance();
         $statusCounts = [
-            'all' => OrderPaymentReceipt::query()->count(),
-            'pending' => OrderPaymentReceipt::query()->where('approval_status', OrderPaymentReceipt::STATUS_PENDING)->count(),
-            'approved' => OrderPaymentReceipt::query()->where('approval_status', OrderPaymentReceipt::STATUS_APPROVED)->count(),
-            'rejected' => OrderPaymentReceipt::query()->where('approval_status', OrderPaymentReceipt::STATUS_REJECTED)->count(),
+            'all' => (clone $voucherCounts)->count(),
+            'pending' => (clone $voucherCounts)->where('approval_status', OrderPaymentReceipt::STATUS_PENDING)->count(),
+            'approved' => (clone $voucherCounts)->where('approval_status', OrderPaymentReceipt::STATUS_APPROVED)->count(),
+            'rejected' => (clone $voucherCounts)->where('approval_status', OrderPaymentReceipt::STATUS_REJECTED)->count(),
         ];
 
         return Inertia::render('PaymentReceipts/Index', [
@@ -140,6 +142,10 @@ class OrderPaymentReceiptController extends Controller
     {
         if (! $this->canApprove($request->user())) {
             return back()->with('error', 'اعتماد سندات القبض متاح للمحاسب والمسؤول فقط.');
+        }
+
+        if ($receipt->isInsurance()) {
+            return back()->with('error', 'اعتماد التأمين يتم من صفحة استرداد التأمين وليس من سندات القبض.');
         }
 
         if ($receipt->isApproved()) {
@@ -182,6 +188,10 @@ class OrderPaymentReceiptController extends Controller
     {
         if (! $this->canApprove($request->user())) {
             return back()->with('error', 'رفض سندات القبض متاح للمحاسب والمسؤول فقط.');
+        }
+
+        if ($receipt->isInsurance()) {
+            return back()->with('error', 'اعتماد التأمين يتم من صفحة استرداد التأمين وليس من سندات القبض.');
         }
 
         if ($receipt->isApproved()) {

@@ -388,7 +388,7 @@ async function markWithheld(deposit: Deposit) {
                     <table class="w-full min-w-[980px] border-collapse text-sm">
                         <thead>
                             <tr class="bg-slate-50 text-slate-600">
-                                <th class="px-4 py-3 text-right font-semibold">رقم الطلب</th>
+                                <th class="px-4 py-3 text-right font-semibold">رقم الفاتورة</th>
                                 <th class="px-4 py-3 text-right font-semibold">العميل</th>
                                 <th class="px-4 py-3 text-right font-semibold">مبلغ الاسترداد</th>
                                 <th class="px-4 py-3 text-right font-semibold">سلسلة التعميدات</th>
@@ -419,7 +419,7 @@ async function markWithheld(deposit: Deposit) {
                                                     dir="ltr"
                                                     @click.stop
                                                 >
-                                                    {{ deposit.order_number }}
+                                                    {{ deposit.invoice_number || '—' }}
                                                 </Link>
                                                 <span class="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600">
                                                     <MessageSquareText class="h-3 w-3" />
@@ -430,9 +430,6 @@ async function markWithheld(deposit: Deposit) {
                                                     />
                                                 </span>
                                             </div>
-                                            <p v-if="deposit.invoice_number" class="w-full text-xs text-slate-400" dir="ltr">
-                                                {{ deposit.invoice_number }}
-                                            </p>
                                             <p class="w-full text-xs text-slate-400">
                                                 تعميد العمال: {{ deposit.approved_at ? formatDateTime(deposit.approved_at) : '—' }}
                                             </p>

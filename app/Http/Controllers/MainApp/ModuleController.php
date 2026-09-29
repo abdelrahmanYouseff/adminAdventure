@@ -289,6 +289,7 @@ class ModuleController extends Controller
     private function paymentReceiptsData(string $search): array
     {
         $query = OrderPaymentReceipt::query()
+            ->excludingInsurance()
             ->with('order:id,order_number,customer_name,currency')
             ->latest('id');
 
@@ -304,9 +305,9 @@ class ModuleController extends Controller
 
         return [
             'stats' => [
-                ['label' => 'معلّق', 'value' => OrderPaymentReceipt::query()->where('approval_status', 'pending')->count()],
-                ['label' => 'معتمد', 'value' => OrderPaymentReceipt::query()->where('approval_status', 'approved')->count()],
-                ['label' => 'مرفوض', 'value' => OrderPaymentReceipt::query()->where('approval_status', 'rejected')->count()],
+                ['label' => 'معلّق', 'value' => OrderPaymentReceipt::query()->excludingInsurance()->where('approval_status', 'pending')->count()],
+                ['label' => 'معتمد', 'value' => OrderPaymentReceipt::query()->excludingInsurance()->where('approval_status', 'approved')->count()],
+                ['label' => 'مرفوض', 'value' => OrderPaymentReceipt::query()->excludingInsurance()->where('approval_status', 'rejected')->count()],
             ],
             'items' => $query->limit(40)->get()->map(fn (OrderPaymentReceipt $receipt) => [
                 'id' => $receipt->id,

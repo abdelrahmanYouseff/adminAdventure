@@ -122,6 +122,33 @@ class PaymentReceiptAccumulationTest extends TestCase
             );
     }
 
+    public function test_insurance_receipts_stay_off_the_payment_receipts_page(): void
+    {
+        $accounts = User::factory()->staff(User::ROLE_ACCOUNTS)->create();
+        $order = $this->makeOrder($accounts, 'عميل التأمين', 1000);
+        $service = app(OrderPaymentReceiptService::class);
+
+        $payment = $service->recordPayment($order, 400, $accounts, 'bank_transfer', 'payment');
+        $insurance = $service->recordInsuranceDue($order->fresh(), 200, $accounts);
+
+        $this->actingAs($accounts)
+            ->get(route('payment-receipts.index'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('PaymentReceipts/Index')
+                ->has('groups.data', 1)
+                ->where('groups.data.0.orders.0.receipts.0.id', $payment->id)
+                ->where('stats.pending', 1)
+            );
+
+        $this->actingAs($accounts)
+            ->post(route('payment-receipts.approve', $insurance))
+            ->assertRedirect()
+            ->assertSessionHas('error');
+
+        $this->assertTrue($insurance->fresh()->isPending());
+    }
+
     private function makeOrder(User $user, string $customerName, float $total, string $phone = '0500000000'): Order
     {
         return Order::query()->create([

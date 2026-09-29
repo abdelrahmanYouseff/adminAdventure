@@ -88,6 +88,7 @@ class SidebarNavBadges
     public static function pendingPaymentReceiptsCount(): int
     {
         return OrderPaymentReceipt::query()
+            ->excludingInsurance()
             ->where('approval_status', OrderPaymentReceipt::STATUS_PENDING)
             ->count();
     }
