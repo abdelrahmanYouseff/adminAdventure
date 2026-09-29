@@ -28,6 +28,7 @@ interface DepositNote {
 interface Deposit {
     id: number;
     order_number: string;
+    invoice_id: number | null;
     invoice_number: string | null;
     customer_name: string;
     customer_phone: string | null;
@@ -443,6 +444,14 @@ async function markWithheld(deposit: Deposit) {
                                             >
                                                 عرض إيصال الدفع ({{ deposit.payment_proof_urls.length }})
                                             </a>
+                                            <Link
+                                                v-if="deposit.invoice_id"
+                                                :href="`/invoices/${deposit.invoice_id}`"
+                                                class="w-full text-xs font-medium text-sky-600 hover:underline"
+                                                @click.stop
+                                            >
+                                                مراجعة الفاتورة ←
+                                            </Link>
                                             <Link
                                                 :href="`/insurance-deposits/${deposit.id}`"
                                                 class="w-full text-xs font-medium text-sky-600 hover:underline"

@@ -362,6 +362,7 @@ class InsuranceDepositController extends Controller
         return [
             'id' => $order->id,
             'order_number' => $order->order_number,
+            'invoice_id' => $order->invoice?->id,
             'invoice_number' => $order->invoice?->invoice_number,
             'customer_name' => $order->customer_name,
             'customer_phone' => $order->customer_phone,

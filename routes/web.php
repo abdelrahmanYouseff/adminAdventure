@@ -424,7 +424,7 @@ Route::patch('invoices/update-overdue', [InvoiceController::class, 'updateOverdu
     ->name('invoices.update-overdue');
 
 Route::get('invoices/{invoice}', [InvoiceController::class, 'show'])
-    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,accounts'])
+    ->middleware(['auth', 'verified', 'role:admin,general_manager,manager,accounts,workers_manager'])
     ->name('invoices.show');
 
 Route::get('invoices/{invoice}/pdf', [InvoiceController::class, 'generatePdf'])
