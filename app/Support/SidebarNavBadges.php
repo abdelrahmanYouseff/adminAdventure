@@ -18,7 +18,7 @@ class SidebarNavBadges
     private const CACHE_TTL_SECONDS = 45;
 
     /**
-     * @return array{work_orders: int, warehouse: int, returns: int, payment_receipts: int}
+     * @return array{work_orders: int, warehouse: int, returns: int, payment_receipts: int, insurance_deposits: int, inbox: int}
      */
     public static function forUser(?User $user): array
     {
@@ -28,17 +28,19 @@ class SidebarNavBadges
                 'warehouse' => 0,
                 'returns' => 0,
                 'payment_receipts' => 0,
+                'insurance_deposits' => 0,
                 'inbox' => 0,
             ];
         }
 
-        /** @var array{work_orders: int, warehouse: int, returns: int, payment_receipts: int, inbox: int} */
+        /** @var array{work_orders: int, warehouse: int, returns: int, payment_receipts: int, insurance_deposits: int, inbox: int} */
         return Cache::remember(self::CACHE_KEY, self::CACHE_TTL_SECONDS, static function (): array {
             return [
                 'work_orders' => static::openWorkOrdersCount(),
                 'warehouse' => static::pendingWarehouseCount(),
                 'returns' => static::openReturnsCount(),
                 'payment_receipts' => static::pendingPaymentReceiptsCount(),
+                'insurance_deposits' => static::pendingInsuranceDepositsCount(),
                 'inbox' => static::inboxNeedsHumanCount(),
             ];
         });
@@ -90,6 +92,21 @@ class SidebarNavBadges
         return OrderPaymentReceipt::query()
             ->excludingInsurance()
             ->where('approval_status', OrderPaymentReceipt::STATUS_PENDING)
+            ->count();
+    }
+
+    /**
+     * Insurance refunds still waiting on the approval chain.
+     */
+    public static function pendingInsuranceDepositsCount(): int
+    {
+        return Order::query()
+            ->whereNotNull('insurance_refund_requested_at')
+            ->where('insurance_status', 'pending')
+            ->where(function ($query) {
+                $query->where('insurance_amount', '>', 0)
+                    ->orWhere('insurance_original_amount', '>', 0);
+            })
             ->count();
     }
 

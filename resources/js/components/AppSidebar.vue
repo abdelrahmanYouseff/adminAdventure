@@ -46,6 +46,7 @@ const sidebarBadges = computed(() => (page.props.sidebarBadges as {
     warehouse?: number;
     returns?: number;
     payment_receipts?: number;
+    insurance_deposits?: number;
     inbox?: number;
 } | undefined) ?? {});
 const searchQuery = ref('');
@@ -297,6 +298,10 @@ function badgeForHref(href?: string): number | undefined {
 
     if (href === '/payment-receipts' || href === route('payment-receipts.index')) {
         return badges.payment_receipts || undefined;
+    }
+
+    if (href === '/insurance-deposits' || href === route('insurance-deposits.index')) {
+        return badges.insurance_deposits || undefined;
     }
 
     if (href === '/inbox') {
