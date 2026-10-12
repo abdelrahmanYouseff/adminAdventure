@@ -131,6 +131,12 @@
             <td class="label">الموظف</td>
             <td>{{ $receipt->recordedBy?->name ?: '—' }}</td>
         </tr>
+        @if (filled($order->payment_id))
+        <tr>
+            <td class="label">مرجع بوابة الدفع</td>
+            <td class="ltr" colspan="3">{{ $order->payment_id }}</td>
+        </tr>
+        @endif
     </table>
 
     <table class="items">

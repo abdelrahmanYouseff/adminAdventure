@@ -1,10 +1,11 @@
 <script setup lang="ts">
+import { computed } from 'vue';
 import { Head, Link } from '@inertiajs/vue3';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import { ArrowRight, Download, Mail, Printer } from 'lucide-vue-next';
+import { ArrowRight, Download, Mail, Printer, Receipt } from 'lucide-vue-next';
 import { formatCurrency, formatDate as formatDateValue, formatDateTime as formatDateTimeValue } from '@/lib/formatNumber';
 import type { BreadcrumbItem } from '@/types';
 
@@ -18,9 +19,13 @@ interface InvoiceUser {
 
 interface InvoiceOrder {
     id: number;
+    order_number?: string | null;
     customer_name?: string | null;
     customer_email?: string | null;
     customer_phone?: string | null;
+    payment_method?: string | null;
+    payment_id?: string | null;
+    payment_order_reference?: string | null;
     payment_receipts?: PaymentReceipt[] | null;
 }
 
@@ -62,12 +67,27 @@ const breadcrumbs: BreadcrumbItem[] = [
     { title: `فاتورة ${props.invoice.invoice_number}`, href: route('invoices.show', props.invoice.id) },
 ];
 
+const isPaid = computed(() => props.invoice.status === 'paid');
+const gatewayReferenceId = computed(() => {
+    const value = props.invoice.order?.payment_id?.trim();
+    return value ? value : null;
+});
+const canPrintReceiptVoucher = computed(() => isPaid.value && !!props.invoice.order?.id);
+
 function printInvoice() {
     window.open(route('invoices.pdf', props.invoice.id), '_blank');
 }
 
 function downloadPDF() {
     window.location.href = route('invoices.pdf', props.invoice.id);
+}
+
+function printReceiptVoucher() {
+    if (!canPrintReceiptVoucher.value || !props.invoice.order?.id) {
+        return;
+    }
+
+    window.open(route('orders.payment-receipt', props.invoice.order.id), '_blank');
 }
 
 function resendInvoice() {
@@ -133,6 +153,21 @@ function getStatusBadgeClass(status: string) {
                     </h2>
                 </div>
                 <div class="flex flex-wrap items-center gap-2">
+                    <Button
+                        variant="default"
+                        size="sm"
+                        class="gap-2"
+                        :disabled="!canPrintReceiptVoucher"
+                        :title="
+                            canPrintReceiptVoucher
+                                ? 'طباعة سند القبض'
+                                : 'يتاح بعد اكتمال الدفع بنجاح'
+                        "
+                        @click="printReceiptVoucher"
+                    >
+                        <Receipt class="h-4 w-4" />
+                        طباعة سند القبض
+                    </Button>
                     <Button variant="outline" size="sm" class="gap-2" @click="printInvoice">
                         <Printer class="h-4 w-4" />
                         عرض PDF
@@ -141,6 +176,28 @@ function getStatusBadgeClass(status: string) {
                         <Download class="h-4 w-4" />
                         تحميل PDF
                     </Button>
+                </div>
+            </div>
+
+            <div
+                v-if="isPaid"
+                class="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 dark:border-emerald-900/60 dark:bg-emerald-950/30"
+            >
+                <div class="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                        <p class="text-sm font-medium text-emerald-900 dark:text-emerald-100">
+                            مرجع بوابة الدفع
+                        </p>
+                        <p class="text-xs text-emerald-700/80 dark:text-emerald-300/80">
+                            رقم المرجع من بوابة الدفع بعد اكتمال السداد
+                        </p>
+                    </div>
+                    <p
+                        class="font-mono text-base font-semibold tracking-wide text-emerald-950 dark:text-emerald-50"
+                        dir="ltr"
+                    >
+                        {{ gatewayReferenceId || 'غير متوفر' }}
+                    </p>
                 </div>
             </div>
 
@@ -171,11 +228,15 @@ function getStatusBadgeClass(status: string) {
                                 </div>
                                 <div>
                                     <Label class="text-sm text-gray-500">طريقة الدفع</Label>
-                                    <p class="text-lg">{{ formatPaymentMethod(invoice.payment_method) }}</p>
+                                    <p class="text-lg">{{ formatPaymentMethod(invoice.payment_method || invoice.order?.payment_method) }}</p>
                                 </div>
                                 <div>
                                     <Label class="text-sm text-gray-500">تاريخ الإصدار</Label>
                                     <p class="text-lg" dir="ltr">{{ formatDate(invoice.created_at) }}</p>
+                                </div>
+                                <div v-if="gatewayReferenceId">
+                                    <Label class="text-sm text-gray-500">مرجع بوابة الدفع</Label>
+                                    <p class="text-lg font-mono font-semibold" dir="ltr">{{ gatewayReferenceId }}</p>
                                 </div>
                             </div>
 

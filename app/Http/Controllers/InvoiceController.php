@@ -73,7 +73,7 @@ class InvoiceController extends Controller
         $invoice->load([
             'user',
             'rental.product',
-            'order:id,invoice_id,customer_name,customer_email,customer_phone',
+            'order:id,invoice_id,order_number,customer_name,customer_email,customer_phone,payment_method,payment_id,payment_order_reference',
             'order.paymentReceipts' => fn ($query) => $query
                 ->where('approval_status', \App\Models\OrderPaymentReceipt::STATUS_APPROVED)
                 ->orderBy('created_at'),
