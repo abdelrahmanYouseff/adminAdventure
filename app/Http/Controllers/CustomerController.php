@@ -7,6 +7,7 @@ use App\Models\Order;
 use App\Models\Product;
 use App\Models\Quotation;
 use App\Models\User;
+use App\Models\WorkerOrder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -301,6 +302,7 @@ class CustomerController extends Controller
             'iban' => ['nullable', 'string', 'max:34'],
             'iban_image' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
             'remove_iban_image' => ['nullable', 'boolean'],
+            'update_previous_invoices' => ['nullable', 'boolean'],
         ], [
             'name.required' => 'اسم العميل مطلوب.',
             'email.email' => 'البريد الإلكتروني غير صالح.',
@@ -308,6 +310,10 @@ class CustomerController extends Controller
             'iban_image.mimes' => 'صيغ صورة الآيبان المسموحة: jpg, jpeg, png, webp.',
             'iban_image.max' => 'حجم صورة الآيبان يجب ألا يتجاوز 5 ميجابايت.',
         ]);
+
+        $ordersToRename = $request->boolean('update_previous_invoices')
+            ? $this->ordersForContact($user->id, $user->phone, $user->email)
+            : collect();
 
         $user->customer_name = $validated['name'];
         $user->phone = $validated['phone'] ?: null;
@@ -335,6 +341,8 @@ class CustomerController extends Controller
 
         $user->save();
 
+        $this->renameOrderSnapshots($ordersToRename, $validated['name']);
+
         return redirect()
             ->route('customers')
             ->with('success', 'تم تحديث بيانات العميل بنجاح.');
@@ -356,6 +364,7 @@ class CustomerController extends Controller
             'iban_image' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
             'remove_iban_image' => ['nullable', 'boolean'],
             'notes' => ['nullable', 'string', 'max:2000'],
+            'update_previous_invoices' => ['nullable', 'boolean'],
         ], [
             'company_name.required' => 'اسم الشركة مطلوب.',
             'email.email' => 'البريد الإلكتروني غير صالح.',
@@ -363,6 +372,10 @@ class CustomerController extends Controller
             'iban_image.mimes' => 'صيغ صورة الآيبان المسموحة: jpg, jpeg, png, webp.',
             'iban_image.max' => 'حجم صورة الآيبان يجب ألا يتجاوز 5 ميجابايت.',
         ]);
+
+        $ordersToRename = $request->boolean('update_previous_invoices')
+            ? $this->ordersForContact(null, $client->phone, $client->email)
+            : collect();
 
         $client->company_name = $validated['company_name'];
         $client->contact_name = $validated['contact_name'] ?: null;
@@ -390,6 +403,8 @@ class CustomerController extends Controller
         }
 
         $client->save();
+
+        $this->renameOrderSnapshots($ordersToRename, $validated['company_name']);
 
         return redirect()
             ->route('customers')
@@ -498,6 +513,20 @@ class CustomerController extends Controller
                 'orders_count' => count($orders),
             ],
         ]);
+    }
+
+    /**
+     * @param  Collection<int, Order>  $orders
+     */
+    private function renameOrderSnapshots(Collection $orders, string $name): void
+    {
+        $ids = $orders->pluck('id')->filter()->values();
+        if ($ids->isEmpty()) {
+            return;
+        }
+
+        Order::query()->whereIn('id', $ids)->update(['customer_name' => $name]);
+        WorkerOrder::query()->whereIn('order_id', $ids)->update(['customer_name' => $name]);
     }
 
     /**

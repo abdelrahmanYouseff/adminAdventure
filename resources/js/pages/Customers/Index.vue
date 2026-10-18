@@ -134,6 +134,7 @@ const form = useForm({
     iban_image: null as File | null,
     remove_iban_image: false,
     notes: '',
+    update_previous_invoices: false,
 });
 
 const ibanImageInput = ref<HTMLInputElement | null>(null);
@@ -326,6 +327,7 @@ function openEditForm(customer: Customer) {
     form.date_of_birth = customer.date_of_birth ?? '';
     form.iban = customer.iban ?? '';
     form.notes = customer.notes ?? '';
+    form.update_previous_invoices = false;
     resetIbanImageUi();
     showModal.value = true;
 }
@@ -996,6 +998,19 @@ function quotationPdfUrl(id: number): string {
                             <Label for="company_name">اسم الشركة <span class="text-red-500">*</span></Label>
                             <Input id="company_name" v-model="form.company_name" required :class="{ 'border-red-500': form.errors.company_name }" />
                             <p v-if="form.errors.company_name" class="text-xs text-red-500">{{ form.errors.company_name }}</p>
+                            <label
+                                v-if="formMode === 'edit'"
+                                for="update_previous_invoices"
+                                class="mt-2 flex items-center gap-2 text-sm text-neutral-700 dark:text-neutral-300"
+                            >
+                                <input
+                                    id="update_previous_invoices"
+                                    v-model="form.update_previous_invoices"
+                                    type="checkbox"
+                                    class="h-4 w-4 rounded border-neutral-300"
+                                />
+                                تغيير الاسم أيضاً على الفواتير السابقة؟
+                            </label>
                         </div>
                         <div class="space-y-1.5">
                             <Label for="contact_name">اسم المسؤول</Label>
@@ -1008,6 +1023,18 @@ function quotationPdfUrl(id: number): string {
                             <Label for="name">اسم العميل <span class="text-red-500">*</span></Label>
                             <Input id="name" v-model="form.name" required :class="{ 'border-red-500': form.errors.name }" />
                             <p v-if="form.errors.name" class="text-xs text-red-500">{{ form.errors.name }}</p>
+                            <label
+                                for="update_previous_invoices_individual"
+                                class="mt-2 flex items-center gap-2 text-sm text-neutral-700 dark:text-neutral-300"
+                            >
+                                <input
+                                    id="update_previous_invoices_individual"
+                                    v-model="form.update_previous_invoices"
+                                    type="checkbox"
+                                    class="h-4 w-4 rounded border-neutral-300"
+                                />
+                                تغيير الاسم أيضاً على الفواتير السابقة؟
+                            </label>
                         </div>
                         <div class="space-y-1.5">
                             <Label for="gender">الجنس</Label>
