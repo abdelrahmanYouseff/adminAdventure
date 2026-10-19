@@ -117,7 +117,6 @@ class OrderController extends Controller
             $order->setAttribute(
                 'can_edit',
                 $canEditTime
-                && ! $locked
                 && ! in_array($order->status, ['cancelled', 'refunded'], true)
             );
             $order->setAttribute('can_delete', $canEditTime && ! $locked);
@@ -212,8 +211,7 @@ class OrderController extends Controller
         $viewer = request()->user();
         $order->setAttribute(
             'can_edit',
-            ! $order->is_locked
-            && ! in_array($order->status, ['cancelled', 'refunded'], true)
+            ! in_array($order->status, ['cancelled', 'refunded'], true)
             && (bool) $viewer?->hasAnyRole(
                 User::ROLE_ADMIN,
                 User::ROLE_GENERAL_MANAGER,
@@ -309,12 +307,6 @@ class OrderController extends Controller
             return redirect()
                 ->route('orders.show', $order)
                 ->with('error', 'لا يمكن تعديل طلب ملغي أو مسترد.');
-        }
-
-        if ($this->isPaidAndNothingPending($order)) {
-            return redirect()
-                ->route('orders.show', $order)
-                ->with('error', 'لا يمكن تعديل طلب مدفوع بالكامل ولا توجد عليه إجراءات معلّقة.');
         }
 
         $order->load(['products']);
@@ -418,10 +410,6 @@ class OrderController extends Controller
 
         if (in_array($order->status, ['cancelled', 'refunded'], true)) {
             return back()->with('error', 'لا يمكن تعديل طلب ملغي أو مسترد.');
-        }
-
-        if ($this->isPaidAndNothingPending($order)) {
-            return back()->with('error', 'لا يمكن تعديل طلب مدفوع بالكامل ولا توجد عليه إجراءات معلّقة.');
         }
 
         $validated = $request->validate([

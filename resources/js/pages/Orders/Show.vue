@@ -284,7 +284,7 @@ const orderItems = () => {
             </div>
             <div class="flex flex-wrap items-center gap-2">
                 <Button
-                    v-if="order.can_edit && !order.is_locked"
+                    v-if="order.can_edit"
                     as-child
                     variant="outline"
                     class="h-10 gap-2"

@@ -1129,7 +1129,7 @@ function formatActivityDate(date: string | null): string {
                                                 إضافة ملاحظة
                                             </DropdownMenuItem>
                                             <DropdownMenuItem
-                                                v-if="order.can_edit && !isOrderLocked(order)"
+                                                v-if="order.can_edit"
                                                 as-child
                                             >
                                                 <Link :href="route('orders.edit', order.id)" class="flex items-center gap-2">
