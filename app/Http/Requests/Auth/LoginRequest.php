@@ -36,7 +36,12 @@ class LoginRequest extends FormRequest
     {
         $this->ensureIsNotRateLimited();
 
-        if (! Auth::attempt($this->only('email', 'password'), $this->boolean('remember'))) {
+        // Remember-me needs users.remember_token. Prefer the checkbox when the
+        // column exists; otherwise force false so login still succeeds.
+        $remember = $this->boolean('remember')
+            && \Illuminate\Support\Facades\Schema::hasColumn('users', 'remember_token');
+
+        if (! Auth::attempt($this->only('email', 'password'), $remember)) {
             RateLimiter::hit($this->throttleKey());
 
             throw ValidationException::withMessages([

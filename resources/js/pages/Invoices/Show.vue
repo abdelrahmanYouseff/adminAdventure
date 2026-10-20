@@ -5,7 +5,7 @@ import AppLayout from '@/layouts/AppLayout.vue';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import { ArrowRight, Download, Mail, Printer, Receipt } from 'lucide-vue-next';
+import { ArrowRight, Download, Mail, Pencil, Printer, Receipt } from 'lucide-vue-next';
 import { formatCurrency, formatDate as formatDateValue, formatDateTime as formatDateTimeValue } from '@/lib/formatNumber';
 import type { BreadcrumbItem } from '@/types';
 
@@ -20,6 +20,7 @@ interface InvoiceUser {
 interface InvoiceOrder {
     id: number;
     order_number?: string | null;
+    status?: string | null;
     customer_name?: string | null;
     customer_email?: string | null;
     customer_phone?: string | null;
@@ -59,6 +60,7 @@ interface Invoice {
 
 const props = defineProps<{
     invoice: Invoice;
+    can_edit_order?: boolean;
 }>();
 
 const breadcrumbs: BreadcrumbItem[] = [
@@ -73,6 +75,7 @@ const gatewayReferenceId = computed(() => {
     return value ? value : null;
 });
 const canPrintReceiptVoucher = computed(() => isPaid.value && !!props.invoice.order?.id);
+const canEditOrder = computed(() => Boolean(props.can_edit_order && props.invoice.order?.id));
 
 function printInvoice() {
     window.open(route('invoices.pdf', props.invoice.id), '_blank');
@@ -153,6 +156,18 @@ function getStatusBadgeClass(status: string) {
                     </h2>
                 </div>
                 <div class="flex flex-wrap items-center gap-2">
+                    <Button
+                        v-if="canEditOrder"
+                        as-child
+                        variant="default"
+                        size="sm"
+                        class="gap-2"
+                    >
+                        <Link :href="route('orders.edit', invoice.order!.id)">
+                            <Pencil class="h-4 w-4" />
+                            تعديل بنود الفاتورة
+                        </Link>
+                    </Button>
                     <Button
                         variant="default"
                         size="sm"
@@ -334,6 +349,17 @@ function getStatusBadgeClass(status: string) {
                             <CardTitle>إجراءات</CardTitle>
                         </CardHeader>
                         <CardContent class="space-y-3">
+                            <Button
+                                v-if="canEditOrder"
+                                as-child
+                                variant="outline"
+                                class="w-full gap-2"
+                            >
+                                <Link :href="route('orders.edit', invoice.order!.id)">
+                                    <Pencil class="h-4 w-4" />
+                                    تعديل بنود الفاتورة
+                                </Link>
+                            </Button>
                             <Button variant="outline" class="w-full gap-2" @click="resendInvoice">
                                 <Mail class="h-4 w-4" />
                                 إرسال بالبريد

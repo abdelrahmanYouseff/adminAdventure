@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Exports\InvoicesExport;
 use App\Models\Brand;
 use App\Models\Invoice;
+use App\Models\User;
 use App\Services\InvoicePdfService;
 use App\Support\InvoicePdfData;
 use Carbon\Carbon;
@@ -44,6 +45,13 @@ class InvoiceController extends Controller
             ->paginate($perPage)
             ->withQueryString();
 
+        $canEditOrders = $this->viewerCanEditOrders($request->user());
+        $invoices->getCollection()->transform(function (Invoice $invoice) use ($canEditOrders) {
+            $invoice->setAttribute('can_edit_order', $this->canEditInvoiceOrder($invoice, $canEditOrders));
+
+            return $invoice;
+        });
+
         $brands = Brand::query()
             ->withCount([
                 'invoices' => fn ($query) => $query->where('status', 'paid'),
@@ -73,15 +81,18 @@ class InvoiceController extends Controller
         $invoice->load([
             'user',
             'rental.product',
-            'order:id,invoice_id,order_number,customer_name,customer_email,customer_phone,payment_method,payment_id,payment_order_reference',
+            'order:id,invoice_id,order_number,status,customer_name,customer_email,customer_phone,payment_method,payment_id,payment_order_reference',
             'order.paymentReceipts' => fn ($query) => $query
                 ->where('approval_status', \App\Models\OrderPaymentReceipt::STATUS_APPROVED)
                 ->orderBy('created_at'),
         ]);
         abort_unless($this->isFinalInvoice($invoice), 404);
 
+        $canEditOrders = $this->viewerCanEditOrders(request()->user());
+
         return Inertia::render('Invoices/Show', [
             'invoice' => $invoice,
+            'can_edit_order' => $this->canEditInvoiceOrder($invoice, $canEditOrders),
         ]);
     }
 
@@ -234,6 +245,24 @@ class InvoiceController extends Controller
         }
 
         // الطلب مدفوع بالكامل أو الفاتورة اتولدت بعد اكتمال السداد
+        return ! in_array($invoice->order->status, ['cancelled', 'refunded'], true);
+    }
+
+    private function viewerCanEditOrders(?User $user): bool
+    {
+        return (bool) $user?->hasAnyRole(
+            User::ROLE_ADMIN,
+            User::ROLE_GENERAL_MANAGER,
+            User::ROLE_MANAGER,
+        );
+    }
+
+    private function canEditInvoiceOrder(Invoice $invoice, bool $viewerCanEditOrders): bool
+    {
+        if (! $viewerCanEditOrders || ! $invoice->order) {
+            return false;
+        }
+
         return ! in_array($invoice->order->status, ['cancelled', 'refunded'], true);
     }
 

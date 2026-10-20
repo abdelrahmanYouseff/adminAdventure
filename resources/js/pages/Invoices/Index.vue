@@ -17,6 +17,7 @@ import {
     Eye,
     FileText,
     MoreVertical,
+    Pencil,
     Search,
     CalendarDays,
 } from 'lucide-vue-next';
@@ -31,6 +32,7 @@ interface InvoiceUser {
 
 interface InvoiceOrder {
     id: number;
+    status?: string | null;
     customer_name?: string | null;
     customer_email?: string | null;
     customer_phone?: string | null;
@@ -52,6 +54,7 @@ interface InvoiceItem {
     user?: InvoiceUser | null;
     order?: InvoiceOrder | null;
     brand?: InvoiceBrand | null;
+    can_edit_order?: boolean;
 }
 
 interface BrandOption {
@@ -451,6 +454,14 @@ function exportInvoicesXlsx() {
                                             <DropdownMenuItem class="gap-2" @click="openInvoice(invoice)">
                                                 <Eye class="size-4" />
                                                 عرض الفاتورة
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem
+                                                v-if="invoice.can_edit_order && invoice.order?.id"
+                                                class="gap-2"
+                                                @click="router.visit(route('orders.edit', invoice.order.id))"
+                                            >
+                                                <Pencil class="size-4" />
+                                                تعديل بنود الفاتورة
                                             </DropdownMenuItem>
                                             <DropdownMenuItem class="gap-2" @click="viewInvoice(invoice)">
                                                 <FileText class="size-4" />
