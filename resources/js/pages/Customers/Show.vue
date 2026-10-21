@@ -61,6 +61,8 @@ interface Quotation {
     valid_until: string | null;
     notes: string | null;
     subtotal: number;
+    discount_percent?: number;
+    subtotal_discount?: number;
     tax_amount: number;
     insurance_amount: number;
     total_amount: number;
@@ -985,6 +987,10 @@ function receiptUrl(order: OrderRow, receiptId?: number | null) {
                             <div>
                                 <span class="text-muted-foreground">المجموع الفرعي: </span>
                                 <span class="tabular-nums" dir="ltr">{{ formatPrice(quotation.subtotal) }} ر.س</span>
+                            </div>
+                            <div v-if="Number(quotation.subtotal_discount) > 0">
+                                <span class="text-muted-foreground">خصم {{ quotation.discount_percent }}%: </span>
+                                <span class="tabular-nums text-amber-700" dir="ltr">- {{ formatPrice(quotation.subtotal_discount) }} ر.س</span>
                             </div>
                             <div>
                                 <span class="text-muted-foreground">الضريبة: </span>

@@ -333,7 +333,7 @@ function submit() {
                 <div class="mb-5 flex items-center gap-3 rounded-xl bg-emerald-50 px-4 py-3 text-emerald-800 ring-1 ring-emerald-100">
                     <ShieldPlus class="h-5 w-5 shrink-0" />
                     <p class="text-sm">
-                        بعد الإرسال يبقى الطلب هنا بانتظار اعتماد مدير العمال، ثم المحاسب، ثم الادمن، ثم المحاسب لاعتماد التحويل.
+                        بعد الإرسال يبقى الطلب هنا بانتظار اعتماد مدير العمال، ثم المحاسب، ثم الادمن، ثم المحاسب لامر التحويل.
                     </p>
                 </div>
 

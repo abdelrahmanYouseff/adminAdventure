@@ -41,6 +41,8 @@ interface Quotation {
     valid_until: string | null;
     notes: string | null;
     subtotal: number;
+    discount_percent?: number;
+    subtotal_discount?: number;
     tax_amount: number;
     total_amount: number;
     status: string;
@@ -469,6 +471,10 @@ function quotationPdfUrl(id: number): string {
                                                         <div class="flex gap-6">
                                                             <span class="text-muted-foreground">المجموع</span>
                                                             <span class="tabular-nums" dir="ltr">{{ formatPrice(quotation.subtotal) }} ر.س</span>
+                                                        </div>
+                                                        <div v-if="Number(quotation.subtotal_discount) > 0" class="flex gap-6 text-amber-700">
+                                                            <span>خصم {{ quotation.discount_percent }}%</span>
+                                                            <span class="tabular-nums" dir="ltr">- {{ formatPrice(quotation.subtotal_discount) }} ر.س</span>
                                                         </div>
                                                         <div class="flex gap-6">
                                                             <span class="text-muted-foreground">الضريبة</span>

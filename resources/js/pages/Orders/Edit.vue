@@ -27,7 +27,17 @@ import {
 import AppLayout from '@/layouts/AppLayout.vue';
 import ProductSearchCombobox from '@/components/ProductSearchCombobox.vue';
 import { formatCurrency } from '@/lib/formatNumber';
-import { fromCents, roundMoney, toCents, vatCentsFromSubtotal } from '@/lib/money';
+import {
+    clampDiscountPercent,
+    formatDiscountPercent,
+    fromCents,
+    itemAmountDrafts,
+    percentDiscountCents,
+    roundMoney,
+    toCents,
+    vatCentsFromSubtotal,
+    type ItemAmountField,
+} from '@/lib/money';
 import { isPdfFile, isPdfUrl, PAYMENT_PROOF_ACCEPT, paymentProofSelectedLabel } from '@/lib/paymentProof';
 import { ref, computed, watch, onBeforeUnmount, onMounted } from 'vue';
 
@@ -76,6 +86,7 @@ interface Props {
         status: string;
         notes: string | null;
         amount_paid: number;
+        discount_percent?: number;
         tax_amount: number;
         insurance_amount: number;
         total_amount: number;
@@ -104,6 +115,7 @@ const form = useForm({
     status: props.order.status || 'processing',
     notes: props.order.notes || '',
     amount_paid: 0 as number,
+    discount_percent: Number(props.order.discount_percent || 0),
     payment_proof: [] as File[],
     items: (props.order.items || []).map((item) => ({
         ...item,
@@ -189,10 +201,15 @@ const insuranceCents = computed(() =>
     }, 0),
 );
 const insuranceTotal = computed(() => fromCents(insuranceCents.value));
-const vatCents = computed(() => vatCentsFromSubtotal(subtotalCents.value));
+const discountPercent = computed(() => clampDiscountPercent(form.discount_percent));
+const subtotalDiscountCents = computed(() => percentDiscountCents(subtotalCents.value, discountPercent.value));
+const subtotalDiscount = computed(() => fromCents(subtotalDiscountCents.value));
+const taxableCents = computed(() => Math.max(0, subtotalCents.value - subtotalDiscountCents.value));
+const taxableSubtotal = computed(() => fromCents(taxableCents.value));
+const vatCents = computed(() => vatCentsFromSubtotal(taxableCents.value));
 const vatAmount = computed(() => fromCents(vatCents.value));
 const grandTotal = computed(() =>
-    fromCents(subtotalCents.value + vatCents.value + insuranceCents.value),
+    fromCents(taxableCents.value + vatCents.value + insuranceCents.value),
 );
 const approvedPaid = computed(() => roundMoney(Math.max(0, Number(props.order.amount_paid) || 0)));
 const pendingCommitted = computed(() =>
@@ -294,17 +311,40 @@ function removeItem(index: number) {
     form.items.splice(index, 1);
 }
 
-function updateItemPrice(index: number) {
-    const item = form.items[index];
-    const unitPrice = roundMoney(Math.max(0, Number(item.unit_price) || 0));
-    const discount = roundMoney(Math.min(unitPrice, Math.max(0, Number(item.discount_amount) || 0)));
+function inputValue(event: Event): string {
+    return event.target instanceof HTMLInputElement ? event.target.value : '';
+}
 
+// Totals follow the characters in the box. The model updates a tick later, so writing
+// a coerced 0 back into the field replaces the digit the user just typed.
+function updateItemPrice(index: number, field: ItemAmountField, event: Event) {
+    const item = form.items[index];
+    const { quantity, unitPrice, discount } = itemAmountDrafts(item, { field, value: inputValue(event) });
+
+    item.total_price = roundMoney(quantity * (unitPrice - discount));
+}
+
+function commitItemNumbers(index: number, field?: ItemAmountField, event?: Event) {
+    const item = form.items[index];
+    const editing = field && event ? { field, value: inputValue(event) } : undefined;
+    const drafts = itemAmountDrafts(item, editing);
+    const quantity = Math.max(1, Math.round(drafts.quantity) || 1);
+    const unitPrice = roundMoney(drafts.unitPrice);
+    const discount = roundMoney(Math.min(unitPrice, drafts.discount));
+
+    item.quantity = quantity;
     item.unit_price = unitPrice;
     item.discount_amount = discount;
-    item.total_price = roundMoney(Number(item.quantity || 0) * (unitPrice - discount));
+    item.total_price = roundMoney(quantity * (unitPrice - discount));
+}
+
+function commitAllItemNumbers() {
+    form.items.forEach((_, index) => commitItemNumbers(index));
 }
 
 function submit() {
+    commitAllItemNumbers();
+
     const payment = Number(form.amount_paid) || 0;
     if (payment > settleAvailable.value + 0.009) {
         form.setError('amount_paid', `المبلغ أكبر من المتبقي المتاح (${settleAvailable.value}).`);
@@ -849,7 +889,8 @@ watch(
                                                 type="number"
                                                 min="1"
                                                 class="mx-auto h-9 w-16 rounded-lg text-center tabular-nums"
-                                                @input="updateItemPrice(index)"
+                                                @input="updateItemPrice(index, 'quantity', $event)"
+                                                @blur="commitItemNumbers(index, 'quantity', $event)"
                                             />
                                         </TableCell>
                                         <TableCell>
@@ -860,7 +901,8 @@ watch(
                                                 min="0"
                                                 class="h-9 w-full min-w-[5.5rem] rounded-lg tabular-nums"
                                                 dir="ltr"
-                                                @input="updateItemPrice(index)"
+                                                @input="updateItemPrice(index, 'unit_price', $event)"
+                                                @blur="commitItemNumbers(index, 'unit_price', $event)"
                                             />
                                         </TableCell>
                                         <TableCell>
@@ -869,10 +911,10 @@ watch(
                                                 type="number"
                                                 step="0.01"
                                                 min="0"
-                                                :max="Number(item.unit_price) || 0"
                                                 class="h-9 w-full min-w-[5.5rem] rounded-lg border-amber-200 bg-amber-50/50 tabular-nums focus-visible:ring-amber-400"
                                                 dir="ltr"
-                                                @input="updateItemPrice(index)"
+                                                @input="updateItemPrice(index, 'discount_amount', $event)"
+                                                @blur="commitItemNumbers(index, 'discount_amount', $event)"
                                             />
                                             <p
                                                 v-if="Number(item.discount_amount) > 0"
@@ -880,7 +922,7 @@ watch(
                                             >
                                                 بعد الخصم:
                                                 <span dir="ltr">
-                                                    {{ formatCurrency(Number(item.unit_price) - Number(item.discount_amount)) }}
+                                                    {{ formatCurrency(Math.max(0, Number(item.unit_price) - Number(item.discount_amount))) }}
                                                 </span>
                                             </p>
                                         </TableCell>
@@ -948,6 +990,32 @@ watch(
                             <div class="flex justify-between">
                                 <span class="text-muted-foreground">بعد الخصم</span>
                                 <span class="font-medium tabular-nums" dir="ltr">{{ formatCurrency(subtotal) }}</span>
+                            </div>
+                            <div class="space-y-2 border-t border-border/60 pt-3">
+                                <Label for="discount_percent">خصم على المجموع (%)</Label>
+                                <Input
+                                    id="discount_percent"
+                                    v-model.number="form.discount_percent"
+                                    type="number"
+                                    min="0"
+                                    max="100"
+                                    step="0.01"
+                                    class="h-11 rounded-xl tabular-nums"
+                                    dir="ltr"
+                                    placeholder="0"
+                                />
+                                <p class="text-xs text-muted-foreground">
+                                    يُحسب على المجموع بعد خصم البنود، ثم تُحسب الضريبة على المتبقي.
+                                </p>
+                                <p v-if="form.errors.discount_percent" class="text-xs text-rose-600">{{ form.errors.discount_percent }}</p>
+                            </div>
+                            <div v-if="subtotalDiscount > 0" class="flex justify-between text-amber-700">
+                                <span>خصم {{ formatDiscountPercent(discountPercent) }}%</span>
+                                <span class="font-semibold tabular-nums" dir="ltr">- {{ formatCurrency(subtotalDiscount) }}</span>
+                            </div>
+                            <div v-if="subtotalDiscount > 0" class="flex justify-between">
+                                <span class="text-muted-foreground">المجموع الخاضع للضريبة</span>
+                                <span class="font-medium tabular-nums" dir="ltr">{{ formatCurrency(taxableSubtotal) }}</span>
                             </div>
                             <div class="flex justify-between">
                                 <span class="text-muted-foreground">ضريبة القيمة المضافة (15%)</span>

@@ -46,7 +46,7 @@ class InsuranceApprovalChain
                 'roles' => [User::ROLE_ADMIN],
             ],
             self::STEP_ACCOUNTS_TRANSFER => [
-                'label' => 'المحاسب — اعتماد التحويل',
+                'label' => 'المحاسب - امر التحويل',
                 'description' => 'اعتماد تحويل مبلغ الاسترداد',
                 'at' => 'insurance_accounts_approved_at',
                 'by' => 'insurance_accounts_approved_by',
@@ -58,7 +58,7 @@ class InsuranceApprovalChain
 
     public static function summary(): string
     {
-        return 'مدير العمال ← المحاسب (استلام المبلغ) ← الادمن ← المحاسب (اعتماد التحويل)';
+        return 'مدير العمال ← المحاسب (استلام المبلغ) ← الادمن ← المحاسب (امر التحويل)';
     }
 
     public static function nextPendingStep(Order $order): ?string

@@ -12,6 +12,7 @@ use App\Services\OrderPaymentReceiptService;
 use App\Support\MediaStorage;
 use App\Support\OrderInsuranceCalculator;
 use App\Support\OrderNotePurger;
+use App\Support\SubtotalDiscount;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -192,6 +193,8 @@ class OrderController extends Controller
         $breakdown = $this->orderChargeBreakdown($order);
         $order->setAttribute('total_amount', $breakdown['grand']);
         $order->setAttribute('tax_amount', $breakdown['tax']);
+        $order->setAttribute('discount_percent', $breakdown['discount_percent']);
+        $order->setAttribute('subtotal_discount', $breakdown['discount_amount']);
         $order->setAttribute(
             'remaining_amount',
             round(max(0, $breakdown['grand'] - (float) ($order->amount_paid ?? 0)), 2)
@@ -380,6 +383,7 @@ class OrderController extends Controller
                 'status' => $order->status,
                 'notes' => $order->notes,
                 'amount_paid' => (float) ($order->amount_paid ?? 0),
+                'discount_percent' => $breakdown['discount_percent'],
                 'tax_amount' => $breakdown['tax'],
                 'insurance_amount' => $breakdown['insurance'],
                 'total_amount' => $breakdown['grand'],
@@ -427,6 +431,7 @@ class OrderController extends Controller
             'status' => ['required', 'string', 'in:pending,processing,paid,cancelled'],
             'notes' => ['nullable', 'string', 'max:1000'],
             'amount_paid' => ['nullable', 'numeric', 'min:0'],
+            'discount_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'account_number' => ['nullable', 'string', 'max:100'],
             'payment_proof' => ['nullable', 'array', 'max:10'],
             'payment_proof.*' => ['file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:5120'],
@@ -540,8 +545,10 @@ class OrderController extends Controller
         $productIds = collect($attachLines)->pluck('product_id')->unique()->values()->all();
 
         $chargeSubtotal = round($totalAmount, 2);
-        $taxAmount = round($chargeSubtotal * 0.15, 2);
-        $chargeAmount = round($chargeSubtotal + $taxAmount + $insuranceTotal, 2);
+        $priced = $this->pricedOrderCharge($chargeSubtotal, $validated['discount_percent'] ?? 0, $insuranceTotal);
+        $taxAmount = $priced['tax_amount'];
+        $chargeAmount = $priced['charge_amount'];
+        $discountPercent = $priced['discount_percent'];
 
         $newPayment = array_key_exists('amount_paid', $validated) && $validated['amount_paid'] !== null
             ? round((float) $validated['amount_paid'], 2)
@@ -576,6 +583,7 @@ class OrderController extends Controller
             $attachLines,
             $chargeAmount,
             $discountTotal,
+            $discountPercent,
             $taxAmount,
             $insuranceTotal,
             $productIds,
@@ -595,6 +603,7 @@ class OrderController extends Controller
                 'dismantling_at' => $validated['dismantling_at'] ?? null,
                 'total_amount' => $chargeAmount,
                 'discount_total' => $discountTotal,
+                'discount_percent' => $discountPercent,
                 'tax_amount' => $taxAmount,
                 'insurance_amount' => $insuranceTotal,
                 'insurance_status' => $insuranceTotal > 0
@@ -715,6 +724,7 @@ class OrderController extends Controller
             'payment_method' => ['required', 'string', 'in:credit_card,cash,bank_transfer,paypal,noon'],
             'status' => ['required', 'string', 'in:pending,processing,paid,cancelled'],
             'amount_paid' => ['nullable', 'numeric', 'min:0'],
+            'discount_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'payment_proof' => ['nullable', 'array', 'max:10'],
             'payment_proof.*' => ['file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:5120'],
             'notes' => ['nullable', 'string', 'max:1000'],
@@ -830,8 +840,10 @@ class OrderController extends Controller
         $productIds = collect($attachLines)->pluck('product_id')->unique()->values()->all();
 
         $chargeSubtotal = round($totalAmount, 2);
-        $taxAmount = round($chargeSubtotal * 0.15, 2);
-        $chargeAmount = round($chargeSubtotal + $taxAmount + $insuranceTotal, 2);
+        $priced = $this->pricedOrderCharge($chargeSubtotal, $validated['discount_percent'] ?? 0, $insuranceTotal);
+        $taxAmount = $priced['tax_amount'];
+        $chargeAmount = $priced['charge_amount'];
+        $discountPercent = $priced['discount_percent'];
         $amountPaid = array_key_exists('amount_paid', $validated) && $validated['amount_paid'] !== null
             ? round((float) $validated['amount_paid'], 2)
             : ($validated['status'] === 'paid' ? $chargeAmount : 0.0);
@@ -858,6 +870,7 @@ class OrderController extends Controller
             $attachLines,
             $chargeAmount,
             $discountTotal,
+            $discountPercent,
             $taxAmount,
             $initialStatus,
             $userId,
@@ -878,6 +891,7 @@ class OrderController extends Controller
                 'order_number' => Order::generateOrderNumber(),
                 'total_amount' => $chargeAmount,
                 'discount_total' => $discountTotal,
+                'discount_percent' => $discountPercent,
                 'tax_amount' => $taxAmount,
                 'amount_paid' => 0,
                 'insurance_amount' => $insuranceTotal,
@@ -1515,7 +1529,7 @@ class OrderController extends Controller
     /**
      * Charge breakdown matching Orders/Edit: subtotal + 15% VAT + insurance.
      *
-     * @return array{subtotal: float, tax: float, insurance: float, grand: float}
+     * @return array{subtotal: float, discount_percent: float, discount_amount: float, tax: float, insurance: float, grand: float}
      */
     private function orderChargeBreakdown(Order $order): array
     {
@@ -1544,15 +1558,19 @@ class OrderController extends Controller
 
         $subtotal = round($subtotal, 2);
         $insurance = round((float) ($order->insurance_amount ?? 0), 2);
+        $priced = SubtotalDiscount::apply($subtotal, $order->discount_percent ?? 0);
+        $taxableSubtotal = $priced['discount_percent'] > 0 ? $priced['taxable_subtotal'] : $subtotal;
         $tax = round((float) ($order->tax_amount ?? 0), 2);
 
-        if ($tax <= 0.009 && $subtotal > 0) {
+        if ($priced['discount_percent'] > 0) {
+            $tax = $priced['tax_amount'];
+        } elseif ($tax <= 0.009 && $subtotal > 0) {
             $tax = round($subtotal * 0.15, 2);
         }
 
         $storedTotal = round((float) $order->total_amount, 2);
-        $netPlusInsurance = round($subtotal + $insurance, 2);
-        $grandFromParts = round($subtotal + $tax + $insurance, 2);
+        $netPlusInsurance = round($taxableSubtotal + $insurance, 2);
+        $grandFromParts = round($taxableSubtotal + $tax + $insurance, 2);
 
         if ($subtotal <= 0.009) {
             $grand = $storedTotal;
@@ -1568,9 +1586,27 @@ class OrderController extends Controller
 
         return [
             'subtotal' => $subtotal,
+            'discount_percent' => $priced['discount_percent'],
+            'discount_amount' => $priced['discount_amount'],
             'tax' => $tax,
             'insurance' => $insurance,
             'grand' => round($grand, 2),
+        ];
+    }
+
+    /**
+     * Line subtotal, then a percentage discount, then 15% VAT, plus insurance.
+     *
+     * @return array{discount_percent: float, tax_amount: float, charge_amount: float}
+     */
+    private function pricedOrderCharge(float $lineSubtotal, mixed $discountPercent, float $insuranceTotal): array
+    {
+        $priced = SubtotalDiscount::apply($lineSubtotal, $discountPercent);
+
+        return [
+            'discount_percent' => $priced['discount_percent'],
+            'tax_amount' => $priced['tax_amount'],
+            'charge_amount' => round($priced['total_amount'] + round($insuranceTotal, 2), 2),
         ];
     }
 

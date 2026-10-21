@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ArrowRight, User, Mail, Phone, CreditCard, Calendar, Package, HardHat, Pencil, Copy, Check, Trash2, MessageSquareText } from 'lucide-vue-next';
 import { formatCurrency, formatDate, formatDateTime, formatInteger } from '@/lib/formatNumber';
+import { formatDiscountPercent } from '@/lib/money';
 
 interface OrderItem {
     name: string;
@@ -62,6 +63,8 @@ interface Order {
     customer_phone: string | null;
     total_amount: number;
     discount_total?: number | null;
+    discount_percent?: number | null;
+    subtotal_discount?: number | null;
     amount_paid?: number | null;
     remaining_amount?: number | null;
     currency: string;
@@ -446,6 +449,12 @@ const orderItems = () => {
                         <span>إجمالي الخصم</span>
                         <span class="font-semibold tabular-nums" dir="ltr">
                             - {{ formatCurrency(Number(order.discount_total), order.currency) }}
+                        </span>
+                    </div>
+                    <div v-if="Number(order.subtotal_discount ?? 0) > 0" class="flex justify-between text-amber-700">
+                        <span>خصم {{ formatDiscountPercent(order.discount_percent) }}% على المجموع</span>
+                        <span class="font-semibold tabular-nums" dir="ltr">
+                            - {{ formatCurrency(Number(order.subtotal_discount), order.currency) }}
                         </span>
                     </div>
                     <div class="flex justify-between">

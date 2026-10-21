@@ -340,12 +340,21 @@
                 {{ $data->discountTotal() > 0 ? '- '.$data->formatSar($data->discountTotal(), 2) : 'SAR -' }}
             </td>
         </tr>
+        @if($data->hasSubtotalDiscount())
+            <tr>
+                <td colspan="5" align="right" dir="ltr" style="font-weight: bold; background-color: #f5f5f5; text-align: right;">
+                    <span class="total-en">{{ $data->discountPercentLabel() }}% OFF SUBTOTAL / </span>
+                    <span class="total-label" style="font-family: xbriyaz, dejavusans, sans-serif;">خصم {{ $data->discountPercentLabel() }}% على المجموع</span>
+                </td>
+                <td align="center" style="font-weight: bold; background-color: #f5f5f5;">- {{ $data->formatSar($data->subtotalDiscount(), 2) }}</td>
+            </tr>
+        @endif
         <tr>
             <td colspan="5" align="right" dir="ltr" style="font-weight: bold; background-color: #f5f5f5; text-align: right;">
                 <span class="total-en">SUBTOTAL BEFORE VAT / </span>
                 <span class="total-label" style="font-family: xbriyaz, dejavusans, sans-serif;">الإجمالي قبل الضريبة</span>
             </td>
-            <td align="center" style="font-weight: bold; background-color: #f5f5f5;">{{ $data->formatSar($data->subtotal(), 2) }}</td>
+            <td align="center" style="font-weight: bold; background-color: #f5f5f5;">{{ $data->formatSar($data->taxableSubtotal(), 2) }}</td>
         </tr>
         <tr>
             <td colspan="5" align="right" dir="ltr" style="font-weight: bold; background-color: #f5f5f5; text-align: right;">

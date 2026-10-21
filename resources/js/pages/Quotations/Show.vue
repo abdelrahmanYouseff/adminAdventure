@@ -8,6 +8,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { ArrowLeft, Edit, Download, MoreHorizontal, Send, Check, X, Clock } from 'lucide-vue-next';
 import AppSidebarLayout from '@/layouts/app/AppSidebarLayout.vue';
 import { formatCurrency, formatDate, formatInteger } from '@/lib/formatNumber';
+import { formatDiscountPercent, fromCents, percentDiscountCents, toCents } from '@/lib/money';
 
 interface QuotationItem {
     id: number;
@@ -30,6 +31,7 @@ interface Quotation {
     notes: string;
     subtotal: number;
     discount_total: number;
+    discount_percent?: number;
     tax_amount: number;
     total_amount: number;
     status: string;
@@ -45,6 +47,11 @@ interface Props {
 }
 
 const props = defineProps<Props>();
+
+const subtotalDiscount = fromCents(
+    percentDiscountCents(toCents(props.quotation.subtotal), props.quotation.discount_percent || 0),
+);
+const taxableSubtotal = fromCents(Math.max(0, toCents(props.quotation.subtotal) - toCents(subtotalDiscount)));
 
 const getStatusBadgeVariant = (status: string) => {
     switch (status) {
@@ -243,6 +250,14 @@ function quotationPdfUrl(id: number): string {
                         <div class="flex justify-between">
                             <span>Subtotal after discount:</span>
                             <span class="tabular-nums" dir="ltr">{{ formatCurrency(quotation.subtotal) }}</span>
+                        </div>
+                        <div v-if="subtotalDiscount > 0" class="flex justify-between text-amber-700">
+                            <span>Discount {{ formatDiscountPercent(quotation.discount_percent) }}%:</span>
+                            <span class="tabular-nums" dir="ltr">- {{ formatCurrency(subtotalDiscount) }}</span>
+                        </div>
+                        <div v-if="subtotalDiscount > 0" class="flex justify-between">
+                            <span>Taxable subtotal:</span>
+                            <span class="tabular-nums" dir="ltr">{{ formatCurrency(taxableSubtotal) }}</span>
                         </div>
                         <div class="flex justify-between">
                             <span>Tax (15%):</span>

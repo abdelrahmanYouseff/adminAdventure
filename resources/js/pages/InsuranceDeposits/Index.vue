@@ -236,7 +236,7 @@ function saveEditAmount(deposit: Deposit) {
 async function approveNext(deposit: Deposit) {
     if (!deposit.can_approve_next) {
         const waiting = deposit.next_approval_label
-            ? `الاعتماد واقف عند ${deposit.next_approval_label}. السلسلة: ${deposit.approval_chain_summary || 'مدير العمال ← المحاسب (استلام المبلغ) ← الادمن ← المحاسب (اعتماد التحويل)'}.`
+            ? `الاعتماد واقف عند ${deposit.next_approval_label}. السلسلة: ${deposit.approval_chain_summary || 'مدير العمال ← المحاسب (استلام المبلغ) ← الادمن ← المحاسب (امر التحويل)'}.`
             : 'اكتملت سلسلة التعميدات مسبقاً.';
 
         await Swal.fire({
@@ -271,7 +271,7 @@ async function markRefunded(deposit: Deposit) {
         await Swal.fire({
             icon: 'info',
             title: 'لا يمكن الاسترداد الآن',
-            text: 'يجب اكتمال سلسلة التعميدات أولاً: مدير العمال ← المحاسب (استلام المبلغ) ← الادمن ← المحاسب (اعتماد التحويل).',
+            text: 'يجب اكتمال سلسلة التعميدات أولاً: مدير العمال ← المحاسب (استلام المبلغ) ← الادمن ← المحاسب (امر التحويل).',
             confirmButtonText: 'حسناً',
             confirmButtonColor: '#2563EB',
         });
@@ -300,7 +300,7 @@ async function markWithheld(deposit: Deposit) {
         await Swal.fire({
             icon: 'info',
             title: 'لا يمكن الحجز الآن',
-            text: 'يجب اكتمال سلسلة التعميدات أولاً: مدير العمال ← المحاسب (استلام المبلغ) ← الادمن ← المحاسب (اعتماد التحويل).',
+            text: 'يجب اكتمال سلسلة التعميدات أولاً: مدير العمال ← المحاسب (استلام المبلغ) ← الادمن ← المحاسب (امر التحويل).',
             confirmButtonText: 'حسناً',
             confirmButtonColor: '#2563EB',
         });

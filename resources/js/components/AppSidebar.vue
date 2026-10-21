@@ -60,6 +60,12 @@ const allNavItems: NavItemWithRoles[] = [
         roles: ['admin', 'general_manager', 'manager'],
     },
     {
+        title: 'عروض الأسعار',
+        href: '/quotations',
+        icon: FileSpreadsheet,
+        roles: ['admin', 'general_manager', 'manager', 'accounts'],
+    },
+    {
         title: 'المنتجات',
         icon: ShoppingBag,
         roles: ['admin', 'general_manager', 'manager'],
@@ -212,12 +218,6 @@ const allNavItems: NavItemWithRoles[] = [
                 roles: ['admin', 'general_manager', 'manager'],
             },
         ],
-    },
-    {
-        title: 'عروض الأسعار',
-        href: '/quotations',
-        icon: FileSpreadsheet,
-        roles: ['admin', 'general_manager', 'manager', 'accounts'],
     },
     {
         title: 'Email Logs',

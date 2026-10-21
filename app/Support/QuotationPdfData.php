@@ -332,6 +332,31 @@ class QuotationPdfData
         return round((float) ($this->quotation->discount_total ?? 0), 2);
     }
 
+    public function discountPercent(): float
+    {
+        return SubtotalDiscount::normalizePercent($this->quotation->discount_percent ?? 0);
+    }
+
+    public function discountPercentLabel(): string
+    {
+        return SubtotalDiscount::formatPercent($this->discountPercent());
+    }
+
+    public function subtotalDiscount(): float
+    {
+        return SubtotalDiscount::apply($this->subtotal(), $this->discountPercent())['discount_amount'];
+    }
+
+    public function hasSubtotalDiscount(): bool
+    {
+        return $this->subtotalDiscount() > 0.009;
+    }
+
+    public function taxableSubtotal(): float
+    {
+        return SubtotalDiscount::apply($this->subtotal(), $this->discountPercent())['taxable_subtotal'];
+    }
+
     public function grossSubtotal(): float
     {
         return round($this->subtotal() + $this->discountTotal(), 2);

@@ -12,6 +12,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use App\Support\MediaStorage;
+use App\Support\SubtotalDiscount;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -658,6 +659,8 @@ class CustomerController extends Controller
             'notes' => $quotation->notes,
             'subtotal' => (float) $quotation->subtotal,
             'discount_total' => (float) ($quotation->discount_total ?? 0),
+            'discount_percent' => SubtotalDiscount::normalizePercent($quotation->discount_percent ?? 0),
+            'subtotal_discount' => SubtotalDiscount::apply((float) $quotation->subtotal, $quotation->discount_percent ?? 0)['discount_amount'],
             'tax_amount' => (float) $quotation->tax_amount,
             'insurance_amount' => (float) ($quotation->insurance_amount ?? 0),
             'total_amount' => (float) $quotation->total_amount,

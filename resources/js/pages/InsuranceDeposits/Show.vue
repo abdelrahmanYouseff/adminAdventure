@@ -127,7 +127,7 @@ async function approveNext() {
 
     if (!deposit.can_approve_next) {
         const waiting = deposit.next_approval_label
-            ? `الاعتماد واقف عند ${deposit.next_approval_label}. السلسلة: ${deposit.approval_chain_summary || 'مدير العمال ← المحاسب (استلام المبلغ) ← الادمن ← المحاسب (اعتماد التحويل)'}.`
+            ? `الاعتماد واقف عند ${deposit.next_approval_label}. السلسلة: ${deposit.approval_chain_summary || 'مدير العمال ← المحاسب (استلام المبلغ) ← الادمن ← المحاسب (امر التحويل)'}.`
             : 'اكتملت سلسلة التعميدات مسبقاً.';
 
         await Swal.fire({
@@ -256,7 +256,7 @@ function submitNote() {
                     </Link>
                     <h1 class="text-2xl font-bold text-slate-900">مراجعة التركيب</h1>
                     <p class="mt-1 text-sm text-slate-500">
-                        سلسلة الاعتماد: مدير العمال ← المحاسب (استلام المبلغ) ← الادمن ← المحاسب (اعتماد التحويل)
+                        سلسلة الاعتماد: مدير العمال ← المحاسب (استلام المبلغ) ← الادمن ← المحاسب (امر التحويل)
                     </p>
                 </div>
                 <span

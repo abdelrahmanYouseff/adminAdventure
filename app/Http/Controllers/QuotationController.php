@@ -15,6 +15,7 @@ use App\Services\QuotationPdfService;
 use App\Support\MediaStorage;
 use App\Support\OrderInsuranceCalculator;
 use App\Support\QuotationDefaultTerms;
+use App\Support\SubtotalDiscount;
 use App\Support\QuotationPdfData;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -382,6 +383,7 @@ class QuotationController extends Controller
             'installation_at' => 'nullable|date',
             'dismantling_at' => 'nullable|date|after_or_equal:installation_at',
             'insurance_amount' => 'nullable|numeric|min:0',
+            'discount_percent' => 'nullable|numeric|min:0|max:100',
             'amount_paid' => 'nullable|numeric|min:0',
             'show_online_payment' => 'nullable|boolean',
             'skip_work_order' => 'nullable|boolean',
@@ -420,6 +422,9 @@ class QuotationController extends Controller
             'dismantling_at.after_or_equal' => 'تاريخ الفك يجب أن يكون بعد أو يساوي تاريخ التركيب.',
             'insurance_amount.numeric' => 'مبلغ التأمين غير صالح.',
             'insurance_amount.min' => 'مبلغ التأمين لا يمكن أن يكون سالباً.',
+            'discount_percent.numeric' => 'نسبة الخصم غير صالحة.',
+            'discount_percent.min' => 'نسبة الخصم لا يمكن أن تكون سالبة.',
+            'discount_percent.max' => 'نسبة الخصم لا يمكن أن تتجاوز 100.',
             'amount_paid.numeric' => 'المبلغ المدفوع غير صالح.',
             'amount_paid.min' => 'المبلغ المدفوع لا يمكن أن يكون سالباً.',
             'payment_proof.array' => 'مرفقات التحويل يجب أن تكون قائمة ملفات.',
@@ -513,14 +518,16 @@ class QuotationController extends Controller
                 ? round((float) $request->insurance_amount, 2)
                 : OrderInsuranceCalculator::fromLines($request->items)['total'];
 
-            $taxAmount = round($subtotal * 0.15, 2);
-            $totalAmount = round($subtotal + $taxAmount, 2);
+            $priced = SubtotalDiscount::apply($subtotal, $request->input('discount_percent'));
+            $taxAmount = $priced['tax_amount'];
+            $totalAmount = $priced['total_amount'];
             $amountPaid = round((float) ($request->input('amount_paid') ?? 0), 2);
             $amountPaid = max(0, min($amountPaid, $totalAmount));
 
             $quotation->update([
                 'subtotal' => $subtotal,
                 'discount_total' => $discountTotal,
+                'discount_percent' => $priced['discount_percent'],
                 'tax_amount' => $taxAmount,
                 'insurance_amount' => $insuranceAmount,
                 'total_amount' => $totalAmount,
@@ -668,6 +675,7 @@ class QuotationController extends Controller
             'installation_at' => 'nullable|date',
             'dismantling_at' => 'nullable|date|after_or_equal:installation_at',
             'insurance_amount' => 'nullable|numeric|min:0',
+            'discount_percent' => 'nullable|numeric|min:0|max:100',
             'amount_paid' => 'nullable|numeric|min:0',
             'show_online_payment' => 'nullable|boolean',
             'skip_work_order' => 'nullable|boolean',
@@ -685,6 +693,10 @@ class QuotationController extends Controller
             'items.*.quantity' => 'required|integer|min:1',
             'items.*.unit_price' => 'required|numeric|min:0',
             'items.*.discount_amount' => 'nullable|numeric|min:0|lte:items.*.unit_price',
+        ], [
+            'discount_percent.numeric' => 'نسبة الخصم غير صالحة.',
+            'discount_percent.min' => 'نسبة الخصم لا يمكن أن تكون سالبة.',
+            'discount_percent.max' => 'نسبة الخصم لا يمكن أن تتجاوز 100.',
         ]);
 
         foreach ($request->items as $index => $item) {
@@ -759,14 +771,16 @@ class QuotationController extends Controller
                 ? round((float) $request->insurance_amount, 2)
                 : OrderInsuranceCalculator::fromLines($request->items)['total'];
 
-            $taxAmount = round($subtotal * 0.15, 2);
-            $totalAmount = round($subtotal + $taxAmount, 2);
+            $priced = SubtotalDiscount::apply($subtotal, $request->input('discount_percent'));
+            $taxAmount = $priced['tax_amount'];
+            $totalAmount = $priced['total_amount'];
             $amountPaid = round((float) ($request->input('amount_paid') ?? 0), 2);
             $amountPaid = max(0, min($amountPaid, $totalAmount));
 
             $quotation->update([
                 'subtotal' => $subtotal,
                 'discount_total' => $discountTotal,
+                'discount_percent' => $priced['discount_percent'],
                 'tax_amount' => $taxAmount,
                 'insurance_amount' => $insuranceAmount,
                 'total_amount' => $totalAmount,
